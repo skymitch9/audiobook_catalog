@@ -1,7 +1,14 @@
+#Folders to exclude
+old_versions/
+temp/
+output_files/
+logs/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
 *$py.class
+*.pyc
 
 # C extensions
 *.so
@@ -143,6 +150,8 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+.DS_Store
+Thumbs.db
 
 # Spyder project settings
 .spyderproject
