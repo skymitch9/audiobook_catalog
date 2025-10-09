@@ -1,28 +1,50 @@
 # app/web/html_builder.py
 # Builds the HTML page by filling the template with generated table rows and cards.
-
 from __future__ import annotations
 from pathlib import Path
 from typing import List, Dict, Optional
 import html
 
 TEMPLATE_DIR  = Path(__file__).parent / "templates"
-STATIC_DIR    = Path(__file__).parent / "static"   # <-- restored so writers.stage_site_files can import it
+STATIC_DIR    = Path(__file__).parent / "static"   # kept for other assets if you have them
 TEMPLATE_FILE = TEMPLATE_DIR / "index.html"
 
 def _esc(s: str) -> str:
     return html.escape(s or "")
+
+def _cover_button(r: Dict[str, str], inline: bool=False) -> str:
+    """
+    Wrap cover <img> in a button with data-* attributes used by the modal.
+    If no cover, returns empty string.
+    """
+    cover = r.get("cover_href") or ""
+    if not cover:
+        return ""
+    cls = "cover-btn inline" if inline else "cover-btn"
+    # Data attributes: keep short names to minimize HTML size
+    data_attrs = " ".join([
+        f'data-cover="{_esc(cover)}"',
+        f'data-title="{_esc(r.get("title",""))}"',
+        f'data-series="{_esc(r.get("series",""))}"',
+        f'data-index="{_esc(r.get("series_index_display",""))}"',
+        f'data-author="{_esc(r.get("author",""))}"',
+        f'data-narrator="{_esc(r.get("narrator",""))}"',
+        f'data-year="{_esc(r.get("year",""))}"',
+        f'data-genre="{_esc(r.get("genre",""))}"',
+        f'data-duration="{_esc(r.get("duration_hhmm",""))}"',
+        f'data-desc="{_esc(r.get("desc",""))}"'  # may be empty if not provided
+    ])
+    img_cls = "cover-inline" if inline else "cover"
+    return f'<button class="{cls}" {data_attrs}><img class="{img_cls}" src="{_esc(cover)}" alt="Cover of {_esc(r.get("title",""))}" loading="lazy" /></button>'
 
 def _row_cells(r: Dict[str, str]) -> str:
     """
     ORDER must match the header in templates/index.html.
     '#' cell shows series_index_display but sorts by data-sort=series_index_sort.
     """
-    cover = r.get("cover_href") or ""
-    cover_html = f'<img class="cover" src="{_esc(cover)}" alt="" loading="lazy"/>' if cover else ""
-
+    cover_html = _cover_button(r, inline=False)
     return "".join([
-        f"<td>{cover_html}</td>",  # first cell styled via td:first-child in template CSS
+        f"<td>{cover_html}</td>",
         f"<td>{_esc(r.get('title',''))}</td>",
         f"<td>{_esc(r.get('series',''))}</td>",
         f'<td data-sort="{_esc(r.get("series_index_sort",""))}">{_esc(r.get("series_index_display",""))}</td>',
@@ -37,7 +59,7 @@ def _table_rows_html(rows: List[Dict[str, str]]) -> str:
     return "".join(f"<tr>{_row_cells(r)}</tr>" for r in rows)
 
 def _card_html(r: Dict[str, str]) -> str:
-    # data-* attrs used for sorting/pagination in app.js
+    # data-* attrs for sorting in cards
     attrs = {
         "title": r.get("title",""),
         "series": r.get("series",""),
@@ -49,8 +71,7 @@ def _card_html(r: Dict[str, str]) -> str:
         "duration_hhmm": r.get("duration_hhmm",""),
     }
     data_attrs = " ".join(f'data-{k}="{_esc(v)}"' for k, v in attrs.items())
-
-    thumb = f'<img class="cover cover-inline" src="{_esc(r["cover_href"])}" alt="" loading="lazy"/>' if r.get("cover_href") else ""
+    thumb = _cover_button(r, inline=True)
 
     chips = []
     if r.get("series"):               chips.append(f'<span class="ab-chip">Series: {_esc(r["series"])}</span>')
