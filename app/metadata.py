@@ -1,9 +1,13 @@
+# app/metadata.py
+# Read MP4/M4B tags with Mutagen and (only if needed) parse series/index from title.
+
 import re
 from pathlib import Path
 from typing import Optional, Tuple, Dict, List
 
 from mutagen.mp4 import MP4, MP4FreeForm
 
+# ---------- Tag keys ----------
 # MP4/iTunes atoms
 K_TITLE   = "\xa9nam"     # Title
 K_ARTIST  = "\xa9ART"     # Author(s)
@@ -11,15 +15,17 @@ K_WRITER  = "\xa9wrt"     # Narrator
 K_DAY     = "\xa9day"     # Year/Date
 K_GENRE   = "\xa9gen"     # Genre
 
-# Vendor atoms (Audible-style)
+# Vendor atoms (Audible-style that you provided)
 K_SERIES_VENDOR = "SRNM"  # Series Name
 K_INDEX_VENDOR  = "SRSQ"  # Series Sequence (e.g., 2.1)
 
+# Free-form keys (----:com.apple.iTunes:*)
 FREEFORM_HINTS = {
     "series": ["series", "book series", "audible:series", "audible:seriesname"],
     "series_index": ["series index", "series_index", "audible:seriessequence", "series number", "series_no"],
 }
 
+# ---------- helpers for index normalization ----------
 _WORD_NUM = {
     "one":1,"two":2,"three":3,"four":4,"five":5,"six":6,"seven":7,"eight":8,"nine":9,"ten":10,
     "eleven":11,"twelve":12,"thirteen":13,"fourteen":14,"fifteen":15,"sixteen":16,"seventeen":17,
@@ -48,13 +54,17 @@ def _roman_to_int(s: str) -> Optional[int]:
 def _normalize_index(tok: str) -> str:
     if not tok: return ""
     t = tok.strip()
+    # allow numeric ranges e.g. "1-3"
     m = re.match(r"^\s*(\d+(?:\.\d+)?)\s*[-–—]\s*(\d+(?:\.\d+)?)\s*$", t)
     if m: return f"{m.group(1)}-{m.group(2)}"
+    # integer/decimal
     if re.fullmatch(r"\d+(?:\.\d+)?", t): return t
+    # roman
     r = _roman_to_int(t)
-    if r: return str(r)
+    if r is not None: return str(r)
+    # word(s)
     w = _word_to_num(t)
-    if w: return str(w)
+    if w is not None: return str(w)
     return t
 
 def _sort_key_for_index(display_val: str) -> Optional[float]:
@@ -73,6 +83,7 @@ def _sort_key_for_index(display_val: str) -> Optional[float]:
     if w is not None: return float(w)
     return None
 
+# ---------- tag access helpers ----------
 def bytes_to_str(b: bytes) -> str:
     for enc in ("utf-8","utf-16","latin-1"):
         try: return b.decode(enc).strip()
@@ -107,71 +118,22 @@ def get_freeform_by_suffix(tags: Dict, suffixes: List[str]) -> Optional[str]:
                 if joined.strip(): return joined.strip()
     return None
 
-_PATTERNS = [
-    re.compile(r"""
-        (?:^.+?\s[-–—]\s)?
-        (?P<series7>[^:()]+?)\s*:\s*
-        (?:(?:book|bk\.?|volume|vol\.?|novella|part)s?\s*)
-        (?P<idx7>[IVXLCM]+|\d+|[A-Za-z]+(?:\s+[A-Za-z]+)?)\b
-    """, re.IGNORECASE | re.X),
-    re.compile(r"""
-        (?:^.+?\s[-–—]\s)?
-        (?P<series9>[^:()]+?)\s*:\s*
-        (?P<idx9>[IVXLCM]+|\d+|[A-Za-z]+(?:\s+[A-Za-z]+)?)\b
-    """, re.IGNORECASE | re.X),
-    re.compile(r""".+?\s[-–—]\s
-                   (?P<series>[^,()]+?)\s*,\s*
-                   (?:(?:book|bk\.?|volume|vol\.?|novella|part)s?\s*)
-                   (?P<idx>[IVXLCM]+|\d+|[A-Za-z]+(?:\s+[A-Za-z]+)?(?:\s*[-–—]\s*\d+)?)
-                   \b""", re.IGNORECASE | re.X),
-    re.compile(r""".+?\(
-                   (?P<series>[^()#]+?)\s*
-                   (?:,)?\s*
-                   (?:(?:book|bk\.?|volume|vol\.?|novella|part)\s*(?P<idx1>[IVXLCM]+|\d+|[A-Za-z]+)
-                     |[#]\s*(?P<idx2>\d+|[IVXLCM]+|[A-Za-z]+))
-                   \)""", re.IGNORECASE | re.X),
-    re.compile(r""".+?\s[-–—]\s
-                   (?:(?:book|bk\.?|volume|vol\.?|novella|part)\s*(?P<idx3>[IVXLCM]+|\d+|[A-Za-z]+))\s*
-                   (?:of|in)\s+the\s+
-                   (?P<series2>[^,()]+?)\s*$""", re.IGNORECASE | re.X),
-    re.compile(r""".+?\s[-–—]\s
-                   (?P<series3>[^,()]+?)\s*,\s*
-                   (?:(?:book|bk\.?|volume|vol\.?|novella|part)s?)\s*(?P<idx4>\d+\s*[-–—]\s*\d+)
-                   \b""", re.IGNORECASE | re.X),
-    re.compile(r""".+?\((?P<series5>[^()#]+?)\s*[,#]?\s*#\s*(?P<idx6>\d+)\)""", re.IGNORECASE | re.X),
-]
-
 def _cleanup_series(name: Optional[str]) -> Optional[str]:
     if not name: return None
     s = re.sub(r"\bseries\b\s*$", "", name, flags=re.IGNORECASE).strip(" -–—:,")
     return re.sub(r"\s{2,}", " ", s).strip()
 
-def parse_series_and_index_from_title(title: str) -> Tuple[Optional[str], Optional[str]]:
-    if not title: return (None, None)
-    for pat in _PATTERNS:
-        m = pat.search(title)
-        if not m: continue
-        series = None; idx = None
-        for g in ("series","series2","series3","series5","series7","series9"):
-            if m.groupdict().get(g):
-                series = _cleanup_series(m.group(g)); break
-        for g in ("idx","idx1","idx2","idx3","idx4","idx6","idx7","idx9"):
-            if m.groupdict().get(g):
-                idx = _normalize_index(m.group(g)); break
-        if series or idx: return (series, idx)
-    return (None, None)
-
 def normalize_people_field(s: Optional[str]) -> Optional[str]:
     if not s: return None
-    import re as _re
-    parts = _re.split(r"[;,/&]| and ", s, flags=_re.IGNORECASE)
+    parts = re.split(r"[;,/&]| and ", s, flags=re.IGNORECASE)
     cleaned, seen = [], set()
     for p in parts:
-        name = _re.sub(r"\s+", " ", p).strip()
+        name = re.sub(r"\s+", " ", p).strip()
         if not name: continue
         norm = name if (name.isupper() and len(name) <= 5) else " ".join(w.capitalize() for w in name.split())
-        if norm.lower() not in seen:
-            seen.add(norm.lower()); cleaned.append(norm)
+        key = norm.lower()
+        if key not in seen:
+            seen.add(key); cleaned.append(norm)
     return ", ".join(cleaned) if cleaned else None
 
 def sec_to_hhmm(s: Optional[int]) -> str:
@@ -181,7 +143,84 @@ def sec_to_hhmm(s: Optional[int]) -> str:
     h = s // 3600; m = (s % 3600) // 60
     return f"{h}:{m:02d}"
 
+# ---------- minimal, conservative fallback patterns ----------
+# Only used if SRNM/SRSQ and free-form series tags don't yield a result.
+_PATTERNS = [
+    # 1) "Series (Volume 1)" / "Series (Book 2)" / "Series (Part IV)"
+    re.compile(r"""
+        ^\s*
+        (?P<series>.+?)
+        \s*\(\s*
+        (?:(?:book|bk\.?|volume|vol\.?|novella|part)\s*)
+        (?P<idx>[IVXLCM]+|\d+|[A-Za-z]+(?:\s+[A-Za-z]+)?)
+        \s*\)
+        \s*$
+    """, re.IGNORECASE | re.X),
+
+    # 2) "Title (Series #3)"
+    re.compile(r"""
+        .+?\(
+        (?P<series>[^()#]+?)\s*[,#]?\s*#\s*
+        (?P<idx>\d+|[IVXLCM]+|[A-Za-z]+(?:\s+[A-Za-z]+)?)
+        \)
+    """, re.IGNORECASE | re.X),
+
+    # 3) "Title – Series, Book 3"
+    re.compile(r"""
+        .+?\s[-–—]\s
+        (?P<series>[^,()]+?)\s*,\s*
+        (?:(?:book|bk\.?|volume|vol\.?|novella|part)s?\s*)
+        (?P<idx>[IVXLCM]+|\d+|[A-Za-z]+(?:\s+[A-Za-z]+)?(?:\s*[-–—]\s*\d+)?)
+        \b
+    """, re.IGNORECASE | re.X),
+
+    # 4) Colon w/ keyword — "Title - Series: Novella 1" / "Series: Book 3"
+    re.compile(r"""
+        (?:^.+?\s[-–—]\s)?     # optional "Title – "
+        (?P<series>[^:()]+?)\s*:\s*
+        (?:(?:book|bk\.?|volume|vol\.?|novella|part)s?\s*)
+        (?P<idx>[IVXLCM]+|\d+|[A-Za-z]+(?:\s+[A-Za-z]+)?)
+        (?:\b|$)
+    """, re.IGNORECASE | re.X),
+
+    # 5) Minimal colon — "Title - Series: 3"
+    re.compile(r"""
+        (?:^.+?\s[-–—]\s)?
+        (?P<series>[^:()]+?)\s*:\s*
+        (?P<idx>[IVXLCM]+|\d+|[A-Za-z]+(?:\s+[A-Za-z]+)?)
+        (?:\b|$)
+    """, re.IGNORECASE | re.X),
+
+    # 6) "Title - Book Five of the Stormlight Archive"
+    re.compile(r"""
+        .+?\s[-–—]\s
+        (?:(?:book|bk\.?|volume|vol\.?|novella|part)\s*(?P<idx>[IVXLCM]+|\d+|[A-Za-z]+))\s*
+        (?:of|in)\s+the\s+
+        (?P<series>[^,()]+?)\s*$
+    """, re.IGNORECASE | re.X),
+]
+
+def parse_series_and_index_from_title(title: str) -> Tuple[Optional[str], Optional[str]]:
+    if not title:
+        return (None, None)
+    for pat in _PATTERNS:
+        m = pat.search(title)
+        if not m:
+            continue
+        series = m.groupdict().get("series")
+        idx    = m.groupdict().get("idx")
+        if series:
+            series = _cleanup_series(series)
+        if idx:
+            idx = _normalize_index(idx)
+        if series or idx:
+            return (series or None, idx or None)
+    return (None, None)
+
+# ---------- high-level extractors ----------
 def extract_metadata(path: Path) -> Dict[str, str]:
+    """Extracts metadata from an MP4/M4B file, preferring SRNM/SRSQ,
+    then free-form tags, and finally conservative title parsing."""
     audio = MP4(str(path))
     tags = audio.tags or {}
     duration = getattr(getattr(audio, "info", None), "length", None)
@@ -193,16 +232,18 @@ def extract_metadata(path: Path) -> Dict[str, str]:
     year     = get_tag_any(tags, [K_DAY]) or ""
     genre    = get_tag_any(tags, [K_GENRE]) or ""
 
+    # 1) Prefer vendor tags if present (SRNM/SRSQ)
     series = get_tag_any(tags, [K_SERIES_VENDOR])
-    raw_vendor_idx = get_tag_any(tags, [K_INDEX_VENDOR])
-    series_index_display = raw_vendor_idx or ""
+    series_index_display = get_tag_any(tags, [K_INDEX_VENDOR]) or ""
 
+    # 2) Fall back to free-form hints
     if not series:
         series = get_freeform_by_suffix(tags, FREEFORM_HINTS["series"])
     if not series_index_display:
         si_ff = get_freeform_by_suffix(tags, FREEFORM_HINTS["series_index"])
         if si_ff: series_index_display = _normalize_index(si_ff)
 
+    # 3) Finally, conservative title parsing
     if not series or not series_index_display:
         ts, ti = parse_series_and_index_from_title(title)
         if not series and ts: series = ts
