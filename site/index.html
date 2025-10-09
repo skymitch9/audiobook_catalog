@@ -54,7 +54,8 @@ img.cover { width: 56px; height: auto; border-radius: 6px; display:block; }
 }
 </style>
 </head>
-<body class="cards"><div id="wrap">
+<!-- IMPORTANT: start WITHOUT 'cards' so table is primary on desktop -->
+<body><div id="wrap">
 <h1>Audiobook Catalog</h1>
 <div id="controls">
   <div class="controls-row">
@@ -95,8 +96,7 @@ img.cover { width: 56px; height: auto; border-radius: 6px; display:block; }
   </div>
 
   <div id="meta"><small>
-    Generated at: 2025-10-08 19:16:44 ·
-    <!-- CSV is now a relative file that lives in site/ -->
+    Generated at: 2025-10-08 19:24:44 ·
     <a href="catalog.csv" download>Download CSV</a> · <a href="https://drive.google.com/drive/folders/1yZHU_UryCZkuhg9zFzu5uOadx3NI0FJv?usp=sharing" target="_blank" rel="noopener">Google Drive folder</a>
   </small></div>
 </div>
@@ -105,7 +105,7 @@ img.cover { width: 56px; height: auto; border-radius: 6px; display:block; }
   <th data-key="cover_href">Cover</th>
   <th data-key="title">Title</th>
   <th data-key="series">Series</th>
-  <!-- Header uses display column (as in your “good” file) -->
+  <!-- Header uses display column (your “good” version) -->
   <th data-key="series_index_display" data-type="num">#</th>
   <th data-key="author">Author</th>
   <th data-key="narrator">Narrator</th>
@@ -3708,8 +3708,25 @@ img.cover { width: 56px; height: auto; border-radius: 6px; display:block; }
 </div>
 
 <script>
-/* Inline JS (formerly static/app.js) so search/sort/pagination/toggle always load */
+/* Inline JS with fixed search/pagination logic */
 (function(){
+  // --- helpers ---
+  function markSearchMatch() {
+    var q = (document.getElementById("ab-search").value || "").toLowerCase();
+
+    // table rows: mark matches but do not hide here
+    document.querySelectorAll("#ab-table tbody tr").forEach(function(r){
+      var ok = (r.innerText || "").toLowerCase().indexOf(q) >= 0;
+      r.dataset.searchMatch = ok ? "1" : "0";
+    });
+
+    // cards: mark matches but do not hide here
+    document.querySelectorAll("#ab-cards .ab-card").forEach(function(c){
+      var ok = (c.innerText || "").toLowerCase().indexOf(q) >= 0;
+      c.dataset.searchMatch = ok ? "1" : "0";
+    });
+  }
+
   function getCellVal(row, idx, numeric){
     var cell = row.children[idx];
     if (!cell) return "";
@@ -3765,27 +3782,17 @@ img.cover { width: 56px; height: auto; border-radius: 6px; display:block; }
     currentPage = 1; renderPage();
   }
 
-  function applySearch(q){
-    q = (q||"").toLowerCase();
-    // table
-    document.querySelectorAll("#ab-table tbody tr").forEach(function(r){
-      r.style.display = (r.innerText || "").toLowerCase().indexOf(q) >= 0 ? "" : "none";
-    });
-    // cards
-    document.querySelectorAll("#ab-cards .ab-card").forEach(function(c){
-      c.style.display = (c.innerText || "").toLowerCase().indexOf(q) >= 0 ? "" : "none";
-    });
-    currentPage = 1; renderPage();
-  }
-
-  // Pagination
+  // --- pagination (now honors search flags and updates BOTH table & cards) ---
   var pageSizeEl, pageNav, pageInfo, table, cardsWrap;
   var currentPage = 1;
-  function visibleRows(){
-    return Array.from(document.querySelectorAll("#ab-table tbody tr")).filter(function(r){ return r.style.display !== "none"; });
+
+  function matchedRows(){
+    return Array.from(document.querySelectorAll("#ab-table tbody tr"))
+      .filter(function(r){ return (r.dataset.searchMatch || "1") === "1"; });
   }
-  function visibleCards(){
-    return Array.from(document.querySelectorAll("#ab-cards .ab-card")).filter(function(c){ return c.style.display !== "none"; });
+  function matchedCards(){
+    return Array.from(document.querySelectorAll("#ab-cards .ab-card"))
+      .filter(function(c){ return (c.dataset.searchMatch || "1") === "1"; });
   }
   function pageSize(){
     var v = pageSizeEl ? pageSizeEl.value : "100";
@@ -3793,32 +3800,34 @@ img.cover { width: 56px; height: auto; border-radius: 6px; display:block; }
     var n = parseInt(v, 10);
     return isNaN(n) ? 100 : n;
   }
+
   function renderPage(){
     var ps = pageSize();
-    var isCards = document.body.classList.contains("cards");
 
-    if (isCards){
-      var items = visibleCards();
-      var total = items.length;
-      var pages = Math.max(1, Math.ceil(total / ps));
-      if (currentPage > pages) currentPage = pages;
-      items.forEach(function(c,i){
-        var start = (currentPage-1)*ps, end = start+ps;
-        c.style.display = (ps===Infinity || (i >= start && i < end)) ? "" : "none";
-      });
-      drawPager(pages, total);
-    }else{
-      var rows = visibleRows();
-      var total = rows.length;
-      var pages = Math.max(1, Math.ceil(total / ps));
-      if (currentPage > pages) currentPage = pages;
-      rows.forEach(function(r,i){
-        var start = (currentPage-1)*ps, end = start+ps;
-        r.style.display = (ps===Infinity || (i >= start && i < end)) ? "" : "none";
-      });
-      drawPager(pages, total);
-    }
+    // TABLE: show only matched rows within the current page
+    var rows = matchedRows();
+    var totalRows = rows.length;
+    var pagesRows = Math.max(1, Math.ceil(totalRows / ps));
+    if (currentPage > pagesRows) currentPage = pagesRows;
+
+    rows.forEach(function(r,i){
+      var start = (currentPage-1)*ps, end = start+ps;
+      r.style.display = (ps===Infinity || (i >= start && i < end)) ? "" : "none";
+    });
+
+    // CARDS: mirror the same page slice (so toggle view stays in sync)
+    var cards = matchedCards();
+    var totalCards = cards.length;
+    var pagesCards = Math.max(1, Math.ceil(totalCards / ps));
+    var pages = Math.max(pagesRows, pagesCards); // drive the pager by the larger set (usually equal)
+    cards.forEach(function(c,i){
+      var start = (currentPage-1)*ps, end = start+ps;
+      c.style.display = (ps===Infinity || (i >= start && i < end)) ? "" : "none";
+    });
+
+    drawPager(pages, totalRows); // report table counts
   }
+
   function drawPager(pages, total){
     if (!pageNav) return;
     pageNav.innerHTML = "";
@@ -3863,8 +3872,12 @@ img.cover { width: 56px; height: auto; border-radius: 6px; display:block; }
 
     if (table) makeTableSortable(table);
 
+    // Initialize search flags to "match"
+    document.querySelectorAll("#ab-table tbody tr").forEach(function(r){ r.dataset.searchMatch = "1"; });
+    document.querySelectorAll("#ab-cards .ab-card").forEach(function(c){ c.dataset.searchMatch = "1"; });
+
     var search = document.getElementById("ab-search");
-    if (search) search.addEventListener("input", function(){ applySearch(search.value); });
+    if (search) search.addEventListener("input", function(){ markSearchMatch(); currentPage = 1; renderPage(); });
 
     var sortSelect = document.getElementById("ab-sort");
     var sortAscBtn = document.getElementById("ab-sort-asc");
@@ -3876,6 +3889,7 @@ img.cover { width: 56px; height: auto; border-radius: 6px; display:block; }
         return th.getAttribute("data-key") === key;
       });
       if (idx >= 0) sortTableBy(table, idx, numeric, asc);
+      // keep cards’ order in sync too
       sortCards(cardsWrap, key, numeric, asc);
       currentPage = 1; renderPage();
     }
@@ -3893,11 +3907,13 @@ img.cover { width: 56px; height: auto; border-radius: 6px; display:block; }
       pageSizeEl.addEventListener("change", function(){ currentPage=1; renderPage(); });
     }
 
-    // Start in card mode on phones (matches your original)
+    // Auto-cards on small screens
     if (window.matchMedia("(max-width: 820px)").matches){
       document.body.classList.add("cards");
     }
 
+    // First paint
+    markSearchMatch();
     renderPage();
   });
 })();
