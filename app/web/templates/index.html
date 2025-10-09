@@ -1,0 +1,410 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Audiobook Catalog</title>
+<style>
+/* =============== Theming =============== */
+:root{
+  /* Light (default tokens) */
+  --pad:14px; --radius:14px;
+  --bg:#ffffff; --bg-2:#fafafa;
+  --text:#1b1f23; --muted:#5f6b7a;
+  --border:#e5e7eb;
+  --chip:#f2f2f2;
+  --btn-bg:#f7f7f7; --btn-bg-active:#e8f0fe; --btn-border:#ddd; --btn-active:#b6c6ff;
+  --row-alt:#fcfcfc; --row-hover:#f5f9ff;
+}
+body.dark{
+  /* Dark overrides */
+  --bg:#0f141a; --bg-2:#121820;
+  --text:#e7eef7; --muted:#9fb0c6;
+  --border:#263241;
+  --chip:#1f2a37;
+  --btn-bg:#1a2330; --btn-bg-active:#16324a; --btn-border:#2b3a4d; --btn-active:#2d72d2;
+  --row-alt:#0f1722; --row-hover:#132033;
+}
+
+/* =============== Base Layout =============== */
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; padding:var(--pad);
+  font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+  background:var(--bg); color:var(--text);
+}
+#wrap{max-width:1100px;margin:0 auto}
+h1{margin:0 0 8px 0}
+
+/* Controls */
+#controls{display:grid;gap:8px;grid-template-columns:1fr;align-items:center;margin:8px 0 14px}
+.controls-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+input#ab-search, select#ab-sort, select#ab-page-size{
+  flex:1 1 auto; padding:10px 12px; border:1px solid var(--border); border-radius:var(--radius);
+  background:var(--bg-2); color:var(--text)
+}
+button.btn{
+  padding:10px 12px; border:1px solid var(--btn-border); border-radius:var(--radius);
+  background:var(--btn-bg); color:var(--text); cursor:pointer
+}
+button.btn:focus, select:focus, input:focus{ outline:2px solid #2d72d2; outline-offset:2px }
+#meta{color:var(--muted)}
+
+/* Dark mode switch */
+.switch{
+  display:inline-flex; align-items:center; gap:8px; user-select:none
+}
+.switch .label{font-size:.95em; color:var(--muted)}
+.switch input{display:none}
+.switch .track{
+  width:46px; height:26px; border-radius:999px; position:relative;
+  background:var(--btn-border); transition:background .2s
+}
+.switch .thumb{
+  width:20px; height:20px; border-radius:50%; position:absolute; top:3px; left:3px;
+  background:#fff; transition:left .2s, background .2s
+}
+body.dark .switch .thumb{ background:#dbeafe }
+.switch input:checked + .track .thumb{ left:23px }
+.switch input:checked + .track{ background:#2d72d2 }
+
+/* Table */
+table{border-collapse:collapse;width:100%}
+th, td{border:1px solid var(--border); padding:10px; vertical-align:top}
+th{background:var(--bg-2); user-select:none; position:sticky; top:0; z-index:1}
+tr:nth-child(even){background:var(--row-alt)}
+tbody tr:hover{background:var(--row-hover)}
+th[data-type="num"]{text-align:right}
+td:nth-child(4){text-align:right} /* '#' column (Cover,Title,Series,#,...) */
+
+/* Covers */
+td:first-child{width:72px}
+img.cover{width:56px;height:auto;border-radius:6px;display:block}
+.cover-inline{width:40px;height:auto;border-radius:6px;display:inline-block;vertical-align:middle}
+
+/* Cards (mobile alt view) */
+#ab-cards{display:none;grid-template-columns:1fr;gap:10px}
+.ab-card{
+  border:1px solid var(--border); border-radius:var(--radius); padding:12px;
+  background:var(--bg-2)
+}
+.ab-card .t{font-weight:600;margin-bottom:4px;display:flex;align-items:center;gap:8px}
+.ab-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+.ab-chip{background:var(--chip);padding:4px 8px;border-radius:999px;font-size:.9em;color:var(--text)}
+
+/* Pagination */
+.pagination{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.pagination-info{color:var(--muted)}
+#ab-page-nav{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.page-ellipsis{padding:6px 4px;color:var(--muted)}
+.page-btn{
+  padding:6px 10px; border:1px solid var(--btn-border); border-radius:10px;
+  background:var(--btn-bg); cursor:pointer; color:var(--text)
+}
+.page-btn.active, .page-btn:disabled{background:var(--btn-bg-active); border-color:var(--btn-active); cursor:default}
+
+/* Responsive */
+@media (max-width: 820px){
+  body.cards #ab-table{display:none}
+  body.cards #ab-cards{display:grid}
+  body:not(.cards) #ab-cards{display:none}
+  body:not(.cards) #ab-table{display:table}
+  th, td{padding:12px}
+  input#ab-search, select#ab-sort, select#ab-page-size, button.btn{padding:12px 14px}
+}
+</style>
+</head>
+
+<!-- Start in LIGHT markup; JS below flips to dark by default unless remembered -->
+<body>
+<div id="wrap">
+  <h1>Audiobook Catalog</h1>
+
+  <div id="controls">
+    <div class="controls-row">
+      <input id="ab-search" type="text" placeholder="Search any field..." />
+      <select id="ab-sort">
+        <option value="title|txt">Sort by Title</option>
+        <option value="series|txt">Sort by Series</option>
+        <option value="series_index_sort|num">Sort by # (numeric)</option>
+        <option value="author|txt">Sort by Author</option>
+        <option value="narrator|txt">Sort by Narrator</option>
+        <option value="year|txt">Sort by Year</option>
+        <option value="genre|txt">Sort by Genre</option>
+        <option value="duration_hhmm|txt">Sort by Duration</option>
+      </select>
+      <button id="ab-sort-asc" class="btn">Asc</button>
+      <button id="ab-sort-desc" class="btn">Desc</button>
+      <button id="ab-toggle-view" class="btn">Toggle View</button>
+
+      <!-- Dark Mode switch -->
+      <label class="switch" title="Toggle dark mode">
+        <span class="label">Dark mode</span>
+        <input id="ab-dark-toggle" type="checkbox" checked />
+        <span class="track"><span class="thumb"></span></span>
+      </label>
+    </div>
+
+    <div class="controls-row pagination">
+      <label for="ab-page-size"><small>Rows per page:</small></label>
+      <select id="ab-page-size">
+        <option value="10">10</option>
+        <option value="20">20</option>
+        <option value="50">50</option>
+        <option value="100" selected>100</option>
+        <option value="500">500</option>
+        <option value="All">All</option>
+      </select>
+
+      <button id="ab-page-first" class="btn">« First</button>
+      <button id="ab-page-prev"  class="btn">‹ Prev</button>
+      <div id="ab-page-nav"></div>
+      <button id="ab-page-next"  class="btn">Next ›</button>
+      <button id="ab-page-last"  class="btn">Last »</button>
+
+      <span id="ab-page-info" class="pagination-info"></span>
+    </div>
+
+    <div id="meta"><small>
+      Generated at: {{GENERATED_AT}} ·
+      <a href="{{CSV_LINK}}" download>Download CSV</a>{{DRIVE_LINK_BLOCK}}
+    </small></div>
+  </div>
+
+  <table id="ab-table">
+    <thead><tr>
+      <th data-key="cover_href">Cover</th>
+      <th data-key="title">Title</th>
+      <th data-key="series">Series</th>
+      <th data-key="series_index_display" data-type="num">#</th>
+      <th data-key="author">Author</th>
+      <th data-key="narrator">Narrator</th>
+      <th data-key="year">Year</th>
+      <th data-key="genre">Genre</th>
+      <th data-key="duration_hhmm">Duration (hh:mm)</th>
+    </tr></thead>
+    <tbody>{{TABLE_ROWS}}</tbody>
+  </table>
+
+  <div id="ab-cards">{{CARDS}}</div>
+</div>
+
+<script>
+/* ============== Theme bootstrap (default Dark ON) ============== */
+(function(){
+  var saved = localStorage.getItem("ab_theme");
+  var prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  var startDark = (saved ? saved === "dark" : true); // default ON when nothing saved
+  if (startDark) document.body.classList.add("dark");
+
+  // Start in card mode on phones (stays themed)
+  if (window.matchMedia("(max-width: 820px)").matches){
+    document.body.classList.add("cards");
+  }
+
+  // Set toggle state from theme
+  var tg = document.getElementById("ab-dark-toggle");
+  if (tg) tg.checked = document.body.classList.contains("dark");
+})();
+
+/* ============== App logic (search/sort/pagination/toggle/theme) ============== */
+(function(){
+  // --- Theme toggle ---
+  var darkToggle = document.getElementById("ab-dark-toggle");
+  if (darkToggle){
+    darkToggle.addEventListener("change", function(){
+      if (darkToggle.checked){ document.body.classList.add("dark");  localStorage.setItem("ab_theme","dark"); }
+      else { document.body.classList.remove("dark"); localStorage.setItem("ab_theme","light"); }
+    });
+  }
+
+  // --- Search: mark matches; pagination controls visibility ---
+  function markSearchMatch() {
+    var q = (document.getElementById("ab-search").value || "").toLowerCase();
+    document.querySelectorAll("#ab-table tbody tr").forEach(function(r){
+      r.dataset.searchMatch = ((r.innerText || "").toLowerCase().indexOf(q) >= 0) ? "1" : "0";
+    });
+    document.querySelectorAll("#ab-cards .ab-card").forEach(function(c){
+      c.dataset.searchMatch = ((c.innerText || "").toLowerCase().indexOf(q) >= 0) ? "1" : "0";
+    });
+  }
+
+  // --- Sorting (table + cards) ---
+  function getCellVal(row, idx, numeric){
+    var cell = row.children[idx]; if (!cell) return "";
+    if (numeric){
+      var key = cell.getAttribute("data-sort");
+      if (key !== null && key !== ""){
+        var n = parseFloat(key); if (!isNaN(n)) return n;
+      }
+      var txt = cell.innerText || cell.textContent || "";
+      var n2 = parseFloat(txt); return isNaN(n2) ? -Infinity : n2;
+    }
+    return cell.innerText || cell.textContent || "";
+  }
+  function cmp(a,b,numeric){ return numeric ? (a-b) : (""+a).localeCompare(""+b,undefined,{numeric:true,sensitivity:"base"}) }
+  function sortTableBy(table, idx, numeric, asc){
+    var tbody = table.tBodies[0];
+    var rows = Array.from(tbody.querySelectorAll("tr"));
+    rows.sort(function(r1,r2){
+      var v1 = getCellVal(r1, idx, numeric), v2 = getCellVal(r2, idx, numeric);
+      return asc ? cmp(v1,v2,numeric) : cmp(v2,v1,numeric);
+    });
+    rows.forEach(function(r){ tbody.appendChild(r); });
+    currentPage = 1; renderPage();
+  }
+  function makeTableSortable(table){
+    var ths = table.querySelectorAll("th");
+    ths.forEach(function(th, idx){
+      var asc = true;
+      if (th.getAttribute("data-key")==="cover_href"){ return; }
+      th.style.cursor="pointer";
+      th.addEventListener("click", function(){
+        var numeric = th.dataset.type === "num";
+        sortTableBy(table, idx, numeric, asc);
+        asc = !asc;
+      });
+    });
+  }
+  function getCardSortKey(card, key, numeric){
+    var v = card.getAttribute("data-" + key) || "";
+    return numeric ? (isNaN(parseFloat(v)) ? -Infinity : parseFloat(v)) : v;
+  }
+  function sortCards(container, key, numeric, asc){
+    var cards = Array.from(container.querySelectorAll(".ab-card"));
+    cards.sort(function(a,b){
+      var v1 = getCardSortKey(a,key,numeric), v2 = getCardSortKey(b,key,numeric);
+      return asc ? (numeric ? (v1-v2) : (""+v1).localeCompare(""+v2,undefined,{numeric:true,sensitivity:"base"}))
+                 : (numeric ? (v2-v1) : (""+v2).localeCompare(""+v1,undefined,{numeric:true,sensitivity:"base"}));
+    });
+    cards.forEach(function(c){ container.appendChild(c); });
+    currentPage = 1; renderPage();
+  }
+
+  // --- Pagination synced across views ---
+  var pageSizeEl, pageNav, pageInfo, table, cardsWrap;
+  var currentPage = 1;
+
+  function matchedRows(){
+    return Array.from(document.querySelectorAll("#ab-table tbody tr"))
+      .filter(function(r){ return (r.dataset.searchMatch || "1") === "1"; });
+  }
+  function matchedCards(){
+    return Array.from(document.querySelectorAll("#ab-cards .ab-card"))
+      .filter(function(c){ return (c.dataset.searchMatch || "1") === "1"; });
+  }
+  function pageSize(){
+    var v = pageSizeEl ? pageSizeEl.value : "100";
+    if (v === "All") return Infinity;
+    var n = parseInt(v, 10);
+    return isNaN(n) ? 100 : n;
+  }
+  function renderPage(){
+    var ps = pageSize();
+
+    var rows = matchedRows();
+    var totalRows = rows.length;
+    var pagesRows = Math.max(1, Math.ceil(totalRows / ps));
+    if (currentPage > pagesRows) currentPage = pagesRows;
+
+    rows.forEach(function(r,i){
+      var start = (currentPage-1)*ps, end = start+ps;
+      r.style.display = (ps===Infinity || (i >= start && i < end)) ? "" : "none";
+    });
+
+    var cards = matchedCards();
+    var pagesCards = Math.max(1, Math.ceil(cards.length / ps));
+    var pages = Math.max(pagesRows, pagesCards);
+
+    cards.forEach(function(c,i){
+      var start = (currentPage-1)*ps, end = start+ps;
+      c.style.display = (ps===Infinity || (i >= start && i < end)) ? "" : "none";
+    });
+
+    drawPager(pages, totalRows);
+  }
+  function drawPager(pages, total){
+    if (!pageNav) return;
+    pageNav.innerHTML = "";
+    function pill(label, handler, active){
+      var b = document.createElement("button");
+      b.className = "page-btn" + (active ? " active" : "");
+      b.textContent = label;
+      b.addEventListener("click", handler);
+      pageNav.appendChild(b);
+    }
+    document.getElementById("ab-page-first").onclick = function(){ currentPage = 1; renderPage(); }
+    document.getElementById("ab-page-prev").onclick  = function(){ currentPage = Math.max(1, currentPage-1); renderPage(); }
+    document.getElementById("ab-page-next").onclick  = function(){ currentPage = Math.min(pages, currentPage+1); renderPage(); }
+    document.getElementById("ab-page-last").onclick  = function(){ currentPage = pages; renderPage(); }
+
+    var windowSize = 2;
+    var start = Math.max(1, currentPage - windowSize);
+    var end   = Math.min(pages, currentPage + windowSize);
+    if (start > 1){ pill(1, function(){ currentPage=1; renderPage(); }, currentPage===1); if (start>2) pageNav.append("…"); }
+    for (var i=start;i<=end;i++){
+      (function(i0){ pill(i0, function(){ currentPage=i0; renderPage(); }, i0===currentPage); })(i);
+    }
+    if (end < pages){ if (end < pages-1) pageNav.append("…"); pill(pages, function(){ currentPage=pages; renderPage(); }, currentPage===pages); }
+
+    var ps = pageSize();
+    if (pageInfo){
+      if (ps===Infinity) pageInfo.textContent = "Showing all " + total + " items";
+      else {
+        var sIdx = (currentPage-1)*ps + 1;
+        var eIdx = Math.min(total, currentPage*ps);
+        pageInfo.textContent = "Showing " + sIdx + "–" + eIdx + " of " + total;
+      }
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", function(){
+    table     = document.getElementById("ab-table");
+    cardsWrap = document.getElementById("ab-cards");
+    pageSizeEl= document.getElementById("ab-page-size");
+    pageNav   = document.getElementById("ab-page-nav");
+    pageInfo  = document.getElementById("ab-page-info");
+
+    if (table) makeTableSortable(table);
+
+    // Initialize search flags
+    document.querySelectorAll("#ab-table tbody tr").forEach(function(r){ r.dataset.searchMatch = "1"; });
+    document.querySelectorAll("#ab-cards .ab-card").forEach(function(c){ c.dataset.searchMatch = "1"; });
+
+    var search = document.getElementById("ab-search");
+    if (search) search.addEventListener("input", function(){ markSearchMatch(); currentPage = 1; renderPage(); });
+
+    var sortSelect = document.getElementById("ab-sort");
+    var sortAscBtn = document.getElementById("ab-sort-asc");
+    var sortDescBtn= document.getElementById("ab-sort-desc");
+    function doSort(asc){
+      var parts = sortSelect.value.split("|");
+      var key = parts[0], numeric = (parts[1]==="num");
+      var idx = Array.from(document.querySelectorAll("#ab-table thead th")).findIndex(function(th){
+        return th.getAttribute("data-key") === key;
+      });
+      if (idx >= 0) sortTableBy(table, idx, numeric, asc);
+      sortCards(cardsWrap, key, numeric, asc);
+      currentPage = 1; renderPage();
+    }
+    if (sortAscBtn) sortAscBtn.addEventListener("click", function(){ doSort(true); });
+    if (sortDescBtn)sortDescBtn.addEventListener("click", function(){ doSort(false); });
+
+    var toggle = document.getElementById("ab-toggle-view");
+    if (toggle){
+      toggle.addEventListener("click", function(){
+        document.body.classList.toggle("cards");
+        currentPage = 1; renderPage();
+      });
+    }
+    if (pageSizeEl){ pageSizeEl.addEventListener("change", function(){ currentPage=1; renderPage(); }); }
+
+    // First paint
+    markSearchMatch();
+    renderPage();
+  });
+})();
+</script>
+</body>
+</html>
