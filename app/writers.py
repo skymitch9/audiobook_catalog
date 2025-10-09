@@ -1,14 +1,16 @@
 # app/writers.py
 # CSV + HTML writers for the audiobook catalog, plus staging for GitHub Pages.
+# HTML now includes an optional "Cover" column (from cover_href) and stages covers/ to site/.
 
 import csv
 import html
+import shutil
 from pathlib import Path
 from typing import List, Dict, Optional
 
 
 def write_csv(rows: List[Dict[str, str]], out_path: Path):
-    """Write the catalog to CSV with a stable column order."""
+    """Write the catalog to CSV with a stable column order (no covers in CSV)."""
     fieldnames = [
         "title",
         "series",
@@ -37,9 +39,10 @@ def write_html(
 ):
     """
     Mobile-first responsive UI with a card view (default on small screens)
-    and a sortable table for larger screens.
+    and a sortable table for larger screens. Adds a Cover column (HTML only).
     """
     cols = [
+        ("Cover", "cover_href", False),   # NEW: cover thumbnails (HTML-only column)
         ("Title", "title", False),
         ("Series", "series", False),
         ("#", "series_index_display", True),  # shows display; sorts by data-sort
@@ -206,6 +209,11 @@ td:nth-child(3) {{ text-align: right; }} /* '#' column */
 .ab-row {{ display:flex; gap:8px; flex-wrap:wrap; margin-top:4px; }}
 .ab-chip {{ background:#f2f2f2; padding:4px 8px; border-radius:999px; font-size:0.9em; }}
 
+td:first-child {{ width: 72px; }}           /* Cover column width */
+img.cover {{ width: 56px; height: auto; border-radius: 6px; display:block; }}
+.cover-inline {{ width: 40px; margin-right: 8px; display:inline-block; vertical-align: middle; border-radius: 6px; }}
+.ab-card .t span {{ vertical-align: middle; }}
+
 @media (max-width: 820px) {{
   body.cards #ab-table {{ display:none; }}
   body.cards #ab-cards {{ display:grid; }}
@@ -260,6 +268,10 @@ td:nth-child(3) {{ text-align: right; }} /* '#' column */
             if key == "series_index_display":
                 sort_key = r.get("series_index_sort", "")
                 tds.append(f'<td data-sort="{esc(sort_key)}">{esc(r.get(key, ""))}</td>')
+            elif key == "cover_href":
+                href = r.get("cover_href", "")
+                cell = f'<img class="cover" src="{esc(href)}" alt="" loading="lazy"/>' if href else ""
+                tds.append(f"<td>{cell}</td>")
             else:
                 tds.append(f"<td>{esc(r.get(key, ''))}</td>")
         body_rows.append("<tr>" + "".join(tds) + "</tr>")
@@ -279,6 +291,8 @@ td:nth-child(3) {{ text-align: right; }} /* '#' column */
             "duration_hhmm": r.get("duration_hhmm", ""),
         }
         data_attrs = " ".join(f'data-{k}="{esc(v)}"' for k, v in attrs.items())
+
+        thumb = f'<img class="cover cover-inline" src="{esc(r["cover_href"])}" alt="" loading="lazy"/>' if r.get("cover_href") else ""
         chips = []
         if r.get("series"):
             chips.append(f'<span class="ab-chip">Series: {esc(r["series"])}</span>')
@@ -294,9 +308,10 @@ td:nth-child(3) {{ text-align: right; }} /* '#' column */
             chips.append(f'<span class="ab-chip">Genre: {esc(r["genre"])}</span>')
         if r.get("duration_hhmm"):
             chips.append(f'<span class="ab-chip">Dur: {esc(r["duration_hhmm"])}</span>')
+
         card_parts.append(f"""
 <div class="ab-card" {data_attrs}>
-  <div class="t">{esc(r.get("title",""))}</div>
+  <div class="t">{thumb}<span>{esc(r.get("title",""))}</span></div>
   <div class="ab-row">{''.join(chips)}</div>
 </div>
 """)
@@ -316,8 +331,15 @@ def stage_site_files(
 ):
     """
     Copy the timestamped outputs into the stable filenames inside the Pages
-    artifact directory (usually 'site/').
+    artifact directory (usually 'site/'). Also sync covers/ into site/.
     """
     site_dir.mkdir(parents=True, exist_ok=True)
     (site_dir / site_index_name).write_bytes(timestamped_html.read_bytes())
     (site_dir / site_csv_name).write_bytes(timestamped_csv.read_bytes())
+
+    # Copy covers tree if it exists
+    from app.config import OUTPUT_DIR  # local import to avoid import cycles
+    covers_src = OUTPUT_DIR / "covers"
+    covers_dst = site_dir / "covers"
+    if covers_src.exists():
+        shutil.copytree(covers_src, covers_dst, dirs_exist_ok=True)
