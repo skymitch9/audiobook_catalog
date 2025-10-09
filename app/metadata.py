@@ -1,11 +1,16 @@
 # app/metadata.py
 # Read MP4/M4B tags with Mutagen and (only if needed) parse series/index from title.
+# Also extracts embedded cover art and writes it under OUTPUT_DIR/covers/..., exposing
+# a site-relative href for the HTML renderer.
 
 import re
 from pathlib import Path
 from typing import Optional, Tuple, Dict, List
 
-from mutagen.mp4 import MP4, MP4FreeForm
+from mutagen.mp4 import MP4, MP4FreeForm, MP4Cover
+
+# Import config (paths used for cover extraction output)
+from app.config import ROOT_DIR, OUTPUT_DIR
 
 # ---------- Tag keys ----------
 # MP4/iTunes atoms
@@ -143,6 +148,45 @@ def sec_to_hhmm(s: Optional[int]) -> str:
     h = s // 3600; m = (s % 3600) // 60
     return f"{h}:{m:02d}"
 
+# ---------- cover extraction ----------
+def _save_cover_for_file(path: Path) -> Optional[str]:
+    """
+    Extract first cover from 'covr' atom and write it under:
+      OUTPUT_DIR / "covers" / <relative-to-ROOT_DIR parent> / <stem>.<ext>
+    Returns a site-relative href like:
+      "covers/<relative-path>/<filename>.jpg"
+    or None if no cover found.
+    """
+    try:
+        audio = MP4(str(path))
+        tags = audio.tags or {}
+        covrs = tags.get("covr")
+        if not covrs:
+            return None
+
+        cover = covrs[0]
+        ext = ".jpg"
+        try:
+            if isinstance(cover, MP4Cover):
+                if cover.imageformat == MP4Cover.FORMAT_PNG:
+                    ext = ".png"
+                elif cover.imageformat == MP4Cover.FORMAT_JPEG:
+                    ext = ".jpg"
+        except Exception:
+            pass
+
+        rel = path.relative_to(ROOT_DIR)
+        out_dir = OUTPUT_DIR / "covers" / rel.parent
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_path = out_dir / (path.stem + ext)
+
+        data = bytes(cover) if isinstance(cover, (MP4Cover, bytes, bytearray)) else bytes(cover)
+        out_path.write_bytes(data)
+
+        return str(Path("covers") / rel.parent / (path.stem + ext)).replace("\\", "/")
+    except Exception:
+        return None
+
 # ---------- minimal, conservative fallback patterns ----------
 # Only used if SRNM/SRSQ and free-form series tags don't yield a result.
 _PATTERNS = [
@@ -220,7 +264,7 @@ def parse_series_and_index_from_title(title: str) -> Tuple[Optional[str], Option
 # ---------- high-level extractors ----------
 def extract_metadata(path: Path) -> Dict[str, str]:
     """Extracts metadata from an MP4/M4B file, preferring SRNM/SRSQ,
-    then free-form tags, and finally conservative title parsing."""
+    then free-form tags, and finally conservative title parsing. Also saves cover."""
     audio = MP4(str(path))
     tags = audio.tags or {}
     duration = getattr(getattr(audio, "info", None), "length", None)
@@ -251,6 +295,9 @@ def extract_metadata(path: Path) -> Dict[str, str]:
 
     series_index_sort = _sort_key_for_index(series_index_display)
 
+    # 4) Cover extraction (site-relative href)
+    cover_href = _save_cover_for_file(path)
+
     return {
         "title": title,
         "series": series or "",
@@ -261,6 +308,7 @@ def extract_metadata(path: Path) -> Dict[str, str]:
         "year": year,
         "genre": genre,
         "duration_hhmm": sec_to_hhmm(length_sec),
+        "cover_href": cover_href or "",
     }
 
 def walk_library(root: Path, exts: set[str]):
