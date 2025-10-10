@@ -76,13 +76,13 @@ tbody tr:hover{background:var(--row-hover)}
 th[data-type="num"]{text-align:right}
 td:nth-child(4){text-align:right}
 
-/* Covers */
+/* Covers: remove “white border” look by de-bording the cover cell + image/button */
 td:first-child{width:72px; border-top: none; border-bottom: 1px solid var(--border); border-left: none; border-right: none;}
 img.cover{width:56px;height:auto;border-radius:6px;display:block;border:none;box-shadow:none;background:transparent}
 button.cover-btn{display:block;border:none;background:transparent;padding:0;cursor:pointer}
 button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
 
-/* Cards (for small screens toggle) */
+/* Cards */
 #ab-cards{display:none;grid-template-columns:1fr;gap:10px}
 .ab-card{
   border:1px solid var(--border); border-radius:var(--radius); padding:12px;
@@ -137,6 +137,18 @@ button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
   background:var(--btn-bg); border:1px solid var(--btn-border); border-radius:10px;
   padding:8px 10px; cursor:pointer; color:var(--text)
 }
+/* Link-style buttons */
+a.link-btn{
+  display:inline-block;
+  padding:8px 10px;
+  border:1px solid var(--btn-border);
+  border-radius:10px;
+  background:var(--btn-bg);
+  color:var(--text);
+  text-decoration:none;
+  margin-top:4px;
+}
+a.link-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
 
 /* Responsive */
 @media (max-width: 820px){
@@ -149,6 +161,11 @@ button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
   #modal .panel{ grid-template-columns: 1fr; }
 }
 </style>
+
+<!-- Generator fills this from .env; fallback kept for local dev -->
+<script>
+  window.AB_AUTHOR_MAP_URL = "{{AUTHOR_DRIVE_MAP_URL}}";
+</script>
 </head>
 
 <body>
@@ -157,9 +174,7 @@ button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
 
   <div id="controls">
     <div class="controls-row">
-      <!-- Search input -->
       <input id="ab-search" type="search" placeholder="Search any field…" aria-label="Search" />
-
       <select id="ab-sort">
         <option value="title|txt">Sort by Title</option>
         <option value="series|txt">Sort by Series</option>
@@ -238,7 +253,11 @@ button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
     </div>
     <div>
       <div id="modal-title" class="title"></div>
-      <div class="meta-grid">
+
+      <!-- New: Author Drive button -->
+      <a id="m-author-drive" class="link-btn" href="#" target="_blank" rel="noopener" style="display:none">Open author in Drive</a>
+
+      <div class="meta-grid" style="margin-top:10px">
         <div class="label">Series</div><div id="m-series"></div>
         <div class="label">#</div><div id="m-index"></div>
         <div class="label">Author</div><div id="m-author"></div>
@@ -263,7 +282,7 @@ button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
   if (tg) tg.checked = document.body.classList.contains("dark");
 })();
 
-/* ===== App logic: search, sort, pagination, modal, URL hash ===== */
+/* ===== App logic incl. modal ===== */
 (function(){
   // Dark toggle
   var darkToggle = document.getElementById("ab-dark-toggle");
@@ -349,11 +368,24 @@ button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
       });
     });
   }
+  function getCardSortKey(card, key, numeric){
+    var v = card.getAttribute("data-" + key) || "";
+    return numeric ? (isNaN(parseFloat(v)) ? -Infinity : parseFloat(v)) : v;
+  }
+  function sortCards(container, key, numeric, asc){
+    var cards = Array.from(container.querySelectorAll(".ab-card"));
+    cards.sort(function(a,b){
+      var v1 = getCardSortKey(a,key,numeric), v2 = getCardSortKey(b,key,numeric);
+      return asc ? (numeric ? (v1-v2) : (""+v1).localeCompare(""+v2,undefined,{numeric:true,sensitivity:"base"}))
+                 : (numeric ? (v2-v1) : (""+v2).localeCompare(""+v1,undefined,{numeric:true,sensitivity:"base"}));
+    });
+    cards.forEach(function(c){ container.appendChild(c); });
+    currentPage = 1; renderPage();
+  }
 
-  /* ---------- Pagination / search shared vars ---------- */
+  /* ---------- Pagination synced ---------- */
   var pageSizeEl, pageNav, pageInfo, table, cardsWrap, emptyEl, emptyQEl;
   var currentPage = 1;
-
   function matchedRows(){
     return Array.from(document.querySelectorAll("#ab-table tbody tr"))
       .filter(function(r){ return (r.dataset.searchMatch || "1") === "1"; });
@@ -368,38 +400,35 @@ button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
     var n = parseInt(v, 10);
     return isNaN(n) ? 100 : n;
   }
-
-  /* ---------- UPDATED renderPage: hide non-matches, show only paged matches, toggle empty ---------- */
   function renderPage(){
     var ps = pageSize();
-    var allRows  = Array.from(document.querySelectorAll("#ab-table tbody tr"));
-    var allCards = Array.from(document.querySelectorAll("#ab-cards .ab-card"));
 
-    // Hide non-matches up front
-    allRows.forEach(function(r){
-      var isMatch = (r.dataset.searchMatch || "1") === "1";
-      r.style.display = isMatch ? "" : "none";
+    var rows = Array.from(document.querySelectorAll("#ab-table tbody tr"));
+    var cards = Array.from(document.querySelectorAll("#ab-cards .ab-card"));
+
+    // Hide non-matches
+    rows.forEach(function(r){
+      var m = (r.dataset.searchMatch || "1") === "1";
+      r.style.display = m ? "" : "none";
     });
-    allCards.forEach(function(c){
-      var isMatch = (c.dataset.searchMatch || "1") === "1";
-      c.style.display = isMatch ? "" : "none";
+    cards.forEach(function(c){
+      var m = (c.dataset.searchMatch || "1") === "1";
+      c.style.display = m ? "" : "none";
     });
 
-    // Matched sets for pagination
-    var rows  = allRows.filter(function(r){ return (r.dataset.searchMatch || "1") === "1"; });
-    var cards = allCards.filter(function(c){ return (c.dataset.searchMatch || "1") === "1"; });
+    // Matched sets
+    rows = rows.filter(function(r){ return (r.dataset.searchMatch || "1") === "1"; });
+    cards = cards.filter(function(c){ return (c.dataset.searchMatch || "1") === "1"; });
 
     var totalRows = rows.length;
     var pagesRows = Math.max(1, Math.ceil(totalRows / ps));
     if (currentPage > pagesRows) currentPage = pagesRows;
 
-    // Rows: only current page visible
     rows.forEach(function(r,i){
       var start = (currentPage-1)*ps, end = start+ps;
       r.style.display = (ps===Infinity || (i >= start && i < end)) ? "" : "none";
     });
 
-    // Cards (if used)
     var pagesCards = Math.max(1, Math.ceil(cards.length / ps));
     var pages = Math.max(pagesRows, pagesCards);
     cards.forEach(function(c,i){
@@ -407,7 +436,7 @@ button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
       c.style.display = (ps===Infinity || (i >= start && i < end)) ? "" : "none";
     });
 
-    // Empty state toggle
+    // Empty state
     var qVal = (document.getElementById("ab-search") && document.getElementById("ab-search").value) || "";
     if (emptyEl){
       if (totalRows === 0 && qVal.trim()){
@@ -418,13 +447,9 @@ button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
       }
     }
 
-    // Pager UI
     drawPager(pages, totalRows);
-
-    // Keep URL hash in sync
     _writeHash(qVal, currentPage);
   }
-
   function drawPager(pages, total){
     if (!pageNav) return;
     pageNav.innerHTML = "";
@@ -463,7 +488,7 @@ button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
     }
   }
 
-  /* ---------- Search (tokenized AND) ---------- */
+  /* ---------- Search ---------- */
   function _buildSearchCache(){
     document.querySelectorAll("#ab-table tbody tr").forEach(function(r){
       if (!r.dataset._searchText){
@@ -500,7 +525,55 @@ button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
     });
   }
 
-  /* ---------- Modal ---------- */
+  /* ---------- Author → Drive map ---------- */
+  var AUTHOR_MAP = {};
+  function _resolveAuthorFolder(author){
+    if (!author) return null;
+    // direct match
+    if (AUTHOR_MAP[author]) return AUTHOR_MAP[author];
+
+    // case-insensitive match over keys
+    var aNorm = author.toLowerCase().trim();
+    for (var k in AUTHOR_MAP){
+      if (!Object.prototype.hasOwnProperty.call(AUTHOR_MAP,k)) continue;
+      if (k.toLowerCase().trim() === aNorm) return AUTHOR_MAP[k];
+    }
+    return null;
+  }
+  async function _loadAuthorMap(){
+    var url = (window.AB_AUTHOR_MAP_URL && window.AB_AUTHOR_MAP_URL.trim())
+              ? window.AB_AUTHOR_MAP_URL.trim()
+              : "app/author_drive_map.json";
+    try{
+      var resp = await fetch(url, {cache: "no-store"});
+      if (!resp.ok) throw new Error("HTTP "+resp.status);
+      var data = await resp.json();
+      if (data && typeof data === "object") AUTHOR_MAP = data;
+    }catch(e){
+      // try relative fallback (useful if template lives in /template/ but map in /app/)
+      try{
+        var resp2 = await fetch("../app/author_drive_map.json", {cache:"no-store"});
+        if (resp2.ok){
+          var data2 = await resp2.json();
+          if (data2 && typeof data2 === "object") AUTHOR_MAP = data2;
+        }
+      }catch(_){/* ignore */}
+    }
+  }
+  function _authorDriveHref(author){
+    // 1) exact or case-insensitive match -> folder link
+    var id = _resolveAuthorFolder(author);
+    if (id && typeof id === "string" && id.trim()){
+      return "https://drive.google.com/drive/folders/" + encodeURIComponent(id.trim());
+    }
+    // 2) fallback: Drive search
+    if (author && author.trim()){
+      return "https://drive.google.com/drive/search?q=" + encodeURIComponent(author.trim());
+    }
+    return null;
+  }
+
+  /* ---------- Modal logic ---------- */
   var modal = document.getElementById("modal");
   var modalCover = document.getElementById("modal-cover");
   var modalTitle = document.getElementById("modal-title");
@@ -512,6 +585,7 @@ button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
   var mGenre = document.getElementById("m-genre");
   var mDuration = document.getElementById("m-duration");
   var mDesc = document.getElementById("m-desc");
+  var mAuthorDrive = document.getElementById("m-author-drive");
   var modalClose = document.getElementById("modal-close");
 
   function openModal(payload){
@@ -526,6 +600,28 @@ button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
     mGenre.textContent = payload.genre || "";
     mDuration.textContent = payload.duration || "";
     mDesc.textContent = payload.desc ? payload.desc : "No description available.";
+
+    // Author Drive button (folder if mapped, else search)
+    if (mAuthorDrive){
+      var href = _authorDriveHref(payload.author || "");
+      if (href){
+        mAuthorDrive.href = href;
+        mAuthorDrive.style.display = "inline-block";
+        // Tooltip clarifies behavior
+        if (_resolveAuthorFolder(payload.author || "")){
+          mAuthorDrive.textContent = "Open author in Drive";
+          mAuthorDrive.title = "Opens the mapped Drive folder for this author";
+        }else{
+          mAuthorDrive.textContent = "Search author in Drive";
+          mAuthorDrive.title = "No mapped folder; opens a Google Drive search for this author";
+        }
+      } else {
+        mAuthorDrive.removeAttribute("href");
+        mAuthorDrive.style.display = "none";
+        mAuthorDrive.title = "";
+      }
+    }
+
     modal.classList.add("open");
     modal.setAttribute("aria-hidden","false");
   }
@@ -556,48 +652,36 @@ button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
   modal.addEventListener("click", function(e){ if (e.target === modal) closeModal(); });
   document.addEventListener("keydown", function(e){ if (e.key === "Escape") closeModal(); });
 
-  /* ---------- Startup ---------- */
-  document.addEventListener("DOMContentLoaded", function(){
-    // Assign to shared vars (no 'var' here)
-    table      = document.getElementById("ab-table");
-    cardsWrap  = document.getElementById("ab-cards");
-    pageSizeEl = document.getElementById("ab-page-size");
-    pageNav    = document.getElementById("ab-page-nav");
-    pageInfo   = document.getElementById("ab-page-info");
-    emptyEl    = document.getElementById("ab-empty");
-    emptyQEl   = document.getElementById("ab-empty-q");
+  document.addEventListener("DOMContentLoaded", async function(){
+    table     = document.getElementById("ab-table");
+    cardsWrap = document.getElementById("ab-cards");
+    pageSizeEl= document.getElementById("ab-page-size");
+    pageNav   = document.getElementById("ab-page-nav");
+    pageInfo  = document.getElementById("ab-page-info");
+    emptyEl   = document.getElementById("ab-empty");
+    emptyQEl  = document.getElementById("ab-empty-q");
 
     if (table) makeTableSortable(table);
 
-    // Initialize search cache/flags
+    // init search flags + cache
+    document.querySelectorAll("#ab-table tbody tr").forEach(function(r){ r.dataset.searchMatch = "1"; });
+    document.querySelectorAll("#ab-cards .ab-card").forEach(function(c){ c.dataset.searchMatch = "1"; });
     _buildSearchCache();
-    document.querySelectorAll("#ab-table tbody tr").forEach(function(r){ if (!("searchMatch" in r.dataset)) r.dataset.searchMatch = "1"; });
-    document.querySelectorAll("#ab-cards .ab-card").forEach(function(c){ if (!("searchMatch" in c.dataset)) c.dataset.searchMatch = "1"; });
 
-    // Apply hash on load (q, p)
+    // Load author map (non-blocking for initial paint, but awaited here so first modal click has it)
+    await _loadAuthorMap();
+
     var search = document.getElementById("ab-search");
-    var hashState = _parseHash();
-    if (search && hashState.q){ search.value = hashState.q; _applySearch(hashState.q); }
-    if (hashState.p > 1){ currentPage = hashState.p; }
+    if (search) search.addEventListener("input", _debounce(function(){
+      _applySearch(search.value); currentPage = 1; renderPage();
+    }, 120));
 
-    // Debounced search input
-    if (search){
-      var onType = _debounce(function(){
-        _applySearch(search.value);
-        currentPage = 1;
-        renderPage();
-      }, 120);
-      search.addEventListener("input", onType);
-    }
-
-    // Sort select + buttons
     var sortSelect = document.getElementById("ab-sort");
     var sortAscBtn = document.getElementById("ab-sort-asc");
     var sortDescBtn= document.getElementById("ab-sort-desc");
     function doSort(asc){
       var parts = sortSelect.value.split("|");
       var key = parts[0], numeric = (parts[1]==="num");
-
       // sort table
       var idx = Array.from(document.querySelectorAll("#ab-table thead th")).findIndex(function(th){
         return th.getAttribute("data-key") === key;
@@ -625,26 +709,21 @@ button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
         });
         rows.forEach(function(r){ tbody.appendChild(r); });
       }
-
       // sort cards
-      if (cardsWrap){
-        var cards = Array.from(cardsWrap.querySelectorAll(".ab-card"));
-        cards.sort(function(a,b){
-          var v1 = a.getAttribute("data-"+key) || "";
-          var v2 = b.getAttribute("data-"+key) || "";
-          if (numeric){ v1 = parseFloat(v1); v2 = parseFloat(v2); if (isNaN(v1)) v1=-Infinity; if (isNaN(v2)) v2=-Infinity; }
-          return asc ? ((numeric ? (v1-v2) : (""+v1).localeCompare(""+v2,undefined,{numeric:true,sensitivity:"base"})))
-                     : ((numeric ? (v2-v1) : (""+v2).localeCompare(""+v1,undefined,{numeric:true,sensitivity:"base"})));
-        });
-        cards.forEach(function(c){ cardsWrap.appendChild(c); });
-      }
-
+      var cards = Array.from(cardsWrap.querySelectorAll(".ab-card"));
+      cards.sort(function(a,b){
+        var v1 = a.getAttribute("data-"+key) || "";
+        var v2 = b.getAttribute("data-"+key) || "";
+        if (numeric){ v1 = parseFloat(v1); v2 = parseFloat(v2); if (isNaN(v1)) v1=-Infinity; if (isNaN(v2)) v2=-Infinity; }
+        return asc ? ((numeric ? (v1-v2) : (""+v1).localeCompare(""+v2,undefined,{numeric:true,sensitivity:"base"})))
+                   : ((numeric ? (v2-v1) : (""+v2).localeCompare(""+v1,undefined,{numeric:true,sensitivity:"base"})));
+      });
+      cards.forEach(function(c){ cardsWrap.appendChild(c); });
       currentPage = 1; renderPage();
     }
     if (sortAscBtn) sortAscBtn.addEventListener("click", function(){ doSort(true); });
     if (sortDescBtn)sortDescBtn.addEventListener("click", function(){ doSort(false); });
 
-    // Toggle cards/table view
     var toggle = document.getElementById("ab-toggle-view");
     if (toggle){
       toggle.addEventListener("click", function(){
@@ -653,14 +732,19 @@ button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
       });
     }
 
-    // Page size change
+    pageSizeEl = document.getElementById("ab-page-size");
+    pageNav    = document.getElementById("ab-page-nav");
+    pageInfo   = document.getElementById("ab-page-info");
     if (pageSizeEl){ pageSizeEl.addEventListener("change", function(){ currentPage=1; renderPage(); }); }
 
-    // First paint
+    // Apply hash on load (q, p) and initial paint
+    var hashState = _parseHash();
+    if (search && hashState.q){ search.value = hashState.q; _applySearch(hashState.q); }
+    if (hashState.p > 1){ currentPage = hashState.p; }
     if (!hashState.q){ _applySearch((search||{}).value || ""); }
     renderPage();
 
-    // (Optional) react to hash changes from back/forward navigation
+    // React to back/forward navigation
     window.addEventListener("hashchange", function(){
       var s2 = _parseHash();
       var curQ = (search && search.value) || "";
