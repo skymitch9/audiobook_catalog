@@ -189,7 +189,7 @@ button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
     </div>
 
     <div id="meta"><small>
-      Generated at: 2025-10-08 19:57:58 ·
+      Generated at: 2025-10-09 19:31:06 ·
       <a href="catalog.csv" download>Download CSV</a> · <a href="https://drive.google.com/drive/folders/1yZHU_UryCZkuhg9zFzu5uOadx3NI0FJv?usp=sharing" target="_blank" rel="noopener">Google Drive folder</a>
     </small></div>
   </div>
@@ -17020,9 +17020,10 @@ Even if he does make it back, he’ll be jumping feetfirst into the fire as he f
     });
   }
 
-  // Search marking
+  // Search marking (NULL-safe)
   function markSearchMatch() {
-    var q = (document.getElementById("ab-search").value || "").toLowerCase();
+    var el = document.getElementById("ab-search");
+    var q = ((el && el.value) || "").toLowerCase();
     document.querySelectorAll("#ab-table tbody tr").forEach(function(r){
       r.dataset.searchMatch = ((r.innerText || "").toLowerCase().indexOf(q) >= 0) ? "1" : "0";
     });
@@ -17083,7 +17084,7 @@ Even if he does make it back, he’ll be jumping feetfirst into the fire as he f
     currentPage = 1; renderPage();
   }
 
-  // Pagination synced
+  // Pagination synced (shared vars)
   var pageSizeEl, pageNav, pageInfo, table, cardsWrap;
   var currentPage = 1;
   function matchedRows(){
@@ -17216,11 +17217,12 @@ Even if he does make it back, he’ll be jumping feetfirst into the fire as he f
   document.addEventListener("keydown", function(e){ if (e.key === "Escape") closeModal(); });
 
   document.addEventListener("DOMContentLoaded", function(){
-    var table     = document.getElementById("ab-table");
-    var cardsWrap = document.getElementById("ab-cards");
-    var pageSizeEl= document.getElementById("ab-page-size");
-    var pageNav   = document.getElementById("ab-page-nav");
-    var pageInfo  = document.getElementById("ab-page-info");
+    // *** IMPORTANT: assign to shared vars (no 'var' here) ***
+    table      = document.getElementById("ab-table");
+    cardsWrap  = document.getElementById("ab-cards");
+    pageSizeEl = document.getElementById("ab-page-size");
+    pageNav    = document.getElementById("ab-page-nav");
+    pageInfo   = document.getElementById("ab-page-info");
 
     function makeTableSortable(table){
       var ths = table.querySelectorAll("th");
@@ -17279,7 +17281,6 @@ Even if he does make it back, he’ll be jumping feetfirst into the fire as he f
       if (idx >= 0){
         var evtTh = document.querySelectorAll("#ab-table thead th")[idx];
         // trigger the sorting once in the chosen direction:
-        var numericAttr = evtTh.getAttribute("data-type")==="num";
         var tbody = table.tBodies[0];
         var rows = Array.from(tbody.querySelectorAll("tr"));
         rows.sort(function(r1,r2){
@@ -17325,9 +17326,6 @@ Even if he does make it back, he’ll be jumping feetfirst into the fire as he f
       });
     }
 
-    pageSizeEl = document.getElementById("ab-page-size");
-    pageNav    = document.getElementById("ab-page-nav");
-    pageInfo   = document.getElementById("ab-page-info");
     if (pageSizeEl){ pageSizeEl.addEventListener("change", function(){ currentPage=1; renderPage(); }); }
 
     // First paint

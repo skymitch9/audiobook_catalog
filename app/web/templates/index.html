@@ -257,9 +257,10 @@ button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
     });
   }
 
-  // Search marking
+  // Search marking (NULL-safe)
   function markSearchMatch() {
-    var q = (document.getElementById("ab-search").value || "").toLowerCase();
+    var el = document.getElementById("ab-search");
+    var q = ((el && el.value) || "").toLowerCase();
     document.querySelectorAll("#ab-table tbody tr").forEach(function(r){
       r.dataset.searchMatch = ((r.innerText || "").toLowerCase().indexOf(q) >= 0) ? "1" : "0";
     });
@@ -320,7 +321,7 @@ button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
     currentPage = 1; renderPage();
   }
 
-  // Pagination synced
+  // Pagination synced (shared vars)
   var pageSizeEl, pageNav, pageInfo, table, cardsWrap;
   var currentPage = 1;
   function matchedRows(){
@@ -453,11 +454,12 @@ button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
   document.addEventListener("keydown", function(e){ if (e.key === "Escape") closeModal(); });
 
   document.addEventListener("DOMContentLoaded", function(){
-    var table     = document.getElementById("ab-table");
-    var cardsWrap = document.getElementById("ab-cards");
-    var pageSizeEl= document.getElementById("ab-page-size");
-    var pageNav   = document.getElementById("ab-page-nav");
-    var pageInfo  = document.getElementById("ab-page-info");
+    // *** IMPORTANT: assign to shared vars (no 'var' here) ***
+    table      = document.getElementById("ab-table");
+    cardsWrap  = document.getElementById("ab-cards");
+    pageSizeEl = document.getElementById("ab-page-size");
+    pageNav    = document.getElementById("ab-page-nav");
+    pageInfo   = document.getElementById("ab-page-info");
 
     function makeTableSortable(table){
       var ths = table.querySelectorAll("th");
@@ -516,7 +518,6 @@ button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
       if (idx >= 0){
         var evtTh = document.querySelectorAll("#ab-table thead th")[idx];
         // trigger the sorting once in the chosen direction:
-        var numericAttr = evtTh.getAttribute("data-type")==="num";
         var tbody = table.tBodies[0];
         var rows = Array.from(tbody.querySelectorAll("tr"));
         rows.sort(function(r1,r2){
@@ -562,9 +563,6 @@ button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
       });
     }
 
-    pageSizeEl = document.getElementById("ab-page-size");
-    pageNav    = document.getElementById("ab-page-nav");
-    pageInfo   = document.getElementById("ab-page-info");
     if (pageSizeEl){ pageSizeEl.addEventListener("change", function(){ currentPage=1; renderPage(); }); }
 
     // First paint
