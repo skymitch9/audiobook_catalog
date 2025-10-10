@@ -3,6 +3,7 @@ old_versions/
 temp/
 output_files/
 logs/
+*.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
