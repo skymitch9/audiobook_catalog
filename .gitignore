@@ -3,7 +3,7 @@ old_versions/
 temp/
 output_files/
 logs/
-author_drive_map.json
+*.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
