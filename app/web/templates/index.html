@@ -76,13 +76,13 @@ tbody tr:hover{background:var(--row-hover)}
 th[data-type="num"]{text-align:right}
 td:nth-child(4){text-align:right}
 
-/* Covers: remove “white border” look by de-bording the cover cell + image/button */
+/* Covers */
 td:first-child{width:72px; border-top: none; border-bottom: 1px solid var(--border); border-left: none; border-right: none;}
 img.cover{width:56px;height:auto;border-radius:6px;display:block;border:none;box-shadow:none;background:transparent}
 button.cover-btn{display:block;border:none;background:transparent;padding:0;cursor:pointer}
 button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
 
-/* Cards */
+/* Cards (for small screens toggle) */
 #ab-cards{display:none;grid-template-columns:1fr;gap:10px}
 .ab-card{
   border:1px solid var(--border); border-radius:var(--radius); padding:12px;
@@ -145,7 +145,9 @@ button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
 
   <div id="controls">
     <div class="controls-row">
-      <input id="ab-search" type="text" placeholder="Search any field..." />
+      <!-- Search input -->
+      <input id="ab-search" type="search" placeholder="Search any field…" aria-label="Search" />
+
       <select id="ab-sort">
         <option value="title|txt">Sort by Title</option>
         <option value="series|txt">Sort by Series</option>
@@ -246,7 +248,7 @@ button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
   if (tg) tg.checked = document.body.classList.contains("dark");
 })();
 
-/* ===== App logic incl. modal ===== */
+/* ===== App logic: search, sort, pagination, modal ===== */
 (function(){
   // Dark toggle
   var darkToggle = document.getElementById("ab-dark-toggle");
@@ -257,19 +259,28 @@ button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
     });
   }
 
-  // Search marking (NULL-safe)
-  function markSearchMatch() {
-    var el = document.getElementById("ab-search");
-    var q = ((el && el.value) || "").toLowerCase();
-    document.querySelectorAll("#ab-table tbody tr").forEach(function(r){
-      r.dataset.searchMatch = ((r.innerText || "").toLowerCase().indexOf(q) >= 0) ? "1" : "0";
-    });
-    document.querySelectorAll("#ab-cards .ab-card").forEach(function(c){
-      c.dataset.searchMatch = ((c.innerText || "").toLowerCase().indexOf(q) >= 0) ? "1" : "0";
-    });
+  /* ---------- Utilities ---------- */
+  function _debounce(fn, ms){
+    var t;
+    return function(){
+      var ctx = this, args = arguments;
+      clearTimeout(t);
+      t = setTimeout(function(){ fn.apply(ctx, args); }, ms);
+    };
+  }
+  function _normalize(s){
+    return (s || "")
+      .toString()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g,"") // strip accents
+      .toLowerCase()
+      .replace(/\s+/g," ")
+      .trim();
+  }
+  function _tokens(q){
+    return _normalize(q).split(" ").filter(Boolean);
   }
 
-  // Sorting
+  /* ---------- Sorting ---------- */
   function getCellVal(row, idx, numeric){
     var cell = row.children[idx]; if (!cell) return "";
     if (numeric){
@@ -306,22 +317,8 @@ button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
       });
     });
   }
-  function getCardSortKey(card, key, numeric){
-    var v = card.getAttribute("data-" + key) || "";
-    return numeric ? (isNaN(parseFloat(v)) ? -Infinity : parseFloat(v)) : v;
-  }
-  function sortCards(container, key, numeric, asc){
-    var cards = Array.from(container.querySelectorAll(".ab-card"));
-    cards.sort(function(a,b){
-      var v1 = getCardSortKey(a,key,numeric), v2 = getCardSortKey(b,key,numeric);
-      return asc ? (numeric ? (v1-v2) : (""+v1).localeCompare(""+v2,undefined,{numeric:true,sensitivity:"base"}))
-                 : (numeric ? (v2-v1) : (""+v2).localeCompare(""+v1,undefined,{numeric:true,sensitivity:"base"}));
-    });
-    cards.forEach(function(c){ container.appendChild(c); });
-    currentPage = 1; renderPage();
-  }
 
-  // Pagination synced (shared vars)
+  /* ---------- Pagination (shared vars) ---------- */
   var pageSizeEl, pageNav, pageInfo, table, cardsWrap;
   var currentPage = 1;
   function matchedRows(){
@@ -338,23 +335,42 @@ button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
     var n = parseInt(v, 10);
     return isNaN(n) ? 100 : n;
   }
+
+  /* ---------- UPDATED renderPage: hide non-matches, show only paged matches ---------- */
   function renderPage(){
     var ps = pageSize();
 
-    var rows = matchedRows();
+    // All items
+    var allRows  = Array.from(document.querySelectorAll("#ab-table tbody tr"));
+    var allCards = Array.from(document.querySelectorAll("#ab-cards .ab-card"));
+
+    // Hide non-matches up front
+    allRows.forEach(function(r){
+      var isMatch = (r.dataset.searchMatch || "1") === "1";
+      r.style.display = isMatch ? "" : "none";
+    });
+    allCards.forEach(function(c){
+      var isMatch = (c.dataset.searchMatch || "1") === "1";
+      c.style.display = isMatch ? "" : "none";
+    });
+
+    // Work with matched sets for pagination
+    var rows  = allRows.filter(function(r){ return (r.dataset.searchMatch || "1") === "1"; });
+    var cards = allCards.filter(function(c){ return (c.dataset.searchMatch || "1") === "1"; });
+
     var totalRows = rows.length;
     var pagesRows = Math.max(1, Math.ceil(totalRows / ps));
     if (currentPage > pagesRows) currentPage = pagesRows;
 
+    // Rows: only current page visible
     rows.forEach(function(r,i){
       var start = (currentPage-1)*ps, end = start+ps;
       r.style.display = (ps===Infinity || (i >= start && i < end)) ? "" : "none";
     });
 
-    var cards = matchedCards();
+    // Cards (if used)
     var pagesCards = Math.max(1, Math.ceil(cards.length / ps));
     var pages = Math.max(pagesRows, pagesCards);
-
     cards.forEach(function(c,i){
       var start = (currentPage-1)*ps, end = start+ps;
       c.style.display = (ps===Infinity || (i >= start && i < end)) ? "" : "none";
@@ -362,6 +378,7 @@ button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
 
     drawPager(pages, totalRows);
   }
+
   function drawPager(pages, total){
     if (!pageNav) return;
     pageNav.innerHTML = "";
@@ -397,7 +414,44 @@ button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
     }
   }
 
-  // Modal logic
+  /* ---------- Search (tokenized AND) ---------- */
+  function _buildSearchCache(){
+    document.querySelectorAll("#ab-table tbody tr").forEach(function(r){
+      if (!r.dataset._searchText){
+        var parts = [];
+        Array.from(r.cells).forEach(function(td){
+          parts.push(td.innerText || td.textContent || "");
+          var ds = td.getAttribute("data-sort"); if (ds) parts.push(ds);
+        });
+        r.dataset._searchText = _normalize(parts.join(" "));
+        if (!("searchMatch" in r.dataset)) r.dataset.searchMatch = "1";
+      }
+    });
+    document.querySelectorAll("#ab-cards .ab-card").forEach(function(c){
+      if (!c.dataset._searchText){
+        var keys = ["title","series","series_index_sort","author","narrator","year","genre","duration_hhmm"];
+        var parts = keys.map(function(k){ return c.getAttribute("data-"+k) || ""; });
+        parts.push(c.innerText || c.textContent || "");
+        c.dataset._searchText = _normalize(parts.join(" "));
+        if (!("searchMatch" in c.dataset)) c.dataset.searchMatch = "1";
+      }
+    });
+  }
+  function _applySearch(q){
+    var toks = _tokens(q);
+    var matchesAll = function(hay){ return toks.every(function(t){ return hay.indexOf(t) !== -1; }); };
+
+    document.querySelectorAll("#ab-table tbody tr").forEach(function(r){
+      var hay = r.dataset._searchText || "";
+      r.dataset.searchMatch = (!toks.length || matchesAll(hay)) ? "1" : "0";
+    });
+    document.querySelectorAll("#ab-cards .ab-card").forEach(function(c){
+      var hay = c.dataset._searchText || "";
+      c.dataset.searchMatch = (!toks.length || matchesAll(hay)) ? "1" : "0";
+    });
+  }
+
+  /* ---------- Modal ---------- */
   var modal = document.getElementById("modal");
   var modalCover = document.getElementById("modal-cover");
   var modalTitle = document.getElementById("modal-title");
@@ -453,71 +507,46 @@ button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
   modal.addEventListener("click", function(e){ if (e.target === modal) closeModal(); });
   document.addEventListener("keydown", function(e){ if (e.key === "Escape") closeModal(); });
 
+  /* ---------- Startup ---------- */
   document.addEventListener("DOMContentLoaded", function(){
-    // *** IMPORTANT: assign to shared vars (no 'var' here) ***
+    // Assign to shared vars (no 'var' here)
     table      = document.getElementById("ab-table");
     cardsWrap  = document.getElementById("ab-cards");
     pageSizeEl = document.getElementById("ab-page-size");
     pageNav    = document.getElementById("ab-page-nav");
     pageInfo   = document.getElementById("ab-page-info");
 
-    function makeTableSortable(table){
-      var ths = table.querySelectorAll("th");
-      ths.forEach(function(th, idx){
-        var asc = true;
-        if (th.getAttribute("data-key")==="cover_href"){ return; }
-        th.style.cursor="pointer";
-        th.addEventListener("click", function(){
-          var numeric = th.dataset.type === "num";
-          // inline sort:
-          var tbody = table.tBodies[0];
-          var rows = Array.from(tbody.querySelectorAll("tr"));
-          rows.sort(function(r1,r2){
-            function getCellVal(row){
-              var cell = row.children[idx];
-              if (!cell) return "";
-              if (numeric){
-                var key = cell.getAttribute("data-sort");
-                if (key !== null && key !== ""){
-                  var n = parseFloat(key); if (!isNaN(n)) return n;
-                }
-                var txt = cell.innerText || cell.textContent || "";
-                var n2 = parseFloat(txt); return isNaN(n2) ? -Infinity : n2;
-              }
-              return cell.innerText || cell.textContent || "";
-            }
-            var v1 = getCellVal(r1), v2 = getCellVal(r2);
-            return asc ? ((numeric ? (v1-v2) : (""+v1).localeCompare(""+v2,undefined,{numeric:true,sensitivity:"base"})))
-                       : ((numeric ? (v2-v1) : (""+v2).localeCompare(""+v1,undefined,{numeric:true,sensitivity:"base"})));
-          });
-          rows.forEach(function(r){ tbody.appendChild(r); });
-          asc = !asc;
-          currentPage = 1; renderPage();
-        });
-      });
-    }
     if (table) makeTableSortable(table);
 
-    // init search flags
-    document.querySelectorAll("#ab-table tbody tr").forEach(function(r){ r.dataset.searchMatch = "1"; });
-    document.querySelectorAll("#ab-cards .ab-card").forEach(function(c){ c.dataset.searchMatch = "1"; });
+    // Initialize search cache/flags
+    _buildSearchCache();
+    document.querySelectorAll("#ab-table tbody tr").forEach(function(r){ if (!("searchMatch" in r.dataset)) r.dataset.searchMatch = "1"; });
+    document.querySelectorAll("#ab-cards .ab-card").forEach(function(c){ if (!("searchMatch" in c.dataset)) c.dataset.searchMatch = "1"; });
 
+    // Debounced search input
     var search = document.getElementById("ab-search");
-    if (search) search.addEventListener("input", function(){ markSearchMatch(); currentPage = 1; renderPage(); });
+    if (search){
+      var onType = _debounce(function(){
+        _applySearch(search.value);
+        currentPage = 1;
+        renderPage();
+      }, 120);
+      search.addEventListener("input", onType);
+    }
 
+    // Sort select + buttons
     var sortSelect = document.getElementById("ab-sort");
     var sortAscBtn = document.getElementById("ab-sort-asc");
     var sortDescBtn= document.getElementById("ab-sort-desc");
     function doSort(asc){
       var parts = sortSelect.value.split("|");
       var key = parts[0], numeric = (parts[1]==="num");
+
       // sort table
       var idx = Array.from(document.querySelectorAll("#ab-table thead th")).findIndex(function(th){
         return th.getAttribute("data-key") === key;
       });
       if (idx >= 0){
-        var evtTh = document.querySelectorAll("#ab-table thead th")[idx];
-        // trigger the sorting once in the chosen direction:
         var tbody = table.tBodies[0];
         var rows = Array.from(tbody.querySelectorAll("tr"));
         rows.sort(function(r1,r2){
@@ -540,21 +569,26 @@ button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
         });
         rows.forEach(function(r){ tbody.appendChild(r); });
       }
+
       // sort cards
-      var cards = Array.from(cardsWrap.querySelectorAll(".ab-card"));
-      cards.sort(function(a,b){
-        var v1 = a.getAttribute("data-"+key) || "";
-        var v2 = b.getAttribute("data-"+key) || "";
-        if (numeric){ v1 = parseFloat(v1); v2 = parseFloat(v2); if (isNaN(v1)) v1=-Infinity; if (isNaN(v2)) v2=-Infinity; }
-        return asc ? ((numeric ? (v1-v2) : (""+v1).localeCompare(""+v2,undefined,{numeric:true,sensitivity:"base"})))
-                   : ((numeric ? (v2-v1) : (""+v2).localeCompare(""+v1,undefined,{numeric:true,sensitivity:"base"})));
-      });
-      cards.forEach(function(c){ cardsWrap.appendChild(c); });
+      if (cardsWrap){
+        var cards = Array.from(cardsWrap.querySelectorAll(".ab-card"));
+        cards.sort(function(a,b){
+          var v1 = a.getAttribute("data-"+key) || "";
+          var v2 = b.getAttribute("data-"+key) || "";
+          if (numeric){ v1 = parseFloat(v1); v2 = parseFloat(v2); if (isNaN(v1)) v1=-Infinity; if (isNaN(v2)) v2=-Infinity; }
+          return asc ? ((numeric ? (v1-v2) : (""+v1).localeCompare(""+v2,undefined,{numeric:true,sensitivity:"base"})))
+                     : ((numeric ? (v2-v1) : (""+v2).localeCompare(""+v1,undefined,{numeric:true,sensitivity:"base"})));
+        });
+        cards.forEach(function(c){ cardsWrap.appendChild(c); });
+      }
+
       currentPage = 1; renderPage();
     }
     if (sortAscBtn) sortAscBtn.addEventListener("click", function(){ doSort(true); });
     if (sortDescBtn)sortDescBtn.addEventListener("click", function(){ doSort(false); });
 
+    // Toggle cards/table view
     var toggle = document.getElementById("ab-toggle-view");
     if (toggle){
       toggle.addEventListener("click", function(){
@@ -563,10 +597,11 @@ button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
       });
     }
 
+    // Page size change
     if (pageSizeEl){ pageSizeEl.addEventListener("change", function(){ currentPage=1; renderPage(); }); }
 
     // First paint
-    markSearchMatch();
+    _applySearch((document.getElementById("ab-search")||{}).value || "");
     renderPage();
   });
 })();
