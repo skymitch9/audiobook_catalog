@@ -104,6 +104,18 @@ button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
 }
 .page-btn.active, .page-btn:disabled{background:var(--btn-bg-active); border-color:var(--btn-active); cursor:default}
 
+/* Empty state */
+#ab-empty{
+  display:none;
+  border:1px dashed var(--border);
+  border-radius:14px;
+  padding:18px;
+  background:var(--bg-2);
+  color:var(--muted);
+  text-align:center;
+  margin-top:10px;
+}
+
 /* Modal viewer */
 #modal{
   position:fixed; inset:0; display:none; align-items:center; justify-content:center;
@@ -212,6 +224,9 @@ button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
   </table>
 
   <div id="ab-cards">{{CARDS}}</div>
+
+  <!-- Empty state -->
+  <div id="ab-empty">No results for “<span id="ab-empty-q"></span>”. Try a different search.</div>
 </div>
 
 <!-- Modal -->
@@ -248,7 +263,7 @@ button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
   if (tg) tg.checked = document.body.classList.contains("dark");
 })();
 
-/* ===== App logic: search, sort, pagination, modal ===== */
+/* ===== App logic: search, sort, pagination, modal, URL hash ===== */
 (function(){
   // Dark toggle
   var darkToggle = document.getElementById("ab-dark-toggle");
@@ -278,6 +293,23 @@ button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
   }
   function _tokens(q){
     return _normalize(q).split(" ").filter(Boolean);
+  }
+
+  /* ---------- URL hash helpers (q=, p=) ---------- */
+  function _parseHash(){
+    var h = (location.hash || "").replace(/^#/, "");
+    var sp = new URLSearchParams(h);
+    var q = sp.get("q") || "";
+    var p = parseInt(sp.get("p") || "1", 10);
+    if (isNaN(p) || p < 1) p = 1;
+    return { q:q, p:p };
+  }
+  function _writeHash(q, p){
+    var sp = new URLSearchParams();
+    if (q && q.trim()) sp.set("q", q);
+    if (p && p > 1) sp.set("p", String(p));
+    var newHash = "#" + sp.toString();
+    if (location.hash !== newHash){ history.replaceState(null, "", newHash); }
   }
 
   /* ---------- Sorting ---------- */
@@ -318,9 +350,10 @@ button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
     });
   }
 
-  /* ---------- Pagination (shared vars) ---------- */
-  var pageSizeEl, pageNav, pageInfo, table, cardsWrap;
+  /* ---------- Pagination / search shared vars ---------- */
+  var pageSizeEl, pageNav, pageInfo, table, cardsWrap, emptyEl, emptyQEl;
   var currentPage = 1;
+
   function matchedRows(){
     return Array.from(document.querySelectorAll("#ab-table tbody tr"))
       .filter(function(r){ return (r.dataset.searchMatch || "1") === "1"; });
@@ -336,11 +369,9 @@ button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
     return isNaN(n) ? 100 : n;
   }
 
-  /* ---------- UPDATED renderPage: hide non-matches, show only paged matches ---------- */
+  /* ---------- UPDATED renderPage: hide non-matches, show only paged matches, toggle empty ---------- */
   function renderPage(){
     var ps = pageSize();
-
-    // All items
     var allRows  = Array.from(document.querySelectorAll("#ab-table tbody tr"));
     var allCards = Array.from(document.querySelectorAll("#ab-cards .ab-card"));
 
@@ -354,7 +385,7 @@ button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
       c.style.display = isMatch ? "" : "none";
     });
 
-    // Work with matched sets for pagination
+    // Matched sets for pagination
     var rows  = allRows.filter(function(r){ return (r.dataset.searchMatch || "1") === "1"; });
     var cards = allCards.filter(function(c){ return (c.dataset.searchMatch || "1") === "1"; });
 
@@ -376,7 +407,22 @@ button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
       c.style.display = (ps===Infinity || (i >= start && i < end)) ? "" : "none";
     });
 
+    // Empty state toggle
+    var qVal = (document.getElementById("ab-search") && document.getElementById("ab-search").value) || "";
+    if (emptyEl){
+      if (totalRows === 0 && qVal.trim()){
+        emptyQEl.textContent = qVal;
+        emptyEl.style.display = "block";
+      } else {
+        emptyEl.style.display = "none";
+      }
+    }
+
+    // Pager UI
     drawPager(pages, totalRows);
+
+    // Keep URL hash in sync
+    _writeHash(qVal, currentPage);
   }
 
   function drawPager(pages, total){
@@ -405,8 +451,11 @@ button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
 
     var ps = pageSize();
     if (pageInfo){
-      if (ps===Infinity) pageInfo.textContent = "Showing all " + total + " items";
-      else {
+      if (total === 0){
+        pageInfo.textContent = "No results";
+      } else if (ps===Infinity) {
+        pageInfo.textContent = "Showing all " + total + " items";
+      } else {
         var sIdx = (currentPage-1)*ps + 1;
         var eIdx = Math.min(total, currentPage*ps);
         pageInfo.textContent = "Showing " + sIdx + "–" + eIdx + " of " + total;
@@ -515,6 +564,8 @@ button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
     pageSizeEl = document.getElementById("ab-page-size");
     pageNav    = document.getElementById("ab-page-nav");
     pageInfo   = document.getElementById("ab-page-info");
+    emptyEl    = document.getElementById("ab-empty");
+    emptyQEl   = document.getElementById("ab-empty-q");
 
     if (table) makeTableSortable(table);
 
@@ -523,8 +574,13 @@ button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
     document.querySelectorAll("#ab-table tbody tr").forEach(function(r){ if (!("searchMatch" in r.dataset)) r.dataset.searchMatch = "1"; });
     document.querySelectorAll("#ab-cards .ab-card").forEach(function(c){ if (!("searchMatch" in c.dataset)) c.dataset.searchMatch = "1"; });
 
-    // Debounced search input
+    // Apply hash on load (q, p)
     var search = document.getElementById("ab-search");
+    var hashState = _parseHash();
+    if (search && hashState.q){ search.value = hashState.q; _applySearch(hashState.q); }
+    if (hashState.p > 1){ currentPage = hashState.p; }
+
+    // Debounced search input
     if (search){
       var onType = _debounce(function(){
         _applySearch(search.value);
@@ -601,8 +657,20 @@ button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
     if (pageSizeEl){ pageSizeEl.addEventListener("change", function(){ currentPage=1; renderPage(); }); }
 
     // First paint
-    _applySearch((document.getElementById("ab-search")||{}).value || "");
+    if (!hashState.q){ _applySearch((search||{}).value || ""); }
     renderPage();
+
+    // (Optional) react to hash changes from back/forward navigation
+    window.addEventListener("hashchange", function(){
+      var s2 = _parseHash();
+      var curQ = (search && search.value) || "";
+      if (search && s2.q !== curQ){
+        search.value = s2.q || "";
+        _applySearch(search.value);
+      }
+      currentPage = s2.p || 1;
+      renderPage();
+    });
   });
 })();
 </script>
