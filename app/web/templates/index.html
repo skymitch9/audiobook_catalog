@@ -102,7 +102,8 @@ button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
   padding:6px 10px; border:1px solid var(--btn-border); border-radius:10px;
   background:var(--btn-bg); cursor:pointer; color:var(--text)
 }
-.page-btn.active, .page-btn:disabled{background:var(--btn-bg-active); border-color:var(--btn-active); cursor:default}
+.page-btn.active, .page-btn:disabled{background:var(--btn-bg-active); border-color:\
+var(--btn-active); cursor:default}
 
 /* Empty state */
 #ab-empty{
@@ -161,7 +162,7 @@ a.link-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
   #modal .panel{ grid-template-columns: 1fr; }
 }
 
-/* === NEW: make table rows look clickable === */
+/* Make table rows look clickable */
 #ab-table tbody tr{ cursor:pointer; }
 </style>
 
@@ -257,8 +258,10 @@ a.link-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
     <div>
       <div id="modal-title" class="title"></div>
 
-      <!-- New: Author Drive button -->
+      <!-- Author Drive button -->
       <a id="m-author-drive" class="link-btn" href="#" target="_blank" rel="noopener" style="display:none">Open author in Drive</a>
+      <!-- Book Drive search button -->
+      <a id="m-book-drive" class="link-btn" href="#" target="_blank" rel="noopener" style="display:none">Search book in Drive</a>
 
       <div class="meta-grid" style="margin-top:10px">
         <div class="label">Series</div><div id="m-series"></div>
@@ -532,10 +535,7 @@ a.link-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
   var AUTHOR_MAP = {};
   function _resolveAuthorFolder(author){
     if (!author) return null;
-    // direct match
     if (AUTHOR_MAP[author]) return AUTHOR_MAP[author];
-
-    // case-insensitive match over keys
     var aNorm = author.toLowerCase().trim();
     for (var k in AUTHOR_MAP){
       if (!Object.prototype.hasOwnProperty.call(AUTHOR_MAP,k)) continue;
@@ -553,27 +553,32 @@ a.link-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
       var data = await resp.json();
       if (data && typeof data === "object") AUTHOR_MAP = data;
     }catch(e){
-      // try relative fallback (useful if template lives in /template/ but map in /app/)
       try{
         var resp2 = await fetch("../app/author_drive_map.json", {cache:"no-store"});
         if (resp2.ok){
           var data2 = await resp2.json();
           if (data2 && typeof data2 === "object") AUTHOR_MAP = data2;
         }
-      }catch(_){/* ignore */}
+      }catch(_){}
     }
   }
   function _authorDriveHref(author){
-    // 1) exact or case-insensitive match -> folder link
     var id = _resolveAuthorFolder(author);
     if (id && typeof id === "string" && id.trim()){
       return "https://drive.google.com/drive/folders/" + encodeURIComponent(id.trim());
     }
-    // 2) fallback: Drive search
     if (author && author.trim()){
       return "https://drive.google.com/drive/search?q=" + encodeURIComponent(author.trim());
     }
     return null;
+  }
+
+  /* ---------- Book search in Drive helper (TITLE ONLY, no quotes) ---------- */
+  function _bookDriveHref(title){
+    var t = (title || "").trim();
+    if (!t) return null;
+    // No quotes, title only
+    return "https://drive.google.com/drive/search?q=" + encodeURIComponent(t);
   }
 
   /* ---------- Modal logic ---------- */
@@ -589,6 +594,7 @@ a.link-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
   var mDuration = document.getElementById("m-duration");
   var mDesc = document.getElementById("m-desc");
   var mAuthorDrive = document.getElementById("m-author-drive");
+  var mBookDrive = document.getElementById("m-book-drive");
   var modalClose = document.getElementById("modal-close");
 
   function openModal(payload){
@@ -610,7 +616,6 @@ a.link-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
       if (href){
         mAuthorDrive.href = href;
         mAuthorDrive.style.display = "inline-block";
-        // Tooltip clarifies behavior
         if (_resolveAuthorFolder(payload.author || "")){
           mAuthorDrive.textContent = "Open author in Drive";
           mAuthorDrive.title = "Opens the mapped Drive folder for this author";
@@ -625,6 +630,21 @@ a.link-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
       }
     }
 
+    // Book Drive search button — TITLE ONLY, pulled from payload.title
+    if (mBookDrive){
+      var bookHref = _bookDriveHref(payload.title || "");
+      if (bookHref){
+        mBookDrive.href = bookHref;
+        mBookDrive.style.display = "inline-block";
+        mBookDrive.textContent = "Search book in Drive";
+        mBookDrive.title = "Search this book title in Google Drive";
+      } else {
+        mBookDrive.removeAttribute("href");
+        mBookDrive.style.display = "none";
+        mBookDrive.title = "";
+      }
+    }
+
     modal.classList.add("open");
     modal.setAttribute("aria-hidden","false");
   }
@@ -633,13 +653,14 @@ a.link-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
     modal.setAttribute("aria-hidden","true");
   }
 
+  // Existing Cover button handler: uses data-* (including data-title)
   document.addEventListener("click", function(e){
     var btn = e.target.closest("button.cover-btn");
     if (btn){
       var d = btn.dataset;
       openModal({
         cover: d.cover || "",
-        title: d.title || "",
+        title: d.title || "",           // <- title comes from the button's metadata
         series: d.series || "",
         index: d.index || "",
         author: d.author || "",
@@ -652,29 +673,23 @@ a.link-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
     }
   });
 
-  /* === NEW: row/title click opens the modal via the row’s Cover button === */
+  // Row click opens modal via that row’s Cover button
   document.addEventListener("click", function(e){
     var tbody = document.querySelector("#ab-table tbody");
     if (!tbody || !tbody.contains(e.target)) return;
-
-    // If the Cover button itself was clicked, let the existing handler above run.
     if (e.target.closest("button.cover-btn")) return;
-
-    // If the user clicked an actual link inside the row (unlikely in this table), allow navigation.
     var link = e.target.closest("a[href]");
     if (link) return;
-
     var row = e.target.closest("tr");
     if (!row) return;
-
     var coverBtn = row.querySelector("button.cover-btn");
     if (coverBtn){
       e.preventDefault();
-      coverBtn.click(); // re-use existing payload + logic
+      coverBtn.click();
     }
   });
 
-  /* === NEW: keyboard accessibility — Enter on focused row opens modal === */
+  // Enter on focused row opens modal
   document.addEventListener("keydown", function(e){
     if (e.key !== "Enter") return;
     var tbody = document.querySelector("#ab-table tbody");
@@ -708,13 +723,12 @@ a.link-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
     // init search flags + cache
     document.querySelectorAll("#ab-table tbody tr").forEach(function(r){
       r.dataset.searchMatch = "1";
-      /* NEW: make rows focusable for Enter-key opening */
       if (!r.hasAttribute("tabindex")) r.setAttribute("tabindex","0");
     });
     document.querySelectorAll("#ab-cards .ab-card").forEach(function(c){ c.dataset.searchMatch = "1"; });
     _buildSearchCache();
 
-    // Load author map (non-blocking for initial paint, but awaited here so first modal click has it)
+    // Load author map before first modal usage
     await _loadAuthorMap();
 
     var search = document.getElementById("ab-search");
@@ -728,7 +742,6 @@ a.link-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
     function doSort(asc){
       var parts = sortSelect.value.split("|");
       var key = parts[0], numeric = (parts[1]==="num");
-      // sort table
       var idx = Array.from(document.querySelectorAll("#ab-table thead th")).findIndex(function(th){
         return th.getAttribute("data-key") === key;
       });
@@ -755,7 +768,6 @@ a.link-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
         });
         rows.forEach(function(r){ tbody.appendChild(r); });
       }
-      // sort cards
       var cards = Array.from(cardsWrap.querySelectorAll(".ab-card"));
       cards.sort(function(a,b){
         var v1 = a.getAttribute("data-"+key) || "";
@@ -783,20 +795,19 @@ a.link-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
     pageInfo   = document.getElementById("ab-page-info");
     if (pageSizeEl){ pageSizeEl.addEventListener("change", function(){ currentPage=1; renderPage(); }); }
 
-    // Apply hash on load (q, p) and initial paint
     var hashState = _parseHash();
-    if (search && hashState.q){ search.value = hashState.q; _applySearch(hashState.q); }
+    var searchEl = document.getElementById("ab-search");
+    if (searchEl && hashState.q){ searchEl.value = hashState.q; _applySearch(hashState.q); }
     if (hashState.p > 1){ currentPage = hashState.p; }
-    if (!hashState.q){ _applySearch((search||{}).value || ""); }
+    if (!hashState.q){ _applySearch((searchEl||{}).value || ""); }
     renderPage();
 
-    // React to back/forward navigation
     window.addEventListener("hashchange", function(){
       var s2 = _parseHash();
-      var curQ = (search && search.value) || "";
-      if (search && s2.q !== curQ){
-        search.value = s2.q || "";
-        _applySearch(search.value);
+      var curQ = (searchEl && searchEl.value) || "";
+      if (searchEl && s2.q !== curQ){
+        searchEl.value = s2.q || "";
+        _applySearch(searchEl.value);
       }
       currentPage = s2.p || 1;
       renderPage();
