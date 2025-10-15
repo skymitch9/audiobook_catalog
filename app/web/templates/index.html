@@ -160,6 +160,9 @@ a.link-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
   input#ab-search, select#ab-sort, select#ab-page-size, button.btn{padding:12px 14px}
   #modal .panel{ grid-template-columns: 1fr; }
 }
+
+/* === NEW: make table rows look clickable === */
+#ab-table tbody tr{ cursor:pointer; }
 </style>
 
 <!-- Generator fills this from .env; fallback kept for local dev -->
@@ -648,6 +651,45 @@ a.link-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
       });
     }
   });
+
+  /* === NEW: row/title click opens the modal via the row’s Cover button === */
+  document.addEventListener("click", function(e){
+    var tbody = document.querySelector("#ab-table tbody");
+    if (!tbody || !tbody.contains(e.target)) return;
+
+    // If the Cover button itself was clicked, let the existing handler above run.
+    if (e.target.closest("button.cover-btn")) return;
+
+    // If the user clicked an actual link inside the row (unlikely in this table), allow navigation.
+    var link = e.target.closest("a[href]");
+    if (link) return;
+
+    var row = e.target.closest("tr");
+    if (!row) return;
+
+    var coverBtn = row.querySelector("button.cover-btn");
+    if (coverBtn){
+      e.preventDefault();
+      coverBtn.click(); // re-use existing payload + logic
+    }
+  });
+
+  /* === NEW: keyboard accessibility — Enter on focused row opens modal === */
+  document.addEventListener("keydown", function(e){
+    if (e.key !== "Enter") return;
+    var tbody = document.querySelector("#ab-table tbody");
+    if (!tbody) return;
+    var row = document.activeElement && tbody.contains(document.activeElement)
+              ? document.activeElement.closest("tr")
+              : null;
+    if (!row) return;
+    var coverBtn = row.querySelector("button.cover-btn");
+    if (coverBtn){
+      e.preventDefault();
+      coverBtn.click();
+    }
+  });
+
   if (modalClose) modalClose.addEventListener("click", closeModal);
   modal.addEventListener("click", function(e){ if (e.target === modal) closeModal(); });
   document.addEventListener("keydown", function(e){ if (e.key === "Escape") closeModal(); });
@@ -664,7 +706,11 @@ a.link-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
     if (table) makeTableSortable(table);
 
     // init search flags + cache
-    document.querySelectorAll("#ab-table tbody tr").forEach(function(r){ r.dataset.searchMatch = "1"; });
+    document.querySelectorAll("#ab-table tbody tr").forEach(function(r){
+      r.dataset.searchMatch = "1";
+      /* NEW: make rows focusable for Enter-key opening */
+      if (!r.hasAttribute("tabindex")) r.setAttribute("tabindex","0");
+    });
     document.querySelectorAll("#ab-cards .ab-card").forEach(function(c){ c.dataset.searchMatch = "1"; });
     _buildSearchCache();
 
