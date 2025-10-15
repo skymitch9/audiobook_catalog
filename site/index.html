@@ -76,7 +76,7 @@ tbody tr:hover{background:var(--row-hover)}
 th[data-type="num"]{text-align:right}
 td:nth-child(4){text-align:right}
 
-/* Covers: remove “white border” look by de-bording the cover cell + image/button */
+/* Covers: de-bord cover cell + image/button */
 td:first-child{width:72px; border-top: none; border-bottom: 1px solid var(--border); border-left: none; border-right: none;}
 img.cover{width:56px;height:auto;border-radius:6px;display:block;border:none;box-shadow:none;background:transparent}
 button.cover-btn{display:block;border:none;background:transparent;padding:0;cursor:pointer}
@@ -97,13 +97,11 @@ button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
 .pagination{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .pagination-info{color:var(--muted)}
 #ab-page-nav{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-.page-ellipsis{padding:6px 4px;color:var(--muted)}
 .page-btn{
   padding:6px 10px; border:1px solid var(--btn-border); border-radius:10px;
   background:var(--btn-bg); cursor:pointer; color:var(--text)
 }
-.page-btn.active, .page-btn:disabled{background:var(--btn-bg-active); border-color:\
-var(--btn-active); cursor:default}
+.page-btn.active, .page-btn:disabled{background:var(--btn-bg-active); border-color:var(--btn-active); cursor:default}
 
 /* Empty state */
 #ab-empty{
@@ -158,7 +156,7 @@ a.link-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
   body:not(.cards) #ab-cards{display:none}
   body:not(.cards) #ab-table{display:table}
   th, td{padding:12px}
-  input#ab-search, select#ab-sort, select#ab-page-size, button.btn{padding:12px 14px}
+  input#ab-search, select#ab-sort, input#ab-page-size, button.btn{padding:12px 14px}
   #modal .panel{ grid-template-columns: 1fr; }
 }
 
@@ -166,10 +164,331 @@ a.link-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
 #ab-table tbody tr{ cursor:pointer; }
 </style>
 
-<!-- Generator fills this from .env; fallback kept for local dev -->
-<script>
-  window.AB_AUTHOR_MAP_URL = "{{AUTHOR_DRIVE_MAP_URL}}";
+<!-- === Inline Author → Drive map (no fetch). Replace with your full mapping === -->
+<script type="application/json" id="ab-author-map-json">
+{
+  "A. American": "1XRRVYWv3Ys4-5BGnYmTis1L2WlqAyuW9",
+  "A. J. Finn": "1aXkdGgjqwPetePn4oOMNSd01OPXr12mK",
+  "A. J. Pine": "1X8tUejTnSQQDgAYNfF2ALIXSujwlDEWj",
+  "Aaron Shih": "1N2epF8nQWOC9p6Y_FE8omm7EiGhVZMNa",
+  "Actus": "1ozy0b5RFWWhG1zUxOUQ5binvbxl_wdlR",
+  "Adrian Tchaikovsky": "1NN3SWdONFrWHrfdreFcBYiEIe9rgtWTg",
+  "Aleron Kong": "1e49Fli5YJ-gWc8OTxG9KmBry5CWVWjxz",
+  "Alex Aster": "1idA4_l_Gki6iAYpDV2vONdhxnm3SyGTj",
+  "Alex Michaelides": "1Iy_pZGVqci4cBN_0hWujFutqX4Tl-w2e",
+  "Alex Toxic": "1rNyOeWWzjeBebi-0NIfJZb_-wUaihaVR",
+  "Alexandra Bracken": "1mdEzML-POGcYddPJ_ZYzcVmwjiuLJTrw",
+  "Alexandra Silber": "1WjjGoDL4I4GgVU-csM5dccH1StSMFSJP",
+  "Ali Hazelwood": "1q6XzqK1OEjgSHUV6Z5b4_Yy4MxmDN8YH",
+  "Alice Feeney": "1Ovo_ck26nnp92c4yfrFuj7sJsZsi1TEX",
+  "Amie Kaufman": "13Ccn7rX7ZLr78yb4CbOOQm9IRQMTY3p6",
+  "Amélie Wen Zhao": "160JbDfnOm5RDFhLpuWjvlSuGIbtvu5p3",
+  "Ana Huang": "1Rj3Bt7K6eVo--n5s8NF51kLINd5F6lUa",
+  "Andrew Rowe": "1l1kIiIKaKGGOZw_0UxYNEcx5hjoLkUb6",
+  "Andy Weir": "12eU3DwLXsEyin3bjKcMc6N--8YGKpsG9",
+  "Anonymous": "1NY5YTVzY2B986OsuIzNZ0Em2uaxx21mx",
+  "Anni Taylor": "1OMj6M00d_AABPYoQErUprDd1YjR-lPvb",
+  "Ariel Lawhon": "1qB19zFiXNghw9JHMUru7XyVQaD8G8p51",
+  "Arthur Conan Doyle": "1Z4-KE0McQlKH9joaWu_JHknqXsqa5zcn",
+  "Arthur T. Bradley": "12NZSdlygNPbv5NA4gQ-BN11JWwpvU6AF",
+  "Ashley Poston": "1fzMuutEXTEYPe5F43nHb5fVDeJfdYhmd",
+  "Atlas Kane": "1_R7rh2MF7Qi1i_hkIvOulmfHhbpwK-OT",
+  "Bastian Knight": "1bdeLpy6aTWqMN-PKUWpbxxCz9dB-oiCT",
+  "Becky Chambers": "1tY0doGwE-Tcp6WFAxvFt6KoGRuYkj7nB",
+  "Bella Forrest": "1ufX3BVhmVQDMV7bQMC5n2KPWrKoNCcFZ",
+  "Ben Garrod": "1bk6reDBLuTZESe2vifZys-K0k1LiYPCu",
+  "Benjamin Kerei": "1w7r9sJ3K5FsCHILst1oYV3F57TQvvXZM",
+  "Benjamin Stevenson": "11WTIv2b7gnEk0Pic5G89g8-jBbWr4Q2v",
+  "Blake Crouch": "1B78kgkDfWenQxsVnixjodIJGcv22Ouyl",
+  "Bob Newhart": "1cEb6ySXYpuC7Uidas1aKOcJroc86NS8P",
+  "Bobby Hall": "1PLiNxLWehgtbUfICz82YLDtImwUd8mi-",
+  "Bram Stoker": "1jsriC-Hy0TmvteKpuRShne3eIyqWBUas",
+  "Brandon Mull": "1bbY_TtKw51ns84r5BUJ7-1FSeLWlKP10",
+  "Brandon Sanderson": "1Gv-ImmYduWqSCeju2b9dqkqEV8pNBVyW",
+  "Brandon Varnell": "1pQGewJtyt6k1CLo8yuj1bDZ_uK5rotsh",
+  "Brené Brown": "1a9tGzCfpUAd-yy_ISXBEaLgbpkiVjekR",
+  "Brian Andrews": "1q1UAX43WyQY4Q26-gg0AJiZ-DiCPhA6x",
+  "Brian Staveley": "10kftEF9KAJrVSUviFN79x1BONoGiHq10",
+  "Bruce Sentar": "1vPdkNsqeXsQdC78P6pZAvCvzOVQTc3pw",
+  "Bryan Burrough": "18Yp9nybpiWLVeR80qJe-CxbWVhDIaJkB",
+  "Bryan Stevenson": "1Ewulrkaf8R_DdQXpnQPp0ily2o0zNIlj",
+  "Brynne Weaver": "1Dd1PO85msOFlVaZf3jvreHk0Lr562YYM",
+  "C Peinhopf": "1iNg-NKUlDkqM8egJh-5hg-3rFgGfDv-B",
+  "Callie Hart": "1dK35u2pXyqw8aPlU7QrIJDEHVujit7Qy",
+  "Cara Bastone": "1GzeJ5rWAGGj_px-ektkVRQ5gOJf-7uxa",
+  "Carissa Broadbent": "1ROvlFLsbrtup1kawihWvFlzzzewwgA-W",
+  "Caroline Kepnes": "1M0rTqSuN1xD9Zg8SmBYgmSbSWF2zrjRy",
+  "Caroline Peckham": "1KLv6J4DWANYjJ63xkxK2AABS-oEQF2Vs",
+  "Catherine Steadman": "1K99DY5BBiAaXXP2JXZ4EPvb-v3TYF5G5",
+  "Cavan Scott": "1gf5vhjjsKfpZoXB3uJbKiHW6UiPjBlyB",
+  "Cebelius": "1pC-L90wUNrzSn14uMZ4hRQGYI19mrZ-v",
+  "Charles Soule": "1WPp_rQ5XovexEoI845L2SG9UPryuxjFo",
+  "Charlie Donlea": "194-2TOFONnvd6k02bpa3jzqAn0NuD_Nt",
+  "Christie Golden": "1ZGQXcdqq_t71GtqYVk0c-gNV0ovFcfpB",
+  "Christina Baker Kline": "16Dsnweh0mTXie-7EEnyk5sdsbDzuQ8iC",
+  "Christina Lauren": "1qRigbA4Il3as_j-sCW92zPfDjK-FkZdn",
+  "Christopher Johns": "1zuryDGL9dQEfbqKSv0alK4WrRK8Dt2cS",
+  "Christopher Paolini": "1rSjyZ-G9Ddt74dNoQQxeLrqwAb9z9XJ6",
+  "Christopher Ruocchio": "1_1QGzHOA6emxKm0J0uGTH5-zC5ANGRmw",
+  "Claire North": "1CIeGNwSaNXHGFqfzBFRUGxB70rt_iP_F",
+  "Claudia Gray": "18ln6onLKT0tx2yPH_ogJ6bihYsejrJCU",
+  "Courtney Alameda": "1VtpEIPurJNF9cFK1IIbUgsGSdrAu--qp",
+  "Courtney Cole": "1WoGyml6FGK9FZ5mgvnkd_AJ2O1HgrCrf",
+  "Craig Alanson": "159CJTi4RqlJFclhZlSy8KRV6V_ZpMsAI",
+  "Curtis Sittenfeld": "146coInKbOLGpU9meHPoopcAlVqJTO3w2",
+  "D. J. Palmer": "1xpqAQ-uC3UFCVMJLRNpAZS3S0TQH7jSa",
+  "Dakota Krout": "1Yn7MU6ZxSaOsfQ6bvpqmUFziW-LHalkl",
+  "Dan Wells": "1aOp4_KDr8VGCZDon2auEloME0zjnMl1k",
+  "Daniel L. Everett": "1ohmXHRMpg8iknYggbD37JKZJvw-qq4mo",
+  "Daniel Schinhofen": "1iaIsOWI-7bWoy-YLfaasByS2H4Fjw9mM",
+  "Dante King": "1dn2dc0TpLxGphC9v3YItj9JXoTPdghaS",
+  "Dave Willmarth": "1AWnoNznl58rncFbPiSvHr5odUZQomLWj",
+  "David Levithan": "16PML1SF2sHzcpvU3k-LGIDSJF0sU1fDw",
+  "David North": "1vgHp4jxuVzIsY5f3vhj31Na0W2SnEqRn",
+  "Deck Davis": "1XBbjQiCqdDVUTlcD7a-rEahLzHj2-opN",
+  "Delemhach": "1E1iHDIZH2e8lFwP2w0GU-fh1RjmXVQIK",
+  "Delia Owens": "1V-G-phEnX6ulIT156S7Tb-GeDNnFqqcL",
+  "Derek Benz": "1Th_dvs6l48Hf3kstaFvqaE4bT3rOb_wA",
+  "Django Wexler": "1kweFVTxzfOYQCyA-DBMXlvjumCDur9fd",
+  "Draith": "1aRwz3Aes-NCXJLp_fvF7cpWF8lit3djO",
+  "Dreda Say Mitchell": "1u0M-EaCqVM5z-V7S9IaZviQhvAaa1rN2",
+  "Drew Hayes": "1mXVedH-lnHIlMcuYWsYKVBT2Fj-4kC-L",
+  "Drew Karpyshyn": "1F_9uxeHzR9vqn96JhmCaw3XbjNUKhQ5o",
+  "E. C. Krueger": "1Kvyro7qgXewa8cbBu8Ei3fE0nDNdZajO",
+  "E. K. Johnston": "1NXaDark6ESBEL_ZHkhoeFTpfJE9lAe2Y",
+  "EA Hooper": "1AjwIQkQh_cyr5H38_SlkZlUmkwH7LlNI",
+  "Eden Hudson": "",
+  "Edgar Allan Poe": "",
+  "Edward Brody": "10PbuVrFFahl1yyRkKj9Yyqh64Uv9D_GO",
+  "Elen Hopkins": "",
+  "Ellen Hopkins": "1OYhvCzG7ALrrmRoQexOfdOaVSnsRBxif",
+  "Emily Elgar": "1KKFTi92SmGldGPPYObqczIHOLuV8SGzq",
+  "Emily Henry": "1I4IlJq1Z5dVIn9ig4N5KaAiUr6Fdu6iH",
+  "Erin Ampersand": "1wkryDxKoRzBwGbYMhmwTH0zyEkKKYGqN",
+  "Erin Morgenstern": "1bE51VUWQDpfddTnv_mySRTAPw2K0PJeK",
+  "Erios909": "1_Pl4D6qQM4JonHFgHromq92-6bSRO1bF",
+  "Ernest Cline": "1mnHu1dvb8J9yb4XrHNP11VenFGOVvXmr",
+  "Esther Perel": "1n53Xr5_17qE9c8K6DsK9WSseVO2Ip4EL",
+  "F. C. Yee": "1YZXLK7am96NSblaDkiWhbjF3SPTSFrDs",
+  "Francesca Zappia": "1ZAenMLjhiG4HYwgim8hZTGwvqWpSQEvO",
+  "Frank Herbert": "1KVELaPZhnM0hteE1C3Vqwxcch_-WOGuv",
+  "Fredrik Backman": "1hwnH7G17SF_ASA5QRzCxzKKTtjuZOEVD",
+  "Gail Honeyman": "1WCdgdohJsCHEvjE_TulauGaOp3nNkgYU",
+  "George Orwell": "16SxDHKA9kWf2mcC9SZ_aFnevTgH9xKAU",
+  "George R.r. Martin": "1zhVUxHzqi7Q4FeBCG6AhkQGrykgsY50M",
+  "Gillian Flynn": "1D7wHEzJEmq1s95GtEkF8VzHuiR_PEHyU",
+  "Greer Hendricks": "1lglpKDSIt0ifgWCqUXCmBNAYeHWYDvja",
+  "Gregory Allanther": "1ZE2vj5cnEhTQCzlWChotSd1AJV5vWgFW",
+  "Gregory Maguire": "1nKWQg_ZNHHOgBtdib0upNuEaZXhROx2l",
+  "Guy Haley": "1VJUwCxIfAw9wZ0VMfgterCljOqg0ERX1",
+  "Harmon Cooper": "1fJMrWO8VobZWllN0pHyXd6YFSAHpqgmR",
+  "Harper L. Woods": "1CJ6WkbvdLyhvT6k2DyQ-2SucJhrOKJmb",
+  "Haylock Jobson": "1yzhQC8rYkmreTMap5K--6MXE0OCW1Okp",
+  "Heather Fawcett": "1FlK6vE0QXhZilI7KKYe4NWxkM3vRpsZo",
+  "Helen Harper": "1InZCnm6f7V_N81KowPZwcmYMrzDgOxcD",
+  "Honour Rae": "1ShL5pxKFtnIW4GjaPTOlTZEoSBTlq741",
+  "Hugo Huesca": "1-s4RKGDaHz1Z-GVK4MHcRZIXcRCjkHhy",
+  "Iain S. Thomas": "1pXautLq10xo9QYAu4EXH3j9S6EM3xira",
+  "Imani Erriu": "1VfQRA6QXWQoNVQHj7tRhAtq6pn1-KsRw",
+  "Invayne _": "1aHMaHw5zh5c1nczB3omqwjG9J5LuW85L",
+  "J. P. Pomare": "1ljF5L7OaRAQdsmvnHVuaGIqBBDIrb6Zo",
+  "J. R. R. Tolkien": "18XgVGd5bkMKVWcHJgqycz7M-TvPOrycq",
+  "J. S. Morin": "1RxgW5wuzD44Wc6NTWQG21C-7HAK4xaS7",
+  "J.r. Davis": "1Y0Lu3OkfuV1Kp0hOK5shOOU7ILnv0Qyy",
+  "J.R. Mathews": "1h7rCrpljKmcwyy1IklklDhUFm08D302m",
+  "Jack Campbell": "1vUp7B5bJqR7WjXLnwzodqhMcpYnhL6fH",
+  "Jack Gantos": "1X7T-Z65AcWFsups4Tqs3kwfCnivPtA0T",
+  "Jaime Castle": "1BD_s-kklov5Ic7ImocgMb3dmCaCsAWAH",
+  "James Hunter": "1ojTnMPa_God1AZWXWr-Kl7h1eDn-CDxw",
+  "James Islington": "1U5oC6BtPhsFEcEE9JKj_luaL7wJ4qNun",
+  "James J. Butcher": "1iqnv1OPDjOTOMuaTfH-N_tqitrOSYtnz",
+  "James Luceno": "11d5lZVD7tvqkHtPKMT7t35d2KFuw2oKz",
+  "James Osiris Baldwin": "1snqE0zSTYvQNE3PV0rJHhB6Edq7pw9hu",
+  "James S. A. Corey": "1fl-E1p4x5_TCq9vmH0Xm9pD1H6s7Q0oI",
+  "James T. Callum": "19WvDQFUz9P23BZxLBR-G_Qb8YoP4X6l3",
+  "Janci Patterson": "",
+  "Jane Austen": "191eBHRGiK6PBqpvYiaySj3XMkNgGWlRa",
+  "Janelle Brown": "1veN1onLgKqG-Lcet8kxCm8JmMU6enrx3",
+  "Jasmine Warga": "1bx3ENqEdObZkeoAKHtEXafuo3-G3GuoR",
+  "Jay Boyce": "1b8jGiWBxGKe35xVDXNsUx91pOltOVi9U",
+  "Jeff Wheeler": "1Es8D4eYmYnSf1iADsK4Yw4TRd7Jp3-9F",
+  "Jeneva Rose": "1FH-hLOnlpTJGEk1oSdv_m4-WH5-J_inh",
+  "Jennette Mccurdy": "19LffmYTdGq3AWEb7cTE5-1J3ApFfunrM",
+  "Jennifer L. Armentrout": "1PtwECy00ZdMbDi7EdEEhBUCK-xqTSAxt",
+  "JF Brink": "1MWLh2vj2W4aWWxCQnOEr31XfQni2gpJ_",
+  "Jim Butcher": "10lbe0eUksFAPeSh6A9RlMnyphvH8b70A",
+  "Joe Harris": "1fAKs1MDhQoJv-rtMsyN7pJ7dQAXnJP6b",
+  "John Scalzi": "1L_p2OGZRYff7_ZYn--WoRTnPIJQ43T8S",
+  "Jon Ronson": "1LMeCoHIMK_XvmTjLLAx4ERynJTvEvtzQ",
+  "Jonathan Brooks": "1mssi3BMt4owPPDSVOtnVOYxkXuoSVLaM",
+  "Jonathan Maberry": "1yf55X_dmKSfopwvAfabudo9mlzsz8c-7",
+  "Jonathan Renshaw": "1pnw38AORrDw8itYEdtqiKOpIwiSDzV8j",
+  "Joy Patrick": "1ea14LdZC0f2bjXQHXO6lXaF7lxJ_OCSG",
+  "Julie Berry": "1-c-0xfTwoXDVYPd-GDeAmrbwv7Ef5N4Q",
+  "K.t. Hanna": "1WWJ4yuQLkaotF-_7mvXoud8cmTabXDWy",
+  "Kami Garcia": "1E9pbDNOk1INwhx6978wlZgd2AnAoBpF1",
+  "Karen M. Mcmanus": "1gs75-G-YriWxhlN74fXty1LKpM0bJpxQ",
+  "Kathleen Glasgow": "11f8srSPQ9VtM65MvUTVXI3NdVjDnjaAN",
+  "Kate Morton": "1QKehob1qMpsmdSOpRjEqE7q4Yx-0zRk_",
+  "Kaylie Smith": "1PucNWiLzj7kZh1_aTpw2cgBIPqkxTUhZ",
+  "Kel Kade": "1cGTuquirxLHeJWW2UUyOVi-OqN88OetG",
+  "Ken Lozito": "1IwOYjMU8f_1ybXJDt6KteMH6etf4t-h5",
+  "Keri Lake": "128M6g6KxBU-lrMzrhWL3MTgOmoqEakvm",
+  "Kiersten Modglin": "1wdD99DfqODFJ8e0ks44nAzVZyuSDXhuf",
+  "Kim Harrison": "1dKCVtxCuSOks7v7tIEOApAXKSiI5ikF2",
+  "Kimberly Belle": "1qqspQX-Ulf-83-gHsXAaGTB2DhkyoK4F",
+  "Kristan Higgins": "1BP1neBMReT6zcThLcK-3UWwhS_HS2dep",
+  "Kristin Hannah": "1hxT4tubNadcw_geo0tKex9G2mbCGrKz0",
+  "Kurtis Eckstein": "1wtvKsZ7ETcjWMX8aAZQAeGoPsCilIeRd",
+  "Kyle Kirrin": "1eEZxjnoFfpT-ZSAfcqKuvLCAbHSEnJLo",
+  "Laura Mchugh": "1No36LRYuJUoyBB6-ROxElgldmDoz2CSX",
+  "Lauren Blakely": "1IkcDpdovAUKrGEo5s_Kv3cYX1xQaYMj2",
+  "Lawrence M. Krauss": "1fxxu1K9T--Ag9Amt23VirQZ6SOnHacRz",
+  "Lee Bacon": "1YVEB2Ki6AHklCzZ0KZSgZJuNhagqU8gJ",
+  "Leeanne Slade": "1Hi36A7tOqeY5FlQslr-HhetGNcKLsFRZ",
+  "Leigh Bardugo": "1D0z_6CMEl1LQ0YrowfV7jfMROXkciHMe",
+  "Leonard Petracci": "1RsPxSq1zujPAwQmwibgAQ65far_4YoMk",
+  "Lily Chu": "1yNmP9tCP9bHsE17J24pyjuf-pyvhtmN4",
+  "Linda Keir": "1sfoy4fP2HtoJrCav7sAbSY3grsJJlmoY",
+  "Lisa Jewell": "1sMrFa6ViJfa8WYGyNzsKBNxQpzwpR_C7",
+  "Logan Jacobs": "19AOj1xRdVmeN6og-dksryJU5qAAy8V-N",
+  "Lois Lowry": "1l_oE13esoZT4T7UTWXgz7DHL_aJ7Lpkb",
+  "Lori Gottlieb": "1L9WInZZyUxzqlfxOoJRcgVhxRX-UJTVH",
+  "Lucy Dawson": "1q8usGUv9p5EeEIYQSFWAX0V1d-ehYcOD",
+  "Luke Chmilenko": "1tp0eYUg_hll4722nfmLfdZ-qnmECN1Y2",
+  "M. R. James": "1pWma_rKSXbUw6XNlq0FOEtUZQsWH8RL1",
+  "Madeline Miller": "1BtBPILC2gCNVgOPFjGCWLUTYI1QsyRtr",
+  "Margaret Stohl": "",
+  "Marni Mann": "11XpZCm-ozMZv9kG_p9NHTFgP9ucThNLc",
+  "Martha Wells": "1cpRfbpCiLyLotm7U5E_4pN6O6mnuhYWn",
+  "Mary Kubica": "1uzINhn5_eBfK0OeDcnOfprJyT8tK6IkI",
+  "Mashton Xx": "128Mnh4la1eEeIlZF4UjTfM7prlZuNFCj",
+  "Matt Dinniman": "1OqVbpSMKOl2UQvpR_mPKI_RAfs8Y12rF",
+  "Melissa Mcphail": "10e0K1qck7cKOI07L0qMBVsQ6LtKc7wfr",
+  "Michael Chatfield": "1bQCRcoq3K7UEYG-ZTwbv0hDYmlLXTDh7",
+  "Michael Crichton": "16IVaP2yjMGshlDzFhkxLJrQKOppRWqn6",
+  "Michael Dante Dimartino": "",
+  "Michael Head": "11S5xyeH-49N_TaQqr5Rv0hZ2GiRPMVjg",
+  "Michael Kardos": "1oZ0XmOSKV3_YGc7gMcANwpSjL8R8bzgT",
+  "Michael Livingston": "16uzuI2FoKK3SQyxLashMWizG0za7fQTK",
+  "Michael R. Miller": "13rWpF4wNGigwQE3nlohEaqyPOKkBpBdk",
+  "Michael-scott Earle": "1ezlT3xddP5SHVnalBvqSYq9MB3sBFvOC",
+  "Michele Campbell": "1k3kPvm4TMAjJwqvbKNtengYbLYJUimrM",
+  "Mikal Gilmore": "1gv_bonnIJE9ZqYhJ9G69vQNst-ev52A9",
+  "Mike Duncan": "1p5mBsvFUJjlYlJg3_SYXY7iXsT-Afk5L",
+  "Montgomery Quinn": "1qPkAUef4QUHmeazFuFUbkqhx5H4sXzJt",
+  "Morgan Taylor": "1cwoFaV9ewrzFbrRHu0gdmPadDUug7ce2",
+  "N. C. Lux": "1rXNDnskqQisoW_2o7K8UvGtO9zqEOjPF",
+  "Nadya Lee": "1rNyOeWWzjeBebi-0NIfJZb_-wUaihaVR",
+  "Natalie Barelli": "1Zx7c9W7RE6EBEPh7wq5xKxDWKPl_dAyr",
+  "Natasha Preston": "1XcaWcC8KjCQrcAGlgwE9Mdw2ftVAI17y",
+  "Navessa Allen": "1QJc0RP0L4byupepioDvO3RtxfNfWCAZT",
+  "Nazri Noor": "1gz_1y0883N6YoWq9SC2OkLJmIbX9QtQp",
+  "Neal Shusterman": "16CAGrifTHN220avnUbD3VjE66lhTI6AZ",
+  "Neil Degrasse Tyson": "1LQtoxMK8W9siJG1JcDvWyenNwpH0KbPX",
+  "Neil Gaiman": "1woInxq3A5RGT6bQLW8BdmF6SoNqsU4aC",
+  "Neven Iliev": "1UZfgK8zaSaiAVZMSgb4Z3Jzzy9NCz86r",
+  "Nick Carr": "1FI8xvNiiFC4-m9EQ3NkbV9qz9iUPtY9-",
+  "Nicoli Gonnella": "1vK9BGqY_gtbtGrc4aXxktazDkma3rYB4",
+  "Nikita Thorn": "1iNiR9NWFgPLfaG_FVS5HrndrIdGQmXqF",
+  "Nora Roberts": "1Tibu-2tw5SQGKmaXJH04Vo7Rj2Ikul7S",
+  "Oliver Mayes": "1xAq5Au8B4sLi7QApG31VU3CNB1BMn9uQ",
+  "Paula Hawkins": "1W4k_CDUNFLmk35mWx6hhsZmUfbYVhHsm",
+  "Paula Mclain": "1PuHCrEJG0iBFoIkDqIDYLeNml41pqGND",
+  "Penn Cole": "1ax1hCQ31xi9DcclkQNPcydVA__qOR13X",
+  "Peter Swanson": "1CFEs08s4--LwCeFvgmuabNRMSdDcFxvg",
+  "Pierce Brown": "1bAXREspVYCipbg8WgiEP4PNT9DYD4-n7",
+  "Pirateaba": "1Ym_PZX1ofr6rYAgHipDJhaomu2BtS1dN",
+  "R. E. Mcdermott": "1CxydNymj7J-N_gKXuGriPf_Mt3KVyMfQ",
+  "R. L. Stine": "1nU9jku1HoBU0yAf56DQMt88H4SuhrYXQ",
+  "Rachel Gillig": "1btSoy7IMPZIAWazSW5tLdblGvAOd5ac6",
+  "Rachel Hollis": "1hf9frpos7PCq2y6l6b2vfHmuCV2MSTPW",
+  "Rae Nantes": "1e_MgwC33HIk6ykCsBpuZZb9PKxK7Sgdm",
+  "Randi Darren": "1-R1KBlGgSUZkDI98z6unZhqaqvoLtbO4",
+  "Ransom Riggs": "1VvEv5p1OvQZo1Z5e-_NRIgubK0yUorTD",
+  "Raven Kennedy": "1UzFtVvdIsmgr0ohiUkm_nFiWYdcv2Cw0",
+  "Rebecca Skloot": "1RVCPVxZVkhlbz_xgAKtR-URJiUnlHRTo",
+  "Rebecca Thorne": "14Gb-FhI42z5yxNYFEmFuLcf3eX7i2EZY",
+  "Rebecca Yarros": "1yMadzAh3tl_DJg4qb_yeEB9BHkch8vnW",
+  "Rhaegar": "1go_dgkg9WCew0aNdf_GIUJs2wRma3t09",
+  "Rhett C. Bruno": "1vIN1mJF2TyJAOOJTUmEmjA7tq4rJxuNH",
+  "Richard Osman": "1AzEe1uf_kUbnwEErb-uRFVIzhqL8ZG8y",
+  "Richard Rhodes": "1jpkEwQ5S4mRUIBz3O6Tz9pRplkXqFEVS",
+  "Rick Riordan": "1TrLTCyCfP0rmqUtrzRtYZ7ueYw6LkDR8",
+  "Rick Scott": "1BYnhFZ6gDIbzb0EKx0I0gH5hqjMvx9qH",
+  "Rob J. Hayes": "13euy4VCQtWg741-zoRNDoLe601ugnNM-",
+  "Robert Dugoni": "1FFLDmwCm2FSRTRuZtkO_Q7oXRuV2E5K6",
+  "Robin Hobb": "1fqMyc6TZDt_Y6T58JlGnpuPKdYzgTX1z",
+  "Ruth Ware": "1-xu8p9PO4xwmPjnVMGQtetuGEUs3FvHI",
+  "Ryan Debruyn": "1Ch0k6BAGnNc8EsIQZO92i_7WlYIj15r1",
+  "Ryan Silbert": "",
+  "Ryan Tang": "",
+  "Samer Rabadi": "1szSWwu8eCMYsyKkOA0pRWWdhsoiag8vB",
+  "Sarah A. Denzil": "1pKmVEGhmAR5X6OPuGDAvk0NVOOa58ATQ",
+  "Sarah A. Parker": "1t0tucQFu3bKzVPDLyChlLMCV-O7LbmEa",
+  "Sarah J. Maas": "1kKRqViXbqFsTp7mV4K43AhnTH-pDh3mG",
+  "Sarah Maclean": "1XEoDLmIqc6ddpd5NNiA-rFhWeKqctA9g",
+  "Sarah Pinborough": "1laicEkAkQh4es09j1Si5nlZLRy7jvHE5",
+  "Sariah Wilson": "1rzVjnlu6Mf6ygkWMn-3GTmZZ-prU2-jK",
+  "Scarlett St. Clair": "1YyT8f9WpgBl14x2rLj_n0dTrthKKaJ82",
+  "Scott Baron": "1hvHGb1KWDw_tAxiBH1xcyAnu9iLfAX4q",
+  "Scott Meyer": "1H2NfFB1Mx3rVnVMgvlCyUWLvZMD0AtEN",
+  "Sean Oswald": "1p3hHlCG43uCd_1y7gzT-6tUABqzx7GHb",
+  "Selkie Myth": "1ogF7G0MWoOZwoTULiEasI8HRt_ALQE_2",
+  "Serasstreams": "1lRXV2r_IVnCah6zQOTl3AvMFP1cgGKff",
+  "Seth Ring": "1NRILjSBeA7J7eOlDLRocIF2s-QQ23DBo",
+  "Shami Stovall": "1EJfUtEWS3laLfyca1QHFEuEBxdp09cFC",
+  "Shannon Chakraborty": "1brAdNQohOeQRK_5NLK2MHi4QHjvW4AXp",
+  "Shari Lapena": "1ZJWrlIL-CrlEo812-H73mpIitwjRQRu4",
+  "Shemer Kuznits": "10m6Z5Ib9ZiXgsqjRH_YUEQwavlaO7LK8",
+  "Shirtaloon": "1cC81--dTGxYW2Cyfov587cVNLLyO9Jg2",
+  "Simon Archer": "1kJc1GweJGjNji0aF0AG0A_tr3hsHeyHz",
+  "Sir Bedivere The Mad": "1gRDJ2KLpYklbSnUt6ukSCveCLY__Zi7t",
+  "Slin Jung - Translator": "",
+  "Snoop Dogg": "1e01zhFwI0NEXxSImIKOVXZg5X3ewsOUk",
+  "Stan Lee": "1kP1jaXqQyUUhX-NChkAW_P_EW77MLv8j",
+  "Steena Holmes": "11IIKt1pZQ7vMRL-c0AZv9C0gWUq5Cgyz",
+  "Stephan Morse": "1jqg9Q5kvvliFZsUUmuLF2bfKxFlykpnL",
+  "Stephanie Garber": "1GQuRakoxwYvHXp-ur_G7nYJu7hYr93PT",
+  "Stephen Fry": "1nkYTxFezxpYSJZpDWVkC5O6eKeIzTZei",
+  "Stephen Hawking": "1ZjFrzuZpMvR3rpf7LDEZ6NcVn5iTeNwk",
+  "Stephen King": "1eDmQDno-huFIkiBxt9n68RNir-umWOh0",
+  "Stephenie Meyer": "1ItYOtibGVrf0SK7QRgl1dHWMWycJNGCs",
+  "Steven Michael Bohls": "",
+  "Sue Watson": "1yGLe9DOtSRQTXKi9Hg_poktzK4bMaZCm",
+  "Susanne Valenti": "",
+  "Suzanne Collins": "1Wbow3AbnbmiV7mv1IQpPESE2iXbyC8k6",
+  "Sylvia Mercedes": "1rAq_fMDouhOzBs9UI1n7OwftMo9IeOJl",
+  "T. L. Payne": "1IJsLEnvLghFg7e-wZ8n9QnujNoaIY-GT",
+  "T.w. Piperbrook": "1Cp8_OJlgyJeidxLVK4Lf1TYv-Hhg4N1Y",
+  "Taniko K Williams": "1-v04dL_cVXLjwGqmgW3bZF4lut85B0SF",
+  "Tarryn Fisher": "1dJOZDzPq_OYW3crTJBSG-0_cASLY0rJJ",
+  "Taylor Jenkins Reid": "1BOBse9Lx-Hb77XIQBFkxqet2CeKM-3aI",
+  "Terry Mancour": "1rXBCuOC78WFBjiGNCRFtt07zuIO9LqIa",
+  "Thefirstdefier": "1ypSZk_4XzxGJCMpp3XJgdWM0SFrnoQ8C",
+  "Tracy Gregory": "1TbJHq9z3lBc1KmboXqKc3kHc-mXL4Y9w",
+  "Travis Bagwell": "1emSJjFsovFE93irV1mrwWXUbv28V-P0s",
+  "Travis Baldree": "12Mv1sD8W1g9dzfb-xJqCn3oeA_xN1Ju8",
+  "Travis Deverell": "",
+  "Troy Osgood": "",
+  "Trudi Canavan": "1ESaL_XCCwuOoDRDocttuwVDW37VxtEsQ",
+  "Turtleme": "1Wt9Oe1mrZ0PTnxU4JG1P871y4fVGrDmr",
+  "V.a. Lewis": "1YMZ2DAogOppQ21hpwe8JTS2ZLH6uLIxI",
+  "V.m. Straka": "1hKgbbEnbIL4TBeAvSWSMVo3dZqdxcxML",
+  "Vasily Mahanenko": "1o_iuSmX37JCxOYZ5sRnuvCzqwiTPq6r4",
+  "Victor E. Krabin": "",
+  "Wandering Agent": "1FOAeSuCPf5vLJEtr6NS1AcD0V84F_w_B",
+  "Washington Irving": "",
+  "Will Wight": "1lDsDcmMfL1sdCkQFuw3CB9E8Xyfw3pBp",
+  "William D. Arand": "1-R1KBlGgSUZkDI98z6unZhqaqvoLtbO4",
+  "You Yeong-gwang": "1HZz3Te9w7mSIPCOiu5zEy8qbiJYNOSva",
+  "Yulia Kuzmina - Translator": "",
+  "Zogarth": "1VYMu7BUZm_4ENNXs5ylUvk2qsqqwsxze"
+}
 </script>
+
+<!-- Optional env hook (unused here) -->
+<script>window.AB_AUTHOR_MAP_URL="{{AUTHOR_DRIVE_MAP_URL}}";</script>
 </head>
 
 <body>
@@ -193,7 +512,6 @@ a.link-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
       <button id="ab-sort-desc" class="btn">Desc</button>
       <button id="ab-toggle-view" class="btn">Toggle View</button>
 
-      <!-- Dark Mode switch -->
       <label class="switch" title="Toggle dark mode">
         <span class="label">Dark mode</span>
         <input id="ab-dark-toggle" type="checkbox" checked />
@@ -222,7 +540,7 @@ a.link-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
     </div>
 
     <div id="meta"><small>
-      Generated at: 2025-10-14 22:36:08 ·
+      Generated at: 2025-10-14 23:47:54 ·
       <a href="catalog.csv" download>Download CSV</a> · <a href="https://drive.google.com/drive/folders/1yZHU_UryCZkuhg9zFzu5uOadx3NI0FJv?usp=sharing" target="_blank" rel="noopener">Google Drive folder</a>
     </small></div>
   </div>
@@ -1454,7 +1772,21 @@ a.link-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
 
  When aspiring writer and recent Brown graduate Guinevere Beck strides into the bookstore where Joe works, he’s instantly smitten. Beck is everything Joe has ever wanted: she&#x27;s gorgeous, tough, razor-smart, and sexy beyond his wildest dreams. Joe needs to have her, and he&#x27;ll stop at nothing to do so. As he begins to insinuate himself into her life - her friendships, her email, her phone - she can’t resist her feelings for a guy who seems custom-made for her. So when her boyfriend, Benji, mysteriously disappears, Beck and Joe fall into a tumultuous affair. But there&#x27;s more to Beck than her oh-so-perfect façade, and their mutual obsession quickly spirals into a whirlwind of deadly consequences.
 
- Dark, masterful, and timely, debut novelist Caroline Kepnes&#x27; You is a perversely romantic thriller that&#x27;s more dangerously clever than any you&#x27;ve heard before. A chilling account of unrelenting passion, this tale of love, sex, and death will stay with you long after the story ends."><img class="cover" src="covers/Caroline Kepnes/You.jpg" alt="Cover of You" loading="lazy" /></button></td><td>You</td><td>You</td><td data-sort="1.0">1</td><td>Caroline Kepnes</td><td>Santino Fontana</td><td>2014-09-30</td><td>Literature &amp; Fiction:Genre Fiction:Movie, TV &amp; Video Game Tie-Ins</td><td>11:06</td></tr><tr><td><button class="cover-btn" data-cover="covers/Caroline Peckham/Zodiac Academy- Origins of an Academy Bully.jpg" data-title="Zodiac Academy: Origins of an Academy Bully" data-series="Zodiac Academy" data-index="0.5" data-author="Caroline Peckham, Susanne Valenti" data-narrator="Jake Bordeaux" data-year="2023-05-04" data-genre="Science Fiction &amp; Fantasy:Fantasy:Paranormal &amp; Urban:Paranormal" data-duration="2:21" data-desc="Dark magic is forbidden at Zodiac Academy. That’s why I hide it so well. But now, I’m supposed to mentor Darius Acrux, the son of the most ruthless dragon shifter in Solaria. If he’s caught using blood magic, he’ll lose his claim to the throne. The problem is? Our families are up to something, and we’re determined to find out what. No matter what dark power we must turn to....
+ Dark, masterful, and timely, debut novelist Caroline Kepnes&#x27; You is a perversely romantic thriller that&#x27;s more dangerously clever than any you&#x27;ve heard before. A chilling account of unrelenting passion, this tale of love, sex, and death will stay with you long after the story ends."><img class="cover" src="covers/Caroline Kepnes/You.jpg" alt="Cover of You" loading="lazy" /></button></td><td>You</td><td>You</td><td data-sort="1.0">1</td><td>Caroline Kepnes</td><td>Santino Fontana</td><td>2014-09-30</td><td>Literature &amp; Fiction:Genre Fiction:Movie, TV &amp; Video Game Tie-Ins</td><td>11:06</td></tr><tr><td><button class="cover-btn" data-cover="covers/Caroline Peckham/Zodiac Academy - The Awakening as Told by the Boys.jpg" data-title="Zodiac Academy - The Awakening as Told by the Boys" data-series="Zodiac Academy" data-index="1.5" data-author="Caroline Peckham, Susanne Valenti" data-narrator="Jake Bordeaux" data-year="2022-05-12" data-genre="Romance:Fantasy" data-duration="16:27" data-desc="This is a retelling of book one of Zodiac Academy from the perspective of Orion, Darius, Caleb, Seth, and Max.
+
+ The Vega twins are alive.
+
+ Those five words circle in my mind like an oncoming storm. They change everything about the future we thought had been set in stone. They challenge everything we were raised to be and the stability of the entire kingdom.
+
+ They’re coming to our academy looking for the life that was stolen from them, but we can’t let them take it back.
+
+ So much hangs in the balance and we can’t risk the arrival of two naïve princesses destroying everything we worked so hard for.
+
+ I have trained in dark magic, overcome all challenges, and stood in the shadow of Lionel Acrux for far too long already. I won’t let them come between me and his downfall.
+
+ Which means they have to go before they discover how powerful they truly are.
+
+ This is a retelling of the first book in the Zodiac Academy series from the point of view of Orion and the Heirs and should be listened to after you have finished the original story. It includes scenes from alternative points of view, as well as over 50k words of additional content and scenes which have never before been revealed. So prepare to step into the dark minds of the Zodiac boys and watch out for the heartbreak and carnage that will ensue."><img class="cover" src="covers/Caroline Peckham/Zodiac Academy - The Awakening as Told by the Boys.jpg" alt="Cover of Zodiac Academy - The Awakening as Told by the Boys" loading="lazy" /></button></td><td>Zodiac Academy - The Awakening as Told by the Boys</td><td>Zodiac Academy</td><td data-sort="1.5">1.5</td><td>Caroline Peckham, Susanne Valenti</td><td>Jake Bordeaux</td><td>2022-05-12</td><td>Romance:Fantasy</td><td>16:27</td></tr><tr><td><button class="cover-btn" data-cover="covers/Caroline Peckham/Zodiac Academy- Origins of an Academy Bully.jpg" data-title="Zodiac Academy: Origins of an Academy Bully" data-series="Zodiac Academy" data-index="0.5" data-author="Caroline Peckham, Susanne Valenti" data-narrator="Jake Bordeaux" data-year="2023-05-04" data-genre="Science Fiction &amp; Fantasy:Fantasy:Paranormal &amp; Urban:Paranormal" data-duration="2:21" data-desc="Dark magic is forbidden at Zodiac Academy. That’s why I hide it so well. But now, I’m supposed to mentor Darius Acrux, the son of the most ruthless dragon shifter in Solaria. If he’s caught using blood magic, he’ll lose his claim to the throne. The problem is? Our families are up to something, and we’re determined to find out what. No matter what dark power we must turn to....
 
  Welcome to Zodiac Academy, where your star sign defines your destiny. As the Fae of the future, you will soon learn the merciless way to claim your power. Life among the vampires, shifters, and sirens is no easy ride, but if you can make it through your exams, you might just be able to harness your inner strength and earn your place among the elite.
 
@@ -4187,7 +4519,21 @@ Alex Tate - Production, Editing, Mastering"><img class="cover" src="covers/Neven
 
  However, there is a rot within the Kingdom of Shade, and Haeight&#x27;s aspirations turn into doubts as she finds a web of conspiracies in the capital, Menorome. The Hunters there are off—something is afoot. It is a bewildering, overwhelming place for new Hunters, as well as the fourth Princess of Calanfer, Seraphel du Marquin, who has arrived for her marriage, unhappy and alone.
 
- In Menorome, the streets shine with lights to ward off the darkness. For a Hunter, there is little rest or time. For a Princess, there is little to enjoy or look forward to. However, in the depths of despair, there is always the Singer. There is always a song. The Singer of Afiele has come to the city, same as the Princess and the Hunter, and all their fates will soon be intertwined in a greater web of secrets than any of them dreamed of."><img class="cover" src="covers/Pirateaba/Huntsong - Singer of Terandria Series, Book 2.jpg" alt="Cover of Huntsong - Singer of Terandria Series, Book 2" loading="lazy" /></button></td><td>Huntsong - Singer of Terandria Series, Book 2</td><td>Singer of Terandria Series</td><td data-sort="2.0">2</td><td>Pirateaba</td><td>Andrea Parsneau</td><td>2024-12-10</td><td>Science Fiction &amp; Fantasy:Fantasy:Paranormal &amp; Urban:Contemporary</td><td>27:37</td></tr><tr><td><button class="cover-btn" data-cover="covers/Pirateaba/The Wandering Inn - The Wandering Inn, Book 1.jpg" data-title="The Wandering Inn - The Wandering Inn, Book 1" data-series="The Wandering Inn" data-index="1" data-author="Pirateaba" data-narrator="Andrea Parsneau" data-year="2019-09-10" data-genre="Science Fiction &amp; Fantasy:Fantasy:Action &amp; Adventure" data-duration="48:07" data-desc="The Wandering Inn, Book 1, has been rewritten by pirateaba and re-recorded by Andrea Parsneau. This revised edition includes new scenes and perspectives.
+ In Menorome, the streets shine with lights to ward off the darkness. For a Hunter, there is little rest or time. For a Princess, there is little to enjoy or look forward to. However, in the depths of despair, there is always the Singer. There is always a song. The Singer of Afiele has come to the city, same as the Princess and the Hunter, and all their fates will soon be intertwined in a greater web of secrets than any of them dreamed of."><img class="cover" src="covers/Pirateaba/Huntsong - Singer of Terandria Series, Book 2.jpg" alt="Cover of Huntsong - Singer of Terandria Series, Book 2" loading="lazy" /></button></td><td>Huntsong - Singer of Terandria Series, Book 2</td><td>Singer of Terandria Series</td><td data-sort="2.0">2</td><td>Pirateaba</td><td>Andrea Parsneau</td><td>2024-12-10</td><td>Science Fiction &amp; Fantasy:Fantasy:Paranormal &amp; Urban:Contemporary</td><td>27:37</td></tr><tr><td><button class="cover-btn" data-cover="covers/Pirateaba/The General of Izril - The Wandering Inn, Book 6.jpg" data-title="The General of Izril - The Wandering Inn, Book 6" data-series="The Wandering Inn" data-index="6" data-author="Pirateaba" data-narrator="Andrea Parsneau" data-year="2022-04-26" data-genre="Science Fiction &amp; Fantasy:Fantasy:Action &amp; Adventure" data-duration="34:01" data-desc="Clowns, Goblins, and Erin Solstice. Not all in the same place, mind you.
+
+ Erin Solstice trusts a lot of people—even some lost Redfangs survivors of Esthelm—but can she handle being friends with Goblins when every hand is turned against them and the tribes are on the rampage?
+
+ Liscor is in the path of Goblin Lord&#x27;s inexorable march north, and the fates of Rags, Garen Redfang, and Tremborag&#x27;s Goblin tribes are all tied to an impending war. Who will survive?
+
+ Tom the [Clown] is facing Demons in Rhir while Zel Shivertail is facing Wall Lord Ilvriss and an uncertain future. Faced with the knowledge of the Necromancer&#x27;s return, who can the two Drakes turn to?
+
+ Contains bonus content, an exclusive account of the 2nd Antinium War by famed [Writer], Krsysl Wordsmith."><img class="cover" src="covers/Pirateaba/The General of Izril - The Wandering Inn, Book 6.jpg" alt="Cover of The General of Izril - The Wandering Inn, Book 6" loading="lazy" /></button></td><td>The General of Izril - The Wandering Inn, Book 6</td><td>The Wandering Inn</td><td data-sort="6.0">6</td><td>Pirateaba</td><td>Andrea Parsneau</td><td>2022-04-26</td><td>Science Fiction &amp; Fantasy:Fantasy:Action &amp; Adventure</td><td>34:01</td></tr><tr><td><button class="cover-btn" data-cover="covers/Pirateaba/The Last Light - The Wandering Inn, Book 5.jpg" data-title="The Last Light - The Wandering Inn, Book 5" data-series="The Wandering Inn" data-index="5" data-author="Pirateaba" data-narrator="Andrea Parsneau" data-year="2021-11-23" data-genre="Science Fiction &amp; Fantasy:Fantasy:Action &amp; Adventure" data-duration="52:17" data-desc="Pirateaba returns once again, bringing you the thrilling fifth installment of chart-topping LitRPG series The Wandering Inn.
+
+ Kings awake, and emperors build new lands. Change is coming to the world, from the King of Destruction moving to a certain doctor finding more friends from home.
+
+ The Wandering Inn has a princess who solves problems rather than creates them, and her name is Lyonette. Yet what happens when the innkeeper returns to manage her inn? Lyonette must learn to be a good employee rather than manage everything herself, and sharing power is never easy...
+
+ Nor is it ever simple in war, but that is where Geneva Scala remains. In bloodier and increasingly brutal battlefields, The Last Light of Baleros is now growing in fame, but there is no future there. She is desperate, working against hostile forces who see her intervention as dangerous, and still bears the wounds of her previous war to save lives. But she is no longer alone."><img class="cover" src="covers/Pirateaba/The Last Light - The Wandering Inn, Book 5.jpg" alt="Cover of The Last Light - The Wandering Inn, Book 5" loading="lazy" /></button></td><td>The Last Light - The Wandering Inn, Book 5</td><td>The Wandering Inn</td><td data-sort="5.0">5</td><td>Pirateaba</td><td>Andrea Parsneau</td><td>2021-11-23</td><td>Science Fiction &amp; Fantasy:Fantasy:Action &amp; Adventure</td><td>52:17</td></tr><tr><td><button class="cover-btn" data-cover="covers/Pirateaba/The Wandering Inn - The Wandering Inn, Book 1.jpg" data-title="The Wandering Inn - The Wandering Inn, Book 1" data-series="The Wandering Inn" data-index="1" data-author="Pirateaba" data-narrator="Andrea Parsneau" data-year="2019-09-10" data-genre="Science Fiction &amp; Fantasy:Fantasy:Action &amp; Adventure" data-duration="48:07" data-desc="The Wandering Inn, Book 1, has been rewritten by pirateaba and re-recorded by Andrea Parsneau. This revised edition includes new scenes and perspectives.
 
  &quot;No killing Goblins.&quot;
 
@@ -8565,6 +8911,25 @@ Even if he does make it back, he’ll be jumping feetfirst into the fire as he f
 
  Dark, masterful, and timely, debut novelist Caroline Kepnes&#x27; You is a perversely romantic thriller that&#x27;s more dangerously clever than any you&#x27;ve heard before. A chilling account of unrelenting passion, this tale of love, sex, and death will stay with you long after the story ends."><img class="cover-inline" src="covers/Caroline Kepnes/You.jpg" alt="Cover of You" loading="lazy" /></button><span>You</span></div>
   <div class="ab-row"><span class="ab-chip">Series: You</span><span class="ab-chip">#: 1</span><span class="ab-chip">Author: Caroline Kepnes</span><span class="ab-chip">Narrator: Santino Fontana</span><span class="ab-chip">Year: 2014-09-30</span><span class="ab-chip">Genre: Literature &amp; Fiction:Genre Fiction:Movie, TV &amp; Video Game Tie-Ins</span><span class="ab-chip">Dur: 11:06</span></div>
+</div>
+
+<div class="ab-card" data-title="Zodiac Academy - The Awakening as Told by the Boys" data-series="Zodiac Academy" data-series_index_sort="1.5" data-author="Caroline Peckham, Susanne Valenti" data-narrator="Jake Bordeaux" data-year="2022-05-12" data-genre="Romance:Fantasy" data-duration_hhmm="16:27">
+  <div class="t"><button class="cover-btn inline" data-cover="covers/Caroline Peckham/Zodiac Academy - The Awakening as Told by the Boys.jpg" data-title="Zodiac Academy - The Awakening as Told by the Boys" data-series="Zodiac Academy" data-index="1.5" data-author="Caroline Peckham, Susanne Valenti" data-narrator="Jake Bordeaux" data-year="2022-05-12" data-genre="Romance:Fantasy" data-duration="16:27" data-desc="This is a retelling of book one of Zodiac Academy from the perspective of Orion, Darius, Caleb, Seth, and Max.
+
+ The Vega twins are alive.
+
+ Those five words circle in my mind like an oncoming storm. They change everything about the future we thought had been set in stone. They challenge everything we were raised to be and the stability of the entire kingdom.
+
+ They’re coming to our academy looking for the life that was stolen from them, but we can’t let them take it back.
+
+ So much hangs in the balance and we can’t risk the arrival of two naïve princesses destroying everything we worked so hard for.
+
+ I have trained in dark magic, overcome all challenges, and stood in the shadow of Lionel Acrux for far too long already. I won’t let them come between me and his downfall.
+
+ Which means they have to go before they discover how powerful they truly are.
+
+ This is a retelling of the first book in the Zodiac Academy series from the point of view of Orion and the Heirs and should be listened to after you have finished the original story. It includes scenes from alternative points of view, as well as over 50k words of additional content and scenes which have never before been revealed. So prepare to step into the dark minds of the Zodiac boys and watch out for the heartbreak and carnage that will ensue."><img class="cover-inline" src="covers/Caroline Peckham/Zodiac Academy - The Awakening as Told by the Boys.jpg" alt="Cover of Zodiac Academy - The Awakening as Told by the Boys" loading="lazy" /></button><span>Zodiac Academy - The Awakening as Told by the Boys</span></div>
+  <div class="ab-row"><span class="ab-chip">Series: Zodiac Academy</span><span class="ab-chip">#: 1.5</span><span class="ab-chip">Author: Caroline Peckham, Susanne Valenti</span><span class="ab-chip">Narrator: Jake Bordeaux</span><span class="ab-chip">Year: 2022-05-12</span><span class="ab-chip">Genre: Romance:Fantasy</span><span class="ab-chip">Dur: 16:27</span></div>
 </div>
 
 <div class="ab-card" data-title="Zodiac Academy: Origins of an Academy Bully" data-series="Zodiac Academy" data-series_index_sort="0.5" data-author="Caroline Peckham, Susanne Valenti" data-narrator="Jake Bordeaux" data-year="2023-05-04" data-genre="Science Fiction &amp; Fantasy:Fantasy:Paranormal &amp; Urban:Paranormal" data-duration_hhmm="2:21">
@@ -13065,6 +13430,30 @@ Alex Tate - Production, Editing, Mastering"><img class="cover-inline" src="cover
   <div class="ab-row"><span class="ab-chip">Series: Singer of Terandria Series</span><span class="ab-chip">#: 2</span><span class="ab-chip">Author: Pirateaba</span><span class="ab-chip">Narrator: Andrea Parsneau</span><span class="ab-chip">Year: 2024-12-10</span><span class="ab-chip">Genre: Science Fiction &amp; Fantasy:Fantasy:Paranormal &amp; Urban:Contemporary</span><span class="ab-chip">Dur: 27:37</span></div>
 </div>
 
+<div class="ab-card" data-title="The General of Izril - The Wandering Inn, Book 6" data-series="The Wandering Inn" data-series_index_sort="6.0" data-author="Pirateaba" data-narrator="Andrea Parsneau" data-year="2022-04-26" data-genre="Science Fiction &amp; Fantasy:Fantasy:Action &amp; Adventure" data-duration_hhmm="34:01">
+  <div class="t"><button class="cover-btn inline" data-cover="covers/Pirateaba/The General of Izril - The Wandering Inn, Book 6.jpg" data-title="The General of Izril - The Wandering Inn, Book 6" data-series="The Wandering Inn" data-index="6" data-author="Pirateaba" data-narrator="Andrea Parsneau" data-year="2022-04-26" data-genre="Science Fiction &amp; Fantasy:Fantasy:Action &amp; Adventure" data-duration="34:01" data-desc="Clowns, Goblins, and Erin Solstice. Not all in the same place, mind you.
+
+ Erin Solstice trusts a lot of people—even some lost Redfangs survivors of Esthelm—but can she handle being friends with Goblins when every hand is turned against them and the tribes are on the rampage?
+
+ Liscor is in the path of Goblin Lord&#x27;s inexorable march north, and the fates of Rags, Garen Redfang, and Tremborag&#x27;s Goblin tribes are all tied to an impending war. Who will survive?
+
+ Tom the [Clown] is facing Demons in Rhir while Zel Shivertail is facing Wall Lord Ilvriss and an uncertain future. Faced with the knowledge of the Necromancer&#x27;s return, who can the two Drakes turn to?
+
+ Contains bonus content, an exclusive account of the 2nd Antinium War by famed [Writer], Krsysl Wordsmith."><img class="cover-inline" src="covers/Pirateaba/The General of Izril - The Wandering Inn, Book 6.jpg" alt="Cover of The General of Izril - The Wandering Inn, Book 6" loading="lazy" /></button><span>The General of Izril - The Wandering Inn, Book 6</span></div>
+  <div class="ab-row"><span class="ab-chip">Series: The Wandering Inn</span><span class="ab-chip">#: 6</span><span class="ab-chip">Author: Pirateaba</span><span class="ab-chip">Narrator: Andrea Parsneau</span><span class="ab-chip">Year: 2022-04-26</span><span class="ab-chip">Genre: Science Fiction &amp; Fantasy:Fantasy:Action &amp; Adventure</span><span class="ab-chip">Dur: 34:01</span></div>
+</div>
+
+<div class="ab-card" data-title="The Last Light - The Wandering Inn, Book 5" data-series="The Wandering Inn" data-series_index_sort="5.0" data-author="Pirateaba" data-narrator="Andrea Parsneau" data-year="2021-11-23" data-genre="Science Fiction &amp; Fantasy:Fantasy:Action &amp; Adventure" data-duration_hhmm="52:17">
+  <div class="t"><button class="cover-btn inline" data-cover="covers/Pirateaba/The Last Light - The Wandering Inn, Book 5.jpg" data-title="The Last Light - The Wandering Inn, Book 5" data-series="The Wandering Inn" data-index="5" data-author="Pirateaba" data-narrator="Andrea Parsneau" data-year="2021-11-23" data-genre="Science Fiction &amp; Fantasy:Fantasy:Action &amp; Adventure" data-duration="52:17" data-desc="Pirateaba returns once again, bringing you the thrilling fifth installment of chart-topping LitRPG series The Wandering Inn.
+
+ Kings awake, and emperors build new lands. Change is coming to the world, from the King of Destruction moving to a certain doctor finding more friends from home.
+
+ The Wandering Inn has a princess who solves problems rather than creates them, and her name is Lyonette. Yet what happens when the innkeeper returns to manage her inn? Lyonette must learn to be a good employee rather than manage everything herself, and sharing power is never easy...
+
+ Nor is it ever simple in war, but that is where Geneva Scala remains. In bloodier and increasingly brutal battlefields, The Last Light of Baleros is now growing in fame, but there is no future there. She is desperate, working against hostile forces who see her intervention as dangerous, and still bears the wounds of her previous war to save lives. But she is no longer alone."><img class="cover-inline" src="covers/Pirateaba/The Last Light - The Wandering Inn, Book 5.jpg" alt="Cover of The Last Light - The Wandering Inn, Book 5" loading="lazy" /></button><span>The Last Light - The Wandering Inn, Book 5</span></div>
+  <div class="ab-row"><span class="ab-chip">Series: The Wandering Inn</span><span class="ab-chip">#: 5</span><span class="ab-chip">Author: Pirateaba</span><span class="ab-chip">Narrator: Andrea Parsneau</span><span class="ab-chip">Year: 2021-11-23</span><span class="ab-chip">Genre: Science Fiction &amp; Fantasy:Fantasy:Action &amp; Adventure</span><span class="ab-chip">Dur: 52:17</span></div>
+</div>
+
 <div class="ab-card" data-title="The Wandering Inn - The Wandering Inn, Book 1" data-series="The Wandering Inn" data-series_index_sort="1.0" data-author="Pirateaba" data-narrator="Andrea Parsneau" data-year="2019-09-10" data-genre="Science Fiction &amp; Fantasy:Fantasy:Action &amp; Adventure" data-duration_hhmm="48:07">
   <div class="t"><button class="cover-btn inline" data-cover="covers/Pirateaba/The Wandering Inn - The Wandering Inn, Book 1.jpg" data-title="The Wandering Inn - The Wandering Inn, Book 1" data-series="The Wandering Inn" data-index="1" data-author="Pirateaba" data-narrator="Andrea Parsneau" data-year="2019-09-10" data-genre="Science Fiction &amp; Fantasy:Fantasy:Action &amp; Adventure" data-duration="48:07" data-desc="The Wandering Inn, Book 1, has been rewritten by pirateaba and re-recorded by Andrea Parsneau. This revised edition includes new scenes and perspectives.
 
@@ -17007,7 +17396,6 @@ Even if he does make it back, he’ll be jumping feetfirst into the fire as he f
 </div>
 </div>
 
-  <!-- Empty state -->
   <div id="ab-empty">No results for “<span id="ab-empty-q"></span>”. Try a different search.</div>
 </div>
 
@@ -17021,12 +17409,14 @@ Even if he does make it back, he’ll be jumping feetfirst into the fire as he f
     <div>
       <div id="modal-title" class="title"></div>
 
-      <!-- Author Drive button -->
-      <a id="m-author-drive" class="link-btn" href="#" target="_blank" rel="noopener" style="display:none">Open author in Drive</a>
-      <!-- Book Drive search button -->
-      <a id="m-book-drive" class="link-btn" href="#" target="_blank" rel="noopener" style="display:none">Search book in Drive</a>
+      <!-- Action buttons -->
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin:2px 0 6px;">
+        <a id="m-author-folder" class="link-btn" href="#" target="_blank" rel="noopener" style="display:none">Open author folder</a>
+        <a id="m-author-drive" class="link-btn" href="#" target="_blank" rel="noopener" style="display:none">Search author in Drive</a>
+        <a id="m-book-drive"   class="link-btn" href="#" target="_blank" rel="noopener" style="display:none">Search book in Drive</a>
+      </div>
 
-      <div class="meta-grid" style="margin-top:10px">
+      <div class="meta-grid" style="margin-top:6px">
         <div class="label">Series</div><div id="m-series"></div>
         <div class="label">#</div><div id="m-index"></div>
         <div class="label">Author</div><div id="m-author"></div>
@@ -17051,9 +17441,9 @@ Even if he does make it back, he’ll be jumping feetfirst into the fire as he f
   if (tg) tg.checked = document.body.classList.contains("dark");
 })();
 
-/* ===== App logic incl. modal ===== */
+/* ===== App logic ===== */
 (function(){
-  // Dark toggle
+  /* Dark toggle */
   var darkToggle = document.getElementById("ab-dark-toggle");
   if (darkToggle){
     darkToggle.addEventListener("change", function(){
@@ -17062,518 +17452,305 @@ Even if he does make it back, he’ll be jumping feetfirst into the fire as he f
     });
   }
 
-  /* ---------- Utilities ---------- */
-  function _debounce(fn, ms){
-    var t;
-    return function(){
-      var ctx = this, args = arguments;
-      clearTimeout(t);
-      t = setTimeout(function(){ fn.apply(ctx, args); }, ms);
-    };
-  }
-  function _normalize(s){
-    return (s || "")
-      .toString()
-      .normalize("NFD").replace(/[\u0300-\u036f]/g,"") // strip accents
-      .toLowerCase()
-      .replace(/\s+/g," ")
-      .trim();
-  }
-  function _tokens(q){
-    return _normalize(q).split(" ").filter(Boolean);
-  }
+  /* Utils */
+  function _debounce(fn, ms){ var t; return function(){ clearTimeout(t); var a=arguments,c=this; t=setTimeout(function(){ fn.apply(c,a); }, ms); }; }
+  function _normalize(s){ return (s||"").toString().normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/\s+/g," ").trim(); }
+  function _tokens(q){ return _normalize(q).split(" ").filter(Boolean); }
 
-  /* ---------- URL hash helpers (q=, p=) ---------- */
-  function _parseHash(){
-    var h = (location.hash || "").replace(/^#/, "");
-    var sp = new URLSearchParams(h);
-    var q = sp.get("q") || "";
-    var p = parseInt(sp.get("p") || "1", 10);
-    if (isNaN(p) || p < 1) p = 1;
-    return { q:q, p:p };
-  }
-  function _writeHash(q, p){
-    var sp = new URLSearchParams();
-    if (q && q.trim()) sp.set("q", q);
-    if (p && p > 1) sp.set("p", String(p));
-    var newHash = "#" + sp.toString();
-    if (location.hash !== newHash){ history.replaceState(null, "", newHash); }
-  }
+  /* Hash helpers */
+  function _parseHash(){ var h=(location.hash||"").replace(/^#/,""); var sp=new URLSearchParams(h); var q=sp.get("q")||""; var p=parseInt(sp.get("p")||"1",10); if(isNaN(p)||p<1)p=1; return {q:q,p:p}; }
+  function _writeHash(q,p){ var sp=new URLSearchParams(); if(q&&q.trim()) sp.set("q",q); if(p&&p>1) sp.set("p",String(p)); var nh="#"+sp.toString(); if(location.hash!==nh) history.replaceState(null,"",nh); }
 
-  /* ---------- Sorting ---------- */
-  function getCellVal(row, idx, numeric){
-    var cell = row.children[idx]; if (!cell) return "";
-    if (numeric){
-      var key = cell.getAttribute("data-sort");
-      if (key !== null && key !== ""){
-        var n = parseFloat(key); if (!isNaN(n)) return n;
-      }
-      var txt = cell.innerText || cell.textContent || "";
-      var n2 = parseFloat(txt); return isNaN(n2) ? -Infinity : n2;
-    }
-    return cell.innerText || cell.textContent || "";
-  }
-  function cmp(a,b,numeric){ return numeric ? (a-b) : (""+a).localeCompare(""+b,undefined,{numeric:true,sensitivity:"base"}) }
-  function sortTableBy(table, idx, numeric, asc){
-    var tbody = table.tBodies[0];
-    var rows = Array.from(tbody.querySelectorAll("tr"));
-    rows.sort(function(r1,r2){
-      var v1 = getCellVal(r1, idx, numeric), v2 = getCellVal(r2, idx, numeric);
-      return asc ? cmp(v1,v2,numeric) : cmp(v2,v1,numeric);
-    });
-    rows.forEach(function(r){ tbody.appendChild(r); });
-    currentPage = 1; renderPage();
-  }
-  function makeTableSortable(table){
-    var ths = table.querySelectorAll("th");
-    ths.forEach(function(th, idx){
-      var asc = true;
-      if (th.getAttribute("data-key")==="cover_href"){ return; }
-      th.style.cursor="pointer";
-      th.addEventListener("click", function(){
-        var numeric = th.dataset.type === "num";
-        sortTableBy(table, idx, numeric, asc);
-        asc = !asc;
-      });
-    });
-  }
-  function getCardSortKey(card, key, numeric){
-    var v = card.getAttribute("data-" + key) || "";
-    return numeric ? (isNaN(parseFloat(v)) ? -Infinity : parseFloat(v)) : v;
-  }
-  function sortCards(container, key, numeric, asc){
-    var cards = Array.from(container.querySelectorAll(".ab-card"));
-    cards.sort(function(a,b){
-      var v1 = getCardSortKey(a,key,numeric), v2 = getCardSortKey(b,key,numeric);
-      return asc ? (numeric ? (v1-v2) : (""+v1).localeCompare(""+v2,undefined,{numeric:true,sensitivity:"base"}))
-                 : (numeric ? (v2-v1) : (""+v2).localeCompare(""+v1,undefined,{numeric:true,sensitivity:"base"}));
-    });
-    cards.forEach(function(c){ container.appendChild(c); });
-    currentPage = 1; renderPage();
-  }
+  /* Sorting */
+  function getCellVal(row,idx,numeric){ var cell=row.children[idx]; if(!cell) return ""; if(numeric){ var key=cell.getAttribute("data-sort"); if(key!==null&&key!==""){ var n=parseFloat(key); if(!isNaN(n)) return n; } var txt=cell.innerText||cell.textContent||""; var n2=parseFloat(txt); return isNaN(n2)?-Infinity:n2; } return cell.innerText||cell.textContent||""; }
+  function cmp(a,b,numeric){ return numeric?(a-b):(""+a).localeCompare(""+b,undefined,{numeric:true,sensitivity:"base"}); }
+  function sortTableBy(table,idx,numeric,asc){ var tbody=table.tBodies[0]; var rows=Array.from(tbody.querySelectorAll("tr")); rows.sort(function(r1,r2){ var v1=getCellVal(r1,idx,numeric),v2=getCellVal(r2,idx,numeric); return asc?cmp(v1,v2,numeric):cmp(v2,v1,numeric); }); rows.forEach(function(r){ tbody.appendChild(r); }); currentPage=1; renderPage(); }
+  function makeTableSortable(table){ var ths=table.querySelectorAll("th"); ths.forEach(function(th,idx){ var asc=true; if(th.getAttribute("data-key")==="cover_href") return; th.style.cursor="pointer"; th.addEventListener("click",function(){ var numeric=th.dataset.type==="num"; sortTableBy(table,idx,numeric,asc); asc=!asc; }); }); }
+  function getCardSortKey(card,key,numeric){ var v=card.getAttribute("data-"+key)||""; return numeric?(isNaN(parseFloat(v))?-Infinity:parseFloat(v)):v; }
+  function sortCards(container,key,numeric,asc){ var cards=Array.from(container.querySelectorAll(".ab-card")); cards.sort(function(a,b){ var v1=getCardSortKey(a,key,numeric),v2=getCardSortKey(b,key,numeric); return asc?(numeric?(v1-v2):(""+v1).localeCompare(""+v2,undefined,{numeric:true,sensitivity:"base"})):(numeric?(v2-v1):(""+v2).localeCompare(""+v1,undefined,{numeric:true,sensitivity:"base"})); }); cards.forEach(function(c){ container.appendChild(c); }); currentPage=1; renderPage(); }
 
-  /* ---------- Pagination synced ---------- */
+  /* Pagination */
   var pageSizeEl, pageNav, pageInfo, table, cardsWrap, emptyEl, emptyQEl;
-  var currentPage = 1;
-  function matchedRows(){
-    return Array.from(document.querySelectorAll("#ab-table tbody tr"))
-      .filter(function(r){ return (r.dataset.searchMatch || "1") === "1"; });
-  }
-  function matchedCards(){
-    return Array.from(document.querySelectorAll("#ab-cards .ab-card"))
-      .filter(function(c){ return (c.dataset.searchMatch || "1") === "1"; });
-  }
-  function pageSize(){
-    var v = pageSizeEl ? pageSizeEl.value : "100";
-    if (v === "All") return Infinity;
-    var n = parseInt(v, 10);
-    return isNaN(n) ? 100 : n;
-  }
+  var currentPage=1;
+  function pageSize(){ var v=pageSizeEl?pageSizeEl.value:"100"; if(v==="All") return Infinity; var n=parseInt(v,10); return isNaN(n)?100:n; }
   function renderPage(){
-    var ps = pageSize();
+    var ps=pageSize();
+    var rows=Array.from(document.querySelectorAll("#ab-table tbody tr"));
+    var cards=Array.from(document.querySelectorAll("#ab-cards .ab-card"));
 
-    var rows = Array.from(document.querySelectorAll("#ab-table tbody tr"));
-    var cards = Array.from(document.querySelectorAll("#ab-cards .ab-card"));
+    rows.forEach(function(r){ var m=(r.dataset.searchMatch||"1")==="1"; r.style.display=m?"":"none"; });
+    cards.forEach(function(c){ var m=(c.dataset.searchMatch||"1")==="1"; c.style.display=m?"":"none"; });
 
-    // Hide non-matches
-    rows.forEach(function(r){
-      var m = (r.dataset.searchMatch || "1") === "1";
-      r.style.display = m ? "" : "none";
-    });
-    cards.forEach(function(c){
-      var m = (c.dataset.searchMatch || "1") === "1";
-      c.style.display = m ? "" : "none";
-    });
+    rows=rows.filter(function(r){ return (r.dataset.searchMatch||"1")==="1"; });
+    cards=cards.filter(function(c){ return (c.dataset.searchMatch||"1")==="1"; });
 
-    // Matched sets
-    rows = rows.filter(function(r){ return (r.dataset.searchMatch || "1") === "1"; });
-    cards = cards.filter(function(c){ return (c.dataset.searchMatch || "1") === "1"; });
+    var totalRows=rows.length;
+    var pagesRows=Math.max(1,Math.ceil(totalRows/ps));
+    if(currentPage>pagesRows) currentPage=pagesRows;
 
-    var totalRows = rows.length;
-    var pagesRows = Math.max(1, Math.ceil(totalRows / ps));
-    if (currentPage > pagesRows) currentPage = pagesRows;
+    rows.forEach(function(r,i){ var s=(currentPage-1)*ps,e=s+ps; r.style.display=(ps===Infinity||(i>=s&&i<e))?"":"none"; });
 
-    rows.forEach(function(r,i){
-      var start = (currentPage-1)*ps, end = start+ps;
-      r.style.display = (ps===Infinity || (i >= start && i < end)) ? "" : "none";
-    });
+    var pagesCards=Math.max(1,Math.ceil(cards.length/ps));
+    var pages=Math.max(pagesRows,pagesCards);
+    cards.forEach(function(c,i){ var s=(currentPage-1)*ps,e=s+ps; c.style.display=(ps===Infinity||(i>=s&&i<e))?"":"none"; });
 
-    var pagesCards = Math.max(1, Math.ceil(cards.length / ps));
-    var pages = Math.max(pagesRows, pagesCards);
-    cards.forEach(function(c,i){
-      var start = (currentPage-1)*ps, end = start+ps;
-      c.style.display = (ps===Infinity || (i >= start && i < end)) ? "" : "none";
-    });
-
-    // Empty state
-    var qVal = (document.getElementById("ab-search") && document.getElementById("ab-search").value) || "";
-    if (emptyEl){
-      if (totalRows === 0 && qVal.trim()){
-        emptyQEl.textContent = qVal;
-        emptyEl.style.display = "block";
-      } else {
-        emptyEl.style.display = "none";
-      }
+    var qVal=(document.getElementById("ab-search")&&document.getElementById("ab-search").value)||"";
+    if(emptyEl){
+      emptyEl.style.display = (totalRows===0 && qVal.trim()) ? "block" : "none";
+      if (totalRows===0 && qVal.trim()) { emptyQEl.textContent=qVal; }
     }
-
-    drawPager(pages, totalRows);
-    _writeHash(qVal, currentPage);
+    drawPager(pages,totalRows);
+    _writeHash(qVal,currentPage);
   }
-  function drawPager(pages, total){
-    if (!pageNav) return;
-    pageNav.innerHTML = "";
-    function pill(label, handler, active){
-      var b = document.createElement("button");
-      b.className = "page-btn" + (active ? " active" : "");
-      b.textContent = label;
-      b.addEventListener("click", handler);
-      pageNav.appendChild(b);
-    }
-    document.getElementById("ab-page-first").onclick = function(){ currentPage = 1; renderPage(); }
-    document.getElementById("ab-page-prev").onclick  = function(){ currentPage = Math.max(1, currentPage-1); renderPage(); }
-    document.getElementById("ab-page-next").onclick  = function(){ currentPage = Math.min(pages, currentPage+1); renderPage(); }
-    document.getElementById("ab-page-last").onclick  = function(){ currentPage = pages; renderPage(); }
+  function drawPager(pages,total){
+    if(!pageNav) return;
+    pageNav.innerHTML="";
+    function pill(label,handler,active){ var b=document.createElement("button"); b.className="page-btn"+(active?" active":""); b.textContent=label; b.addEventListener("click",handler); pageNav.appendChild(b); }
+    document.getElementById("ab-page-first").onclick=function(){ currentPage=1; renderPage(); }
+    document.getElementById("ab-page-prev").onclick =function(){ currentPage=Math.max(1,currentPage-1); renderPage(); }
+    document.getElementById("ab-page-next").onclick =function(){ currentPage=Math.min(pages,currentPage+1); renderPage(); }
+    document.getElementById("ab-page-last").onclick =function(){ currentPage=pages; renderPage(); }
 
-    var windowSize = 2;
-    var start = Math.max(1, currentPage - windowSize);
-    var end   = Math.min(pages, currentPage + windowSize);
-    if (start > 1){ pill(1, function(){ currentPage=1; renderPage(); }, currentPage===1); if (start>2) pageNav.append("…"); }
-    for (var i=start;i<=end;i++){
-      (function(i0){ pill(i0, function(){ currentPage=i0; renderPage(); }, i0===currentPage); })(i);
-    }
-    if (end < pages){ if (end < pages-1) pageNav.append("…"); pill(pages, function(){ currentPage=pages; renderPage(); }, currentPage===pages); }
+    var windowSize=2, start=Math.max(1,currentPage-windowSize), end=Math.min(pages,currentPage+windowSize);
+    if(start>1){ pill(1,function(){ currentPage=1; renderPage(); }, currentPage===1); if(start>2) pageNav.append("…"); }
+    for(var i=start;i<=end;i++){ (function(i0){ pill(i0,function(){ currentPage=i0; renderPage(); }, i0===currentPage); })(i); }
+    if(end<pages){ if(end<pages-1) pageNav.append("…"); pill(pages,function(){ currentPage=pages; renderPage(); }, currentPage===pages); }
 
-    var ps = pageSize();
-    if (pageInfo){
-      if (total === 0){
-        pageInfo.textContent = "No results";
-      } else if (ps===Infinity) {
-        pageInfo.textContent = "Showing all " + total + " items";
-      } else {
-        var sIdx = (currentPage-1)*ps + 1;
-        var eIdx = Math.min(total, currentPage*ps);
-        pageInfo.textContent = "Showing " + sIdx + "–" + eIdx + " of " + total;
-      }
+    var ps=pageSize();
+    if(pageInfo){
+      if(total===0){ pageInfo.textContent="No results"; }
+      else if(ps===Infinity){ pageInfo.textContent="Showing all "+total+" items"; }
+      else{ var sIdx=(currentPage-1)*ps+1, eIdx=Math.min(total,currentPage*ps); pageInfo.textContent="Showing "+sIdx+"–"+eIdx+" of "+total; }
     }
   }
 
-  /* ---------- Search ---------- */
+  /* Search cache */
   function _buildSearchCache(){
     document.querySelectorAll("#ab-table tbody tr").forEach(function(r){
-      if (!r.dataset._searchText){
-        var parts = [];
+      if(!r.dataset._searchText){
+        var parts=[];
         Array.from(r.cells).forEach(function(td){
-          parts.push(td.innerText || td.textContent || "");
-          var ds = td.getAttribute("data-sort"); if (ds) parts.push(ds);
+          parts.push(td.innerText||td.textContent||"");
+          var ds=td.getAttribute("data-sort"); if(ds) parts.push(ds);
         });
-        r.dataset._searchText = _normalize(parts.join(" "));
-        if (!("searchMatch" in r.dataset)) r.dataset.searchMatch = "1";
+        r.dataset._searchText=_normalize(parts.join(" "));
+        if(!("searchMatch" in r.dataset)) r.dataset.searchMatch="1";
       }
     });
     document.querySelectorAll("#ab-cards .ab-card").forEach(function(c){
-      if (!c.dataset._searchText){
-        var keys = ["title","series","series_index_sort","author","narrator","year","genre","duration_hhmm"];
-        var parts = keys.map(function(k){ return c.getAttribute("data-"+k) || ""; });
-        parts.push(c.innerText || c.textContent || "");
-        c.dataset._searchText = _normalize(parts.join(" "));
-        if (!("searchMatch" in c.dataset)) c.dataset.searchMatch = "1";
+      if(!c.dataset._searchText){
+        var keys=["title","series","series_index_sort","author","narrator","year","genre","duration_hhmm"];
+        var parts=keys.map(function(k){ return c.getAttribute("data-"+k)||""; });
+        parts.push(c.innerText||c.textContent||"");
+        c.dataset._searchText=_normalize(parts.join(" "));
+        if(!("searchMatch" in c.dataset)) c.dataset.searchMatch="1";
       }
     });
   }
   function _applySearch(q){
-    var toks = _tokens(q);
-    var matchesAll = function(hay){ return toks.every(function(t){ return hay.indexOf(t) !== -1; }); };
-
+    var toks=_tokens(q);
+    var matchesAll=function(h){ return toks.every(function(t){ return h.indexOf(t)!==-1; }); };
     document.querySelectorAll("#ab-table tbody tr").forEach(function(r){
-      var hay = r.dataset._searchText || "";
-      r.dataset.searchMatch = (!toks.length || matchesAll(hay)) ? "1" : "0";
+      var hay=r.dataset._searchText||""; r.dataset.searchMatch=(!toks.length||matchesAll(hay))?"1":"0";
     });
     document.querySelectorAll("#ab-cards .ab-card").forEach(function(c){
-      var hay = c.dataset._searchText || "";
-      c.dataset.searchMatch = (!toks.length || matchesAll(hay)) ? "1" : "0";
+      var hay=c.dataset._searchText||""; c.dataset.searchMatch=(!toks.length||matchesAll(hay))?"1":"0";
     });
   }
 
-  /* ---------- Author → Drive map ---------- */
-  var AUTHOR_MAP = {};
-  function _resolveAuthorFolder(author){
-    if (!author) return null;
-    if (AUTHOR_MAP[author]) return AUTHOR_MAP[author];
-    var aNorm = author.toLowerCase().trim();
-    for (var k in AUTHOR_MAP){
-      if (!Object.prototype.hasOwnProperty.call(AUTHOR_MAP,k)) continue;
-      if (k.toLowerCase().trim() === aNorm) return AUTHOR_MAP[k];
-    }
-    return null;
-  }
-  async function _loadAuthorMap(){
-    var url = (window.AB_AUTHOR_MAP_URL && window.AB_AUTHOR_MAP_URL.trim())
-              ? window.AB_AUTHOR_MAP_URL.trim()
-              : "app/author_drive_map.json";
+  /* Author → Drive map from inline JSON */
+  var AUTHOR_MAP={};
+  function _loadAuthorMapInline(){
     try{
-      var resp = await fetch(url, {cache: "no-store"});
-      if (!resp.ok) throw new Error("HTTP "+resp.status);
-      var data = await resp.json();
-      if (data && typeof data === "object") AUTHOR_MAP = data;
-    }catch(e){
-      try{
-        var resp2 = await fetch("../app/author_drive_map.json", {cache:"no-store"});
-        if (resp2.ok){
-          var data2 = await resp2.json();
-          if (data2 && typeof data2 === "object") AUTHOR_MAP = data2;
-        }
-      }catch(_){}
-    }
+      var el=document.getElementById("ab-author-map-json");
+      if(!el) return;
+      var txt=(el.textContent||"").trim();
+      if(!txt) return;
+      var parsed=JSON.parse(txt);
+      if(parsed && typeof parsed==="object"){ AUTHOR_MAP=parsed; }
+    }catch(e){ /* ignore parse errors */ }
   }
-  function _authorDriveHref(author){
-    var id = _resolveAuthorFolder(author);
-    if (id && typeof id === "string" && id.trim()){
-      return "https://drive.google.com/drive/folders/" + encodeURIComponent(id.trim());
-    }
-    if (author && author.trim()){
-      return "https://drive.google.com/drive/search?q=" + encodeURIComponent(author.trim());
+  function _resolveAuthorFolder(author){
+    if(!author) return null;
+    if(AUTHOR_MAP[author]) return AUTHOR_MAP[author];
+    var aNorm=author.toLowerCase().trim();
+    for(var k in AUTHOR_MAP){
+      if(!Object.prototype.hasOwnProperty.call(AUTHOR_MAP,k)) continue;
+      if(k.toLowerCase().trim()===aNorm) return AUTHOR_MAP[k];
     }
     return null;
   }
-
-  /* ---------- Book search in Drive helper (TITLE ONLY, no quotes) ---------- */
-  function _bookDriveHref(title){
-    var t = (title || "").trim();
-    if (!t) return null;
-    // No quotes, title only
-    return "https://drive.google.com/drive/search?q=" + encodeURIComponent(t);
+  function _authorFolderHref(author){
+    var id=_resolveAuthorFolder(author);
+    return (id && String(id).trim())
+      ? ("https://drive.google.com/drive/folders/"+encodeURIComponent(String(id).trim()))
+      : null;
+  }
+  function _authorSearchHref(author){
+    return author && author.trim()
+      ? ("https://drive.google.com/drive/search?q="+encodeURIComponent(author.trim()))
+      : null;
+  }
+  function _bookSearchHref(title){
+    var clean=(title||"").toString().trim();
+    if(clean.startsWith('"') && clean.endsWith('"')) clean=clean.slice(1,-1).trim();
+    return clean ? ("https://drive.google.com/drive/search?q="+encodeURIComponent(clean)) : null;
   }
 
-  /* ---------- Modal logic ---------- */
-  var modal = document.getElementById("modal");
-  var modalCover = document.getElementById("modal-cover");
-  var modalTitle = document.getElementById("modal-title");
-  var mSeries = document.getElementById("m-series");
-  var mIndex = document.getElementById("m-index");
-  var mAuthor = document.getElementById("m-author");
-  var mNarrator = document.getElementById("m-narrator");
-  var mYear = document.getElementById("m-year");
-  var mGenre = document.getElementById("m-genre");
-  var mDuration = document.getElementById("m-duration");
-  var mDesc = document.getElementById("m-desc");
-  var mAuthorDrive = document.getElementById("m-author-drive");
-  var mBookDrive = document.getElementById("m-book-drive");
-  var modalClose = document.getElementById("modal-close");
+  /* Modal logic */
+  var modal=document.getElementById("modal");
+  var modalCover=document.getElementById("modal-cover");
+  var modalTitle=document.getElementById("modal-title");
+  var mSeries=document.getElementById("m-series");
+  var mIndex=document.getElementById("m-index");
+  var mAuthor=document.getElementById("m-author");
+  var mNarrator=document.getElementById("m-narrator");
+  var mYear=document.getElementById("m-year");
+  var mGenre=document.getElementById("m-genre");
+  var mDuration=document.getElementById("m-duration");
+  var mDesc=document.getElementById("m-desc");
+
+  var mAuthorDrive=document.getElementById("m-author-drive");
+  var mAuthorFolder=document.getElementById("m-author-folder");
+  var mBookDrive=document.getElementById("m-book-drive");
+  var modalClose=document.getElementById("modal-close");
 
   function openModal(payload){
-    modalCover.src = payload.cover || "";
-    modalCover.alt = payload.title || "";
-    modalTitle.textContent = payload.title || "";
-    mSeries.textContent = payload.series || "";
-    mIndex.textContent = payload.index || "";
-    mAuthor.textContent = payload.author || "";
-    mNarrator.textContent = payload.narrator || "";
-    mYear.textContent = payload.year || "";
-    mGenre.textContent = payload.genre || "";
-    mDuration.textContent = payload.duration || "";
-    mDesc.textContent = payload.desc ? payload.desc : "No description available.";
+    modalCover.src=payload.cover||"";
+    modalCover.alt=payload.title||"";
+    modalTitle.textContent=payload.title||"";
+    mSeries.textContent=payload.series||"";
+    mIndex.textContent=payload.index||"";
+    mAuthor.textContent=payload.author||"";
+    mNarrator.textContent=payload.narrator||"";
+    mYear.textContent=payload.year||"";
+    mGenre.textContent=payload.genre||"";
+    mDuration.textContent=payload.duration||"";
+    mDesc.textContent=payload.desc ? payload.desc : "No description available.";
 
-    // Author Drive button (folder if mapped, else search)
-    if (mAuthorDrive){
-      var href = _authorDriveHref(payload.author || "");
-      if (href){
-        mAuthorDrive.href = href;
-        mAuthorDrive.style.display = "inline-block";
-        if (_resolveAuthorFolder(payload.author || "")){
-          mAuthorDrive.textContent = "Open author in Drive";
-          mAuthorDrive.title = "Opens the mapped Drive folder for this author";
-        }else{
-          mAuthorDrive.textContent = "Search author in Drive";
-          mAuthorDrive.title = "No mapped folder; opens a Google Drive search for this author";
-        }
-      } else {
-        mAuthorDrive.removeAttribute("href");
-        mAuthorDrive.style.display = "none";
-        mAuthorDrive.title = "";
-      }
+    var author=payload.author||"";
+    var folderHref=_authorFolderHref(author);
+    var authorSearchHref=_authorSearchHref(author);
+    var bookHref=_bookSearchHref(payload.title||"");
+
+    if(folderHref){
+      mAuthorFolder.href=folderHref;
+      mAuthorFolder.style.display="inline-block";
+    } else {
+      mAuthorFolder.removeAttribute("href");
+      mAuthorFolder.style.display="none";
     }
 
-    // Book Drive search button — TITLE ONLY, pulled from payload.title
-    if (mBookDrive){
-      var bookHref = _bookDriveHref(payload.title || "");
-      if (bookHref){
-        mBookDrive.href = bookHref;
-        mBookDrive.style.display = "inline-block";
-        mBookDrive.textContent = "Search book in Drive";
-        mBookDrive.title = "Search this book title in Google Drive";
-      } else {
-        mBookDrive.removeAttribute("href");
-        mBookDrive.style.display = "none";
-        mBookDrive.title = "";
-      }
+    if(authorSearchHref){
+      mAuthorDrive.href=authorSearchHref;
+      mAuthorDrive.style.display="inline-block";
+    } else {
+      mAuthorDrive.removeAttribute("href");
+      mAuthorDrive.style.display="none";
+    }
+
+    if(bookHref){
+      mBookDrive.href=bookHref;
+      mBookDrive.style.display="inline-block";
+    } else {
+      mBookDrive.removeAttribute("href");
+      mBookDrive.style.display="none";
     }
 
     modal.classList.add("open");
     modal.setAttribute("aria-hidden","false");
   }
-  function closeModal(){
-    modal.classList.remove("open");
-    modal.setAttribute("aria-hidden","true");
-  }
+  function closeModal(){ modal.classList.remove("open"); modal.setAttribute("aria-hidden","true"); }
 
-  // Existing Cover button handler: uses data-* (including data-title)
+  // Cover button -> open
   document.addEventListener("click", function(e){
-    var btn = e.target.closest("button.cover-btn");
-    if (btn){
-      var d = btn.dataset;
+    var btn=e.target.closest("button.cover-btn");
+    if(btn){
+      var d=btn.dataset;
       openModal({
-        cover: d.cover || "",
-        title: d.title || "",           // <- title comes from the button's metadata
-        series: d.series || "",
-        index: d.index || "",
-        author: d.author || "",
-        narrator: d.narrator || "",
-        year: d.year || "",
-        genre: d.genre || "",
-        duration: d.duration || "",
-        desc: d.desc || ""
+        cover:d.cover||"", title:d.title||"", series:d.series||"", index:d.index||"",
+        author:d.author||"", narrator:d.narrator||"", year:d.year||"",
+        genre:d.genre||"", duration:d.duration||"", desc:d.desc||""
       });
     }
   });
 
-  // Row click opens modal via that row’s Cover button
+  // Any cell / row click -> open (unless clicking an interactive element)
   document.addEventListener("click", function(e){
-    var tbody = document.querySelector("#ab-table tbody");
-    if (!tbody || !tbody.contains(e.target)) return;
-    if (e.target.closest("button.cover-btn")) return;
-    var link = e.target.closest("a[href]");
-    if (link) return;
-    var row = e.target.closest("tr");
-    if (!row) return;
-    var coverBtn = row.querySelector("button.cover-btn");
-    if (coverBtn){
-      e.preventDefault();
-      coverBtn.click();
-    }
-  });
-
-  // Enter on focused row opens modal
-  document.addEventListener("keydown", function(e){
-    if (e.key !== "Enter") return;
-    var tbody = document.querySelector("#ab-table tbody");
-    if (!tbody) return;
-    var row = document.activeElement && tbody.contains(document.activeElement)
-              ? document.activeElement.closest("tr")
-              : null;
-    if (!row) return;
-    var coverBtn = row.querySelector("button.cover-btn");
-    if (coverBtn){
-      e.preventDefault();
-      coverBtn.click();
-    }
-  });
-
-  if (modalClose) modalClose.addEventListener("click", closeModal);
-  modal.addEventListener("click", function(e){ if (e.target === modal) closeModal(); });
-  document.addEventListener("keydown", function(e){ if (e.key === "Escape") closeModal(); });
-
-  document.addEventListener("DOMContentLoaded", async function(){
-    table     = document.getElementById("ab-table");
-    cardsWrap = document.getElementById("ab-cards");
-    pageSizeEl= document.getElementById("ab-page-size");
-    pageNav   = document.getElementById("ab-page-nav");
-    pageInfo  = document.getElementById("ab-page-info");
-    emptyEl   = document.getElementById("ab-empty");
-    emptyQEl  = document.getElementById("ab-empty-q");
-
-    if (table) makeTableSortable(table);
-
-    // init search flags + cache
-    document.querySelectorAll("#ab-table tbody tr").forEach(function(r){
-      r.dataset.searchMatch = "1";
-      if (!r.hasAttribute("tabindex")) r.setAttribute("tabindex","0");
+    var td=e.target.closest("#ab-table tbody td");
+    if(!td) return;
+    if (e.target.closest("a,button") && !e.target.closest("button.cover-btn")) return;
+    var tr=td.parentElement; if(!tr) return;
+    var coverBtn=tr.querySelector("button.cover-btn"); if(!coverBtn) return;
+    var d=coverBtn.dataset;
+    openModal({
+      cover:d.cover||"", title:d.title||"", series:d.series||"", index:d.index||"",
+      author:d.author||"", narrator:d.narrator||"", year:d.year||"",
+      genre:d.genre||"", duration:d.duration||"", desc:d.desc||""
     });
-    document.querySelectorAll("#ab-cards .ab-card").forEach(function(c){ c.dataset.searchMatch = "1"; });
+  });
+
+  if(modalClose) modalClose.addEventListener("click", closeModal);
+  modal.addEventListener("click", function(e){ if(e.target===modal) closeModal(); });
+  document.addEventListener("keydown", function(e){ if(e.key==="Escape") closeModal(); });
+
+  document.addEventListener("DOMContentLoaded", function(){
+    _loadAuthorMapInline();
+
+    table=document.getElementById("ab-table");
+    cardsWrap=document.getElementById("ab-cards");
+    pageSizeEl=document.getElementById("ab-page-size");
+    pageNav=document.getElementById("ab-page-nav");
+    pageInfo=document.getElementById("ab-page-info");
+    emptyEl=document.getElementById("ab-empty");
+    emptyQEl=document.getElementById("ab-empty-q");
+
+    if(table) makeTableSortable(table);
+
+    document.querySelectorAll("#ab-table tbody tr").forEach(function(r){ r.dataset.searchMatch="1"; });
+    document.querySelectorAll("#ab-cards .ab-card").forEach(function(c){ c.dataset.searchMatch="1"; });
     _buildSearchCache();
 
-    // Load author map before first modal usage
-    await _loadAuthorMap();
+    var search=document.getElementById("ab-search");
+    if(search) search.addEventListener("input", _debounce(function(){ _applySearch(search.value); currentPage=1; renderPage(); }, 120));
 
-    var search = document.getElementById("ab-search");
-    if (search) search.addEventListener("input", _debounce(function(){
-      _applySearch(search.value); currentPage = 1; renderPage();
-    }, 120));
-
-    var sortSelect = document.getElementById("ab-sort");
-    var sortAscBtn = document.getElementById("ab-sort-asc");
-    var sortDescBtn= document.getElementById("ab-sort-desc");
+    var sortSelect=document.getElementById("ab-sort");
+    var sortAscBtn=document.getElementById("ab-sort-asc");
+    var sortDescBtn=document.getElementById("ab-sort-desc");
     function doSort(asc){
-      var parts = sortSelect.value.split("|");
-      var key = parts[0], numeric = (parts[1]==="num");
-      var idx = Array.from(document.querySelectorAll("#ab-table thead th")).findIndex(function(th){
-        return th.getAttribute("data-key") === key;
-      });
-      if (idx >= 0){
-        var tbody = table.tBodies[0];
-        var rows = Array.from(tbody.querySelectorAll("tr"));
-        rows.sort(function(r1,r2){
-          function getCellVal(row){
-            var cell = row.children[idx];
-            if (!cell) return "";
-            if (numeric){
-              var key2 = cell.getAttribute("data-sort");
-              if (key2 !== null && key2 !== ""){
-                var n = parseFloat(key2); if (!isNaN(n)) return n;
-              }
-              var txt = cell.innerText || cell.textContent || "";
-              var n2 = parseFloat(txt); return isNaN(n2) ? -Infinity : n2;
-            }
-            return cell.innerText || cell.textContent || "";
-          }
-          var v1 = getCellVal(r1), v2 = getCellVal(r2);
-          return asc ? ((numeric ? (v1-v2) : (""+v1).localeCompare(""+v2,undefined,{numeric:true,sensitivity:"base"})))
-                     : ((numeric ? (v2-v1) : (""+v2).localeCompare(""+v1,undefined,{numeric:true,sensitivity:"base"})));
-        });
-        rows.forEach(function(r){ tbody.appendChild(r); });
-      }
-      var cards = Array.from(cardsWrap.querySelectorAll(".ab-card"));
+      var parts=sortSelect.value.split("|");
+      var key=parts[0], numeric=(parts[1]==="num");
+      var idx=Array.from(document.querySelectorAll("#ab-table thead th")).findIndex(function(th){ return th.getAttribute("data-key")===key; });
+      if(idx>=0){ sortTableBy(table, idx, numeric, asc); }
+      var cards=Array.from(cardsWrap.querySelectorAll(".ab-card"));
       cards.sort(function(a,b){
-        var v1 = a.getAttribute("data-"+key) || "";
-        var v2 = b.getAttribute("data-"+key) || "";
-        if (numeric){ v1 = parseFloat(v1); v2 = parseFloat(v2); if (isNaN(v1)) v1=-Infinity; if (isNaN(v2)) v2=-Infinity; }
+        var v1=a.getAttribute("data-"+key)||"", v2=b.getAttribute("data-"+key)||"";
+        if(numeric){ v1=parseFloat(v1); v2=parseFloat(v2); if(isNaN(v1)) v1=-Infinity; if(isNaN(v2)) v2=-Infinity; }
         return asc ? ((numeric ? (v1-v2) : (""+v1).localeCompare(""+v2,undefined,{numeric:true,sensitivity:"base"})))
                    : ((numeric ? (v2-v1) : (""+v2).localeCompare(""+v1,undefined,{numeric:true,sensitivity:"base"})));
       });
       cards.forEach(function(c){ cardsWrap.appendChild(c); });
-      currentPage = 1; renderPage();
+      currentPage=1; renderPage();
     }
-    if (sortAscBtn) sortAscBtn.addEventListener("click", function(){ doSort(true); });
-    if (sortDescBtn)sortDescBtn.addEventListener("click", function(){ doSort(false); });
+    if(sortAscBtn) sortAscBtn.addEventListener("click", function(){ doSort(true); });
+    if(sortDescBtn)sortDescBtn.addEventListener("click", function(){ doSort(false); });
 
-    var toggle = document.getElementById("ab-toggle-view");
-    if (toggle){
-      toggle.addEventListener("click", function(){
-        document.body.classList.toggle("cards");
-        currentPage = 1; renderPage();
-      });
-    }
+    var toggle=document.getElementById("ab-toggle-view");
+    if(toggle){ toggle.addEventListener("click", function(){ document.body.classList.toggle("cards"); currentPage=1; renderPage(); }); }
 
-    pageSizeEl = document.getElementById("ab-page-size");
-    pageNav    = document.getElementById("ab-page-nav");
-    pageInfo   = document.getElementById("ab-page-info");
-    if (pageSizeEl){ pageSizeEl.addEventListener("change", function(){ currentPage=1; renderPage(); }); }
+    if(pageSizeEl){ pageSizeEl.addEventListener("change", function(){ currentPage=1; renderPage(); }); }
 
-    var hashState = _parseHash();
-    var searchEl = document.getElementById("ab-search");
-    if (searchEl && hashState.q){ searchEl.value = hashState.q; _applySearch(hashState.q); }
-    if (hashState.p > 1){ currentPage = hashState.p; }
-    if (!hashState.q){ _applySearch((searchEl||{}).value || ""); }
+    var hashState=_parseHash();
+    if(search && hashState.q){ search.value=hashState.q; _applySearch(hashState.q); }
+    if(hashState.p>1){ currentPage=hashState.p; }
+    if(!hashState.q){ _applySearch((search||{}).value||""); }
     renderPage();
 
     window.addEventListener("hashchange", function(){
-      var s2 = _parseHash();
-      var curQ = (searchEl && searchEl.value) || "";
-      if (searchEl && s2.q !== curQ){
-        searchEl.value = s2.q || "";
-        _applySearch(searchEl.value);
-      }
-      currentPage = s2.p || 1;
-      renderPage();
+      var s2=_parseHash();
+      var curQ=(search&&search.value)||"";
+      if(search && s2.q!==curQ){ search.value=s2.q||""; _applySearch(search.value); }
+      currentPage=s2.p||1; renderPage();
     });
   });
 })();
