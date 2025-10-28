@@ -1,0 +1,30 @@
+<!-- Modal -->
+<div id="modal" aria-hidden="true">
+  <div class="panel" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <button class="close" id="modal-close" aria-label="Close">Close ✕</button>
+    <div>
+      <img class="cover-lg" id="modal-cover" alt="">
+    </div>
+    <div>
+      <div id="modal-title" class="title"></div>
+
+      <!-- Action buttons -->
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin:2px 0 6px;">
+        <a id="m-author-folder" class="link-btn" href="#" target="_blank" rel="noopener" style="display:none">Open author folder</a>
+        <a id="m-author-drive" class="link-btn" href="#" target="_blank" rel="noopener" style="display:none">Search author in Drive</a>
+        <a id="m-book-drive"   class="link-btn" href="#" target="_blank" rel="noopener" style="display:none">Search book in Drive</a>
+      </div>
+
+      <div class="meta-grid" style="margin-top:6px">
+        <div class="label">Series</div><div id="m-series"></div>
+        <div class="label">#</div><div id="m-index"></div>
+        <div class="label">Author</div><div id="m-author"></div>
+        <div class="label">Narrator</div><div id="m-narrator"></div>
+        <div class="label">Year</div><div id="m-year"></div>
+        <div class="label">Genre</div><div id="m-genre"></div>
+        <div class="label">Duration</div><div id="m-duration"></div>
+      </div>
+      <div class="desc" id="m-desc"></div>
+    </div>
+  </div>
+</div>

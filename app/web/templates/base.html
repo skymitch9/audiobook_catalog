@@ -1,0 +1,41 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Audiobook Catalog</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+<div id="wrap">
+  <h1>Audiobook Catalog</h1>
+
+  {% include 'controls.html' %}
+
+  <table id="ab-table">
+    <thead><tr>
+      <th data-key="cover_href">Cover</th>
+      <th data-key="title">Title</th>
+      <th data-key="series">Series</th>
+      <th data-key="series_index_display" data-type="num">#</th>
+      <th data-key="author">Author</th>
+      <th data-key="narrator">Narrator</th>
+      <th data-key="year">Year</th>
+      <th data-key="genre">Genre</th>
+      <th data-key="duration_hhmm">Duration (hh:mm)</th>
+    </tr></thead>
+    <tbody>{{TABLE_ROWS}}</tbody>
+  </table>
+
+  <div id="ab-cards">{{CARDS}}</div>
+
+  <div id="ab-empty">No results for "<span id="ab-empty-q"></span>". Try a different search.</div>
+</div>
+
+{% include 'modal.html' %}
+{% include 'author-map.html' %}
+
+<script src="app.js"></script>
+</body>
+</html>
