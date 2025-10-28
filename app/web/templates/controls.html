@@ -1,0 +1,49 @@
+<div id="controls">
+  <div class="controls-row">
+    <input id="ab-search" type="search" placeholder="Search any field…" aria-label="Search" />
+    <select id="ab-sort">
+      <option value="title|txt">Sort by Title</option>
+      <option value="series|txt">Sort by Series</option>
+      <option value="series_index_sort|num">Sort by # (numeric)</option>
+      <option value="author|txt">Sort by Author</option>
+      <option value="narrator|txt">Sort by Narrator</option>
+      <option value="year|txt">Sort by Year</option>
+      <option value="genre|txt">Sort by Genre</option>
+      <option value="duration_hhmm|txt">Sort by Duration</option>
+    </select>
+    <button id="ab-sort-asc" class="btn">Asc</button>
+    <button id="ab-sort-desc" class="btn">Desc</button>
+    <button id="ab-toggle-view" class="btn">Toggle View</button>
+
+    <label class="switch" title="Toggle dark mode">
+      <span class="label">Dark mode</span>
+      <input id="ab-dark-toggle" type="checkbox" checked />
+      <span class="track"><span class="thumb"></span></span>
+    </label>
+  </div>
+
+  <div class="controls-row pagination">
+    <label for="ab-page-size"><small>Rows per page:</small></label>
+    <select id="ab-page-size">
+      <option value="10">10</option>
+      <option value="20">20</option>
+      <option value="50">50</option>
+      <option value="100" selected>100</option>
+      <option value="500">500</option>
+      <option value="All">All</option>
+    </select>
+
+    <button id="ab-page-first" class="btn">« First</button>
+    <button id="ab-page-prev"  class="btn">‹ Prev</button>
+    <div id="ab-page-nav"></div>
+    <button id="ab-page-next"  class="btn">Next ›</button>
+    <button id="ab-page-last"  class="btn">Last »</button>
+
+    <span id="ab-page-info" class="pagination-info"></span>
+  </div>
+
+  <div id="meta"><small>
+    Generated at: {{GENERATED_AT}} ·
+    <a href="{{CSV_LINK}}" download>Download CSV</a>{{DRIVE_LINK_BLOCK}}
+  </small></div>
+</div>

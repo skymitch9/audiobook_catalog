@@ -4,6 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import List, Dict, Optional
 import html
+import json
 
 TEMPLATE_DIR  = Path(__file__).parent / "templates"
 STATIC_DIR    = Path(__file__).parent / "static"   # kept for other assets if you have them
@@ -69,6 +70,10 @@ def _card_html(r: Dict[str, str]) -> str:
         "year": r.get("year",""),
         "genre": r.get("genre",""),
         "duration_hhmm": r.get("duration_hhmm",""),
+        # Add modal data attributes
+        "cover": r.get("cover_href",""),
+        "index": r.get("series_index_display",""),
+        "desc": r.get("desc","")
     }
     data_attrs = " ".join(f'data-{k}="{_esc(v)}"' for k, v in attrs.items())
     thumb = _cover_button(r, inline=True)
@@ -92,6 +97,29 @@ def _card_html(r: Dict[str, str]) -> str:
 def _cards_html(rows: List[Dict[str, str]]) -> str:
     return "".join(_card_html(r) for r in rows)
 
+def _load_author_map() -> str:
+    """Load the author drive map JSON and return as string for template injection."""
+    try:
+        # Try multiple possible locations for the author map file
+        possible_paths = [
+            Path("author_drive_map.json"),  # Current working directory
+            Path(__file__).parent.parent.parent / "author_drive_map.json",  # Parent of audiobook_catalog
+            Path(__file__).parent.parent.parent.parent / "author_drive_map.json",  # Root directory
+        ]
+        
+        for author_map_path in possible_paths:
+            if author_map_path.exists():
+                with open(author_map_path, 'r', encoding='utf-8') as f:
+                    author_map = json.load(f)
+                print(f"Loaded author map from: {author_map_path}")
+                return json.dumps(author_map, separators=(',', ':'))
+        
+        print(f"Warning: author_drive_map.json not found in any of these locations: {[str(p) for p in possible_paths]}")
+        return "{}"
+    except Exception as e:
+        print(f"Warning: Could not load author_drive_map.json: {e}")
+        return "{}"
+
 def render_index_html(
     rows: List[Dict[str, str]],
     out_path: Path,
@@ -102,6 +130,7 @@ def render_index_html(
     html_template = TEMPLATE_FILE.read_text(encoding="utf-8")
     table_rows = _table_rows_html(rows)
     cards      = _cards_html(rows)
+    author_map_json = _load_author_map()
 
     filled = (
         html_template
@@ -114,6 +143,8 @@ def render_index_html(
         )
         .replace("{{TABLE_ROWS}}", table_rows)
         .replace("{{CARDS}}", cards)
+        .replace("{{AUTHOR_MAP_JSON}}", author_map_json)
+        .replace("{{AUTHOR_DRIVE_MAP_URL}}", "")  # Keep for compatibility
     )
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
