@@ -1,40 +1,128 @@
-name: Deploy static site to Pages
+name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [ main ]   
-  workflow_dispatch: {}
+    branches: [ main, master ]
+  workflow_dispatch:  # Allow manual trigger
 
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
   contents: read
   pages: write
   id-token: write
 
+# Allow only one concurrent deployment
 concurrency:
   group: "pages"
   cancel-in-progress: false
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v3
+    
+    - name: 🐍 Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+    
+    - name: 📦 Install dependencies
+      run: |
+        echo "::group::Installing Python packages"
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        echo "::endgroup::"
+    
+    - name: 📊 Generate catalog
+      run: |
+        echo "::group::Generating audiobook catalog"
+        python -m app.main
+        echo "::endgroup::"
+      continue-on-error: true
+      # Continue even if catalog generation fails (no library in CI)
+    
+    - name: 📋 Verify site files
+      run: |
+        echo "::group::Checking generated files"
+        if [ -f "site/index.html" ]; then
+          echo "✓ index.html found"
+          echo "  Size: $(du -h site/index.html | cut -f1)"
+        else
+          echo "⚠ index.html not found - creating placeholder"
+          mkdir -p site
+          cat > site/index.html << 'EOF'
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <title>Audiobook Catalog</title>
+          <style>
+            body { font-family: system-ui; max-width: 800px; margin: 50px auto; padding: 20px; }
+            h1 { color: #333; }
+            .info { background: #f0f0f0; padding: 20px; border-radius: 8px; }
+          </style>
+        </head>
+        <body>
+          <h1>Audiobook Catalog</h1>
+          <div class="info">
+            <p>This is a placeholder page. The catalog will be generated when the repository contains audiobook files.</p>
+            <p>To generate your catalog:</p>
+            <ol>
+              <li>Clone this repository</li>
+              <li>Add your audiobook files to the library folder</li>
+              <li>Run: <code>python -m app.main</code></li>
+              <li>Push changes to deploy</li>
+            </ol>
+          </div>
+        </body>
+        </html>
+        EOF
+        fi
+        
+        if [ -f "site/catalog.csv" ]; then
+          echo "✓ catalog.csv found"
+          echo "  Size: $(du -h site/catalog.csv | cut -f1)"
+        fi
+        
+        if [ -d "site/covers" ]; then
+          cover_count=$(find site/covers -type f | wc -l)
+          echo "✓ Covers directory found"
+          echo "  Files: $cover_count"
+        fi
+        
+        if [ -d "site/static" ]; then
+          echo "✓ Static files found"
+        fi
+        echo "::endgroup::"
+    
+    - name: 📄 Setup Pages
+      uses: actions/configure-pages@v3
+    
+    - name: 📦 Upload artifact
+      uses: actions/upload-pages-artifact@v2
+      with:
+        path: './site'
+    
+    - name: ✅ Build summary
+      run: |
+        echo "::notice::Site built successfully and ready for deployment"
+
+  deploy:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-
+    runs-on: ubuntu-latest
+    needs: build
+    
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-        with:
-          enablement: true   
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: ./site       
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+    - name: 🚀 Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v2
+    
+    - name: ✅ Deployment summary
+      run: |
+        echo "::notice::Deployment completed successfully"
+        echo "::notice::Site URL: ${{ steps.deployment.outputs.page_url }}"

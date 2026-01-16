@@ -11,22 +11,37 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v3
+    - name: 📥 Checkout code
+      uses: actions/checkout@v3
     
-    - name: Set up Python
+    - name: 🐍 Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.12'
     
-    - name: Install dependencies
+    - name: 📦 Install linting tools
       run: |
+        echo "::group::Installing linters"
         python -m pip install --upgrade pip
         pip install flake8 pylint
+        echo "::endgroup::"
     
-    - name: Lint with flake8
+    - name: 🔍 Check for syntax errors
       run: |
+        echo "::group::Checking for critical errors"
         # Stop the build if there are Python syntax errors or undefined names
         flake8 app tests --count --select=E9,F63,F7,F82 --show-source --statistics
+        echo "::endgroup::"
+    
+    - name: 📝 Check code quality
+      continue-on-error: true
+      run: |
+        echo "::group::Code quality analysis"
         # Exit-zero treats all errors as warnings
         flake8 app tests --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-      continue-on-error: true
+        echo "::endgroup::"
+    
+    - name: ✅ Lint summary
+      if: always()
+      run: |
+        echo "::notice::Linting completed. Check logs above for any warnings."

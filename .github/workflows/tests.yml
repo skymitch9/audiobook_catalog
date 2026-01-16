@@ -11,17 +11,28 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v3
+    - name: 📥 Checkout code
+      uses: actions/checkout@v3
     
-    - name: Set up Python
+    - name: 🐍 Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.12'
     
-    - name: Install dependencies
+    - name: 📦 Install dependencies
       run: |
+        echo "::group::Installing Python packages"
         python -m pip install --upgrade pip
         pip install -r requirements.txt
+        echo "::endgroup::"
     
-    - name: Run tests
-      run: python run_tests.py -v
+    - name: 🧪 Run unit tests
+      run: |
+        echo "::group::Running test suite"
+        python run_tests.py -v
+        echo "::endgroup::"
+    
+    - name: 📊 Test summary
+      if: always()
+      run: |
+        echo "::notice::Test execution completed. Check logs above for details."
