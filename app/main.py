@@ -74,19 +74,6 @@ def main() -> None:
         drive_link=DRIVE_FOLDER_URL or None,
     )
 
-    # 4) Generate series completion tracker
-    try:
-        from app.tools.generate_series_tracker import analyze_series, generate_html
-
-        print("Generating series tracker...")
-        catalog_path = SITE_DIR / SITE_CSV_NAME
-        tracker_path = SITE_DIR / "series-tracker.html"
-        analysis = analyze_series(catalog_path)
-        generate_html(analysis, tracker_path)
-        print(f"Series tracker: {tracker_path}")
-    except Exception as e:
-        print(f"[WARN] Failed to generate series tracker: {e}", file=sys.stderr)
-
     print("Done.")
 
 

@@ -176,11 +176,17 @@ a.link-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
 
 <body>
 <div id="wrap">
-  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-    <h1>Audiobook Catalog</h1>
-    <a href="series-tracker.html" style="padding: 0.5rem 1rem; background: var(--btn-bg); color: var(--text); text-decoration: none; border-radius: var(--radius); border: 1px solid var(--btn-border); font-weight: 600;">
-      📊 Series Tracker
-    </a>
+  <h1>Audiobook Catalog</h1>
+
+  <!-- Book of the Day -->
+  <div id="book-of-day" style="background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; margin-bottom: 1rem;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+      <h2 style="margin: 0; font-size: 1.2rem;">📚 Book of the Day</h2>
+      <button id="random-book-btn" class="btn" style="font-size: 0.9rem;">🎲 Random Book</button>
+    </div>
+    <div id="book-of-day-content" style="display: flex; gap: 1rem; align-items: start;">
+      <div id="book-of-day-loading" style="color: var(--muted);">Loading...</div>
+    </div>
   </div>
 
   <div id="controls">
@@ -620,6 +626,138 @@ a.link-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
       if(search && s2.q!==curQ){ search.value=s2.q||""; _applySearch(search.value); }
       currentPage=s2.p||1; renderPage();
     });
+
+    // ========== Book of the Day ==========
+    function getAllBooks() {
+      // Parse books from table rows and cards
+      var books = [];
+      var table = document.getElementById('ab-table');
+      var tbody = table ? table.tBodies[0] : null;
+      
+      if (tbody) {
+        var rows = tbody.querySelectorAll('tr');
+        rows.forEach(function(row) {
+          var cells = row.cells;
+          if (cells.length < 9) return;
+          
+          var coverBtn = cells[0].querySelector('.cover-btn');
+          var book = {
+            cover_href: coverBtn ? coverBtn.getAttribute('data-cover') : '',
+            title: coverBtn ? coverBtn.getAttribute('data-title') : (cells[1].textContent || ''),
+            series: coverBtn ? coverBtn.getAttribute('data-series') : (cells[2].textContent || ''),
+            series_index_display: coverBtn ? coverBtn.getAttribute('data-index') : (cells[3].textContent || ''),
+            author: coverBtn ? coverBtn.getAttribute('data-author') : (cells[4].textContent || ''),
+            narrator: coverBtn ? coverBtn.getAttribute('data-narrator') : (cells[5].textContent || ''),
+            year: coverBtn ? coverBtn.getAttribute('data-year') : (cells[6].textContent || ''),
+            genre: coverBtn ? coverBtn.getAttribute('data-genre') : (cells[7].textContent || ''),
+            duration_hhmm: coverBtn ? coverBtn.getAttribute('data-duration') : (cells[8].textContent || '')
+          };
+          books.push(book);
+        });
+      }
+      
+      return books;
+    }
+
+    function getBookOfDay() {
+      var allBooks = getAllBooks();
+      
+      // Filter for standalone books or first in series
+      var eligibleBooks = allBooks.filter(function(book) {
+        var series = book.series || '';
+        var index = book.series_index_display || '';
+        // Include if: no series (standalone) OR series index is 1, One, I, or First
+        if (!series) return true;
+        if (!index) return false;
+        var idxLower = index.toLowerCase().trim();
+        return idxLower === '1' || idxLower === 'one' || idxLower === 'i' || 
+               idxLower === 'first' || idxLower === '1.0' || idxLower === '01';
+      });
+
+      if (eligibleBooks.length === 0) return null;
+
+      // Get date-based seed for consistent daily selection
+      var today = new Date();
+      var daysSinceEpoch = Math.floor(today.getTime() / (1000 * 60 * 60 * 24));
+      var seed = daysSinceEpoch % eligibleBooks.length;
+      
+      return eligibleBooks[seed];
+    }
+
+    function getRandomBook() {
+      var allBooks = getAllBooks();
+      
+      // Same filtering logic but truly random
+      var eligibleBooks = allBooks.filter(function(book) {
+        var series = book.series || '';
+        var index = book.series_index_display || '';
+        if (!series) return true;
+        if (!index) return false;
+        var idxLower = index.toLowerCase().trim();
+        return idxLower === '1' || idxLower === 'one' || idxLower === 'i' || 
+               idxLower === 'first' || idxLower === '1.0' || idxLower === '01';
+      });
+
+      if (eligibleBooks.length === 0) return null;
+      
+      var randomIndex = Math.floor(Math.random() * eligibleBooks.length);
+      return eligibleBooks[randomIndex];
+    }
+
+    function renderBookOfDay(book) {
+      var container = document.getElementById('book-of-day-content');
+      if (!book) {
+        container.innerHTML = '<div style="color: var(--muted);">No eligible books found</div>';
+        return;
+      }
+
+      var coverHtml = '';
+      if (book.cover_href) {
+        coverHtml = '<img src="' + book.cover_href + '" alt="Cover" style="width: 80px; height: auto; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">';
+      }
+
+      var seriesInfo = '';
+      if (book.series) {
+        seriesInfo = '<div style="color: var(--muted); font-size: 0.9rem;">📖 ' + book.series;
+        if (book.series_index_display) {
+          seriesInfo += ' #' + book.series_index_display;
+        }
+        seriesInfo += '</div>';
+      } else {
+        seriesInfo = '<div style="color: var(--muted); font-size: 0.9rem;">📖 Standalone</div>';
+      }
+
+      var html = '<div style="flex-shrink: 0;">' + coverHtml + '</div>' +
+                 '<div style="flex: 1;">' +
+                 '<div style="font-weight: 600; font-size: 1.1rem; margin-bottom: 0.25rem;">' + book.title + '</div>' +
+                 '<div style="color: var(--muted); margin-bottom: 0.25rem;">by ' + book.author + '</div>' +
+                 seriesInfo;
+      
+      if (book.narrator) {
+        html += '<div style="color: var(--muted); font-size: 0.9rem;">🎙️ ' + book.narrator + '</div>';
+      }
+      
+      if (book.duration_hhmm) {
+        html += '<div style="color: var(--muted); font-size: 0.9rem;">⏱️ ' + book.duration_hhmm + '</div>';
+      }
+
+      html += '</div>';
+      
+      container.innerHTML = html;
+    }
+
+    // Initialize Book of the Day
+    var dailyBook = getBookOfDay();
+    renderBookOfDay(dailyBook);
+
+    // Random book button
+    var randomBtn = document.getElementById('random-book-btn');
+    if (randomBtn) {
+      randomBtn.addEventListener('click', function() {
+        var randomBook = getRandomBook();
+        renderBookOfDay(randomBook);
+      });
+    }
   });
 })();
 </script>
