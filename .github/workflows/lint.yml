@@ -35,11 +35,10 @@ jobs:
         echo "::endgroup::"
     
     - name: 📝 Check code quality
-      continue-on-error: true
       run: |
         echo "::group::Code quality analysis"
-        # Exit-zero treats all errors as warnings
-        flake8 app tests --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+        # Enforce code quality standards (will fail on errors)
+        flake8 app tests --count --max-complexity=10 --max-line-length=127 --statistics --extend-ignore=E203,W503
         echo "::endgroup::"
     
     - name: ✅ Lint summary
