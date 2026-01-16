@@ -28,3 +28,6 @@ def normalize_people_field(s: Optional[str]) -> Optional[str]:
         if key not in seen:
             seen.add(key); cleaned.append(norm)
     return ", ".join(cleaned) if cleaned else None
+
+# Alias for test compatibility
+normalize_people_list = normalize_people_field

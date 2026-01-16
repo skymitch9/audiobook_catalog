@@ -10,8 +10,13 @@ TEMPLATE_DIR  = Path(__file__).parent / "templates"
 STATIC_DIR    = Path(__file__).parent / "static"   # kept for other assets if you have them
 TEMPLATE_FILE = TEMPLATE_DIR / "index.html"
 
-def _esc(s: str) -> str:
-    return html.escape(s or "")
+def _esc(s) -> str:
+    """Escape HTML characters. Handles strings, numbers, and None."""
+    if s is None:
+        return ""
+    if not isinstance(s, str):
+        s = str(s)
+    return html.escape(s)
 
 def _cover_button(r: Dict[str, str], inline: bool=False) -> str:
     """

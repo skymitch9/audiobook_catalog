@@ -1,0 +1,118 @@
+GOOGLE DRIVE FOLDER ID EXPORT GUIDE
+====================================
+
+There are 3 methods to export your Drive folder IDs:
+
+METHOD 1: Using the Python Script (Recommended)
+------------------------------------------------
+1. Install dependencies:
+   pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client
+
+2. Set up Google Drive API:
+   - Go to: https://console.cloud.google.com/apis/library/drive.googleapis.com
+   - Click "Enable"
+   - Go to: https://console.cloud.google.com/apis/credentials
+   - Click "Create Credentials" > "OAuth client ID"
+   - Choose "Desktop app"
+   - Download the JSON file and save as "credentials.json" in audiobook_catalog/
+
+3. Run the export script:
+   cd audiobook_catalog
+   python export_drive_folders.py
+
+4. Follow the prompts:
+   - Choose option 2 to export from your Audiobooks folder
+   - Get the folder ID from your Drive URL:
+     https://drive.google.com/drive/folders/YOUR_FOLDER_ID_HERE
+   - Paste the folder ID
+
+5. The script will create: author_drive_map_export.json
+
+6. Merge with existing map:
+   python merge_author_maps.py
+
+
+METHOD 2: Manual Export via Google Drive Web
+---------------------------------------------
+1. Open your Audiobooks folder in Google Drive
+2. For each author folder:
+   - Right-click > "Get link"
+   - Copy the URL: https://drive.google.com/drive/folders/FOLDER_ID
+   - Extract the FOLDER_ID part
+   - Add to a JSON file like:
+     {
+       "Author Name": "FOLDER_ID",
+       "Another Author": "ANOTHER_FOLDER_ID"
+     }
+
+3. Save as: author_drive_map_export.json
+
+4. Run: python merge_author_maps.py
+
+
+METHOD 3: Using Google Apps Script
+-----------------------------------
+1. Open Google Drive
+2. Go to: https://script.google.com/
+3. Create new project
+4. Paste this code:
+
+function listFolders() {
+  var parentFolderId = 'YOUR_AUDIOBOOKS_FOLDER_ID'; // Replace with your folder ID
+  var parentFolder = DriveApp.getFolderById(parentFolderId);
+  var folders = parentFolder.getFolders();
+  var result = {};
+  
+  while (folders.hasNext()) {
+    var folder = folders.next();
+    result[folder.getName()] = folder.getId();
+  }
+  
+  Logger.log(JSON.stringify(result, null, 2));
+}
+
+5. Replace YOUR_AUDIOBOOKS_FOLDER_ID with your folder ID
+6. Run the function
+7. View > Logs to see the output
+8. Copy the JSON output
+9. Save as: author_drive_map_export.json
+10. Run: python merge_author_maps.py
+
+
+METHOD 4: Share Your Drive Structure (Easiest)
+-----------------------------------------------
+If you want me to help directly:
+
+1. Make your Audiobooks folder viewable by link:
+   - Right-click folder > Share > "Anyone with the link can view"
+   - Copy the link
+
+2. Share the link with me
+
+3. I can help generate the mapping
+
+Note: This gives read-only access to folder names and IDs, not file contents.
+
+
+CURRENT STATUS
+--------------
+From your author_drive_map.json:
+- Total authors: 388
+- Authors with IDs: 301
+- Authors needing IDs: 87
+
+Missing authors include:
+- A.j. Pine
+- Alex Toxic
+- Alvin Atwater
+- Azrie
+- B.k. Borison
+- Dennis E. Taylor
+- Disney Books
+- E.c. Krueger
+- Gretchen Rubin
+- And 78 more...
+
+Run this to see the full list:
+  cd audiobook_catalog
+  python run_tests.py test_catalog_completeness -v

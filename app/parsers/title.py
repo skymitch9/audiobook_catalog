@@ -18,13 +18,6 @@ def _cleanup_series(name: Optional[str]) -> Optional[str]:
     # Remove common series suffixes
     s = re.sub(r"\bseries\b\s*$", "", name, flags=re.IGNORECASE).strip(" -–—:,")
     
-    # Remove "The" prefix if it makes the series name too generic
-    if s.lower().startswith("the ") and len(s.split()) <= 2:
-        # Keep "The" for longer series names, remove for short ones that might be generic
-        potential = s[4:].strip()
-        if len(potential) > 3:  # Only remove "The" if remaining name is substantial
-            s = potential
-    
     # Normalize whitespace
     s = re.sub(r"\s{2,}", " ", s).strip()
     
