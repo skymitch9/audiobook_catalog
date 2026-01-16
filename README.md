@@ -1,5 +1,7 @@
 # GABI Audiobook Catalog (GitHub Pages)
 
+<!-- Testing Discord webhook integration -->
+
 ## Setup
 1. `cp .env.example .env` and edit `ROOT_DIR`.
 2. `pip install -r requirements.txt`
