@@ -87,6 +87,16 @@ def _copy_static_to_site(site_dir: Path) -> None:
         shutil.copytree(STATIC_DIR, static_dst, dirs_exist_ok=True)
 
 
+def _copy_game_page_to_site(site_dir: Path) -> None:
+    """
+    Copy the guess-game.html template to site/ for the game page.
+    """
+    game_src = TEMPLATE_DIR / "guess-game.html"
+    if game_src.exists():
+        game_dst = site_dir / "guess-game.html"
+        shutil.copy2(game_src, game_dst)
+
+
 def stage_site_files(
     out_html: Path,
     out_csv: Path,
@@ -114,6 +124,7 @@ def stage_site_files(
     # 2) Copy covers/ and static/ assets
     _copy_covers_to_site(site_dir)
     _copy_static_to_site(site_dir)
+    _copy_game_page_to_site(site_dir)
 
     # 3) Render site/index.html with csv_link pointing at the site CSV file name
     site_index_path = site_dir / site_index_name

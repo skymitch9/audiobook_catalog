@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guess That Audiobook! - Duration Challenge</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .game-container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 600px;
+            width: 100%;
+            padding: 40px;
+            text-align: center;
+        }
+
+        h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+
+        .score-board {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 30px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+
+        .score-item {
+            text-align: center;
+        }
+
+        .score-label {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .score-value {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .book-cover-container {
+            margin: 30px 0;
+            position: relative;
+        }
+
+        .book-cover {
+            max-width: 300px;
+            max-height: 400px;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: transform 0.3s ease;
+        }
+
+        .book-cover:hover {
+            transform: scale(1.05);
+        }
+
+        .hint-badge {
+            display: inline-block;
+            padding: 10px 20px;
+            background: #ffd700;
+            color: #333;
+            border-radius: 20px;
+            font-weight: bold;
+            margin: 20px 0;
+            font-size: 1.1em;
+        }
+
+        .guess-section {
+            margin: 30px 0;
+        }
+
+        .guess-input {
+            width: 150px;
+            padding: 15px;
+            font-size: 1.5em;
+            text-align: center;
+            border: 3px solid #667eea;
+            border-radius: 10px;
+            margin-right: 10px;
+        }
+
+        .guess-input:focus {
+            outline: none;
+            border-color: #764ba2;
+        }
+
+        .btn {
+            padding: 15px 30px;
+            font-size: 1.1em;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: bold;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #764ba2;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+            margin-top: 20px;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .attempts-display {
+            margin: 20px 0;
+            font-size: 1.2em;
+            color: #666;
+        }
+
+        .attempt-dot {
+            display: inline-block;
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            background: #ddd;
+            margin: 0 5px;
+        }
+
+        .attempt-dot.used {
+            background: #dc3545;
+        }
+
+        .result-message {
+            margin: 20px 0;
+            padding: 20px;
+            border-radius: 10px;
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+
+        .result-correct {
+            background: #d4edda;
+            color: #155724;
+            border: 2px solid #c3e6cb;
+        }
+
+        .result-wrong {
+            background: #f8d7da;
+            color: #721c24;
+            border: 2px solid #f5c6cb;
+        }
+
+        .result-gameover {
+            background: #fff3cd;
+            color: #856404;
+            border: 2px solid #ffeaa7;
+        }
+
+        .book-info {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            text-align: left;
+        }
+
+        .book-info h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .book-info p {
+            margin: 5px 0;
+            color: #333;
+        }
+
+        .nav-link {
+            display: inline-block;
+            margin-top: 20px;
+            color: #667eea;
+            text-decoration: none;
+            font-weight: bold;
+        }
+
+        .nav-link:hover {
+            text-decoration: underline;
+        }
+
+        .faq-section {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            text-align: left;
+        }
+
+        .faq-toggle {
+            cursor: pointer;
+            font-weight: bold;
+            color: #667eea;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            user-select: none;
+        }
+
+        .faq-toggle:hover {
+            color: #764ba2;
+        }
+
+        .faq-content {
+            margin-top: 15px;
+            display: none;
+        }
+
+        .faq-content.show {
+            display: block;
+        }
+
+        .faq-content h4 {
+            color: #667eea;
+            margin-top: 15px;
+            margin-bottom: 10px;
+        }
+
+        .faq-content ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+
+        .faq-content li {
+            margin: 5px 0;
+        }
+
+        .time-ranges {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin: 15px 0;
+        }
+
+        .time-range-item {
+            padding: 10px;
+            background: white;
+            border-radius: 8px;
+            border: 2px solid #667eea;
+        }
+
+        .time-range-item strong {
+            color: #667eea;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .leaderboard-section {
+            margin-top: 20px;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+            border-radius: 10px;
+            border: 2px solid #667eea;
+        }
+
+        .leaderboard-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .leaderboard-header h3 {
+            margin: 0;
+            color: #667eea;
+        }
+
+        .week-reset {
+            font-size: 0.85em;
+            color: #666;
+        }
+
+        .leaderboard-table {
+            width: 100%;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .leaderboard-table table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .leaderboard-table th {
+            background: #667eea;
+            color: white;
+            padding: 10px;
+            text-align: left;
+            font-weight: bold;
+        }
+
+        .leaderboard-table td {
+            padding: 10px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .leaderboard-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .leaderboard-table tr:nth-child(even) {
+            background: #f9fafb;
+        }
+
+        .rank-medal {
+            font-size: 1.2em;
+            margin-right: 5px;
+        }
+
+        .current-player {
+            background: #ffd70020 !important;
+            font-weight: bold;
+        }
+
+        .no-scores {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+            font-style: italic;
+        }
+
+        @media (max-width: 600px) {
+            .game-container {
+                padding: 20px;
+            }
+
+            h1 {
+                font-size: 1.8em;
+            }
+
+            .book-cover {
+                max-width: 200px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <h1>🎧 Guess That Audiobook!</h1>
+        <p class="subtitle">Can you guess how long this audiobook is?</p>
+
+        <div class="score-board">
+            <div class="score-item">
+                <div class="score-label">Player</div>
+                <div class="score-value" id="player-name" style="font-size: 1.2em; cursor: pointer;" onclick="changePlayer()" title="Click to change player">Guest</div>
+            </div>
+            <div class="score-item">
+                <div class="score-label">Correct</div>
+                <div class="score-value" id="correct-count">0</div>
+            </div>
+            <div class="score-item">
+                <div class="score-label">Wrong</div>
+                <div class="score-value" id="wrong-count">0</div>
+            </div>
+            <div class="score-item">
+                <div class="score-label">Streak</div>
+                <div class="score-value" id="streak-count">0</div>
+            </div>
+        </div>
+
+        <div class="book-cover-container">
+            <img id="book-cover" class="book-cover" src="" alt="Book Cover">
+        </div>
+
+        <div class="hint-badge" id="hint-badge">Loading...</div>
+
+        <div class="attempts-display">
+            <span class="attempt-dot" id="attempt-1"></span>
+            <span class="attempt-dot" id="attempt-2"></span>
+            <span class="attempt-dot" id="attempt-3"></span>
+        </div>
+
+        <div class="guess-section" id="guess-section">
+            <input type="number" id="guess-input" class="guess-input" placeholder="?" min="1" max="100">
+            <span style="font-size: 1.5em; color: #666;">hours</span>
+            <br><br>
+            <button class="btn btn-primary" onclick="submitGuess()" id="submit-btn" disabled>Submit Guess</button>
+        </div>
+
+        <div id="result-message"></div>
+        <div id="book-info"></div>
+
+        <button class="btn btn-secondary" onclick="nextBook()" id="next-btn">Next Book →</button>
+
+        <div class="leaderboard-section">
+            <div class="leaderboard-header">
+                <h3>🏆 Weekly Leaderboard</h3>
+                <div class="week-reset" id="week-reset">Resets: ...</div>
+            </div>
+            <div class="leaderboard-table" id="leaderboard-container">
+                <div class="no-scores">Play some games to see the leaderboard!</div>
+            </div>
+        </div>
+
+        <div class="faq-section">
+            <div class="faq-toggle" onclick="toggleFAQ()">
+                <span>❓ How to Play & Book Length Guide</span>
+                <span id="faq-arrow">▼</span>
+            </div>
+            <div class="faq-content" id="faq-content">
+                <h4>🎮 How to Play:</h4>
+                <ul>
+                    <li>Look at the book cover and length hint</li>
+                    <li>Guess the audiobook duration in hours (rounded)</li>
+                    <li>You have 3 attempts per book</li>
+                    <li>Get hints after each wrong guess (higher/lower + how close you are)</li>
+                    <li>Skip to the next book anytime with the "Next Book" button</li>
+                </ul>
+
+                <h4>⏱️ Rounding Rules:</h4>
+                <ul>
+                    <li>30 minutes or more rounds UP (e.g., 10:30 → 11 hours)</li>
+                    <li>Less than 30 minutes rounds DOWN (e.g., 10:29 → 10 hours)</li>
+                    <li>Books under 1 hour always round to 1 hour minimum</li>
+                </ul>
+
+                <h4>📚 Book Length Categories:</h4>
+                <div class="time-ranges">
+                    <div class="time-range-item">
+                        <strong>📖 Novella</strong>
+                        Under 5 hours
+                    </div>
+                    <div class="time-range-item">
+                        <strong>📚 Short</strong>
+                        5-10 hours
+                    </div>
+                    <div class="time-range-item">
+                        <strong>📚 Medium</strong>
+                        11-15 hours
+                    </div>
+                    <div class="time-range-item">
+                        <strong>📚📚 Long</strong>
+                        16-24 hours
+                    </div>
+                    <div class="time-range-item">
+                        <strong>📚📚📚 Extra Long</strong>
+                        25+ hours<br>
+                        <small>(Shows 15-hour range hint)</small>
+                    </div>
+                </div>
+
+                <h4>🏆 Scoring:</h4>
+                <ul>
+                    <li>1 point per correct answer</li>
+                    <li>2 points for Extra Long books (25+ hours) - harder to guess!</li>
+                    <li>Final Score = (Points × 10) + (Best Streak × 5)</li>
+                </ul>
+            </div>
+        </div>
+
+        <br>
+        <a href="index.html" class="nav-link">← Back to Catalog</a>
+    </div>
+
+    <script>
+        function toggleFAQ() {
+            const content = document.getElementById('faq-content');
+            const arrow = document.getElementById('faq-arrow');
+            content.classList.toggle('show');
+            arrow.textContent = content.classList.contains('show') ? '▲' : '▼';
+        }
+        let allBooks = [];
+        let currentBook = null;
+        let attemptsLeft = 3;
+        let correctCount = 0;
+        let wrongCount = 0;
+        let currentStreak = 0;
+        let playerName = '';
+        let currentWeek = '';
+
+        // Get current week identifier (year-week)
+        function getCurrentWeek() {
+            const now = new Date();
+            const startOfYear = new Date(now.getFullYear(), 0, 1);
+            const days = Math.floor((now - startOfYear) / (24 * 60 * 60 * 1000));
+            const week = Math.ceil((days + startOfYear.getDay() + 1) / 7);
+            return `${now.getFullYear()}-W${week}`;
+        }
+
+        // Get next Monday at midnight
+        function getNextMonday() {
+            const now = new Date();
+            const dayOfWeek = now.getDay();
+            const daysUntilMonday = dayOfWeek === 0 ? 1 : 8 - dayOfWeek;
+            const nextMonday = new Date(now);
+            nextMonday.setDate(now.getDate() + daysUntilMonday);
+            nextMonday.setHours(0, 0, 0, 0);
+            return nextMonday;
+        }
+
+        // Update week reset display
+        function updateWeekResetDisplay() {
+            const nextMonday = getNextMonday();
+            const now = new Date();
+            const diff = nextMonday - now;
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            
+            let resetText = 'Resets in ';
+            if (days > 0) {
+                resetText += `${days}d ${hours}h`;
+            } else {
+                resetText += `${hours}h`;
+            }
+            
+            document.getElementById('week-reset').textContent = resetText;
+        }
+
+        // Check if we need to reset weekly scores
+        function checkWeeklyReset() {
+            const storedWeek = localStorage.getItem('guessGame_currentWeek');
+            currentWeek = getCurrentWeek();
+            
+            if (storedWeek !== currentWeek) {
+                // New week! Archive old leaderboard and reset
+                const oldLeaderboard = getLeaderboard();
+                if (oldLeaderboard.length > 0) {
+                    localStorage.setItem(`guessGame_archive_${storedWeek}`, JSON.stringify(oldLeaderboard));
+                }
+                
+                // Clear all weekly scores
+                const allKeys = Object.keys(localStorage);
+                allKeys.forEach(key => {
+                    if (key.startsWith('guessGame_') && key.includes('_weekly_')) {
+                        localStorage.removeItem(key);
+                    }
+                });
+                
+                localStorage.setItem('guessGame_currentWeek', currentWeek);
+            }
+        }
+
+        // Get leaderboard data
+        function getLeaderboard() {
+            const players = [];
+            const allKeys = Object.keys(localStorage);
+            const playerNames = new Set();
+            
+            // Find all unique player names
+            allKeys.forEach(key => {
+                const match = key.match(/^guessGame_(.+?)_weekly_correct$/);
+                if (match) {
+                    playerNames.add(match[1]);
+                }
+            });
+            
+            // Get stats for each player
+            playerNames.forEach(name => {
+                const prefix = `guessGame_${name}_weekly_`;
+                const correct = parseInt(localStorage.getItem(prefix + 'correct') || '0');
+                const wrong = parseInt(localStorage.getItem(prefix + 'wrong') || '0');
+                const bestStreak = parseInt(localStorage.getItem(prefix + 'bestStreak') || '0');
+                const points = parseInt(localStorage.getItem(prefix + 'points') || '0');
+                const total = correct + wrong;
+                const accuracy = total > 0 ? Math.round((correct / total) * 100) : 0;
+                
+                if (total > 0) {
+                    players.push({
+                        name: name,
+                        correct: correct,
+                        wrong: wrong,
+                        total: total,
+                        accuracy: accuracy,
+                        bestStreak: bestStreak,
+                        points: points,
+                        score: points * 10 + bestStreak * 5 // Updated scoring formula
+                    });
+                }
+            });
+            
+            // Sort by score (descending)
+            players.sort((a, b) => b.score - a.score);
+            
+            return players;
+        }
+
+        // Update leaderboard display
+        function updateLeaderboard() {
+            const leaderboard = getLeaderboard();
+            const container = document.getElementById('leaderboard-container');
+            
+            if (leaderboard.length === 0) {
+                container.innerHTML = '<div class="no-scores">Play some games to see the leaderboard!</div>';
+                return;
+            }
+            
+            let html = '<table><thead><tr>';
+            html += '<th>Rank</th><th>Player</th><th>Points</th><th>Correct</th><th>Wrong</th><th>Accuracy</th><th>Best Streak</th><th>Score</th>';
+            html += '</tr></thead><tbody>';
+            
+            leaderboard.forEach((player, index) => {
+                const rank = index + 1;
+                let medal = '';
+                if (rank === 1) medal = '🥇';
+                else if (rank === 2) medal = '🥈';
+                else if (rank === 3) medal = '🥉';
+                
+                const isCurrentPlayer = player.name === playerName;
+                const rowClass = isCurrentPlayer ? 'current-player' : '';
+                
+                html += `<tr class="${rowClass}">`;
+                html += `<td><span class="rank-medal">${medal}</span>${rank}</td>`;
+                html += `<td>${player.name}${isCurrentPlayer ? ' (You)' : ''}</td>`;
+                html += `<td>${player.points}</td>`;
+                html += `<td>${player.correct}</td>`;
+                html += `<td>${player.wrong}</td>`;
+                html += `<td>${player.accuracy}%</td>`;
+                html += `<td>${player.bestStreak}</td>`;
+                html += `<td><strong>${player.score}</strong></td>`;
+                html += '</tr>';
+            });
+            
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+
+        // Get or set player name
+        function getPlayerName() {
+            let name = localStorage.getItem('guessGame_playerName');
+            if (!name) {
+                name = prompt('Welcome! Enter your name to track your scores:') || 'Guest';
+                localStorage.setItem('guessGame_playerName', name);
+            }
+            return name;
+        }
+
+        function changePlayer() {
+            const newName = prompt('Enter your name:', playerName) || playerName;
+            if (newName && newName !== playerName) {
+                playerName = newName;
+                localStorage.setItem('guessGame_playerName', playerName);
+                document.getElementById('player-name').textContent = playerName;
+                loadScores();
+            }
+        }
+
+        // Load scores from localStorage (player-specific)
+        function loadScores() {
+            // All-time stats
+            const prefix = `guessGame_${playerName}_`;
+            correctCount = parseInt(localStorage.getItem(prefix + 'correct') || '0');
+            wrongCount = parseInt(localStorage.getItem(prefix + 'wrong') || '0');
+            currentStreak = parseInt(localStorage.getItem(prefix + 'streak') || '0');
+            updateScoreDisplay();
+            updateLeaderboard();
+        }
+
+        function saveScores() {
+            // All-time stats
+            const prefix = `guessGame_${playerName}_`;
+            localStorage.setItem(prefix + 'correct', correctCount);
+            localStorage.setItem(prefix + 'wrong', wrongCount);
+            localStorage.setItem(prefix + 'streak', currentStreak);
+            
+            // Weekly stats for leaderboard
+            const weeklyPrefix = `guessGame_${playerName}_weekly_`;
+            const weeklyCorrect = parseInt(localStorage.getItem(weeklyPrefix + 'correct') || '0');
+            const weeklyWrong = parseInt(localStorage.getItem(weeklyPrefix + 'wrong') || '0');
+            const weeklyBestStreak = parseInt(localStorage.getItem(weeklyPrefix + 'bestStreak') || '0');
+            
+            // Update weekly best streak
+            if (currentStreak > weeklyBestStreak) {
+                localStorage.setItem(weeklyPrefix + 'bestStreak', currentStreak);
+            }
+            
+            updateLeaderboard();
+        }
+
+        function recordWeeklyGame(isCorrect, bonusPoints = 1) {
+            const weeklyPrefix = `guessGame_${playerName}_weekly_`;
+            const weeklyCorrect = parseInt(localStorage.getItem(weeklyPrefix + 'correct') || '0');
+            const weeklyWrong = parseInt(localStorage.getItem(weeklyPrefix + 'wrong') || '0');
+            const weeklyPoints = parseInt(localStorage.getItem(weeklyPrefix + 'points') || '0');
+            
+            if (isCorrect) {
+                localStorage.setItem(weeklyPrefix + 'correct', weeklyCorrect + 1);
+                localStorage.setItem(weeklyPrefix + 'points', weeklyPoints + bonusPoints);
+            } else {
+                localStorage.setItem(weeklyPrefix + 'wrong', weeklyWrong + 1);
+            }
+        }
+
+        function updateScoreDisplay() {
+            document.getElementById('player-name').textContent = playerName;
+            document.getElementById('correct-count').textContent = correctCount;
+            document.getElementById('wrong-count').textContent = wrongCount;
+            document.getElementById('streak-count').textContent = currentStreak;
+        }
+
+        // Parse duration string to hours (rounded)
+        function parseToHours(durationStr) {
+            if (!durationStr) return 1;
+            
+            let hours = 0;
+            let minutes = 0;
+            
+            // Try HH:MM format first (e.g., "10:07")
+            const colonMatch = durationStr.match(/(\d+):(\d+)/);
+            if (colonMatch) {
+                hours = parseInt(colonMatch[1]);
+                minutes = parseInt(colonMatch[2]);
+            } else {
+                // Try "Xh Ym" format
+                const hourMatch = durationStr.match(/(\d+)\s*h/i);
+                const minMatch = durationStr.match(/(\d+)\s*m/i);
+                
+                if (hourMatch) hours = parseInt(hourMatch[1]);
+                if (minMatch) minutes = parseInt(minMatch[1]);
+            }
+            
+            // Round: >= 30 minutes rounds up, < 30 rounds down
+            if (minutes >= 30) hours += 1;
+            
+            // Minimum 1 hour
+            return hours === 0 ? 1 : hours;
+        }
+
+        // Get hint based on duration
+        function getHint(hours) {
+            if (hours < 5) return "📖 Novella";
+            if (hours <= 10) return "📚 Short";
+            if (hours <= 15) return "📚 Medium";
+            if (hours <= 24) return "📚📚 Long";
+            // For extra long, give a range hint
+            const rangeStart = Math.floor(hours / 15) * 15;
+            const rangeEnd = rangeStart + 15;
+            return `📚📚📚 Extra Long (${rangeStart}-${rangeEnd}h)`;
+        }
+
+        // Load books from catalog
+        function loadBooks() {
+            // Instead of loading CSV, we'll fetch the index.html and parse the table
+            fetch('index.html')
+                .then(response => response.text())
+                .then(html => {
+                    // Create a temporary DOM to parse the HTML
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+                    const rows = doc.querySelectorAll('#ab-table tbody tr');
+                    
+                    rows.forEach(row => {
+                        const cells = row.querySelectorAll('td');
+                        if (cells.length < 8) return;
+                        
+                        // Extract cover URL from the button/image
+                        const coverBtn = cells[0].querySelector('button.cover-btn');
+                        const coverImg = coverBtn ? coverBtn.querySelector('img.cover') : null;
+                        const coverUrl = coverImg ? coverImg.src : '';
+                        
+                        if (!coverUrl) return; // Skip books without covers
+                        
+                        // Extract other data
+                        const title = cells[1].textContent.trim();
+                        const series = cells[2].textContent.trim();
+                        const seriesIndex = cells[3].textContent.trim();
+                        const author = cells[4].textContent.trim();
+                        const narrator = cells[5].textContent.trim();
+                        const year = cells[6].textContent.trim();
+                        const genre = cells[7].textContent.trim();
+                        const duration = cells[8].textContent.trim();
+                        
+                        if (duration) { // Only include books with duration
+                            allBooks.push({
+                                title: title,
+                                series: series,
+                                series_index_display: seriesIndex,
+                                author: author,
+                                narrator: narrator,
+                                year: year,
+                                genre: genre,
+                                duration: duration,
+                                cover_url: coverUrl
+                            });
+                        }
+                    });
+                    
+                    if (allBooks.length === 0) {
+                        document.getElementById('hint-badge').textContent = 'No books with covers found!';
+                        return;
+                    }
+                    
+                    playerName = getPlayerName();
+                    checkWeeklyReset();
+                    loadScores();
+                    updateWeekResetDisplay();
+                    setInterval(updateWeekResetDisplay, 60000); // Update every minute
+                    selectRandomBook();
+                })
+                .catch(error => {
+                    console.error('Error loading books:', error);
+                    document.getElementById('hint-badge').textContent = 'Error loading books!';
+                });
+        }
+
+        function selectRandomBook() {
+            if (allBooks.length === 0) {
+                document.getElementById('hint-badge').textContent = 'No books available!';
+                return;
+            }
+            
+            currentBook = allBooks[Math.floor(Math.random() * allBooks.length)];
+            attemptsLeft = 3;
+            
+            // Update UI
+            document.getElementById('book-cover').src = currentBook.cover_url;
+            const hours = parseToHours(currentBook.duration);
+            document.getElementById('hint-badge').textContent = getHint(hours);
+            
+            // Reset attempts
+            for (let i = 1; i <= 3; i++) {
+                document.getElementById(`attempt-${i}`).classList.remove('used');
+            }
+            
+            // Reset input and messages
+            document.getElementById('guess-input').value = '';
+            document.getElementById('result-message').innerHTML = '';
+            document.getElementById('book-info').innerHTML = '';
+            document.getElementById('guess-section').style.display = 'block';
+            document.getElementById('submit-btn').disabled = false;
+            document.getElementById('guess-input').disabled = false;
+            document.getElementById('guess-input').focus();
+        }
+
+        function submitGuess() {
+            if (!currentBook) {
+                alert('Please wait for the book to load!');
+                return;
+            }
+            
+            const guessInput = document.getElementById('guess-input');
+            const guess = parseInt(guessInput.value);
+            
+            if (!guess || guess < 1) {
+                alert('Please enter a valid number of hours!');
+                return;
+            }
+            
+            const actualHours = parseToHours(currentBook.duration);
+            attemptsLeft--;
+            
+            // Mark attempt as used
+            document.getElementById(`attempt-${4 - attemptsLeft - 1}`).classList.add('used');
+            
+            const resultDiv = document.getElementById('result-message');
+            
+            if (guess === actualHours) {
+                // Correct!
+                correctCount++;
+                currentStreak++;
+                
+                // Bonus points for extra long books (25+ hours)
+                const bonusPoints = actualHours >= 25 ? 2 : 1;
+                recordWeeklyGame(true, bonusPoints);
+                saveScores();
+                updateScoreDisplay();
+                
+                resultDiv.className = 'result-message result-correct';
+                let bonusText = bonusPoints > 1 ? `<br>+${bonusPoints} bonus points for Extra Long book! 🎉` : '';
+                resultDiv.innerHTML = `🎉 Correct! It's ${actualHours} hours!${bonusText}<br>Streak: ${currentStreak} 🔥`;
+                showBookInfo();
+                endRound();
+            } else if (attemptsLeft === 0) {
+                // Game over
+                wrongCount++;
+                currentStreak = 0;
+                recordWeeklyGame(false);
+                saveScores();
+                updateScoreDisplay();
+                
+                resultDiv.className = 'result-message result-gameover';
+                resultDiv.innerHTML = `❌ Out of guesses! The answer was ${actualHours} hours.`;
+                showBookInfo();
+                endRound();
+            } else {
+                // Wrong but has attempts left
+                const diff = Math.abs(guess - actualHours);
+                let hint = '';
+                if (diff <= 2) hint = '🔥 Very close!';
+                else if (diff <= 5) hint = '🎯 Getting warmer!';
+                else hint = '❄️ Not quite!';
+                
+                const direction = guess > actualHours ? 'Lower!' : 'Higher!';
+                
+                resultDiv.className = 'result-message result-wrong';
+                resultDiv.innerHTML = `${hint} ${direction}<br>${attemptsLeft} ${attemptsLeft === 1 ? 'guess' : 'guesses'} left!`;
+                
+                guessInput.value = '';
+                guessInput.focus();
+            }
+        }
+
+        function showBookInfo() {
+            const infoDiv = document.getElementById('book-info');
+            infoDiv.innerHTML = `
+                <h3>${currentBook.title}</h3>
+                <p><strong>Author:</strong> ${currentBook.author}</p>
+                ${currentBook.narrator ? `<p><strong>Narrator:</strong> ${currentBook.narrator}</p>` : ''}
+                ${currentBook.series ? `<p><strong>Series:</strong> ${currentBook.series} ${currentBook.series_index_display ? '#' + currentBook.series_index_display : ''}</p>` : ''}
+                <p><strong>Duration:</strong> ${currentBook.duration}</p>
+                ${currentBook.genre ? `<p><strong>Genre:</strong> ${currentBook.genre}</p>` : ''}
+            `;
+        }
+
+        function endRound() {
+            document.getElementById('guess-section').style.display = 'none';
+            document.getElementById('submit-btn').disabled = true;
+            document.getElementById('guess-input').disabled = true;
+        }
+
+        function nextBook() {
+            selectRandomBook();
+        }
+
+        // Allow Enter key to submit
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('guess-input').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    submitGuess();
+                }
+            });
+            
+            loadBooks();
+        });
+    </script>
+</body>
+</html>
