@@ -1,0 +1,36 @@
+[tool.black]
+line-length = 127
+target-version = ['py312']
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+  | old_versions
+  | output_files
+  | site
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 127
+skip_glob = ["old_versions/*", "output_files/*", "site/*"]
+
+[tool.bandit]
+exclude_dirs = ["tests", "old_versions", "output_files", "site"]
+skips = ["B101"]  # Skip assert_used check (needed for tests)
+
+[tool.pytest]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]

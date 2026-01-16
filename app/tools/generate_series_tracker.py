@@ -3,98 +3,103 @@
 Generate series completion tracker page.
 Analyzes catalog to find series with gaps and completion status.
 """
-import sys
 import csv
 import json
-from pathlib import Path
-from collections import defaultdict
-from typing import Dict, List, Tuple
 import re
+import sys
+from collections import defaultdict
+from pathlib import Path
+from typing import Dict, List, Tuple
 
 from app.core.index_utils import normalize_index, sort_key_for_index
+
 
 def parse_index(index_str: str) -> float:
     """Parse series index to float for gap detection."""
     if not index_str:
         return 0.0
-    
+
     normalized = normalize_index(index_str)
     if not normalized:
         return 0.0
-    
+
     try:
         # Handle ranges (e.g., "1-3") - use first number
-        if '-' in normalized:
-            normalized = normalized.split('-')[0]
+        if "-" in normalized:
+            normalized = normalized.split("-")[0]
         return float(normalized)
     except (ValueError, TypeError):
         return 0.0
+
 
 def detect_gaps(indices: List[float]) -> List[Tuple[float, float]]:
     """Detect gaps in series indices."""
     if len(indices) < 2:
         return []
-    
+
     sorted_indices = sorted(set(indices))
     gaps = []
-    
+
     for i in range(len(sorted_indices) - 1):
         current = sorted_indices[i]
         next_idx = sorted_indices[i + 1]
-        
+
         # Check for gap (allowing for 0.5 increments for novellas)
         expected_next = current + 1.0
         if next_idx > expected_next + 0.1:  # Small tolerance for float comparison
             gaps.append((current, next_idx))
-    
+
     return gaps
+
 
 def analyze_series(catalog_path: Path) -> Dict:
     """Analyze catalog for series completion."""
     if not catalog_path.exists():
         return {}
-    
+
     # Read catalog
-    with open(catalog_path, 'r', encoding='utf-8') as f:
+    with open(catalog_path, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         books = list(reader)
-    
+
     # Group by series
     series_data = defaultdict(list)
     standalone_count = 0
-    
+
     for book in books:
-        series = book.get('series', '').strip()
+        series = book.get("series", "").strip()
         if not series:
             standalone_count += 1
             continue
-        
-        index_str = book.get('series_index_display', '')
+
+        index_str = book.get("series_index_display", "")
         index_num = parse_index(index_str)
-        
-        series_data[series].append({
-            'title': book.get('title', ''),
-            'author': book.get('author', ''),
-            'index_display': index_str,
-            'index_num': index_num,
-            'cover': book.get('cover_href', ''),
-            'year': book.get('year', ''),
-            'narrator': book.get('narrator', '')
-        })
-    
+
+        series_data[series].append(
+            {
+                "title": book.get("title", ""),
+                "author": book.get("author", ""),
+                "index_display": index_str,
+                "index_num": index_num,
+                "cover": book.get("cover_href", ""),
+                "year": book.get("year", ""),
+                "narrator": book.get("narrator", ""),
+            }
+        )
+
     # Analyze each series
     series_analysis = []
-    
+
     for series_name, books_list in series_data.items():
         # Sort by index
-        books_list.sort(key=lambda b: b['index_num'])
-        
+        books_list.sort(key=lambda b: b["index_num"])
+
         # Get indices
-        indices = [b['index_num'] for b in books_list if b['index_num'] > 0]
-        
+        indices = [b["index_num"] for b in books_list if b["index_num"] > 0]
+
         # Detect gaps
         gaps = detect_gaps(indices)
-        
+
         # Calculate completion
         if indices:
             min_idx = min(indices)
@@ -105,50 +110,53 @@ def analyze_series(catalog_path: Path) -> Dict:
         else:
             completion_pct = 100
             expected_count = len(books_list)
-        
+
         # Determine status
         if completion_pct >= 100:
-            status = 'complete'
+            status = "complete"
         elif completion_pct >= 75:
-            status = 'mostly-complete'
+            status = "mostly-complete"
         elif completion_pct >= 50:
-            status = 'in-progress'
+            status = "in-progress"
         else:
-            status = 'incomplete'
-        
-        series_analysis.append({
-            'name': series_name,
-            'author': books_list[0]['author'] if books_list else '',
-            'book_count': len(books_list),
-            'completion_pct': round(completion_pct, 1),
-            'status': status,
-            'gaps': gaps,
-            'books': books_list
-        })
-    
+            status = "incomplete"
+
+        series_analysis.append(
+            {
+                "name": series_name,
+                "author": books_list[0]["author"] if books_list else "",
+                "book_count": len(books_list),
+                "completion_pct": round(completion_pct, 1),
+                "status": status,
+                "gaps": gaps,
+                "books": books_list,
+            }
+        )
+
     # Sort by completion (incomplete first), then by name
-    series_analysis.sort(key=lambda s: (s['completion_pct'], s['name']))
-    
+    series_analysis.sort(key=lambda s: (s["completion_pct"], s["name"]))
+
     return {
-        'series': series_analysis,
-        'total_series': len(series_analysis),
-        'complete_series': sum(1 for s in series_analysis if s['status'] == 'complete'),
-        'incomplete_series': sum(1 for s in series_analysis if s['status'] != 'complete'),
-        'standalone_books': standalone_count,
-        'total_books': len(books)
+        "series": series_analysis,
+        "total_series": len(series_analysis),
+        "complete_series": sum(1 for s in series_analysis if s["status"] == "complete"),
+        "incomplete_series": sum(1 for s in series_analysis if s["status"] != "complete"),
+        "standalone_books": standalone_count,
+        "total_books": len(books),
     }
+
 
 def generate_html(analysis: Dict, output_path: Path):
     """Generate HTML page for series tracker."""
-    series_list = analysis.get('series', [])
+    series_list = analysis.get("series", [])
     stats = {
-        'total_series': analysis.get('total_series', 0),
-        'complete': analysis.get('complete_series', 0),
-        'incomplete': analysis.get('incomplete_series', 0),
-        'standalone': analysis.get('standalone_books', 0),
-        'total_books': analysis.get('total_books', 0)
+        "total_series": analysis.get("total_series", 0),
+        "complete": analysis.get("complete_series", 0),
+        "incomplete": analysis.get("incomplete_series", 0),
+        "standalone": analysis.get("standalone_books", 0),
+        "total_books": analysis.get("total_books", 0),
     }
-    
+
     html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -438,18 +446,18 @@ def generate_html(analysis: Dict, output_path: Path):
     
     <div class="series-grid" id="seriesGrid">
 """
-    
+
     # Generate series cards
     for series in series_list:
         status_class = f"status-{series['status']}"
-        status_text = series['status'].replace('-', ' ').title()
-        completion = series['completion_pct']
-        gaps = series['gaps']
-        books = series['books']
-        
+        status_text = series["status"].replace("-", " ").title()
+        completion = series["completion_pct"]
+        gaps = series["gaps"]
+        books = series["books"]
+
         has_gaps = len(gaps) > 0
-        gap_class = 'has-gaps' if has_gaps else ''
-        
+        gap_class = "has-gaps" if has_gaps else ""
+
         html += f"""
         <div class="series-card {status_class} {gap_class}" data-status="{series['status']}" data-has-gaps="{str(has_gaps).lower()}">
             <div class="series-header">
@@ -469,7 +477,7 @@ def generate_html(analysis: Dict, output_path: Path):
                 <span>✓ {status_text}</span>
             </div>
 """
-        
+
         # Show gaps if any
         if gaps:
             gap_text = []
@@ -478,19 +486,19 @@ def generate_html(analysis: Dict, output_path: Path):
                     gap_text.append(f"#{int(start)+1}-{int(end)-1}")
                 else:
                     gap_text.append(f"#{int(start)+1}")
-            
+
             html += f"""
             <div class="gap-warning">
                 <strong>⚠️ Missing:</strong> {', '.join(gap_text)}
             </div>
 """
-        
+
         # Show book covers
         html += """
             <div class="books-list">
 """
         for book in books:
-            if book['cover']:
+            if book["cover"]:
                 html += f"""
                 <img src="{book['cover']}" alt="{book['title']}" class="book-cover" title="{book['title']} (#{book['index_display']})">
 """
@@ -500,12 +508,12 @@ def generate_html(analysis: Dict, output_path: Path):
                     #{book['index_display']}
                 </div>
 """
-        
+
         html += """
             </div>
         </div>
 """
-    
+
     html += """
     </div>
     
@@ -547,31 +555,33 @@ def generate_html(analysis: Dict, output_path: Path):
 </body>
 </html>
 """
-    
+
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(output_path, 'w', encoding='utf-8') as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         f.write(html)
-    
+
     print(f"Series tracker generated: {output_path}")
+
 
 def main():
     """Generate series completion tracker."""
     from app.config import SITE_DIR
-    
-    catalog_path = SITE_DIR / 'catalog.csv'
-    output_path = SITE_DIR / 'series-tracker.html'
-    
+
+    catalog_path = SITE_DIR / "catalog.csv"
+    output_path = SITE_DIR / "series-tracker.html"
+
     print("Analyzing series completion...")
     analysis = analyze_series(catalog_path)
-    
+
     print(f"Found {analysis['total_series']} series")
     print(f"  Complete: {analysis['complete_series']}")
     print(f"  Incomplete: {analysis['incomplete_series']}")
-    
+
     print("\nGenerating HTML...")
     generate_html(analysis, output_path)
-    
+
     print("✓ Series tracker page created!")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

@@ -6,10 +6,11 @@ import os
 from pathlib import Path
 from typing import Set
 
-from app.config import ROOT_DIR, OUTPUT_DIR, EXTS
-from app.metadata import walk_library, extract_metadata
+from app.config import EXTS, OUTPUT_DIR, ROOT_DIR
+from app.metadata import extract_metadata, walk_library
 
 DEFAULT_OUT = Path("author_drive_map.json").resolve()
+
 
 def _split_authors(s: str) -> list[str]:
     if not s:
@@ -17,11 +18,13 @@ def _split_authors(s: str) -> list[str]:
     # authors already normalized like "A, B, C"
     return [a.strip() for a in s.split(",") if a.strip()]
 
+
 def _resolve_output_path() -> Path:
     # Output to root directory (parent of audiobook_catalog)
     p = Path(__file__).parent.parent.parent.parent / "author_drive_map.json"
     p.parent.mkdir(parents=True, exist_ok=True)
     return p
+
 
 def main() -> None:
     print("[author-map] ===== Generate Author Map =====")
@@ -71,6 +74,7 @@ def main() -> None:
     print(f"[author-map] Wrote {len(payload)} entries → {out_path}")
     print("[author-map] Fill each value with the Drive folder ID (just the ID).")
     print("[author-map] Example: https://drive.google.com/drive/folders/<FOLDER_ID> → paste <FOLDER_ID>")
+
 
 if __name__ == "__main__":
     main()

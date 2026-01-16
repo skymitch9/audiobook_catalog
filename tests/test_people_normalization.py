@@ -2,7 +2,9 @@
 Unit tests for people name normalization (authors, narrators).
 Tests proper formatting and deduplication of names.
 """
+
 import unittest
+
 from app.core.people import normalize_people_list
 
 
@@ -43,7 +45,7 @@ class TestPeopleNormalization(unittest.TestCase):
         """Test proper case normalization."""
         result = normalize_people_list("john smith")
         self.assertEqual(result, "John Smith")
-        
+
         result = normalize_people_list("JANE DOE")
         self.assertEqual(result, "Jane Doe")
 
@@ -80,5 +82,5 @@ class TestPeopleNormalization(unittest.TestCase):
         self.assertEqual(result, "Alice, Bob, Charlie")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

@@ -2,7 +2,9 @@
 Unit tests for HTML generation and escaping.
 Tests proper HTML escaping and structure generation.
 """
+
 import unittest
+
 from app.web.html_builder import _esc
 
 
@@ -61,7 +63,7 @@ class TestCoverButton(unittest.TestCase):
     def test_cover_button_with_data(self):
         """Test cover button generation with complete data."""
         from app.web.html_builder import _cover_button
-        
+
         book_data = {
             "cover_href": "covers/test.jpg",
             "title": "Test Book",
@@ -72,9 +74,9 @@ class TestCoverButton(unittest.TestCase):
             "year": "2024",
             "genre": "Fiction",
             "duration_hhmm": "10:30",
-            "desc": "Test description"
+            "desc": "Test description",
         }
-        
+
         result = _cover_button(book_data)
         self.assertIn("button", result)
         self.assertIn("cover-btn", result)
@@ -83,11 +85,11 @@ class TestCoverButton(unittest.TestCase):
     def test_cover_button_without_cover(self):
         """Test cover button with missing cover."""
         from app.web.html_builder import _cover_button
-        
+
         book_data = {"cover_href": ""}
         result = _cover_button(book_data)
         self.assertEqual(result, "")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
