@@ -49,6 +49,43 @@ button.btn{
   background:var(--btn-bg); color:var(--text); cursor:pointer
 }
 button.btn:focus, select:focus, input:focus{ outline:2px solid #2d72d2; outline-offset:2px }
+
+/* Game button - exciting but not distracting */
+.game-btn{
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+  color: white !important;
+  border: none !important;
+  font-weight: 600;
+  padding: 12px 20px !important;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+.game-btn:hover{
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+.game-btn:active{
+  transform: translateY(0);
+}
+.game-btn::before{
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.2);
+  transform: translate(-50%, -50%);
+  transition: width 0.6s, height 0.6s;
+}
+.game-btn:hover::before{
+  width: 300px;
+  height: 300px;
+}
+
 #meta{color:var(--muted)}
 
 /* Dark mode switch */
@@ -178,7 +215,7 @@ a.link-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
 <div id="wrap">
   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
     <h1 style="margin: 0;">Audiobook Catalog</h1>
-    <a href="guess-game.html" class="btn" style="text-decoration: none; display: inline-block;">🎮 Play Guess That Audiobook!</a>
+    <a href="guess-game.html" class="btn game-btn" style="text-decoration: none; display: inline-block;">🎮 Play Guess That Audiobook!</a>
   </div>
 
   <!-- Book of the Day -->
