@@ -6,10 +6,10 @@ import os
 from pathlib import Path
 from typing import Set
 
-from app.config import ROOT_DIR, OUTPUT_DIR, EXTS, DRIVE_AUTHOR_MAP_PATH
+from app.config import ROOT_DIR, OUTPUT_DIR, EXTS
 from app.metadata import walk_library, extract_metadata
 
-DEFAULT_OUT = Path("app/author_drive_map.seed.json").resolve()
+DEFAULT_OUT = Path("author_drive_map.json").resolve()
 
 def _split_authors(s: str) -> list[str]:
     if not s:
@@ -18,8 +18,8 @@ def _split_authors(s: str) -> list[str]:
     return [a.strip() for a in s.split(",") if a.strip()]
 
 def _resolve_output_path() -> Path:
-    # Prefer DRIVE_AUTHOR_MAP if set; otherwise default
-    p = (Path(DRIVE_AUTHOR_MAP_PATH).expanduser().resolve() if DRIVE_AUTHOR_MAP_PATH else DEFAULT_OUT)
+    # Output to root directory (parent of audiobook_catalog)
+    p = Path(__file__).parent.parent.parent.parent / "author_drive_map.json"
     p.parent.mkdir(parents=True, exist_ok=True)
     return p
 
