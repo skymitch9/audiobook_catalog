@@ -2,7 +2,9 @@
 Unit tests for index normalization and sorting.
 Tests conversion of various index formats to sortable values.
 """
+
 import unittest
+
 from app.core.index_utils import normalize_index, sort_key_for_index
 
 
@@ -106,5 +108,5 @@ class TestIndexSorting(unittest.TestCase):
         self.assertEqual(sorted_indices, ["1", "2", "3", "10", "20"])
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

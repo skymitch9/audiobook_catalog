@@ -2,20 +2,20 @@
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 
 from app.config import (
-    ROOT_DIR,
-    OUTPUT_DIR,
-    SITE_DIR,
-    SITE_INDEX_NAME,
-    SITE_CSV_NAME,
     DRIVE_FOLDER_URL,
     EXTS,
+    OUTPUT_DIR,
+    ROOT_DIR,
+    SITE_CSV_NAME,
+    SITE_DIR,
+    SITE_INDEX_NAME,
 )
 from app.metadata import extract_metadata, walk_library
-from app.writers import write_csv, render_output_html, stage_site_files
+from app.writers import render_output_html, stage_site_files, write_csv
 
 
 def main() -> None:
@@ -55,7 +55,7 @@ def main() -> None:
         rows=rows,
         out_path=out_html,
         generated_at=generated_at,
-        csv_link=out_csv.name,            # relative to this HTML in output_files/
+        csv_link=out_csv.name,  # relative to this HTML in output_files/
         drive_link=DRIVE_FOLDER_URL or None,
     )
 
@@ -77,9 +77,10 @@ def main() -> None:
     # 4) Generate series completion tracker
     try:
         from app.tools.generate_series_tracker import analyze_series, generate_html
+
         print("Generating series tracker...")
         catalog_path = SITE_DIR / SITE_CSV_NAME
-        tracker_path = SITE_DIR / 'series-tracker.html'
+        tracker_path = SITE_DIR / "series-tracker.html"
         analysis = analyze_series(catalog_path)
         generate_html(analysis, tracker_path)
         print(f"Series tracker: {tracker_path}")

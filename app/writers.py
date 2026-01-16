@@ -1,14 +1,14 @@
 # app/writers.py
 from __future__ import annotations
 
+import csv
 import shutil
 from pathlib import Path
-from typing import List, Dict, Optional
-import csv
+from typing import Dict, List, Optional
 
 from app.config import OUTPUT_DIR
-from app.web.html_builder import render_index_html, STATIC_DIR
 from app.web.html_builder import TEMPLATE_DIR  # not strictly needed, but useful when debugging
+from app.web.html_builder import STATIC_DIR, render_index_html
 
 
 # --------------------------
@@ -121,7 +121,7 @@ def stage_site_files(
         rows=rows,
         out_path=site_index_path,
         generated_at=generated_at,
-        csv_link=site_csv_name,     # RELATIVE link for GitHub Pages
+        csv_link=site_csv_name,  # RELATIVE link for GitHub Pages
         drive_link=drive_link,
     )
 

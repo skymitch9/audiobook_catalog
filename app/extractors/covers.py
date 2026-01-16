@@ -1,8 +1,11 @@
 # app/extractors/covers.py
-from typing import Optional
 from pathlib import Path
+from typing import Optional
+
 from mutagen.mp4 import MP4, MP4Cover
-from app.config import ROOT_DIR, OUTPUT_DIR
+
+from app.config import OUTPUT_DIR, ROOT_DIR
+
 
 def save_cover_for_file(path: Path) -> Optional[str]:
     """
@@ -23,8 +26,10 @@ def save_cover_for_file(path: Path) -> Optional[str]:
         ext = ".jpg"
         try:
             if isinstance(cover, MP4Cover):
-                if cover.imageformat == MP4Cover.FORMAT_PNG:   ext = ".png"
-                elif cover.imageformat == MP4Cover.FORMAT_JPEG: ext = ".jpg"
+                if cover.imageformat == MP4Cover.FORMAT_PNG:
+                    ext = ".png"
+                elif cover.imageformat == MP4Cover.FORMAT_JPEG:
+                    ext = ".jpg"
         except Exception:
             pass
 

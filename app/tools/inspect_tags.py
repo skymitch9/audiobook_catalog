@@ -3,20 +3,22 @@
 # and write JSON dumps under OUTPUT_DIR/json_tags/ mirroring the source tree.
 
 from __future__ import annotations
-import sys
+
 import json
+import sys
 from pathlib import Path
-from typing import Iterable, Tuple, Dict, Any, List
+from typing import Any, Dict, Iterable, List, Tuple
 
 from mutagen.mp4 import MP4, MP4FreeForm
 
 # Config: ROOT_DIR/EXTS are already in your project; OUTPUT_DIR is where we publish artifacts
-from app.config import ROOT_DIR, EXTS, OUTPUT_DIR  # type: ignore
+from app.config import EXTS, OUTPUT_DIR, ROOT_DIR  # type: ignore
 
 # Optional env-based default directory:
 # If INSPECT_DIR is defined in config.py / .env, use it; otherwise fallback to ROOT_DIR.
 try:
     from app.config import INSPECT_DIR  # type: ignore
+
     DEFAULT_DIR = INSPECT_DIR or ROOT_DIR
 except Exception:
     DEFAULT_DIR = ROOT_DIR
@@ -38,14 +40,9 @@ def gather_tags_for_file(path: Path) -> Tuple[Dict[str, Any], List[str]]:
     info = getattr(audio, "info", None)
 
     duration = int(getattr(info, "length", 0)) if info and getattr(info, "length", None) else None
-    bitrate  = int(getattr(info, "bitrate", 0)) if info and getattr(info, "bitrate", None) else None
+    bitrate = int(getattr(info, "bitrate", 0)) if info and getattr(info, "bitrate", None) else None
 
-    dump: Dict[str, Any] = {
-        "file": str(path),
-        "duration_sec": duration,
-        "bitrate_bps": bitrate,
-        "tags": {}
-    }
+    dump: Dict[str, Any] = {"file": str(path), "duration_sec": duration, "bitrate_bps": bitrate, "tags": {}}
 
     lines: List[str] = []
     lines.append("=" * 80)

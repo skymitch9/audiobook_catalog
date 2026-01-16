@@ -3,6 +3,7 @@
 # Uses ROOT_DIR and EXTS from app.config (set via .env).
 
 from __future__ import annotations
+
 import shutil
 from pathlib import Path
 from typing import Optional
@@ -10,7 +11,7 @@ from typing import Optional
 from mutagen.mp4 import MP4
 
 # Reuse your configured root + extensions
-from app.config import ROOT_DIR, EXTS
+from app.config import EXTS, ROOT_DIR
 
 # iTunes atom for author
 K_ARTIST = "\xa9ART"

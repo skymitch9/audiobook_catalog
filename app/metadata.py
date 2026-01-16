@@ -4,32 +4,32 @@
 
 from __future__ import annotations
 
-import re
 import html as htmlmod
+import re
 from pathlib import Path
-from typing import Optional, Tuple, Dict, List
+from typing import Dict, List, Optional, Tuple
 
-from mutagen.mp4 import MP4, MP4FreeForm, MP4Cover
+from mutagen.mp4 import MP4, MP4Cover, MP4FreeForm
 
 # Import config (paths used for cover extraction output)
-from app.config import ROOT_DIR, OUTPUT_DIR
+from app.config import OUTPUT_DIR, ROOT_DIR
 
 # ---------- Tag keys ----------
 # MP4/iTunes atoms
-K_TITLE   = "\xa9nam"     # Title
-K_ARTIST  = "\xa9ART"     # Author(s)
-K_WRITER  = "\xa9wrt"     # Narrator
-K_DAY     = "\xa9day"     # Year/Date
-K_GENRE   = "\xa9gen"     # Genre
+K_TITLE = "\xa9nam"  # Title
+K_ARTIST = "\xa9ART"  # Author(s)
+K_WRITER = "\xa9wrt"  # Narrator
+K_DAY = "\xa9day"  # Year/Date
+K_GENRE = "\xa9gen"  # Genre
 
 # Descriptions (common atoms)
-K_COMMENT = "\xa9cmt"     # Comment / short description
-K_LONGDES = "ldes"        # Long description
-K_DESC    = "desc"        # Description (some tools use this)
+K_COMMENT = "\xa9cmt"  # Comment / short description
+K_LONGDES = "ldes"  # Long description
+K_DESC = "desc"  # Description (some tools use this)
 
 # Vendor atoms (Audible-style that you provided)
 K_SERIES_VENDOR = "SRNM"  # Series Name
-K_INDEX_VENDOR  = "SRSQ"  # Series Sequence (e.g., 2.1)
+K_INDEX_VENDOR = "SRSQ"  # Series Sequence (e.g., 2.1)
 
 # Free-form keys (----:com.apple.iTunes:*)
 FREEFORM_HINTS = {
@@ -40,79 +40,107 @@ FREEFORM_HINTS = {
 }
 
 # Import index normalization functions from core module
-from app.core.index_utils import normalize_index as _normalize_index, sort_key_for_index as _sort_key_for_index
+from app.core.index_utils import normalize_index as _normalize_index
+from app.core.index_utils import sort_key_for_index as _sort_key_for_index
+
 
 # ---------- tag access helpers ----------
 def bytes_to_str(b: bytes) -> str:
-    for enc in ("utf-8","utf-16","latin-1"):
-        try: return b.decode(enc).strip()
-        except Exception: pass
+    for enc in ("utf-8", "utf-16", "latin-1"):
+        try:
+            return b.decode(enc).strip()
+        except Exception:
+            pass
     return b.decode("utf-8", errors="ignore").strip()
+
 
 def first_str(val):
     v = val[0] if isinstance(val, list) and val else val
-    if isinstance(v, bytes): return bytes_to_str(v)
-    if isinstance(v, tuple): return str(v[0])
+    if isinstance(v, bytes):
+        return bytes_to_str(v)
+    if isinstance(v, tuple):
+        return str(v[0])
     return (str(v).strip()) if v is not None else None
+
 
 def get_tag_any(tags: Dict, keys: List[str]) -> Optional[str]:
     for k in keys:
         if k in tags and tags[k]:
             s = first_str(tags[k])
-            if s: return s
+            if s:
+                return s
     return None
+
 
 def get_freeform_by_suffix(tags: Dict, suffixes: List[str]) -> Optional[str]:
     for key, val in (tags or {}).items():
-        if not isinstance(key, str) or not key.startswith("----"): continue
+        if not isinstance(key, str) or not key.startswith("----"):
+            continue
         tail = key.split(":")[-1].lower()
         if any(tail.endswith(sfx.lower()) for sfx in suffixes):
             if isinstance(val, list) and val:
                 parts = []
                 for piece in val:
-                    if isinstance(piece, MP4FreeForm): parts.append(bytes_to_str(bytes(piece)))
-                    elif isinstance(piece, (bytes, bytearray)): parts.append(bytes_to_str(piece))
-                    else: parts.append(str(piece))
+                    if isinstance(piece, MP4FreeForm):
+                        parts.append(bytes_to_str(bytes(piece)))
+                    elif isinstance(piece, (bytes, bytearray)):
+                        parts.append(bytes_to_str(piece))
+                    else:
+                        parts.append(str(piece))
                 joined = ", ".join(p for p in parts if p)
-                if joined.strip(): return joined.strip()
+                if joined.strip():
+                    return joined.strip()
     return None
 
+
 def _cleanup_series(name: Optional[str]) -> Optional[str]:
-    if not name: return None
+    if not name:
+        return None
     s = re.sub(r"\bseries\b\s*$", "", name, flags=re.IGNORECASE).strip(" -–—:,")
     return re.sub(r"\s{2,}", " ", s).strip()
 
+
 def normalize_people_field(s: Optional[str]) -> Optional[str]:
-    if not s: return None
+    if not s:
+        return None
     parts = re.split(r"[;,/&]| and ", s, flags=re.IGNORECASE)
     cleaned, seen = [], set()
     for p in parts:
         name = re.sub(r"\s+", " ", p).strip()
-        if not name: continue
+        if not name:
+            continue
         norm = name if (name.isupper() and len(name) <= 5) else " ".join(w.capitalize() for w in name.split())
         key = norm.lower()
         if key not in seen:
-            seen.add(key); cleaned.append(norm)
+            seen.add(key)
+            cleaned.append(norm)
     return ", ".join(cleaned) if cleaned else None
 
+
 def sec_to_hhmm(s: Optional[int]) -> str:
-    if s is None: return ""
-    try: s = int(s)
-    except Exception: return ""
-    h = s // 3600; m = (s % 3600) // 60
+    if s is None:
+        return ""
+    try:
+        s = int(s)
+    except Exception:
+        return ""
+    h = s // 3600
+    m = (s % 3600) // 60
     return f"{h}:{m:02d}"
+
 
 # ---------- desc cleaner ----------
 _TAG_BLOCK_RE = re.compile(
     r"(?is)"
-    r"<!--.*?-->|"          # HTML comments
+    r"<!--.*?-->|"  # HTML comments
     r"<script.*?>.*?</script>|"
     r"<style.*?>.*?</style>"
 )
 
-_BR_RE   = re.compile(r"(?i)<\s*br\s*/?\s*>")
-_P_RE    = re.compile(r"(?i)</\s*p\s*>")
-_TAG_RE  = re.compile(r"<[^>]+>")  # any other tags
+_BR_RE = re.compile(r"(?i)<\s*br\s*/?\s*>")
+_P_RE = re.compile(r"(?i)</\s*p\s*>")
+_TAG_RE = re.compile(r"<[^>]+>")  # any other tags
+
 
 def _html_to_plain_text(s: str) -> str:
     """
@@ -141,6 +169,7 @@ def _html_to_plain_text(s: str) -> str:
     # collapse 3+ newlines to at most 2
     s = re.sub(r"\n{3,}", "\n\n", s)
     return s.strip()
+
 
 # ---------- cover extraction ----------
 def _save_cover_for_file(path: Path) -> Optional[str]:
@@ -181,8 +210,10 @@ def _save_cover_for_file(path: Path) -> Optional[str]:
     except Exception:
         return None
 
+
 # Import the improved parsing logic
 from app.parsers.title import parse_series_and_index_from_title
+
 
 # ---------- high-level extractors ----------
 def _extract_description(tags: Dict) -> Optional[str]:
@@ -204,6 +235,7 @@ def _extract_description(tags: Dict) -> Optional[str]:
 
     return None
 
+
 def extract_metadata(path: Path) -> Dict[str, str]:
     """Extract metadata from an MP4/M4B file, preferring SRNM/SRSQ,
     then free-form tags, and finally conservative title parsing. Also saves cover and cleaned description."""
@@ -212,14 +244,14 @@ def extract_metadata(path: Path) -> Dict[str, str]:
     duration = getattr(getattr(audio, "info", None), "length", None)
     length_sec = int(duration) if duration else None
 
-    title    = get_tag_any(tags, [K_TITLE]) or ""
-    author   = normalize_people_field(get_tag_any(tags, [K_ARTIST]))
+    title = get_tag_any(tags, [K_TITLE]) or ""
+    author = normalize_people_field(get_tag_any(tags, [K_ARTIST]))
     narrator = normalize_people_field(get_tag_any(tags, [K_WRITER]))
-    year     = get_tag_any(tags, [K_DAY]) or ""
-    genre    = get_tag_any(tags, [K_GENRE]) or ""
+    year = get_tag_any(tags, [K_DAY]) or ""
+    genre = get_tag_any(tags, [K_GENRE]) or ""
 
     # Description (cleaned)
-    desc     = _extract_description(tags) or ""
+    desc = _extract_description(tags) or ""
 
     # 1) Prefer vendor tags if present (SRNM/SRSQ)
     series = get_tag_any(tags, [K_SERIES_VENDOR])
@@ -230,13 +262,16 @@ def extract_metadata(path: Path) -> Dict[str, str]:
         series = get_freeform_by_suffix(tags, FREEFORM_HINTS["series"])
     if not series_index_display:
         si_ff = get_freeform_by_suffix(tags, FREEFORM_HINTS["series_index"])
-        if si_ff: series_index_display = _normalize_index(si_ff)
+        if si_ff:
+            series_index_display = _normalize_index(si_ff)
 
     # 3) Finally, conservative title parsing
     if not series or not series_index_display:
         ts, ti = parse_series_and_index_from_title(title)
-        if not series and ts: series = ts
-        if not series_index_display and ti: series_index_display = _normalize_index(ti)
+        if not series and ts:
+            series = ts
+        if not series_index_display and ti:
+            series_index_display = _normalize_index(ti)
 
     series_index_sort = _sort_key_for_index(series_index_display)
 
@@ -256,6 +291,7 @@ def extract_metadata(path: Path) -> Dict[str, str]:
         "cover_href": cover_href or "",
         "desc": desc,  # cleaned text
     }
+
 
 def walk_library(root: Path, exts: set[str]):
     return [p for p in root.rglob("*") if p.is_file() and p.suffix.lower() in exts]

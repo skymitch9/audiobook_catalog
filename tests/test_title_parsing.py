@@ -2,7 +2,9 @@
 Unit tests for title parsing and series extraction.
 This is the most critical functionality to test since it affects data quality.
 """
+
 import unittest
+
 from app.parsers.title import parse_series_and_index_from_title
 
 
@@ -108,5 +110,5 @@ class TestTitleParsing(unittest.TestCase):
         self.assertIsNotNone(index)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
