@@ -141,25 +141,11 @@ jobs:
       if: success()
       env:
         DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        SITE_URL: ${{ steps.deployment.outputs.page_url }}
+        COMMIT_MSG: ${{ github.event.head_commit.message }}
+        COMMIT_URL: ${{ github.event.head_commit.url }}
       run: |
+        TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%S.000Z)
         curl -H "Content-Type: application/json" \
-             -d '{
-               "content": "📚 **New Books have been added to the Library!**",
-               "embeds": [{
-                 "title": "Audiobook Catalog Updated",
-                 "description": "The catalog has been successfully deployed to GitHub Pages.",
-                 "color": 5814783,
-                 "fields": [
-                   {
-                     "name": "🔗 View Catalog",
-                     "value": "[Click here to browse](${{ steps.deployment.outputs.page_url }})"
-                   },
-                   {
-                     "name": "📝 Commit",
-                     "value": "[${{ github.event.head_commit.message }}](${{ github.event.head_commit.url }})"
-                   }
-                 ],
-                 "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%S.000Z)'"
-               }]
-             }' \
+             -d "{\"content\":\"📚 **New Books have been added to the Library!**\",\"embeds\":[{\"title\":\"Audiobook Catalog Updated\",\"description\":\"The catalog has been successfully deployed to GitHub Pages.\",\"color\":5814783,\"fields\":[{\"name\":\"🔗 View Catalog\",\"value\":\"[Click here to browse](${SITE_URL})\"},{\"name\":\"📝 Commit\",\"value\":\"[${COMMIT_MSG}](${COMMIT_URL})\"}],\"timestamp\":\"${TIMESTAMP}\"}]}" \
              $DISCORD_WEBHOOK
