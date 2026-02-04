@@ -74,6 +74,13 @@ def main() -> None:
         drive_link=DRIVE_FOLDER_URL or None,
     )
 
+    # 4) Generate statistics page
+    from app.tools.generate_stats import main as generate_stats_main
+    try:
+        generate_stats_main()
+    except Exception as e:
+        print(f"[WARN] Failed to generate statistics page: {e}", file=sys.stderr)
+
     print("Done.")
 
 
