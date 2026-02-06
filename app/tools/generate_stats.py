@@ -176,14 +176,24 @@ body.dark{{
 
 /* =============== Base Layout =============== */
 *{{box-sizing:border-box}}
-html,body{{height:100%}}
 body{{
-  margin:0; padding:var(--pad);
-  font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-  background:var(--bg); color:var(--text);
+  margin:0; padding:40px 20px;
+  font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;
+  background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  min-height:100vh;
+  display:flex;
+  justify-content:center;
+  align-items:flex-start;
 }}
-#wrap{{max-width:1100px;margin:0 auto}}
-h1{{margin:0 0 8px 0}}
+#wrap{{
+  background:white;
+  border-radius:20px;
+  box-shadow:0 20px 60px rgba(0,0,0,0.3);
+  max-width:1100px;
+  width:100%;
+  padding:40px;
+}}
+h1{{margin:0 0 8px 0; color:#667eea}}
 
 /* Stats specific styles */
 .stats-grid {{
@@ -194,8 +204,8 @@ h1{{margin:0 0 8px 0}}
 }}
 
 .stat-card {{
-  background: var(--bg-2);
-  border: 1px solid var(--border);
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
   border-radius: var(--radius);
   padding: 20px;
   text-align: center;
@@ -204,24 +214,24 @@ h1{{margin:0 0 8px 0}}
 .stat-number {{
   font-size: 2.5em;
   font-weight: bold;
-  color: #2d72d2;
+  color: #667eea;
   margin-bottom: 8px;
 }}
 
 .stat-label {{
   font-size: 1.1em;
-  color: var(--muted);
+  color: #666;
   margin-bottom: 4px;
 }}
 
 .stat-sublabel {{
   font-size: 0.9em;
-  color: var(--muted);
+  color: #666;
 }}
 
 .top-list {{
-  background: var(--bg-2);
-  border: 1px solid var(--border);
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
   border-radius: var(--radius);
   padding: 20px;
   margin: 20px 0;
@@ -229,14 +239,14 @@ h1{{margin:0 0 8px 0}}
 
 .top-list h3 {{
   margin-top: 0;
-  color: #2d72d2;
+  color: #667eea;
 }}
 
 .top-item {{
   display: flex;
   justify-content: space-between;
   padding: 8px 0;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid #e9ecef;
 }}
 
 .top-item:last-child {{
@@ -248,13 +258,13 @@ h1{{margin:0 0 8px 0}}
 }}
 
 .top-count {{
-  color: var(--muted);
+  color: #666;
   font-weight: bold;
 }}
 
 .insights {{
-  background: var(--bg-2);
-  border: 1px solid var(--border);
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
   border-radius: var(--radius);
   padding: 20px;
   margin: 20px 0;
@@ -262,40 +272,40 @@ h1{{margin:0 0 8px 0}}
 
 .insights h3 {{
   margin-top: 0;
-  color: #2d72d2;
+  color: #667eea;
 }}
 
 .insight-item {{
   margin: 12px 0;
   padding: 12px;
-  background: var(--bg);
+  background: white;
   border-radius: 8px;
-  border-left: 4px solid #2d72d2;
+  border-left: 4px solid #667eea;
 }}
 
 .insight-label {{
   font-weight: bold;
-  color: var(--text);
+  color: #333;
 }}
 
 .insight-value {{
-  color: var(--muted);
+  color: #666;
   margin-top: 4px;
 }}
 
 .nav-link {{
   display: inline-block;
   padding: 10px 16px;
-  background: var(--btn-bg);
-  color: var(--text);
+  background: #f8f9fa;
+  color: #333;
   text-decoration: none;
   border-radius: var(--radius);
-  border: 1px solid var(--btn-border);
+  border: 1px solid #e9ecef;
   margin: 10px 10px 10px 0;
 }}
 
 .nav-link:hover {{
-  background: var(--btn-bg-active);
+  background: #e9ecef;
 }}
 
 /* Dark mode switch */
