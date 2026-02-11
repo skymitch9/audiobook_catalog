@@ -6,7 +6,7 @@ Reads new_books.json and sends rich embed to Discord webhook.
 import json
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import requests
@@ -30,9 +30,9 @@ def create_embed(new_books_data, site_url):
                 "color": 5814783,  # Blue
                 "fields": [
                     {"name": "🔗 View Catalog", "value": f"[Click here to browse]({site_url})"},
-                    {"name": "⏰ Deployed", "value": f"<t:{int(datetime.now().timestamp())}:R>"},
+                    {"name": "⏰ Deployed", "value": f"<t:{int(datetime.now(timezone.utc).timestamp())}:R>"},
                 ],
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
         )
     else:
@@ -54,12 +54,12 @@ def create_embed(new_books_data, site_url):
                     },
                     {"name": "🔗 View Catalog", "value": f"[Browse Library]({site_url})", "inline": True},
                 ],
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
         )
 
-        # Add individual book embeds (max 10)
-        for book in books[:10]:
+        # Add individual book embeds (max 9 to stay under Discord's 10 embed limit)
+        for book in books[:9]:
             title = book.get("title", "Unknown Title")
             author = book.get("author", "Unknown Author")
             series = book.get("series", "")
@@ -92,7 +92,15 @@ def create_embed(new_books_data, site_url):
             if duration:
                 fields.append({"name": "Duration", "value": f"⏱️ {duration}", "inline": True})
 
-            book_embed = {"title": title, "description": book_desc, "color": 5814783, "fields": fields}  # Blue
+            book_embed = {
+                "title": title[:256],  # Discord title limit
+                "description": book_desc[:4096],  # Discord description limit
+                "color": 5814783,  # Blue
+            }
+            
+            # Only add fields if there are any
+            if fields:
+                book_embed["fields"] = fields
 
             # Add cover image if available
             if cover:
