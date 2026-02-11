@@ -16,7 +16,7 @@ from app.web.html_builder import STATIC_DIR, render_index_html
 # --------------------------
 def write_csv(rows: List[Dict[str, str]], out_path: Path) -> None:
     """
-    Writes the catalog CSV. Does NOT include covers (as requested).
+    Writes the catalog CSV including cover references.
     """
     fieldnames = [
         "title",
@@ -28,6 +28,8 @@ def write_csv(rows: List[Dict[str, str]], out_path: Path) -> None:
         "year",
         "genre",
         "duration_hhmm",
+        "cover_href",
+        "desc",
     ]
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("w", newline="", encoding="utf-8") as f:
