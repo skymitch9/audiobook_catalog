@@ -54,6 +54,62 @@ jobs:
       continue-on-error: true
       # Continue even if catalog generation fails (no library in CI)
     
+    - name: 📝 Create fallback index.html if needed
+      run: |
+        echo "::group::Ensuring index.html exists"
+        if [ ! -f "site/index.html" ]; then
+          echo "Creating fallback index.html"
+          mkdir -p site
+          cat > site/index.html << 'EOF'
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Audiobook Catalog</title>
+            <style>
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+                    max-width: 800px;
+                    margin: 50px auto;
+                    padding: 20px;
+                    line-height: 1.6;
+                }
+                h1 { color: #333; }
+                .links { margin-top: 30px; }
+                .links a {
+                    display: inline-block;
+                    margin: 10px 10px 10px 0;
+                    padding: 10px 20px;
+                    background: #007bff;
+                    color: white;
+                    text-decoration: none;
+                    border-radius: 5px;
+                }
+                .links a:hover { background: #0056b3; }
+            </style>
+        </head>
+        <body>
+            <h1>Audiobook Catalog</h1>
+            <p>Welcome to the audiobook catalog. This site is currently empty because no audiobook files have been added yet.</p>
+            <div class="links">
+                <a href="catalog/">View React Catalog</a>
+            </div>
+            <h2>To add audiobooks:</h2>
+            <ol>
+                <li>Clone this repository</li>
+                <li>Add your audiobook files to the library folder</li>
+                <li>Run: <code>python -m app.main</code></li>
+                <li>Push changes to deploy</li>
+            </ol>
+        </body>
+        </html>
+        EOF
+        else
+          echo "✓ index.html already exists"
+        fi
+        echo "::endgroup::"
+    
     - name: 🟢 Set up Node.js
       uses: actions/setup-node@v4
       with:
