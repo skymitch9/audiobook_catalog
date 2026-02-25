@@ -68,6 +68,27 @@
             color: #667eea;
         }
 
+        .player-name-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .edit-name-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 0.8em;
+            padding: 4px 8px;
+            border-radius: 5px;
+            transition: background 0.2s;
+        }
+
+        .edit-name-btn:hover {
+            background: rgba(102, 126, 234, 0.1);
+        }
+
         .book-cover-container {
             margin: 30px 0;
             position: relative;
@@ -385,7 +406,10 @@
         <div class="score-board">
             <div class="score-item">
                 <div class="score-label">Player</div>
-                <div class="score-value" id="player-name" style="font-size: 1.2em; cursor: pointer;" onclick="changePlayer()" title="Click to change player">Guest</div>
+                <div class="player-name-container">
+                    <div class="score-value" id="player-name" style="font-size: 1.2em;">Guest</div>
+                    <button class="edit-name-btn" onclick="changePlayer()" title="Edit player name">✏️</button>
+                </div>
             </div>
             <div class="score-item">
                 <div class="score-label">Correct</div>
@@ -676,16 +700,52 @@
         function getPlayerName() {
             let name = localStorage.getItem('guessGame_playerName');
             if (!name) {
-                name = prompt('Welcome! Enter your name to track your scores:') || 'Guest';
+                // Keep prompting until we get a valid name
+                while (!name || name.trim().length < 2) {
+                    name = prompt('Welcome! Enter your name to track your scores (2-20 characters):');
+                    
+                    // User cancelled - use Guest
+                    if (name === null) {
+                        name = 'Guest';
+                        break;
+                    }
+                    
+                    name = name.trim();
+                    
+                    if (name.length < 2) {
+                        alert('Name must be at least 2 characters long.');
+                        name = null; // Reset to prompt again
+                    } else if (name.length > 20) {
+                        alert('Name must be 20 characters or less.');
+                        name = null; // Reset to prompt again
+                    }
+                }
+                
                 localStorage.setItem('guessGame_playerName', name);
             }
             return name;
         }
 
         function changePlayer() {
-            const newName = prompt('Enter your name:', playerName) || playerName;
-            if (newName && newName !== playerName) {
-                playerName = newName;
+            const newName = prompt('Enter your name (2-20 characters):', playerName);
+            
+            // User cancelled
+            if (newName === null) return;
+            
+            // Validate name
+            const trimmedName = newName.trim();
+            if (trimmedName.length < 2) {
+                alert('Name must be at least 2 characters long.');
+                return changePlayer(); // Try again
+            }
+            if (trimmedName.length > 20) {
+                alert('Name must be 20 characters or less.');
+                return changePlayer(); // Try again
+            }
+            
+            // Update if changed
+            if (trimmedName && trimmedName !== playerName) {
+                playerName = trimmedName;
                 localStorage.setItem('guessGame_playerName', playerName);
                 document.getElementById('player-name').textContent = playerName;
                 loadScores();
