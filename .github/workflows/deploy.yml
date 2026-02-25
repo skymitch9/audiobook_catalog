@@ -79,10 +79,17 @@ jobs:
       run: |
         echo "::group::Checking generated files"
         if [ -f "site/index.html" ]; then
-          echo "✓ React build index.html found"
+          echo "✓ Archive index.html found at root"
           echo "  Size: $(du -h site/index.html | cut -f1)"
         else
-          echo "❌ React build failed - index.html not found"
+          echo "⚠ Archive index.html not found (no audiobooks in repo)"
+        fi
+        
+        if [ -f "site/catalog/index.html" ]; then
+          echo "✓ React app index.html found at /catalog/"
+          echo "  Size: $(du -h site/catalog/index.html | cut -f1)"
+        else
+          echo "❌ React build failed - catalog/index.html not found"
           exit 1
         fi
         

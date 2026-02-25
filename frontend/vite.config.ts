@@ -4,11 +4,11 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
-  base: '/audiobook_catalog/', // GitHub Pages subdirectory (repo name)
+  base: '/audiobook_catalog/catalog/', // React app at /catalog/ subdirectory
   build: {
-    outDir: '../site',
+    outDir: '../site/catalog',
     assetsDir: 'static',
-    emptyOutDir: false, // Don't empty site dir (contains archive, covers, catalog.csv)
+    emptyOutDir: true, // Safe to empty since it's in a subdirectory
   },
   server: {
     host: '0.0.0.0', // Allow connections from outside container
