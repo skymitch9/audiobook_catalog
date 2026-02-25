@@ -3,6 +3,7 @@ old_versions/
 temp/
 output_files/
 logs/
+.kiro/specs/
 *.json
 # But allow package.json and package-lock.json for Node.js projects
 !package.json

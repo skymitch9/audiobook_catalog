@@ -78,7 +78,6 @@ export const getBookById = async (id: number): Promise<Book> => {
     const errorMessage = handleApiError(error);
     throw new Error(`Failed to fetch book with ID ${id}: ${errorMessage}`);
   }
-  return book;
 };
 
 /**
