@@ -32,28 +32,28 @@ describe('API Service', () => {
   });
 
   describe('getCoverUrl', () => {
-    it('should construct full URL from relative path', () => {
+    it('should construct API URL from cover path', () => {
       const path = 'covers/book1.jpg';
       const url = getCoverUrl(path);
-      expect(url).toBe('http://localhost:5000/covers/book1.jpg');
+      expect(url).toBe('/api/covers/book1.jpg');
     });
 
     it('should handle paths with leading slash', () => {
       const path = '/covers/book2.jpg';
       const url = getCoverUrl(path);
-      expect(url).toBe('http://localhost:5000/covers/book2.jpg');
+      expect(url).toBe('/api/covers/book2.jpg');
     });
 
-    it('should handle empty path', () => {
-      const path = '';
+    it('should handle paths that already have /api/ prefix', () => {
+      const path = '/api/covers/book3.jpg';
       const url = getCoverUrl(path);
-      expect(url).toBe('http://localhost:5000/');
+      expect(url).toBe('/api/covers/book3.jpg');
     });
 
-    it('should handle paths with multiple segments', () => {
-      const path = 'static/images/covers/book3.jpg';
+    it('should strip covers/ prefix from filename', () => {
+      const path = 'covers/subfolder/book4.jpg';
       const url = getCoverUrl(path);
-      expect(url).toBe('http://localhost:5000/static/images/covers/book3.jpg');
+      expect(url).toBe('/api/covers/subfolder/book4.jpg');
     });
   });
 });

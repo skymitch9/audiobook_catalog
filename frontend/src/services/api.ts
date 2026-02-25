@@ -4,57 +4,32 @@
  * Centralized module for all HTTP communication with the Flask backend API.
  * Provides functions for fetching audiobook data and handles errors consistently.
  * 
- * Base URL: http://localhost:5001/api
+ * Base URL: /api (relative to Flask server)
  * 
  * Requirements: 5.1, 5.2, 5.5
  */
 
-import axios, { AxiosError } from 'axios';
 import type { Book } from '../types/Book';
 
 /**
- * Configure Axios instance with base URL and timeout
+ * Get API base URL based on environment
  */
-const apiClient = axios.create({
-  baseURL: 'http://localhost:5000/api',
-  timeout: 10000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
+const getApiBaseUrl = (): string => {
+  // In development with Vite proxy, use relative /api
+  // In production with Flask serving React, use relative /api
+  return '/api';
+};
 
 /**
  * Error handler for API requests
  * Extracts meaningful error messages from various error types
- * 
- * @param error - The error object from axios
- * @returns A user-friendly error message
  */
 const handleApiError = (error: unknown): string => {
-  if (axios.isAxiosError(error)) {
-    const axiosError = error as AxiosError;
-    
-    if (axiosError.response) {
-      // Server responded with error status
-      const status = axiosError.response.status;
-      if (status === 404) {
-        return 'Resource not found';
-      } else if (status === 500) {
-        return 'Server error occurred';
-      } else {
-        return `Request failed with status ${status}`;
-      }
-    } else if (axiosError.request) {
-      // Request made but no response received
-      return 'Network error: Unable to reach the server';
-    } else {
-      // Error setting up the request
-      return 'Request configuration error';
-    }
+  if (error instanceof Response) {
+    return `Request failed with status ${error.status}`;
   } else if (error instanceof Error) {
     return error.message;
   }
-  
   return 'An unexpected error occurred';
 };
 
@@ -69,8 +44,13 @@ const handleApiError = (error: unknown): string => {
  */
 export const getAllBooks = async (): Promise<Book[]> => {
   try {
-    const response = await apiClient.get<Book[]>('/books');
-    return response.data;
+    const response = await fetch(`${getApiBaseUrl()}/books`);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch books: ${response.status} ${response.statusText}`);
+    }
+    
+    return await response.json();
   } catch (error) {
     const errorMessage = handleApiError(error);
     throw new Error(`Failed to fetch books: ${errorMessage}`);
@@ -89,8 +69,13 @@ export const getAllBooks = async (): Promise<Book[]> => {
  */
 export const getBookById = async (id: number): Promise<Book> => {
   try {
-    const response = await apiClient.get<Book>(`/books/${id}`);
-    return response.data;
+    const response = await fetch(`${getApiBaseUrl()}/books/${id}`);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch book: ${response.status} ${response.statusText}`);
+    }
+    
+    return await response.json();
   } catch (error) {
     const errorMessage = handleApiError(error);
     throw new Error(`Failed to fetch book with ID ${id}: ${errorMessage}`);
@@ -109,10 +94,16 @@ export const getBookById = async (id: number): Promise<Book> => {
  */
 export const searchBooks = async (query: string): Promise<Book[]> => {
   try {
-    const response = await apiClient.get<Book[]>('/books/search', {
-      params: { q: query },
-    });
-    return response.data;
+    const url = new URL(`${getApiBaseUrl()}/books/search`, window.location.origin);
+    url.searchParams.set('q', query);
+    
+    const response = await fetch(url.toString());
+    
+    if (!response.ok) {
+      throw new Error(`Failed to search books: ${response.status} ${response.statusText}`);
+    }
+    
+    return await response.json();
   } catch (error) {
     const errorMessage = handleApiError(error);
     throw new Error(`Failed to search books: ${errorMessage}`);
@@ -122,21 +113,25 @@ export const searchBooks = async (query: string): Promise<Book[]> => {
 /**
  * Construct full URL for a book cover image
  * 
- * @param path - The relative path to the cover image
- * @returns Full URL to the cover image
+ * @param path - The relative path to the cover image (e.g., "covers/book.jpg")
+ * @returns Full URL to the cover image served by Flask
  * 
  * Helper function to construct cover image URLs from relative paths.
- * The backend serves cover images from the base URL.
+ * The backend serves cover images from /api/covers/
  * 
  * Requirements: 5.1
  */
 export const getCoverUrl = (path: string): string => {
-  // Remove leading slash if present to avoid double slashes
+  // If path already starts with /api/, return as-is
+  if (path.startsWith('/api/')) {
+    return path;
+  }
+  
+  // Remove leading slash if present
   const cleanPath = path.startsWith('/') ? path.slice(1) : path;
-  return `http://localhost:5000/${cleanPath}`;
+  
+  // Remove 'covers/' prefix if present (API endpoint already includes it)
+  const filename = cleanPath.replace(/^covers\//, '');
+  
+  return `/api/covers/${filename}`;
 };
-
-/**
- * Export the configured axios instance for advanced use cases
- */
-export default apiClient;

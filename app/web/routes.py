@@ -10,11 +10,25 @@ from flask import send_from_directory, jsonify, request, send_file
 def register_routes(app):  # noqa: C901
     """Register all routes for the Flask application."""
     
-    # ========== React App Routes ==========
+    # ========== Home Page (Archive Catalog) ==========
     
     @app.route('/')
+    def serve_home():
+        """Serve the archived static HTML catalog as the home page."""
+        archive_dir = app.config['ARCHIVE_DIR']
+        if not archive_dir.exists():
+            return jsonify({
+                'error': 'Archive not found',
+                'message': 'Please run "python -m app.main" to generate the catalog'
+            }), 404
+        return send_from_directory(archive_dir, 'index.html')
+    
+    # ========== React App Routes ==========
+    
+    @app.route('/catalog')
+    @app.route('/catalog/')
     def serve_react_app():
-        """Serve the React app's index.html for the root route."""
+        """Serve the React app at /catalog route."""
         react_build_dir = app.config['REACT_BUILD_DIR']
         if not react_build_dir.exists():
             return jsonify({
@@ -168,14 +182,10 @@ def register_routes(app):  # noqa: C901
     
     # ========== Catch-all for React Router ==========
     
-    @app.route('/<path:path>')
-    def catch_all(path):
-        """Catch-all route to support React Router client-side routing."""
-        # Don't catch API or archive routes
-        if path.startswith('api/') or path.startswith('archive/'):
-            return jsonify({'error': 'Not found'}), 404
-        
-        # Serve React app for all other routes
+    @app.route('/catalog/<path:path>')
+    def catch_all_catalog(path):
+        """Catch-all route to support React Router client-side routing under /catalog."""
+        # Serve React app for all /catalog/* routes
         react_build_dir = app.config['REACT_BUILD_DIR']
         if not react_build_dir.exists():
             return jsonify({
@@ -183,3 +193,19 @@ def register_routes(app):  # noqa: C901
                 'message': 'Please run "cd frontend && npm run build" to build the React app'
             }), 503
         return send_from_directory(react_build_dir, 'index.html')
+    
+    @app.route('/<path:path>')
+    def catch_all(path):
+        """Catch-all route for other paths."""
+        # Don't catch API routes
+        if path.startswith('api/'):
+            return jsonify({'error': 'Not found'}), 404
+        
+        # Serve archive files for other routes
+        archive_dir = app.config['ARCHIVE_DIR']
+        if archive_dir.exists():
+            file_path = archive_dir / path
+            if file_path.exists() and file_path.is_file():
+                return send_from_directory(archive_dir, path)
+        
+        return jsonify({'error': 'Not found'}), 404
