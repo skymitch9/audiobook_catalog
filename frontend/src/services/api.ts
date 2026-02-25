@@ -1,7 +1,7 @@
 /**
  * API Service Module
  * 
- * Centralized module for all HTTP communication with the Flask backend API.
+ * Centralized module for fetching audiobook data from static CSV file.
  * Provides functions for fetching audiobook data and handles errors consistently.
  * 
  * Base URL: /api (relative to Flask server)
@@ -34,12 +34,11 @@ const handleApiError = (error: unknown): string => {
 };
 
 /**
- * Fetch all books from the backend API
+ * Fetch all books from catalog.csv
  * 
  * @returns Promise resolving to array of Book objects
  * @throws Error with user-friendly message if request fails
  * 
- * Endpoint: GET /api/books
  * Requirements: 5.1, 5.2
  */
 export const getAllBooks = async (): Promise<Book[]> => {
@@ -58,13 +57,12 @@ export const getAllBooks = async (): Promise<Book[]> => {
 };
 
 /**
- * Fetch a single book by ID from the backend API
+ * Fetch a single book by ID
  * 
- * @param id - The unique identifier of the book
+ * @param id - The unique identifier of the book (row number)
  * @returns Promise resolving to a Book object
- * @throws Error with user-friendly message if request fails or book not found
+ * @throws Error with user-friendly message if book not found
  * 
- * Endpoint: GET /api/books/{id}
  * Requirements: 5.1, 5.2
  */
 export const getBookById = async (id: number): Promise<Book> => {
@@ -80,16 +78,15 @@ export const getBookById = async (id: number): Promise<Book> => {
     const errorMessage = handleApiError(error);
     throw new Error(`Failed to fetch book with ID ${id}: ${errorMessage}`);
   }
+  return book;
 };
 
 /**
- * Search for books by query string
+ * Search for books by query string (client-side filtering)
  * 
  * @param query - The search query string
  * @returns Promise resolving to array of matching Book objects
- * @throws Error with user-friendly message if request fails
  * 
- * Endpoint: GET /api/books/search?q={query}
  * Requirements: 5.1, 5.2
  */
 export const searchBooks = async (query: string): Promise<Book[]> => {
