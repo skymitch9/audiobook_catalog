@@ -6,9 +6,9 @@ export default defineConfig({
   plugins: [react()],
   base: '/',
   build: {
-    outDir: '../site/build',
+    outDir: '../site',
     assetsDir: 'static',
-    emptyOutDir: true,
+    emptyOutDir: false, // Don't empty site dir (contains archive, covers, catalog.csv)
   },
   server: {
     host: '0.0.0.0', // Allow connections from outside container

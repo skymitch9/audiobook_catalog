@@ -18,7 +18,7 @@ def create_app():
     CORS(app)
     
     # Configuration
-    app.config['REACT_BUILD_DIR'] = Path(__file__).parent.parent.parent / 'site' / 'build'
+    app.config['REACT_BUILD_DIR'] = Path(__file__).parent.parent.parent / 'site'
     app.config['ARCHIVE_DIR'] = Path(__file__).parent.parent.parent / 'site' / 'archive'
     app.config['COVERS_DIR'] = Path(__file__).parent.parent.parent / 'site' / 'covers'
     app.config['CATALOG_CSV'] = Path(__file__).parent.parent.parent / 'site' / 'catalog.csv'

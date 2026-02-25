@@ -78,9 +78,9 @@ jobs:
     - name: 📋 Verify site files
       run: |
         echo "::group::Checking generated files"
-        if [ -f "site/build/index.html" ]; then
+        if [ -f "site/index.html" ]; then
           echo "✓ React build index.html found"
-          echo "  Size: $(du -h site/build/index.html | cut -f1)"
+          echo "  Size: $(du -h site/index.html | cut -f1)"
         else
           echo "❌ React build failed - index.html not found"
           exit 1
