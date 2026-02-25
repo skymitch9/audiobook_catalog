@@ -39,62 +39,58 @@ jobs:
       with:
         python-version: '3.12'
     
-    - name: 📦 Install dependencies
+    - name: 📦 Install Python dependencies
       run: |
         echo "::group::Installing Python packages"
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         echo "::endgroup::"
     
-    - name: 📊 Generate catalog
+    - name: 📊 Generate catalog data
       run: |
-        echo "::group::Generating audiobook catalog"
+        echo "::group::Generating audiobook catalog data"
         python -m app.main
         echo "::endgroup::"
       continue-on-error: true
       # Continue even if catalog generation fails (no library in CI)
     
+    - name: 🟢 Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+    
+    - name: 📦 Install frontend dependencies
+      run: |
+        echo "::group::Installing frontend dependencies"
+        cd frontend
+        npm ci
+        echo "::endgroup::"
+    
+    - name: 🏗️ Build React frontend
+      run: |
+        echo "::group::Building React app"
+        cd frontend
+        npm run build
+        echo "::endgroup::"
+    
     - name: 📋 Verify site files
       run: |
         echo "::group::Checking generated files"
-        if [ -f "site/index.html" ]; then
-          echo "✓ index.html found"
-          echo "  Size: $(du -h site/index.html | cut -f1)"
+        if [ -f "site/build/index.html" ]; then
+          echo "✓ React build index.html found"
+          echo "  Size: $(du -h site/build/index.html | cut -f1)"
         else
-          echo "⚠ index.html not found - creating placeholder"
-          mkdir -p site
-          cat > site/index.html << 'EOF'
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <title>Audiobook Catalog</title>
-          <style>
-            body { font-family: system-ui; max-width: 800px; margin: 50px auto; padding: 20px; }
-            h1 { color: #333; }
-            .info { background: #f0f0f0; padding: 20px; border-radius: 8px; }
-          </style>
-        </head>
-        <body>
-          <h1>Audiobook Catalog</h1>
-          <div class="info">
-            <p>This is a placeholder page. The catalog will be generated when the repository contains audiobook files.</p>
-            <p>To generate your catalog:</p>
-            <ol>
-              <li>Clone this repository</li>
-              <li>Add your audiobook files to the library folder</li>
-              <li>Run: <code>python -m app.main</code></li>
-              <li>Push changes to deploy</li>
-            </ol>
-          </div>
-        </body>
-        </html>
-        EOF
+          echo "❌ React build failed - index.html not found"
+          exit 1
         fi
         
         if [ -f "site/catalog.csv" ]; then
           echo "✓ catalog.csv found"
           echo "  Size: $(du -h site/catalog.csv | cut -f1)"
+        else
+          echo "⚠ catalog.csv not found (no audiobooks in repo)"
         fi
         
         if [ -d "site/covers" ]; then
@@ -103,8 +99,8 @@ jobs:
           echo "  Files: $cover_count"
         fi
         
-        if [ -d "site/static" ]; then
-          echo "✓ Static files found"
+        if [ -d "site/archive" ]; then
+          echo "✓ Archive directory found"
         fi
         echo "::endgroup::"
     
