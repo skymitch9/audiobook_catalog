@@ -15,7 +15,7 @@ cp .env.example .env
 # Edit .env and set ROOT_DIR to your audiobook library path
 
 # Build and run
-docker-compose up -d
+docker compose up -d
 
 # Access at http://localhost:5000
 ```
@@ -23,7 +23,7 @@ docker-compose up -d
 ### Development with Hot Reload:
 ```bash
 # Run development container
-docker-compose --profile dev up audiobook-catalog-dev
+docker compose --profile dev up audiobook-catalog-dev
 
 # Flask server: http://localhost:5000
 # Vite dev server: http://localhost:3001
@@ -32,25 +32,25 @@ docker-compose --profile dev up audiobook-catalog-dev
 ### Docker Commands:
 ```bash
 # View logs
-docker-compose logs -f
+docker compose logs -f
 
 # Stop containers
-docker-compose down
+docker compose down
 
 # Rebuild and restart
-docker-compose up -d --build
+docker compose up -d --build
 
 # Run tests
-docker-compose --profile test run --rm audiobook-catalog-test
+docker compose --profile test run --rm audiobook-catalog-test
 
 # Run tests with coverage
-docker-compose --profile test run --rm audiobook-catalog-test python -m pytest tests/ --cov=app --cov-report=html
+docker compose --profile test run --rm audiobook-catalog-test python -m pytest tests/ --cov=app --cov-report=html
 
 # Generate catalog
-docker-compose exec audiobook-catalog python -m app.main
+docker compose exec audiobook-catalog python -m app.main
 
 # Access shell in container
-docker-compose exec audiobook-catalog sh
+docker compose exec audiobook-catalog sh
 ```
 
 ## Manual Setup (Alternative)
@@ -94,7 +94,7 @@ The integrated Flask web server serves:
 
 ```bash
 # Generate catalog (in Docker or locally)
-docker-compose exec audiobook-catalog python -m app.main
+docker compose exec audiobook-catalog python -m app.main
 # or
 python -m app.main
 
@@ -109,13 +109,13 @@ git push
 ### Running Tests:
 ```bash
 # Using Docker test service (recommended)
-docker-compose --profile test run --rm audiobook-catalog-test
+docker compose --profile test run --rm audiobook-catalog-test
 
 # With coverage report
-docker-compose --profile test run --rm audiobook-catalog-test python -m pytest tests/ --cov=app --cov-report=html
+docker compose --profile test run --rm audiobook-catalog-test python -m pytest tests/ --cov=app --cov-report=html
 
 # In running container
-docker-compose exec audiobook-catalog python -m pytest tests/
+docker compose exec audiobook-catalog python -m pytest tests/
 
 # Or locally (if not using Docker)
 python -m pytest tests/
@@ -124,8 +124,8 @@ python -m pytest tests/
 ### Code Quality:
 ```bash
 # Using Docker (recommended)
-docker-compose exec audiobook-catalog black app tests
-docker-compose exec audiobook-catalog flake8 app tests --max-line-length=127
+docker compose exec audiobook-catalog black app tests
+docker compose exec audiobook-catalog flake8 app tests --max-line-length=127
 
 # Or locally
 black app tests
@@ -135,7 +135,7 @@ flake8 app tests --max-line-length=127
 ### Frontend Development:
 ```bash
 # Use dev container for hot reload
-docker-compose --profile dev up audiobook-catalog-dev
+docker compose --profile dev up audiobook-catalog-dev
 
 # Or manually
 cd frontend

@@ -21,13 +21,13 @@ jobs:
     - name: 🏗️ Build Docker test image
       run: |
         echo "::group::Building Docker image"
-        docker-compose build audiobook-catalog-test
+        docker compose build audiobook-catalog-test
         echo "::endgroup::"
     
     - name: 🧪 Run unit tests
       run: |
         echo "::group::Running test suite"
-        docker-compose --profile test run --rm audiobook-catalog-test
+        docker compose --profile test run --rm audiobook-catalog-test
         echo "::endgroup::"
     
     - name: 📊 Test summary
