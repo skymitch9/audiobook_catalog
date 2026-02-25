@@ -26,17 +26,26 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends curl && \
     rm -rf /var/lib/apt/lists/*
 
-# Copy and install only production Python dependencies
+# Copy and install Python dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir \
-    flask>=3.0.0 \
-    flask-cors>=4.0.0 \
-    && if [ "$INSTALL_TEST_DEPS" = "true" ]; then \
-        pip install --no-cache-dir pytest>=7.0.0; \
+RUN if [ "$INSTALL_TEST_DEPS" = "true" ]; then \
+        # Install all dependencies for testing
+        pip install --no-cache-dir -r requirements.txt; \
+    else \
+        # Install only runtime dependencies for production
+        pip install --no-cache-dir \
+            flask>=3.0.0 \
+            flask-cors>=4.0.0; \
     fi \
     && rm -rf /root/.cache/pip
 
-# Copy only necessary application code
+# Copy application code (conditionally based on build type)
+RUN if [ "$INSTALL_TEST_DEPS" = "true" ]; then \
+        # For testing: create placeholder directories that will be mounted
+        mkdir -p ./app ./tests; \
+    fi
+
+# Copy minimal code for production
 COPY app/web/ ./app/web/
 COPY app/__init__.py ./app/__init__.py
 

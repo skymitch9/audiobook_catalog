@@ -7,7 +7,7 @@ from pathlib import Path
 from flask import send_from_directory, jsonify, request, send_file
 
 
-def register_routes(app):
+def register_routes(app):  # noqa: C901
     """Register all routes for the Flask application."""
     
     # ========== React App Routes ==========
