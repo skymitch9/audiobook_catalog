@@ -16,6 +16,9 @@ RUN npm run build
 # Stage 2: Python backend with Flask (slim production image)
 FROM python:3.11-slim
 
+# Build argument for including test dependencies
+ARG INSTALL_TEST_DEPS=false
+
 WORKDIR /app
 
 # Install only curl for healthcheck, clean up in same layer
@@ -28,6 +31,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir \
     flask>=3.0.0 \
     flask-cors>=4.0.0 \
+    && if [ "$INSTALL_TEST_DEPS" = "true" ]; then \
+        pip install --no-cache-dir pytest>=7.0.0; \
+    fi \
     && rm -rf /root/.cache/pip
 
 # Copy only necessary application code
