@@ -619,8 +619,19 @@
         }
 
         // Update leaderboard display
-        function updateLeaderboard() {
-            const leaderboard = getLeaderboard();
+        async function updateLeaderboard() {
+            let leaderboard = [];
+            
+            // Try to get from Firebase first
+            if (window.firebaseLeaderboard) {
+                leaderboard = await window.firebaseLeaderboard.getLeaderboard(currentWeek, 10);
+            }
+            
+            // Fallback to localStorage if Firebase is empty or unavailable
+            if (leaderboard.length === 0) {
+                leaderboard = getLeaderboard();
+            }
+            
             const container = document.getElementById('leaderboard-container');
             
             if (leaderboard.length === 0) {
@@ -639,16 +650,19 @@
                 else if (rank === 2) medal = '🥈';
                 else if (rank === 3) medal = '🥉';
                 
-                const isCurrentPlayer = player.name === playerName;
+                const isCurrentPlayer = player.name === playerName || player.playerName === playerName;
                 const rowClass = isCurrentPlayer ? 'current-player' : '';
+                
+                const displayName = player.name || player.playerName;
+                const accuracy = player.accuracy || (player.total > 0 ? Math.round((player.correct / (player.correct + player.wrong)) * 100) : 0);
                 
                 html += `<tr class="${rowClass}">`;
                 html += `<td><span class="rank-medal">${medal}</span>${rank}</td>`;
-                html += `<td>${player.name}${isCurrentPlayer ? ' (You)' : ''}</td>`;
+                html += `<td>${displayName}${isCurrentPlayer ? ' (You)' : ''}</td>`;
                 html += `<td>${player.points}</td>`;
                 html += `<td>${player.correct}</td>`;
                 html += `<td>${player.wrong}</td>`;
-                html += `<td>${player.accuracy}%</td>`;
+                html += `<td>${accuracy}%</td>`;
                 html += `<td>${player.bestStreak}</td>`;
                 html += `<td><strong>${player.score}</strong></td>`;
                 html += '</tr>';
@@ -689,7 +703,7 @@
             updateLeaderboard();
         }
 
-        function saveScores() {
+        async function saveScores() {
             // All-time stats
             const prefix = `guessGame_${playerName}_`;
             localStorage.setItem(prefix + 'correct', correctCount);
@@ -701,10 +715,23 @@
             const weeklyCorrect = parseInt(localStorage.getItem(weeklyPrefix + 'correct') || '0');
             const weeklyWrong = parseInt(localStorage.getItem(weeklyPrefix + 'wrong') || '0');
             const weeklyBestStreak = parseInt(localStorage.getItem(weeklyPrefix + 'bestStreak') || '0');
+            const weeklyPoints = parseInt(localStorage.getItem(weeklyPrefix + 'points') || '0');
             
             // Update weekly best streak
             if (currentStreak > weeklyBestStreak) {
                 localStorage.setItem(weeklyPrefix + 'bestStreak', currentStreak);
+            }
+            
+            // Submit to Firebase
+            if (window.firebaseLeaderboard) {
+                await window.firebaseLeaderboard.submitScore(
+                    playerName,
+                    currentWeek,
+                    weeklyCorrect,
+                    weeklyWrong,
+                    Math.max(currentStreak, weeklyBestStreak),
+                    weeklyPoints
+                );
             }
             
             updateLeaderboard();
@@ -965,6 +992,88 @@
             
             loadBooks();
         });
+    </script>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+        import { getFirestore, collection, doc, setDoc, getDocs, query, where, orderBy, limit } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyDgAblkxzVxl7nFbd7jXOo6PpuNPsJw11Y",
+            authDomain: "audiobook-catalog.firebaseapp.com",
+            projectId: "audiobook-catalog",
+            storageBucket: "audiobook-catalog.firebasestorage.app",
+            messagingSenderId: "68492219785",
+            appId: "1:68492219785:web:7cbe57dda8712377f0bd58"
+        };
+
+        // Initialize Firebase
+        let db = null;
+        let firebaseEnabled = false;
+
+        try {
+            const app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            firebaseEnabled = true;
+            console.log('Firebase initialized successfully');
+        } catch (error) {
+            console.warn('Firebase not configured, using localStorage only:', error);
+        }
+
+        // Make Firebase functions available globally
+        window.firebaseLeaderboard = {
+            async submitScore(playerName, weekId, correct, wrong, bestStreak, points) {
+                if (!firebaseEnabled) return false;
+                
+                try {
+                    const docId = `${weekId}_${playerName}`;
+                    const score = points * 10 + bestStreak * 5;
+                    
+                    await setDoc(doc(db, 'leaderboard', docId), {
+                        playerName,
+                        weekId,
+                        correct,
+                        wrong,
+                        bestStreak,
+                        points,
+                        score,
+                        lastPlayed: new Date()
+                    }, { merge: true });
+                    
+                    return true;
+                } catch (error) {
+                    console.error('Error submitting score:', error);
+                    return false;
+                }
+            },
+
+            async getLeaderboard(weekId, limitCount = 10) {
+                if (!firebaseEnabled) return [];
+                
+                try {
+                    const q = query(
+                        collection(db, 'leaderboard'),
+                        where('weekId', '==', weekId),
+                        orderBy('score', 'desc'),
+                        limit(limitCount)
+                    );
+                    
+                    const snapshot = await getDocs(q);
+                    const players = [];
+                    
+                    snapshot.forEach(doc => {
+                        players.push(doc.data());
+                    });
+                    
+                    return players;
+                } catch (error) {
+                    console.error('Error fetching leaderboard:', error);
+                    return [];
+                }
+            }
+        };
     </script>
 </body>
 </html>
