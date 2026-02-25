@@ -1,43 +1,104 @@
-# GABI Audiobook Catalog (GitHub Pages)
+# GABI Audiobook Catalog
 
-<!-- Testing Discord webhook integration -->
+Modern audiobook catalog with integrated React frontend and Flask backend.
 
-## Quick Setup
+## Quick Start with Docker (Recommended)
 
-### For Development:
+### Production:
 ```bash
-# Clone and setup
+# Clone repository
 git clone <your-repo>
 cd audiobook_catalog
-
-# Run setup script
-bash setup-dev.sh  # Linux/Mac
-# or
-setup-dev.bat      # Windows
 
 # Configure
 cp .env.example .env
 # Edit .env and set ROOT_DIR to your audiobook library path
 
+# Build and run
+docker compose up -d
+
+# Access at http://localhost:5000
+```
+
+### Development with Hot Reload:
+```bash
+# Run development container
+docker compose --profile dev up audiobook-catalog-dev
+
+# Flask server: http://localhost:5000
+# Vite dev server: http://localhost:3001
+```
+
+### Docker Commands:
+```bash
+# View logs
+docker compose logs -f
+
+# Stop containers
+docker compose down
+
+# Rebuild and restart
+docker compose up -d --build
+
+# Run tests
+docker compose --profile test run --rm audiobook-catalog-test
+
+# Run tests with coverage
+docker compose --profile test run --rm audiobook-catalog-test python -m pytest tests/ --cov=app --cov-report=html
+
+# Generate catalog
+docker compose exec audiobook-catalog python -m app.main
+
+# Access shell in container
+docker compose exec audiobook-catalog sh
+```
+
+## Manual Setup (Alternative)
+
+If you prefer not to use Docker:
+
+```bash
+# Install dependencies
+pip install -r requirements.txt
+cd frontend && npm install && cd ..
+
+# Configure
+cp .env.example .env
+# Edit .env and set ROOT_DIR
+
+# Build frontend
+cd frontend && npm run build && cd ..
+
 # Generate catalog
 python -m app.main
+
+# Run server
+python -m app.web.server
 ```
 
-### For Production:
-```bash
-# Just configure and run
-cp .env.example .env
-pip install -r requirements.txt
-python -m app.main
-```
+## Web Application
 
-## Setup
-1. `cp .env.example .env` and edit `ROOT_DIR`.
-2. `pip install -r requirements.txt`
+The integrated Flask web server serves:
+- **React Frontend** at `/` - Modern catalog interface with modals, search, and Book of the Day
+- **API Endpoints** at `/api/*` - RESTful API for book data
+- **Archive** at `/archive` - Original static HTML catalog (always available)
 
-## Generate & publish
+### Routes:
+- `http://localhost:5000/` - React catalog app
+- `http://localhost:5000/archive` - Static HTML archive
+- `http://localhost:5000/api/books` - All books API
+- `http://localhost:5000/api/books/{id}` - Single book API
+- `http://localhost:5000/api/covers/{path}` - Cover images
+
+## Publishing to GitHub Pages
+
 ```bash
+# Generate catalog (in Docker or locally)
+docker compose exec audiobook-catalog python -m app.main
+# or
 python -m app.main
+
+# Commit and push
 git add site
 git commit -m "Update catalog"
 git push
@@ -45,28 +106,42 @@ git push
 
 ## Development
 
-### Pre-commit Hooks
-Automatically format and check code before commits:
+### Running Tests:
 ```bash
-pip install pre-commit
-pre-commit install
+# Using Docker test service (recommended)
+docker compose --profile test run --rm audiobook-catalog-test
+
+# With coverage report
+docker compose --profile test run --rm audiobook-catalog-test python -m pytest tests/ --cov=app --cov-report=html
+
+# In running container
+docker compose exec audiobook-catalog python -m pytest tests/
+
+# Or locally (if not using Docker)
+python -m pytest tests/
 ```
 
-### Run Tests
+### Code Quality:
 ```bash
-python run_tests.py
-```
+# Using Docker (recommended)
+docker compose exec audiobook-catalog black app tests
+docker compose exec audiobook-catalog flake8 app tests --max-line-length=127
 
-### Code Quality
-```bash
-# Format code
+# Or locally
 black app tests
-
-# Check linting
 flake8 app tests --max-line-length=127
+```
 
-# Run all pre-commit checks
-pre-commit run --all-files
+### Frontend Development:
+```bash
+# Use dev container for hot reload
+docker compose --profile dev up audiobook-catalog-dev
+
+# Or manually
+cd frontend
+npm run dev  # Development server
+npm run build  # Production build
+npm test  # Run tests
 ```
 
 ## Features

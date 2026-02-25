@@ -4,6 +4,14 @@ temp/
 output_files/
 logs/
 *.json
+# But allow package.json and package-lock.json for Node.js projects
+!package.json
+!package-lock.json
+!**/package.json
+!**/package-lock.json
+# Allow tsconfig.json and other config files
+!tsconfig*.json
+!**/tsconfig*.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

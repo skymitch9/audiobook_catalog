@@ -1,8 +1,14 @@
+# Runtime dependencies
 mutagen>=1.47.0
 python-dotenv>=1.0.1
 pandas>=2.0.0
 python-dateutil>=2.8.2
 requests>=2.31.0
+flask>=3.0.0
+flask-cors>=4.0.0
+
+# Testing dependencies
+pytest>=7.0.0
 
 # Development dependencies
 pre-commit>=3.6.0

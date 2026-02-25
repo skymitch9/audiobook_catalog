@@ -1,0 +1,39 @@
+.sort-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.sort-label {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.sort-select {
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+}
+
+.sort-direction-btn {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.375rem;
+  transition: all 0.2s ease;
+  color: var(--text-primary);
+  font-size: 1.25rem;
+}
+
+.sort-direction-btn:hover {
+  background-color: var(--hover-bg);
+}
+
+.sort-direction-btn:focus {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
