@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
-  base: '/catalog/', // React app served at /catalog route
+  base: '/audiobook_catalog/', // GitHub Pages subdirectory (repo name)
   build: {
     outDir: '../site',
     assetsDir: 'static',
