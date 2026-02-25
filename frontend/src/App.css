@@ -1,0 +1,26 @@
+/**
+ * App Component Styles
+ * 
+ * Global layout styles for the application shell.
+ * Provides structure for header and main content area.
+ * 
+ * Requirements: 7.1, 7.2
+ */
+
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--gradient-primary);
+}
+
+.app-main {
+  flex: 1;
+  width: 100%;
+  padding: var(--spacing-xl);
+}
+
+/* Light theme - softer gradient */
+:root.light .app {
+  background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
+}

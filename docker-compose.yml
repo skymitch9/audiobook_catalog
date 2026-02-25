@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  audiobook-catalog:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: audiobook-catalog
+    ports:
+      - "5000:5000"
+    volumes:
+      # Mount site directory for catalog.csv and covers
+      - ./site:/app/site
+      # Mount output_files for generated content
+      - ./output_files:/app/output_files
+    environment:
+      - FLASK_ENV=production
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Optional: Development service with hot reload
+  audiobook-catalog-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: audiobook-catalog-dev
+    ports:
+      - "5000:5000"
+      - "3001:3001"  # Vite dev server
+    volumes:
+      # Mount source code for hot reload
+      - ./app:/app/app
+      - ./frontend:/app/frontend
+      - ./site:/app/site
+      - ./output_files:/app/output_files
+      # Exclude node_modules
+      - /app/frontend/node_modules
+    environment:
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    profiles:
+      - dev
+
+  # Optional: Test runner service
+  audiobook-catalog-test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: audiobook-catalog-test
+    volumes:
+      - ./tests:/app/tests
+      - ./app:/app/app
+      - ./site:/app/site
+    environment:
+      - PYTHONUNBUFFERED=1
+    command: python -m pytest tests/ -v
+    profiles:
+      - test

@@ -1,0 +1,135 @@
+/**
+ * Book of the Day Component Styles
+ */
+
+.book-of-day {
+  background: var(--bg-white);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  margin-bottom: var(--space-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.book-of-day-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-md);
+}
+
+.book-of-day-header h2 {
+  margin: 0;
+  font-size: var(--text-heading-3);
+  color: var(--text-primary);
+}
+
+.random-book-btn {
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-light);
+  color: var(--text-primary);
+  font-size: var(--text-small);
+  cursor: pointer;
+  transition: all var(--transition-base);
+  font-weight: 500;
+}
+
+.random-book-btn:hover {
+  background: var(--bg-lighter);
+  transform: translateY(-1px);
+}
+
+.random-book-btn:active {
+  transform: translateY(0);
+}
+
+.book-of-day-content {
+  display: flex;
+  gap: var(--space-lg);
+  align-items: flex-start;
+}
+
+.book-of-day-cover {
+  flex-shrink: 0;
+}
+
+.book-of-day-cover img {
+  width: 80px;
+  height: auto;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  display: block;
+}
+
+.book-of-day-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.book-of-day-title {
+  font-weight: 600;
+  font-size: var(--text-subtitle);
+  color: var(--text-primary);
+  margin-bottom: var(--space-xs);
+}
+
+.book-of-day-author {
+  color: var(--text-secondary);
+  margin-bottom: var(--space-xs);
+}
+
+.book-of-day-meta {
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+}
+
+.book-of-day-loading {
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .book-of-day {
+    padding: var(--space-md);
+  }
+
+  .book-of-day-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-sm);
+  }
+
+  .book-of-day-header h2 {
+    font-size: var(--text-heading-3);
+  }
+
+  .random-book-btn {
+    width: 100%;
+  }
+
+  .book-of-day-content {
+    flex-direction: column;
+    gap: var(--space-md);
+  }
+
+  .book-of-day-cover img {
+    width: 100%;
+    max-width: 200px;
+  }
+}
+
+@media (max-width: 480px) {
+  .book-of-day-title {
+    font-size: var(--text-normal);
+  }
+
+  .book-of-day-cover img {
+    width: 100%;
+    max-width: 150px;
+  }
+}

@@ -1,0 +1,98 @@
+/**
+ * Header Component Styles
+ * Matches Angular header styling
+ */
+
+.header {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  padding: var(--space-lg) 0;
+  transition: background-color var(--transition-base), border-color var(--transition-base);
+}
+
+/* Dark theme header */
+:root.dark .header,
+html.dark .header {
+  background: rgba(26, 26, 26, 0.95);
+  border-bottom: 1px solid rgba(66, 66, 66, 0.5);
+}
+
+.nav-wrapper {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  gap: var(--space-md);
+}
+
+.logo h1 {
+  margin: 0;
+  font-size: var(--text-heading-2);
+  font-weight: 700;
+  background: var(--primary-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  cursor: default;
+}
+
+.nav {
+  display: flex;
+  gap: var(--space-xl);
+  align-items: center;
+}
+
+.nav-link {
+  text-decoration: none;
+  color: var(--text-primary);
+  font-weight: 500;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-md);
+  transition: all var(--transition-base);
+  font-size: var(--text-normal);
+}
+
+.nav-link:hover {
+  background: rgba(102, 126, 234, 0.1);
+  color: var(--primary-color);
+}
+
+.nav-link.active {
+  background: var(--primary-gradient);
+  color: var(--bg-white);
+}
+
+.nav-link:focus {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+}
+
+@media (max-width: 768px) {
+  .header {
+    padding: var(--space-md) 0;
+  }
+
+  .nav-wrapper {
+    flex-direction: column;
+    gap: var(--space-md);
+  }
+  
+  .logo h1 {
+    font-size: var(--text-heading-3);
+  }
+  
+  .nav {
+    gap: var(--space-md);
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .nav-link {
+    font-size: var(--text-small);
+    padding: var(--space-xs) var(--space-sm);
+  }
+}

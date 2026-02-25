@@ -95,7 +95,11 @@ python scripts/merge_author_maps.py
 
 ### Checking Data Quality
 ```bash
-python run_tests.py test_catalog_completeness -v
+# Using Docker (recommended)
+docker-compose --profile test run --rm audiobook-catalog-test python -m pytest tests/test_catalog_completeness.py -v
+
+# Or locally
+python -m pytest tests/test_catalog_completeness.py -v
 ```
 
 This will show:

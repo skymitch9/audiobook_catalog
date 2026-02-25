@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  # Frontend service - React application
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: audiobook-react-frontend
+    ports:
+      - "3001:3001"
+    depends_on:
+      - backend
+    networks:
+      - audiobook-network
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+
+  # Backend service - Flask API
+  backend:
+    image: audiobook-backend:latest
+    container_name: audiobook-react-backend
+    ports:
+      - "5001:5001"
+    networks:
+      - audiobook-network
+    environment:
+      - FLASK_ENV=production
+      - FLASK_APP=app.py
+    restart: unless-stopped
+    # Uncomment if you have a backend Dockerfile
+    # build:
+    #   context: ../audiobook-backend
+    #   dockerfile: Dockerfile
+
+  # Development service with hot reload (optional)
+  frontend-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: audiobook-react-frontend-dev
+    ports:
+      - "3001:3001"
+    depends_on:
+      - backend
+    networks:
+      - audiobook-network
+    volumes:
+      - ./src:/app/src
+      - ./public:/app/public
+      - ./index.html:/app/index.html
+      - ./vite.config.ts:/app/vite.config.ts
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+    command: npm run dev
+    profiles:
+      - dev
+
+networks:
+  audiobook-network:
+    driver: bridge

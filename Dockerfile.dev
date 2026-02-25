@@ -1,0 +1,44 @@
+# Development Dockerfile with hot reload support
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies including Node.js
+RUN apt-get update && apt-get install -y \
+    curl \
+    gnupg \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy Python requirements
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY app/ ./app/
+COPY scripts/ ./scripts/
+COPY generate_stats.py .
+COPY pyproject.toml .
+
+# Copy frontend
+COPY frontend/package*.json ./frontend/
+WORKDIR /app/frontend
+RUN npm ci
+
+WORKDIR /app
+
+# Expose ports
+EXPOSE 5000 3001
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV FLASK_APP=app.web.server
+ENV FLASK_ENV=development
+ENV FLASK_DEBUG=1
+
+# Development command (runs both Flask and Vite)
+CMD ["sh", "-c", "cd frontend && npm run dev & cd /app && python -m app.web.server"]
