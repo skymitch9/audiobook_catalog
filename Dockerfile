@@ -35,7 +35,7 @@ COPY app/web/ ./app/web/
 COPY app/__init__.py ./app/__init__.py
 
 # Copy built React frontend from builder stage
-COPY --from=frontend-builder /app/frontend/dist ./site/build/
+COPY --from=frontend-builder /app/site/build ./site/build/
 
 # Copy site directory structure (will be populated at runtime)
 RUN mkdir -p ./site/archive ./site/covers
