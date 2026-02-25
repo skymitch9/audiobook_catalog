@@ -1,10 +1,10 @@
 /**
  * API Service Module
  * 
- * Centralized module for all HTTP communication with the Flask backend API.
+ * Centralized module for fetching audiobook data from static CSV file.
  * Provides functions for fetching audiobook data and handles errors consistently.
  * 
- * Base URL: http://localhost:5001/api
+ * For GitHub Pages deployment, data is loaded from catalog.csv
  * 
  * Requirements: 5.1, 5.2, 5.5
  */
@@ -13,110 +13,131 @@ import axios, { AxiosError } from 'axios';
 import type { Book } from '../types/Book';
 
 /**
- * Configure Axios instance with base URL and timeout
+ * Base URL for static assets (GitHub Pages or local)
  */
-const apiClient = axios.create({
-  baseURL: 'http://localhost:5000/api',
-  timeout: 10000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
+const BASE_URL = import.meta.env.BASE_URL || '/';
 
 /**
- * Error handler for API requests
- * Extracts meaningful error messages from various error types
- * 
- * @param error - The error object from axios
- * @returns A user-friendly error message
+ * Parse CSV text into array of Book objects
  */
-const handleApiError = (error: unknown): string => {
-  if (axios.isAxiosError(error)) {
-    const axiosError = error as AxiosError;
+const parseCSV = (csvText: string): Book[] => {
+  const lines = csvText.trim().split('\n');
+  if (lines.length < 2) return [];
+  
+  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+  const books: Book[] = [];
+  
+  for (let i = 1; i < lines.length; i++) {
+    const values: string[] = [];
+    let current = '';
+    let inQuotes = false;
     
-    if (axiosError.response) {
-      // Server responded with error status
-      const status = axiosError.response.status;
-      if (status === 404) {
-        return 'Resource not found';
-      } else if (status === 500) {
-        return 'Server error occurred';
+    // Parse CSV line handling quoted values
+    for (let j = 0; j < lines[i].length; j++) {
+      const char = lines[i][j];
+      if (char === '"') {
+        inQuotes = !inQuotes;
+      } else if (char === ',' && !inQuotes) {
+        values.push(current.trim());
+        current = '';
       } else {
-        return `Request failed with status ${status}`;
+        current += char;
       }
-    } else if (axiosError.request) {
-      // Request made but no response received
-      return 'Network error: Unable to reach the server';
-    } else {
-      // Error setting up the request
-      return 'Request configuration error';
     }
-  } else if (error instanceof Error) {
-    return error.message;
+    values.push(current.trim());
+    
+    // Create book object
+    const book: any = { id: i };
+    headers.forEach((header, index) => {
+      const value = values[index]?.replace(/^"|"$/g, '') || '';
+      book[header] = value;
+    });
+    
+    // Transform cover_href to cover_url with full path
+    if (book.cover_href) {
+      book.cover_url = `${BASE_URL}${book.cover_href}`;
+    }
+    
+    books.push(book as Book);
   }
   
-  return 'An unexpected error occurred';
+  return books;
 };
 
 /**
- * Fetch all books from the backend API
+ * Fetch and parse catalog.csv
+ */
+let cachedBooks: Book[] | null = null;
+
+const fetchCatalog = async (): Promise<Book[]> => {
+  if (cachedBooks) return cachedBooks;
+  
+  try {
+    const response = await axios.get(`${BASE_URL}catalog.csv`, {
+      responseType: 'text',
+      timeout: 10000,
+    });
+    cachedBooks = parseCSV(response.data);
+    return cachedBooks;
+  } catch (error) {
+    console.error('Failed to fetch catalog:', error);
+    throw new Error('Failed to load audiobook catalog');
+  }
+};
+
+/**
+ * Fetch all books from catalog.csv
  * 
  * @returns Promise resolving to array of Book objects
  * @throws Error with user-friendly message if request fails
  * 
- * Endpoint: GET /api/books
  * Requirements: 5.1, 5.2
  */
 export const getAllBooks = async (): Promise<Book[]> => {
-  try {
-    const response = await apiClient.get<Book[]>('/books');
-    return response.data;
-  } catch (error) {
-    const errorMessage = handleApiError(error);
-    throw new Error(`Failed to fetch books: ${errorMessage}`);
-  }
+  return fetchCatalog();
 };
 
 /**
- * Fetch a single book by ID from the backend API
+ * Fetch a single book by ID
  * 
- * @param id - The unique identifier of the book
+ * @param id - The unique identifier of the book (row number)
  * @returns Promise resolving to a Book object
- * @throws Error with user-friendly message if request fails or book not found
+ * @throws Error with user-friendly message if book not found
  * 
- * Endpoint: GET /api/books/{id}
  * Requirements: 5.1, 5.2
  */
 export const getBookById = async (id: number): Promise<Book> => {
-  try {
-    const response = await apiClient.get<Book>(`/books/${id}`);
-    return response.data;
-  } catch (error) {
-    const errorMessage = handleApiError(error);
-    throw new Error(`Failed to fetch book with ID ${id}: ${errorMessage}`);
+  const books = await fetchCatalog();
+  const book = books.find(b => b.id === id);
+  if (!book) {
+    throw new Error(`Book with ID ${id} not found`);
   }
+  return book;
 };
 
 /**
- * Search for books by query string
+ * Search for books by query string (client-side filtering)
  * 
  * @param query - The search query string
  * @returns Promise resolving to array of matching Book objects
- * @throws Error with user-friendly message if request fails
  * 
- * Endpoint: GET /api/books/search?q={query}
  * Requirements: 5.1, 5.2
  */
 export const searchBooks = async (query: string): Promise<Book[]> => {
-  try {
-    const response = await apiClient.get<Book[]>('/books/search', {
-      params: { q: query },
-    });
-    return response.data;
-  } catch (error) {
-    const errorMessage = handleApiError(error);
-    throw new Error(`Failed to search books: ${errorMessage}`);
-  }
+  const books = await fetchCatalog();
+  const lowerQuery = query.toLowerCase();
+  
+  return books.filter(book => {
+    const searchText = [
+      book.title,
+      book.author,
+      book.narrator,
+      book.series,
+      book.genre,
+    ].join(' ').toLowerCase();
+    
+    return searchText.includes(lowerQuery);
+  });
 };
 
 /**
@@ -125,18 +146,9 @@ export const searchBooks = async (query: string): Promise<Book[]> => {
  * @param path - The relative path to the cover image
  * @returns Full URL to the cover image
  * 
- * Helper function to construct cover image URLs from relative paths.
- * The backend serves cover images from the base URL.
- * 
  * Requirements: 5.1
  */
 export const getCoverUrl = (path: string): string => {
-  // Remove leading slash if present to avoid double slashes
   const cleanPath = path.startsWith('/') ? path.slice(1) : path;
-  return `http://localhost:5000/${cleanPath}`;
+  return `${BASE_URL}${cleanPath}`;
 };
-
-/**
- * Export the configured axios instance for advanced use cases
- */
-export default apiClient;
