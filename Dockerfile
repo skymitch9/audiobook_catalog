@@ -5,53 +5,49 @@ FROM node:20-alpine AS frontend-builder
 
 WORKDIR /app/frontend
 
-# Copy frontend package files
-COPY frontend/package.json frontend/package-lock.json ./
+# Copy package files and install dependencies
+COPY frontend/package*.json ./
+RUN npm ci --only=production
 
-# Install dependencies
-RUN npm ci
-
-# Copy frontend source
+# Copy source and build
 COPY frontend/ ./
-
-# Build React app
 RUN npm run build
 
-# Stage 2: Python backend with Flask
+# Stage 2: Python backend with Flask (slim production image)
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+# Install only curl for healthcheck, clean up in same layer
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends curl && \
+    rm -rf /var/lib/apt/lists/*
 
-# Copy Python requirements
+# Copy and install only production Python dependencies
 COPY requirements.txt .
+RUN pip install --no-cache-dir \
+    flask>=3.0.0 \
+    flask-cors>=4.0.0 \
+    && rm -rf /root/.cache/pip
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy application code
-COPY app/ ./app/
-COPY scripts/ ./scripts/
-COPY generate_stats.py .
-COPY pyproject.toml .
+# Copy only necessary application code
+COPY app/web/ ./app/web/
+COPY app/__init__.py ./app/__init__.py
 
 # Copy built React frontend from builder stage
 COPY --from=frontend-builder /app/frontend/dist ./site/build/
 
-# Copy site directory (for archive and catalog.csv)
-COPY site/ ./site/
+# Copy site directory structure (will be populated at runtime)
+RUN mkdir -p ./site/archive ./site/covers
 
 # Expose Flask port
 EXPOSE 5000
 
 # Set environment variables
-ENV PYTHONUNBUFFERED=1
-ENV FLASK_APP=app.web.server
-ENV FLASK_ENV=production
+ENV PYTHONUNBUFFERED=1 \
+    FLASK_APP=app.web.server \
+    FLASK_ENV=production \
+    PYTHONDONTWRITEBYTECODE=1
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
