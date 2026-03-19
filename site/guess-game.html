@@ -75,20 +75,6 @@
             gap: 8px;
         }
 
-        .edit-name-btn {
-            background: none;
-            border: none;
-            cursor: pointer;
-            font-size: 0.8em;
-            padding: 4px 8px;
-            border-radius: 5px;
-            transition: background 0.2s;
-        }
-
-        .edit-name-btn:hover {
-            background: rgba(102, 126, 234, 0.1);
-        }
-
         .book-cover-container {
             margin: 30px 0;
             position: relative;
@@ -383,6 +369,127 @@
             font-style: italic;
         }
 
+        /* Identity bar styles */
+        #identity-bar {
+            margin-bottom: 20px;
+        }
+
+        .identity-bar {
+            padding: 12px 16px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #667eea20 0%, #764ba220 100%);
+            border: 1px solid #667eea40;
+        }
+
+        .identity-bar--logged-in {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .identity-bar__greeting {
+            font-weight: 600;
+            color: #667eea;
+            font-size: 0.95em;
+        }
+
+        .identity-bar__logout-btn {
+            padding: 6px 14px;
+            border: none;
+            border-radius: 6px;
+            background: #6c757d;
+            color: white;
+            cursor: pointer;
+            font-size: 0.85em;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+
+        .identity-bar__logout-btn:hover {
+            background: #5a6268;
+        }
+
+        .identity-bar--logged-out {
+            text-align: left;
+        }
+
+        .identity-bar__form {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-end;
+            gap: 10px;
+        }
+
+        .identity-bar__label {
+            display: flex;
+            flex-direction: column;
+            font-size: 0.8em;
+            color: #555;
+            font-weight: 600;
+            gap: 3px;
+        }
+
+        .identity-bar__input {
+            padding: 6px 10px;
+            border: 2px solid #667eea60;
+            border-radius: 6px;
+            font-size: 0.9em;
+            width: 140px;
+            transition: border-color 0.2s;
+        }
+
+        .identity-bar__input:focus {
+            outline: none;
+            border-color: #764ba2;
+        }
+
+        .identity-bar__error {
+            color: #dc3545;
+            font-size: 0.75em;
+            display: block;
+            width: 100%;
+        }
+
+        .identity-bar__error--general {
+            margin-top: 4px;
+        }
+
+        .identity-bar__buttons {
+            display: flex;
+            gap: 6px;
+        }
+
+        .identity-bar__register-btn,
+        .identity-bar__signin-btn {
+            padding: 6px 14px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85em;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .identity-bar__register-btn {
+            background: #667eea;
+            color: white;
+        }
+
+        .identity-bar__register-btn:hover {
+            background: #764ba2;
+        }
+
+        .identity-bar__signin-btn {
+            background: transparent;
+            color: #667eea;
+            border: 2px solid #667eea;
+        }
+
+        .identity-bar__signin-btn:hover {
+            background: #667eea10;
+        }
+
         @media (max-width: 600px) {
             .game-container {
                 padding: 20px;
@@ -403,12 +510,13 @@
         <h1>🎧 Guess That Audiobook!</h1>
         <p class="subtitle">Can you guess how long this audiobook is?</p>
 
+        <div id="identity-bar"></div>
+
         <div class="score-board">
             <div class="score-item">
                 <div class="score-label">Player</div>
                 <div class="player-name-container">
                     <div class="score-value" id="player-name" style="font-size: 1.2em;">Guest</div>
-                    <button class="edit-name-btn" onclick="changePlayer()" title="Edit player name">✏️</button>
                 </div>
             </div>
             <div class="score-item">
@@ -696,61 +804,21 @@
             container.innerHTML = html;
         }
 
-        // Get or set player name
+        // Get or set player name from identity session
         function getPlayerName() {
-            let name = localStorage.getItem('guessGame_playerName');
-            if (!name) {
-                // Keep prompting until we get a valid name
-                while (!name || name.trim().length < 2) {
-                    name = prompt('Welcome! Enter your name to track your scores (2-20 characters):');
-                    
-                    // User cancelled - use Guest
-                    if (name === null) {
-                        name = 'Guest';
-                        break;
-                    }
-                    
-                    name = name.trim();
-                    
-                    if (name.length < 2) {
-                        alert('Name must be at least 2 characters long.');
-                        name = null; // Reset to prompt again
-                    } else if (name.length > 20) {
-                        alert('Name must be 20 characters or less.');
-                        name = null; // Reset to prompt again
-                    }
-                }
-                
-                localStorage.setItem('guessGame_playerName', name);
-            }
-            return name;
+            // Prefer identity session name, fall back to game-specific key
+            let name = localStorage.getItem('ab_identity_name') || localStorage.getItem('guessGame_playerName');
+            return name || 'Guest';
         }
 
-        function changePlayer() {
-            const newName = prompt('Enter your name (2-20 characters):', playerName);
-            
-            // User cancelled
-            if (newName === null) return;
-            
-            // Validate name
-            const trimmedName = newName.trim();
-            if (trimmedName.length < 2) {
-                alert('Name must be at least 2 characters long.');
-                return changePlayer(); // Try again
-            }
-            if (trimmedName.length > 20) {
-                alert('Name must be 20 characters or less.');
-                return changePlayer(); // Try again
-            }
-            
-            // Update if changed
-            if (trimmedName && trimmedName !== playerName) {
-                playerName = trimmedName;
-                localStorage.setItem('guessGame_playerName', playerName);
-                document.getElementById('player-name').textContent = playerName;
-                loadScores();
-            }
-        }
+        // Called by identity module when auth state changes
+        window.onIdentityChange = function(session) {
+            playerName = session ? session.displayName : 'Guest';
+            // Sync guessGame_playerName with identity for backward compatibility
+            localStorage.setItem('guessGame_playerName', playerName);
+            document.getElementById('player-name').textContent = playerName;
+            loadScores();
+        };
 
         // Load scores from localStorage (player-specific)
         function loadScores() {
@@ -1058,6 +1126,7 @@
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
         import { getFirestore, collection, doc, setDoc, getDocs, query, where, orderBy, limit } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+        import { renderIdentityBar, getSession } from './identity.js';
 
         // Firebase configuration
         const firebaseConfig = {
@@ -1080,6 +1149,22 @@
             console.log('Firebase initialized successfully');
         } catch (error) {
             console.warn('Firebase not configured, using localStorage only:', error);
+        }
+
+        // Render identity bar
+        const identityBarEl = document.getElementById('identity-bar');
+        if (identityBarEl && db) {
+            renderIdentityBar(identityBarEl, db, {
+                onAuthChange: (session) => {
+                    window.onIdentityChange(session);
+                }
+            });
+
+            // Set initial player name from session
+            const session = getSession();
+            if (session) {
+                window.onIdentityChange(session);
+            }
         }
 
         // Make Firebase functions available globally

@@ -1,0 +1,30 @@
+{
+  "name": "audiobook_catalog",
+  "version": "1.0.0",
+  "description": "<!-- Testing Discord webhook integration -->",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "vitest --run"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/skymitch9/audiobook_catalog.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/skymitch9/audiobook_catalog/issues"
+  },
+  "homepage": "https://github.com/skymitch9/audiobook_catalog#readme",
+  "devDependencies": {
+    "fast-check": "^4.6.0",
+    "firebase": "^12.10.0",
+    "jsdom": "^28.1.0",
+    "vitest": "^4.1.0"
+  }
+}

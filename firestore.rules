@@ -1,0 +1,40 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /leaderboard/{docId} {
+      // Allow read access to all leaderboard entries
+      allow read: if true;
+      
+      // Allow write only if document ID matches pattern: weekId_playerName
+      // and the playerName in the document matches the one in the ID
+      allow write: if request.resource.data.playerName is string
+                   && docId.matches('^[0-9]{4}-W[0-9]{2}_.*')
+                   && docId.split('_')[1] == request.resource.data.playerName;
+    }
+
+    match /users/{userId} {
+      // Allow read access to all user documents
+      allow read: if true;
+
+      // Allow create only when document contains required fields
+      allow create: if request.resource.data.displayName is string
+                    && request.resource.data.passphraseHash is string;
+
+      // Allow update for password reset flag or setting new passphrase
+      allow update: if true;
+    }
+
+    match /reviews/{reviewId} {
+      // Allow read access to all reviews
+      allow read: if true;
+
+      // Allow write when document has valid displayName, rating (1-5), and non-empty text
+      allow write: if request.resource.data.displayName is string
+                   && request.resource.data.rating is int
+                   && request.resource.data.rating >= 1
+                   && request.resource.data.rating <= 5
+                   && request.resource.data.text is string
+                   && request.resource.data.text.size() > 0;
+    }
+  }
+}

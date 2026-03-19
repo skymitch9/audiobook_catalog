@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin - Audiobook Catalog</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: system-ui, -apple-system, sans-serif;
+    background: #0f141a; color: #e7eef7;
+    padding: 20px; min-height: 100vh;
+  }
+  .container { max-width: 800px; margin: 0 auto; }
+  h1 { margin-bottom: 8px; }
+  .subtitle { color: #9fb0c6; margin-bottom: 20px; }
+  .auth-gate { padding: 20px; background: #1a2330; border: 1px solid #263241; border-radius: 12px; margin-bottom: 20px; }
+  .auth-gate p { margin-bottom: 10px; }
+  #identity-bar { margin-bottom: 20px; }
+  .identity-bar { padding: 10px 14px; border-radius: 10px; background: #1a2330; border: 1px solid #263241; }
+  .identity-bar--logged-in { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .identity-bar__greeting { font-weight: 600; }
+  .identity-bar__logout-btn { padding: 6px 14px; border: 1px solid #2b3a4d; border-radius: 8px; background: #1a2330; color: #e7eef7; cursor: pointer; }
+  .identity-bar__logout-btn:hover { background: #16324a; }
+  .identity-bar--logged-out { text-align: left; }
+  .identity-bar__form { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .identity-bar__label { display: flex; align-items: center; gap: 4px; font-size: .9rem; color: #9fb0c6; }
+  .identity-bar__input { padding: 6px 10px; border: 1px solid #263241; border-radius: 8px; background: #0f141a; color: #e7eef7; font-size: .9rem; }
+  .identity-bar__buttons { display: flex; gap: 6px; }
+  .identity-bar__register-btn, .identity-bar__signin-btn { padding: 6px 14px; border: 1px solid #2b3a4d; border-radius: 8px; background: #1a2330; color: #e7eef7; cursor: pointer; }
+  .identity-bar__register-btn:hover, .identity-bar__signin-btn:hover { background: #16324a; }
+  .identity-bar__error { color: #e53e3e; font-size: .85rem; display: block; }
+  .denied { padding: 40px; text-align: center; color: #e53e3e; font-size: 1.2rem; }
+  .user-table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+  .user-table th, .user-table td { padding: 10px 12px; border: 1px solid #263241; text-align: left; }
+  .user-table th { background: #1a2330; color: #9fb0c6; }
+  .user-table tr:nth-child(even) { background: #121820; }
+  .reset-btn {
+    padding: 4px 12px; border: 1px solid #e53e3e; border-radius: 6px;
+    background: transparent; color: #e53e3e; cursor: pointer; font-size: .85rem;
+  }
+  .reset-btn:hover { background: #e53e3e20; }
+  .reset-btn:disabled { opacity: .5; cursor: not-allowed; }
+  .status { font-size: .8rem; margin-left: 8px; }
+  .status--ok { color: #48bb78; }
+  .status--reset { color: #f6ad55; }
+  .back-link { display: inline-block; margin-top: 20px; color: #667eea; text-decoration: none; }
+  .back-link:hover { text-decoration: underline; }
+  .loading { color: #9fb0c6; padding: 20px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>🔧 Admin Panel</h1>
+  <p class="subtitle">Manage user accounts</p>
+
+  <div id="identity-bar"></div>
+  <div id="admin-content"></div>
+
+  <a href="index.html" class="back-link">← Back to Catalog</a>
+</div>
+
+<script type="module">
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+  import { getFirestore, collection, getDocs } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+  import { renderIdentityBar, getSession, adminResetPassword } from './identity.js';
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyDgAblkxzVxl7nFbd7jXOo6PpuNPsJw11Y",
+    authDomain: "audiobook-catalog.firebaseapp.com",
+    projectId: "audiobook-catalog",
+    storageBucket: "audiobook-catalog.firebasestorage.app",
+    messagingSenderId: "68492219785",
+    appId: "1:68492219785:web:7cbe57dda8712377f0bd58"
+  };
+
+  const ADMIN_NAME = '!Sky';
+  let db = null;
+
+  try {
+    const app = initializeApp(firebaseConfig);
+    db = getFirestore(app);
+  } catch (e) {
+    console.warn('Firebase init failed:', e);
+  }
+
+  function checkAccess() {
+    const content = document.getElementById('admin-content');
+    const session = getSession();
+
+    if (!session || session.displayName !== ADMIN_NAME) {
+      content.innerHTML = '<div class="denied">⛔ Access denied. Sign in as admin.</div>';
+      return;
+    }
+
+    loadUsers();
+  }
+
+  async function loadUsers() {
+    const content = document.getElementById('admin-content');
+    content.innerHTML = '<div class="loading">Loading users…</div>';
+
+    try {
+      const snapshot = await getDocs(collection(db, 'users'));
+      const users = [];
+      snapshot.forEach(d => users.push({ id: d.id, ...d.data() }));
+
+      users.sort((a, b) => (a.displayName || '').localeCompare(b.displayName || ''));
+
+      let html = '<table class="user-table"><thead><tr><th>Display Name</th><th>Status</th><th>Action</th></tr></thead><tbody>';
+
+      users.forEach(u => {
+        const isReset = u.passwordReset === true;
+        const statusHtml = isReset
+          ? '<span class="status status--reset">🔄 Reset pending</span>'
+          : '<span class="status status--ok">✅ Active</span>';
+
+        html += `<tr>
+          <td>${escapeHtml(u.displayName || u.id)}</td>
+          <td>${statusHtml}</td>
+          <td><button class="reset-btn" data-name="${escapeHtml(u.displayName || u.id)}" ${isReset ? 'disabled' : ''}>Reset Password</button></td>
+        </tr>`;
+      });
+
+      html += '</tbody></table>';
+      content.innerHTML = html;
+
+      // Attach click handlers
+      content.querySelectorAll('.reset-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const name = btn.dataset.name;
+          if (!confirm(`Reset password for "${name}"? They will be prompted to set a new passphrase on next login.`)) return;
+
+          btn.disabled = true;
+          btn.textContent = 'Resetting…';
+
+          const result = await adminResetPassword(name, db);
+          if (result.success) {
+            btn.textContent = 'Done ✓';
+            const statusCell = btn.closest('tr').querySelector('.status');
+            if (statusCell) {
+              statusCell.className = 'status status--reset';
+              statusCell.innerHTML = '🔄 Reset pending';
+            }
+          } else {
+            btn.textContent = 'Failed';
+            alert(result.error);
+            btn.disabled = false;
+            btn.textContent = 'Reset Password';
+          }
+        });
+      });
+    } catch (e) {
+      content.innerHTML = '<div class="denied">Failed to load users.</div>';
+      console.error(e);
+    }
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  // Render identity bar
+  const identityBarEl = document.getElementById('identity-bar');
+  if (identityBarEl && db) {
+    renderIdentityBar(identityBarEl, db, {
+      onAuthChange: () => checkAccess()
+    });
+  }
+
+  checkAccess();
+</script>
+</body>
+</html>
