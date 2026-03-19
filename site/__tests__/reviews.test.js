@@ -39,32 +39,35 @@ vi.mock('firebase/firestore', () => {
     where: (field, op, value) => ({ _type: 'where', field, op, value }),
     orderBy: (field, direction) => ({ _type: 'orderBy', field, direction }),
     getDocs: async (q) => {
+      // Support both collection references (no _constraints) and query objects
+      const collectionName = q._collectionName;
       const allDocs = Object.entries(mockStore)
-        .filter(([key]) => key.startsWith(`${q._collectionName}/`))
+        .filter(([key]) => key.startsWith(`${collectionName}/`))
         .map(([key, data]) => ({ id: key.split('/')[1], data: () => ({ ...data }) }));
 
-      // Apply where constraints
+      // If called with a query wrapper that has constraints, apply them
       let filtered = allDocs;
-      for (const c of q._constraints) {
-        if (c._type === 'where') {
-          filtered = filtered.filter((d) => {
-            const val = d.data()[c.field];
-            if (c.op === '==') return val === c.value;
-            return true;
-          });
+      if (q._constraints) {
+        for (const c of q._constraints) {
+          if (c._type === 'where') {
+            filtered = filtered.filter((d) => {
+              const val = d.data()[c.field];
+              if (c.op === '==') return val === c.value;
+              return true;
+            });
+          }
         }
-      }
 
-      // Apply orderBy constraints
-      for (const c of q._constraints) {
-        if (c._type === 'orderBy') {
-          filtered.sort((a, b) => {
-            const aVal = a.data()[c.field];
-            const bVal = b.data()[c.field];
-            const aSeconds = aVal && aVal.seconds != null ? aVal.seconds : 0;
-            const bSeconds = bVal && bVal.seconds != null ? bVal.seconds : 0;
-            return c.direction === 'desc' ? bSeconds - aSeconds : aSeconds - bSeconds;
-          });
+        for (const c of q._constraints) {
+          if (c._type === 'orderBy') {
+            filtered.sort((a, b) => {
+              const aVal = a.data()[c.field];
+              const bVal = b.data()[c.field];
+              const aSeconds = aVal && aVal.seconds != null ? aVal.seconds : 0;
+              const bSeconds = bVal && bVal.seconds != null ? bVal.seconds : 0;
+              return c.direction === 'desc' ? bSeconds - aSeconds : aSeconds - bSeconds;
+            });
+          }
         }
       }
 

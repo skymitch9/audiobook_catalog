@@ -370,7 +370,8 @@ describe('renderIdentityBar', () => {
     nameInput.value = 'A';
     passInput.value = 'ab';
 
-    container.querySelector('.identity-bar__signin-btn').click();
+    // Use Register button which validates both fields simultaneously
+    container.querySelector('.identity-bar__register-btn').click();
 
     const errors = container.querySelectorAll('.identity-bar__error');
     expect(errors[0].textContent).toContain('Display name');
