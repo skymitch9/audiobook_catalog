@@ -697,6 +697,20 @@ def run_pipeline(
 
     print("=" * 60)
 
+    # -----------------------------------------------------------------------
+    # Step 5: Rebuild catalog (so deploy can detect new books for Discord)
+    # -----------------------------------------------------------------------
+    if not dry_run and uploaded_count > 0:
+        print("\n[STEP 5] Rebuilding catalog...")
+        try:
+            from app.main import main as catalog_main
+            catalog_main()
+            print("  Catalog rebuilt. Commit & push to trigger Discord notification.")
+        except Exception as e:
+            print(f"  [WARN] Catalog rebuild failed: {e}")
+    elif uploaded_count > 0:
+        print("\n[STEP 5] Skipped catalog rebuild (dry-run)")
+
 
 # ---------------------------------------------------------------------------
 # CLI
