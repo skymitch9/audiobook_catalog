@@ -68,8 +68,21 @@ def organize_by_author(root_dir: Path, exts: set[str], recursive: bool = True, d
     Moves files under root_dir into subfolders named after the detected author.
     - Only files with extensions in `exts` are processed.
     - If a file already resides in an 'Author' folder that matches the author, it is skipped.
+    - Applies author aliases to normalize folder names.
     - Set dry_run=True to preview without moving.
     """
+    # Load aliases
+    import json
+    alias_path = Path(__file__).resolve().parent.parent.parent / "scripts" / "author_aliases.json"
+    aliases = {}
+    if alias_path.exists():
+        try:
+            with open(alias_path, "r", encoding="utf-8") as af:
+                raw = json.load(af)
+                aliases = {k.lower(): v for k, v in raw.items() if not k.startswith("_")}
+        except Exception:
+            pass
+
     if recursive:
         files = [p for p in root_dir.rglob("*") if p.is_file() and p.suffix.lower() in exts]
     else:
@@ -84,6 +97,13 @@ def organize_by_author(root_dir: Path, exts: set[str], recursive: bool = True, d
         if not author:
             print(f"Skipping (no author): {f.relative_to(root_dir)}")
             continue
+
+        # Apply alias resolution (skip folder ID overrides)
+        alias_key = author.lower()
+        if alias_key in aliases:
+            resolved = aliases[alias_key]
+            if not resolved.startswith("__FOLDER_ID__"):
+                author = resolved
 
         # Target folder directly under ROOT_DIR
         author_folder = root_dir / author

@@ -358,8 +358,8 @@ def resolve_author_to_drive_folder(
 
     # 2. Check if author name is contained in a folder name (handles "Author - Series" pattern)
     for folder_name, folder_id in drive_folders.items():
-        # Check if author is the prefix before a dash
-        parts = folder_name.split(" - ")
+        # Check if author is the prefix before a dash or slash
+        parts = folder_name.replace("/", " - ").split(" - ")
         for part in parts:
             if part.strip().lower() == author_name.lower():
                 return (folder_name, folder_id)
