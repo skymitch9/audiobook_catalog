@@ -6,6 +6,7 @@ logs/
 *.json
 !package.json
 !package-lock.json
+!author_drive_map.json
 !vitest.config.js
 scripts/upload_manifest.json
 scripts/token.json

@@ -32,7 +32,7 @@ jobs:
     
     steps:
     - name: 📥 Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
     
     - name: 🐍 Set up Python
       uses: actions/setup-python@v5
@@ -109,7 +109,7 @@ jobs:
         echo "::endgroup::"
     
     - name: 📄 Setup Pages
-      uses: actions/configure-pages@v4
+      uses: actions/configure-pages@v5
     
     - name: 📦 Upload artifact
       uses: actions/upload-pages-artifact@v3
@@ -129,7 +129,7 @@ jobs:
     
     steps:
     - name: � Checkout  code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       with:
         fetch-depth: 2  # Fetch last 2 commits to compare
     
@@ -151,7 +151,7 @@ jobs:
     
     - name: 🚀 Deploy to GitHub Pages
       id: deployment
-      uses: actions/deploy-pages@v4
+      uses: actions/deploy-pages@v5
     
     - name: ✅ Deployment summary
       run: |
