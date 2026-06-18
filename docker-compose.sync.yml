@@ -1,0 +1,41 @@
+# Docker Compose for autonomous audiobook sync pipeline
+# Usage:
+#   docker compose -f docker-compose.sync.yml up -d
+#   docker compose -f docker-compose.sync.yml logs -f
+#   docker compose -f docker-compose.sync.yml down
+
+services:
+  audiobook-sync:
+    build:
+      context: .
+      dockerfile: Dockerfile.sync
+    container_name: audiobook-sync
+    restart: unless-stopped
+    environment:
+      # Git push credentials (GitHub Personal Access Token)
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - GITHUB_USER=${GITHUB_USER:-skymitch9}
+      - GIT_EMAIL=${GIT_EMAIL:-nbaslamking@gmail.com}
+      - GIT_USER=${GIT_USER:-BookBuddy Bot}
+      # App config (from .env)
+      - ROOT_DIR=/library
+      - Claude-llm=${Claude-llm}
+      - Email=${Email}
+      - DRIVE_FOLDER_URL=${DRIVE_FOLDER_URL}
+      - DRIVE_AUTHORS_ROOT=${DRIVE_AUTHORS_ROOT}
+    volumes:
+      # Mount your audiobook library (read-only for safety)
+      - C:\Users\nbasl\OpenAudible\books:/library:ro
+      # Mount Google Drive OAuth tokens (so container doesn't need re-auth)
+      - ./scripts/token.json:/app/scripts/token.json
+      - ./scripts/credentials.json:/app/scripts/credentials.json
+      # Persist upload manifest between container restarts
+      - sync-data:/app/scripts/data
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  sync-data:

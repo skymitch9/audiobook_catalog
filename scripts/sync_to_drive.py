@@ -705,11 +705,72 @@ def run_pipeline(
         try:
             from app.main import main as catalog_main
             catalog_main()
-            print("  Catalog rebuilt. Commit & push to trigger Discord notification.")
+            print("  Catalog rebuilt.")
         except Exception as e:
             print(f"  [WARN] Catalog rebuild failed: {e}")
+
+        # Auto-commit and push if there are changes
+        print("\n[STEP 6] Auto-commit & push...")
+        _auto_commit_and_push()
     elif uploaded_count > 0:
         print("\n[STEP 5] Skipped catalog rebuild (dry-run)")
+
+
+# ---------------------------------------------------------------------------
+# Auto-commit and push (for autonomous operation)
+# ---------------------------------------------------------------------------
+
+
+def _auto_commit_and_push() -> None:
+    """Commit updated catalog/site files and push to trigger deploy + Discord."""
+    import subprocess
+
+    try:
+        # Check if there are changes to commit
+        status = subprocess.run(
+            ["git", "status", "--porcelain", "site/", "author_drive_map.json"],
+            capture_output=True, text=True, cwd=str(PROJECT_ROOT),
+        )
+        if not status.stdout.strip():
+            print("  No catalog changes to commit.")
+            return
+
+        # Stage site files
+        subprocess.run(
+            ["git", "add", "site/catalog.csv", "site/index.html", "site/covers/",
+             "site/stats.html", "author_drive_map.json"],
+            cwd=str(PROJECT_ROOT), capture_output=True,
+        )
+
+        # Count new books for commit message
+        changed_files = status.stdout.strip().split("\n")
+        num_changes = len(changed_files)
+
+        # Commit
+        commit_msg = f"feat(catalog): Auto-update catalog ({num_changes} file changes)"
+        result = subprocess.run(
+            ["git", "commit", "-m", commit_msg],
+            capture_output=True, text=True, cwd=str(PROJECT_ROOT),
+        )
+        if result.returncode != 0:
+            print(f"  [WARN] Commit failed: {result.stderr.strip()}")
+            return
+
+        print(f"  Committed: {commit_msg}")
+
+        # Push
+        result = subprocess.run(
+            ["git", "push"],
+            capture_output=True, text=True, cwd=str(PROJECT_ROOT),
+        )
+        if result.returncode != 0:
+            print(f"  [WARN] Push failed: {result.stderr.strip()}")
+            return
+
+        print("  Pushed to origin. Deploy + Discord notification will fire.")
+
+    except Exception as e:
+        print(f"  [ERROR] Auto-commit failed: {e}")
 
 
 # ---------------------------------------------------------------------------

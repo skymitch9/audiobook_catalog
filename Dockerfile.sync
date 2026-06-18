@@ -1,0 +1,32 @@
+# Dockerfile for autonomous audiobook sync pipeline
+# Runs hourly: sort → upload to Drive → rebuild catalog → commit & push
+FROM python:3.12-slim
+
+# Install git (needed for auto-commit/push)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    cron \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy requirements and install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the full project
+COPY . .
+
+# Create log directory
+RUN mkdir -p /var/log/audiobook-sync
+
+# Set up cron job - runs hourly
+RUN echo "0 * * * * cd /app && python scripts/sync_to_drive.py --upload-only >> /var/log/audiobook-sync/sync.log 2>&1" > /etc/cron.d/audiobook-sync \
+    && chmod 0644 /etc/cron.d/audiobook-sync \
+    && crontab /etc/cron.d/audiobook-sync
+
+# Entrypoint script handles git config, env vars for cron, and starts cron
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
+
+ENTRYPOINT ["/docker-entrypoint.sh"]
