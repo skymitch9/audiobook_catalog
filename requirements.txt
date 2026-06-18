@@ -4,6 +4,15 @@ pandas>=2.0.0
 python-dateutil>=2.8.2
 requests>=2.31.0
 
+# Google Drive API
+google-auth>=2.29.0
+google-auth-oauthlib>=1.2.0
+google-auth-httplib2>=0.2.0
+google-api-python-client>=2.127.0
+
+# Fuzzy matching for author name deduplication
+thefuzz>=0.22.1
+
 # Development dependencies
 pre-commit>=3.6.0
 black>=24.1.1
