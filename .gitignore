@@ -7,6 +7,7 @@ logs/
 !package.json
 !package-lock.json
 !author_drive_map.json
+!scripts/author_aliases.json
 !vitest.config.js
 scripts/upload_manifest.json
 scripts/token.json

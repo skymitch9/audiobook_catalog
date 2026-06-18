@@ -1,0 +1,41 @@
+{
+  "_description": "Maps alternate author names to the canonical name used on Google Drive. The value should match (or be findable within) the Drive folder name.",
+  "_priority_authors": "Dakota Krout and Brandon Sanderson are always the primary author when co-authoring.",
+  "_folder_id_overrides": "For folders with weird names (slashes, etc), map author directly to Drive folder ID below.",
+
+  "Alex Toxic": "Nadya Lee",
+  "Nadya Lee": "Nadya Lee",
+
+  "Randi Darren": "__FOLDER_ID__:1-R1KBlGgSUZkDI98z6unZhqaqvoLtbO4",
+  "William D. Arand": "__FOLDER_ID__:1-R1KBlGgSUZkDI98z6unZhqaqvoLtbO4",
+
+  "Alexey Kovtunov": "Oleg Sapphire",
+  "Oleg Sapphire": "Oleg Sapphire",
+
+  "J J Bookerson": "JJ Bookerson",
+  "JJ Bookerson": "JJ Bookerson",
+
+  "Mashton X X": "Mashton XX",
+  "Mashton XX": "Mashton XX",
+
+  "N. C. Lux": "N. C. Lux",
+  "N.C. Lux": "N. C. Lux",
+
+  "T. L. Payne": "T.L. Payne",
+  "T.L. Payne": "T.L. Payne",
+
+  "Jim Butcher - Editor": "Jim Butcher",
+  "Jim Butcher": "Jim Butcher",
+
+  "リュート": "Ryuto",
+  "Ryuto": "Ryuto",
+
+  "Dennis Vanderkerken": "Dakota Krout",
+  "Dakota Krout": "Dakota Krout",
+
+  "Dan Wells": "Dan Wells",
+  "Brandon Sanderson": "Brandon Sanderson",
+
+  "A.j. Pine": "A. J. Pine",
+  "A. J. Pine": "A. J. Pine"
+}
