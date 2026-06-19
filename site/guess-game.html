@@ -68,13 +68,6 @@
             color: #667eea;
         }
 
-        .player-name-container {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-        }
-
         .book-cover-container {
             margin: 30px 0;
             position: relative;
@@ -369,127 +362,6 @@
             font-style: italic;
         }
 
-        /* Identity bar styles */
-        #identity-bar {
-            margin-bottom: 20px;
-        }
-
-        .identity-bar {
-            padding: 12px 16px;
-            border-radius: 10px;
-            background: linear-gradient(135deg, #667eea20 0%, #764ba220 100%);
-            border: 1px solid #667eea40;
-        }
-
-        .identity-bar--logged-in {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-        }
-
-        .identity-bar__greeting {
-            font-weight: 600;
-            color: #667eea;
-            font-size: 0.95em;
-        }
-
-        .identity-bar__logout-btn {
-            padding: 6px 14px;
-            border: none;
-            border-radius: 6px;
-            background: #6c757d;
-            color: white;
-            cursor: pointer;
-            font-size: 0.85em;
-            font-weight: 600;
-            transition: background 0.2s;
-        }
-
-        .identity-bar__logout-btn:hover {
-            background: #5a6268;
-        }
-
-        .identity-bar--logged-out {
-            text-align: left;
-        }
-
-        .identity-bar__form {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: flex-end;
-            gap: 10px;
-        }
-
-        .identity-bar__label {
-            display: flex;
-            flex-direction: column;
-            font-size: 0.8em;
-            color: #555;
-            font-weight: 600;
-            gap: 3px;
-        }
-
-        .identity-bar__input {
-            padding: 6px 10px;
-            border: 2px solid #667eea60;
-            border-radius: 6px;
-            font-size: 0.9em;
-            width: 140px;
-            transition: border-color 0.2s;
-        }
-
-        .identity-bar__input:focus {
-            outline: none;
-            border-color: #764ba2;
-        }
-
-        .identity-bar__error {
-            color: #dc3545;
-            font-size: 0.75em;
-            display: block;
-            width: 100%;
-        }
-
-        .identity-bar__error--general {
-            margin-top: 4px;
-        }
-
-        .identity-bar__buttons {
-            display: flex;
-            gap: 6px;
-        }
-
-        .identity-bar__register-btn,
-        .identity-bar__signin-btn {
-            padding: 6px 14px;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 0.85em;
-            font-weight: 600;
-            transition: all 0.2s;
-        }
-
-        .identity-bar__register-btn {
-            background: #667eea;
-            color: white;
-        }
-
-        .identity-bar__register-btn:hover {
-            background: #764ba2;
-        }
-
-        .identity-bar__signin-btn {
-            background: transparent;
-            color: #667eea;
-            border: 2px solid #667eea;
-        }
-
-        .identity-bar__signin-btn:hover {
-            background: #667eea10;
-        }
-
         @media (max-width: 600px) {
             .game-container {
                 padding: 20px;
@@ -510,14 +382,10 @@
         <h1>🎧 Guess That Audiobook!</h1>
         <p class="subtitle">Can you guess how long this audiobook is?</p>
 
-        <div id="identity-bar"></div>
-
         <div class="score-board">
             <div class="score-item">
                 <div class="score-label">Player</div>
-                <div class="player-name-container">
-                    <div class="score-value" id="player-name" style="font-size: 1.2em;">Guest</div>
-                </div>
+                <div class="score-value" id="player-name" style="font-size: 1.2em; cursor: pointer;" onclick="changePlayer()" title="Click to change player">Guest</div>
             </div>
             <div class="score-item">
                 <div class="score-label">Correct</div>
@@ -751,19 +619,8 @@
         }
 
         // Update leaderboard display
-        async function updateLeaderboard() {
-            let leaderboard = [];
-            
-            // Try to get from Firebase first
-            if (window.firebaseLeaderboard) {
-                leaderboard = await window.firebaseLeaderboard.getLeaderboard(currentWeek, 10);
-            }
-            
-            // Fallback to localStorage if Firebase is empty or unavailable
-            if (leaderboard.length === 0) {
-                leaderboard = getLeaderboard();
-            }
-            
+        function updateLeaderboard() {
+            const leaderboard = getLeaderboard();
             const container = document.getElementById('leaderboard-container');
             
             if (leaderboard.length === 0) {
@@ -782,19 +639,16 @@
                 else if (rank === 2) medal = '🥈';
                 else if (rank === 3) medal = '🥉';
                 
-                const isCurrentPlayer = player.name === playerName || player.playerName === playerName;
+                const isCurrentPlayer = player.name === playerName;
                 const rowClass = isCurrentPlayer ? 'current-player' : '';
-                
-                const displayName = player.name || player.playerName;
-                const accuracy = player.accuracy || (player.total > 0 ? Math.round((player.correct / (player.correct + player.wrong)) * 100) : 0);
                 
                 html += `<tr class="${rowClass}">`;
                 html += `<td><span class="rank-medal">${medal}</span>${rank}</td>`;
-                html += `<td>${displayName}${isCurrentPlayer ? ' (You)' : ''}</td>`;
+                html += `<td>${player.name}${isCurrentPlayer ? ' (You)' : ''}</td>`;
                 html += `<td>${player.points}</td>`;
                 html += `<td>${player.correct}</td>`;
                 html += `<td>${player.wrong}</td>`;
-                html += `<td>${accuracy}%</td>`;
+                html += `<td>${player.accuracy}%</td>`;
                 html += `<td>${player.bestStreak}</td>`;
                 html += `<td><strong>${player.score}</strong></td>`;
                 html += '</tr>';
@@ -804,21 +658,25 @@
             container.innerHTML = html;
         }
 
-        // Get or set player name from identity session
+        // Get or set player name
         function getPlayerName() {
-            // Prefer identity session name, fall back to game-specific key
-            let name = localStorage.getItem('ab_identity_name') || localStorage.getItem('guessGame_playerName');
-            return name || 'Guest';
+            let name = localStorage.getItem('guessGame_playerName');
+            if (!name) {
+                name = prompt('Welcome! Enter your name to track your scores:') || 'Guest';
+                localStorage.setItem('guessGame_playerName', name);
+            }
+            return name;
         }
 
-        // Called by identity module when auth state changes
-        window.onIdentityChange = function(session) {
-            playerName = session ? session.displayName : 'Guest';
-            // Sync guessGame_playerName with identity for backward compatibility
-            localStorage.setItem('guessGame_playerName', playerName);
-            document.getElementById('player-name').textContent = playerName;
-            loadScores();
-        };
+        function changePlayer() {
+            const newName = prompt('Enter your name:', playerName) || playerName;
+            if (newName && newName !== playerName) {
+                playerName = newName;
+                localStorage.setItem('guessGame_playerName', playerName);
+                document.getElementById('player-name').textContent = playerName;
+                loadScores();
+            }
+        }
 
         // Load scores from localStorage (player-specific)
         function loadScores() {
@@ -831,7 +689,7 @@
             updateLeaderboard();
         }
 
-        async function saveScores() {
+        function saveScores() {
             // All-time stats
             const prefix = `guessGame_${playerName}_`;
             localStorage.setItem(prefix + 'correct', correctCount);
@@ -843,23 +701,10 @@
             const weeklyCorrect = parseInt(localStorage.getItem(weeklyPrefix + 'correct') || '0');
             const weeklyWrong = parseInt(localStorage.getItem(weeklyPrefix + 'wrong') || '0');
             const weeklyBestStreak = parseInt(localStorage.getItem(weeklyPrefix + 'bestStreak') || '0');
-            const weeklyPoints = parseInt(localStorage.getItem(weeklyPrefix + 'points') || '0');
             
             // Update weekly best streak
             if (currentStreak > weeklyBestStreak) {
                 localStorage.setItem(weeklyPrefix + 'bestStreak', currentStreak);
-            }
-            
-            // Submit to Firebase
-            if (window.firebaseLeaderboard) {
-                await window.firebaseLeaderboard.submitScore(
-                    playerName,
-                    currentWeek,
-                    weeklyCorrect,
-                    weeklyWrong,
-                    Math.max(currentStreak, weeklyBestStreak),
-                    weeklyPoints
-                );
             }
             
             updateLeaderboard();
@@ -1120,105 +965,6 @@
             
             loadBooks();
         });
-    </script>
-
-    <!-- Firebase SDK -->
-    <script type="module">
-        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
-        import { getFirestore, collection, doc, setDoc, getDocs, query, where, orderBy, limit } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
-        import { renderIdentityBar, getSession } from './identity.js';
-
-        // Firebase configuration
-        const firebaseConfig = {
-            apiKey: "AIzaSyDgAblkxzVxl7nFbd7jXOo6PpuNPsJw11Y",
-            authDomain: "audiobook-catalog.firebaseapp.com",
-            projectId: "audiobook-catalog",
-            storageBucket: "audiobook-catalog.firebasestorage.app",
-            messagingSenderId: "68492219785",
-            appId: "1:68492219785:web:7cbe57dda8712377f0bd58"
-        };
-
-        // Initialize Firebase
-        let db = null;
-        let firebaseEnabled = false;
-
-        try {
-            const app = initializeApp(firebaseConfig);
-            db = getFirestore(app);
-            firebaseEnabled = true;
-            console.log('Firebase initialized successfully');
-        } catch (error) {
-            console.warn('Firebase not configured, using localStorage only:', error);
-        }
-
-        // Render identity bar
-        const identityBarEl = document.getElementById('identity-bar');
-        if (identityBarEl && db) {
-            renderIdentityBar(identityBarEl, db, {
-                onAuthChange: (session) => {
-                    window.onIdentityChange(session);
-                }
-            });
-
-            // Set initial player name from session
-            const session = getSession();
-            if (session) {
-                window.onIdentityChange(session);
-            }
-        }
-
-        // Make Firebase functions available globally
-        window.firebaseLeaderboard = {
-            async submitScore(playerName, weekId, correct, wrong, bestStreak, points) {
-                if (!firebaseEnabled) return false;
-                
-                try {
-                    const docId = `${weekId}_${playerName}`;
-                    const score = points * 10 + bestStreak * 5;
-                    
-                    await setDoc(doc(db, 'leaderboard', docId), {
-                        playerName,
-                        weekId,
-                        correct,
-                        wrong,
-                        bestStreak,
-                        points,
-                        score,
-                        lastPlayed: new Date()
-                    }, { merge: true });
-                    
-                    return true;
-                } catch (error) {
-                    console.error('Error submitting score:', error);
-                    return false;
-                }
-            },
-
-            async getLeaderboard(weekId, limitCount = 10) {
-                if (!firebaseEnabled) return [];
-                
-                try {
-                    const q = query(
-                        collection(db, 'leaderboard'),
-                        where('weekId', '==', weekId),
-                        orderBy('score', 'desc'),
-                        limit(limitCount)
-                    );
-                    
-                    const snapshot = await getDocs(q);
-                    const players = [];
-                    
-                    snapshot.forEach(doc => {
-                        players.push(doc.data());
-                    });
-                    
-                    return players;
-                } catch (error) {
-                    console.error('Error fetching leaderboard:', error);
-                    return [];
-                }
-            }
-        };
     </script>
 </body>
 </html>
