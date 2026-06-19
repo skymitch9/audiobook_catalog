@@ -104,8 +104,10 @@ def create_embed(new_books_data, site_url):
 
             # Add cover image if available
             if cover:
-                # Convert relative path to full URL
-                cover_url = f"{site_url.rstrip('/')}/{cover.lstrip('/')}"
+                # Convert relative path to full URL (URL-encode spaces and special chars)
+                from urllib.parse import quote
+                cover_encoded = quote(cover.lstrip('/'), safe='/')
+                cover_url = f"{site_url.rstrip('/')}/{cover_encoded}"
                 book_embed["thumbnail"] = {"url": cover_url}
 
             embeds.append(book_embed)
@@ -120,13 +122,28 @@ def send_notification(webhook_url, embeds):
     try:
         response = requests.post(webhook_url, json=payload, headers={"Content-Type": "application/json"})
         response.raise_for_status()
-        print(f"✓ Discord notification sent successfully")
+        print("✓ Discord notification sent successfully")
         return True
     except requests.exceptions.RequestException as e:
-        print(f"✗ Failed to send Discord notification: {e}")
-        if hasattr(e.response, "text"):
+        print(f"✗ First attempt failed: {e}")
+        if hasattr(e, "response") and e.response is not None:
             print(f"Response: {e.response.text}")
-        return False
+
+        # Retry without thumbnails (common cause of 400 errors)
+        print("  Retrying without cover images...")
+        for embed in embeds:
+            embed.pop("thumbnail", None)
+        payload = {"embeds": embeds}
+        try:
+            response = requests.post(webhook_url, json=payload, headers={"Content-Type": "application/json"})
+            response.raise_for_status()
+            print("✓ Discord notification sent (without covers)")
+            return True
+        except requests.exceptions.RequestException as e2:
+            print(f"✗ Retry also failed: {e2}")
+            if hasattr(e2, "response") and e2.response is not None:
+                print(f"Response: {e2.response.text}")
+            return False
 
 
 def main():
