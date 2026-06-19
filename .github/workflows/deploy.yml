@@ -169,6 +169,7 @@ jobs:
     - name: 💾 Save catalog snapshot
       if: success()
       run: |
+        python -m app.tools.detect_new_books --update-snapshot
         if [ -f "last_catalog_snapshot.json" ]; then
           git config user.email "nbaslamking@gmail.com"
           git config user.name "BookBuddy Bot"

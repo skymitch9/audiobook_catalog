@@ -98,8 +98,10 @@ def main():
     with open("new_books.json", "w", encoding="utf-8") as f:
         json.dump(output, f, indent=2)
 
-    # Update snapshot with current state (so next run only shows truly new books)
-    save_snapshot(list(current_id_set), len(current_books))
+    # Only update snapshot if --update-snapshot flag is passed (done by CI after Discord fires)
+    if "--update-snapshot" in sys.argv:
+        save_snapshot(list(current_id_set), len(current_books))
+        print("  Snapshot updated.")
 
     print(f"Found {len(new_books)} new books (total: {len(current_books)})")
     if new_books:
