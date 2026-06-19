@@ -11,6 +11,8 @@ services:
       dockerfile: Dockerfile.sync
     container_name: audiobook-sync
     restart: unless-stopped
+    env_file:
+      - .env
     environment:
       # Git push credentials (GitHub Personal Access Token)
       - GITHUB_TOKEN=${GITHUB_TOKEN}
