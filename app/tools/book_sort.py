@@ -63,6 +63,30 @@ def get_author_name(file_path: Path) -> Optional[str]:
         return None
 
 
+def _load_aliases() -> dict:
+    """Load author aliases from the scripts directory."""
+    import json
+    alias_path = Path(__file__).resolve().parent.parent.parent / "scripts" / "author_aliases.json"
+    if alias_path.exists():
+        try:
+            with open(alias_path, "r", encoding="utf-8") as af:
+                raw = json.load(af)
+                return {k.lower(): v for k, v in raw.items() if not k.startswith("_")}
+        except Exception:
+            pass
+    return {}
+
+
+def _resolve_author_alias(author: str, aliases: dict) -> str:
+    """Resolve an author name through the alias map."""
+    alias_key = author.lower()
+    if alias_key in aliases:
+        resolved = aliases[alias_key]
+        if not resolved.startswith("__FOLDER_ID__"):
+            return resolved
+    return author
+
+
 def organize_by_author(root_dir: Path, exts: set[str], recursive: bool = True, dry_run: bool = False) -> None:
     """
     Moves files under root_dir into subfolders named after the detected author.
@@ -71,17 +95,7 @@ def organize_by_author(root_dir: Path, exts: set[str], recursive: bool = True, d
     - Applies author aliases to normalize folder names.
     - Set dry_run=True to preview without moving.
     """
-    # Load aliases
-    import json
-    alias_path = Path(__file__).resolve().parent.parent.parent / "scripts" / "author_aliases.json"
-    aliases = {}
-    if alias_path.exists():
-        try:
-            with open(alias_path, "r", encoding="utf-8") as af:
-                raw = json.load(af)
-                aliases = {k.lower(): v for k, v in raw.items() if not k.startswith("_")}
-        except Exception:
-            pass
+    aliases = _load_aliases()
 
     if recursive:
         files = [p for p in root_dir.rglob("*") if p.is_file() and p.suffix.lower() in exts]
@@ -98,12 +112,8 @@ def organize_by_author(root_dir: Path, exts: set[str], recursive: bool = True, d
             print(f"Skipping (no author): {f.relative_to(root_dir)}")
             continue
 
-        # Apply alias resolution (skip folder ID overrides)
-        alias_key = author.lower()
-        if alias_key in aliases:
-            resolved = aliases[alias_key]
-            if not resolved.startswith("__FOLDER_ID__"):
-                author = resolved
+        # Apply alias resolution
+        author = _resolve_author_alias(author, aliases)
 
         # Target folder directly under ROOT_DIR
         author_folder = root_dir / author
