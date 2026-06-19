@@ -165,3 +165,14 @@ jobs:
         SITE_URL: ${{ steps.deployment.outputs.page_url }}
       run: |
         python -m app.tools.send_discord_notification
+
+    - name: 💾 Save catalog snapshot
+      if: success()
+      run: |
+        if [ -f "last_catalog_snapshot.json" ]; then
+          git config user.email "nbaslamking@gmail.com"
+          git config user.name "BookBuddy Bot"
+          git add last_catalog_snapshot.json
+          git diff --cached --quiet || git commit -m "chore: Update catalog snapshot [skip ci]"
+          git push || true
+        fi

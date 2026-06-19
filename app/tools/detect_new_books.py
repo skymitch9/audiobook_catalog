@@ -1,37 +1,39 @@
 #!/usr/bin/env python3
 """
-Detect new books added since last commit.
-Compares current catalog.csv with previous version from git.
+Detect new books by comparing current catalog against a saved snapshot.
+On first run (no snapshot), saves current state as baseline.
+On subsequent runs, finds books in catalog that weren't in the snapshot.
+After Discord notification fires, the snapshot is updated.
+
 Outputs new_books.json for Discord notification.
 """
 import csv
 import json
-import subprocess
 import sys
 from pathlib import Path
 
+SNAPSHOT_PATH = Path("last_catalog_snapshot.json")
 
-def get_previous_catalog():
-    """Get catalog.csv from previous commit."""
+
+def load_snapshot() -> set:
+    """Load the previous catalog snapshot (set of book IDs)."""
+    if not SNAPSHOT_PATH.exists():
+        return set()
     try:
-        result = subprocess.run(["git", "show", "HEAD~1:site/catalog.csv"], capture_output=True, text=True, check=True)
-        return result.stdout
-    except subprocess.CalledProcessError:
-        # No previous commit or file doesn't exist
-        return None
+        with open(SNAPSHOT_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            return set(data.get("book_ids", []))
+    except Exception:
+        return set()
 
 
-def parse_csv_content(content):
-    """Parse CSV content into list of book dicts."""
-    if not content:
-        return []
-
-    lines = content.strip().split("\n")
-    if len(lines) < 2:
-        return []
-
-    reader = csv.DictReader(lines)
-    return list(reader)
+def save_snapshot(book_ids: list, total_count: int) -> None:
+    """Save current catalog state as the new snapshot."""
+    with open(SNAPSHOT_PATH, "w", encoding="utf-8") as f:
+        json.dump({
+            "book_ids": book_ids,
+            "total_count": total_count,
+        }, f)
 
 
 def main():
@@ -44,17 +46,31 @@ def main():
     with open(current_csv, "r", encoding="utf-8") as f:
         current_books = list(csv.DictReader(f))
 
-    # Get previous catalog
-    previous_content = get_previous_catalog()
-    previous_books = parse_csv_content(previous_content)
-
-    # Create sets of book identifiers (title + author)
+    # Build current book IDs
     def book_id(book):
         return f"{book.get('title', '')}|{book.get('author', '')}"
 
-    previous_ids = {book_id(b) for b in previous_books}
+    current_ids = [book_id(b) for b in current_books]
+    current_id_set = set(current_ids)
 
-    # Find new books
+    # Load previous snapshot
+    previous_ids = load_snapshot()
+
+    # First run — no snapshot exists, create baseline
+    if not previous_ids:
+        print(f"First run: saving baseline snapshot ({len(current_books)} books)")
+        save_snapshot(list(current_id_set), len(current_books))
+        # Still output new_books.json with 0 new (so Discord doesn't fire)
+        output = {
+            "new_count": 0,
+            "total_count": len(current_books),
+            "books": [],
+        }
+        with open("new_books.json", "w", encoding="utf-8") as f:
+            json.dump(output, f, indent=2)
+        return
+
+    # Find new books (in current but not in snapshot)
     new_books = []
     for book in current_books:
         if book_id(book) not in previous_ids:
@@ -82,7 +98,10 @@ def main():
     with open("new_books.json", "w", encoding="utf-8") as f:
         json.dump(output, f, indent=2)
 
-    print(f"Found {len(new_books)} new books")
+    # Update snapshot with current state (so next run only shows truly new books)
+    save_snapshot(list(current_id_set), len(current_books))
+
+    print(f"Found {len(new_books)} new books (total: {len(current_books)})")
     if new_books:
         print("New books:")
         for book in new_books[:5]:
