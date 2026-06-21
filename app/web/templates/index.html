@@ -200,6 +200,124 @@ a.link-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
 
 /* Make table rows look clickable */
 #ab-table tbody tr{ cursor:pointer; }
+
+/* =============== Identity Bar =============== */
+#identity-bar{
+  background: linear-gradient(135deg, var(--bg-2) 0%, var(--chip) 100%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+}
+.identity-bar--logged-in{
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.identity-bar__greeting{
+  font-weight: 600;
+  font-size: 1rem;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+body:not(.dark) .identity-bar__greeting{
+  background: linear-gradient(135deg, #4a56c8, #6b3fa0);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.identity-bar__logout-btn{
+  padding: 6px 14px;
+  border: 1px solid var(--btn-border);
+  border-radius: 999px;
+  background: var(--btn-bg);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: .85em;
+  transition: all .2s;
+}
+.identity-bar__logout-btn:hover{
+  background: var(--btn-bg-active);
+  color: var(--text);
+}
+.identity-bar--logged-out{
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.identity-bar__form{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-end;
+}
+.identity-bar__label{
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: .8em;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+.identity-bar__input{
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: .95rem;
+  width: 160px;
+  transition: border-color .2s, box-shadow .2s;
+}
+.identity-bar__input:focus{
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, .15);
+}
+.identity-bar__buttons{
+  display: flex;
+  gap: 6px;
+}
+.identity-bar__register-btn,
+.identity-bar__signin-btn{
+  padding: 9px 18px;
+  border: none;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: .9em;
+  cursor: pointer;
+  transition: all .2s;
+}
+.identity-bar__signin-btn{
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, .3);
+}
+.identity-bar__signin-btn:hover{
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, .4);
+}
+.identity-bar__register-btn{
+  background: var(--btn-bg);
+  color: var(--text);
+  border: 1px solid var(--btn-border);
+}
+.identity-bar__register-btn:hover{
+  background: var(--btn-bg-active);
+}
+.identity-bar__error{
+  display: block;
+  font-size: .8em;
+  color: #e53e3e;
+  margin-top: -4px;
+}
+.identity-bar__error--general{
+  width: 100%;
+  margin-top: 2px;
+}
 </style>
 
 <!-- Author → Drive map loaded from external JSON file -->
