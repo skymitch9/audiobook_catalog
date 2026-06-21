@@ -66,6 +66,7 @@ def _row_cells(r: Dict[str, str]) -> str:
             f"<td>{_esc(r.get('year',''))}</td>",
             f"<td>{_esc(r.get('genre',''))}</td>",
             f"<td>{_esc(r.get('duration_hhmm',''))}</td>",
+            f'<td class="rating-cell" data-sort="0">—</td>',
         ]
     )
 

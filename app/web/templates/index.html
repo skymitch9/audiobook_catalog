@@ -3,27 +3,38 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <title>Audiobook Catalog</title>
 <style>
-/* =============== Theming =============== */
+/* =============== Theming — Cyberpunk 2077 =============== */
 :root{
-  --pad:14px; --radius:14px;
-  --bg:#ffffff; --bg-2:#fafafa;
-  --text:#1b1f23; --muted:#5f6b7a;
-  --border:#e5e7eb;
-  --chip:#f2f2f2;
-  --btn-bg:#f7f7f7; --btn-bg-active:#e8f0fe; --btn-border:#ddd; --btn-active:#b6c6ff;
-  --row-alt:#fcfcfc; --row-hover:#f5f9ff;
-  --overlay: rgba(0,0,0,.55);
+  --pad:14px; --radius:4px;
+  --bg:#f0eff4; --bg-2:#e4e3ea;
+  --text:#1a1a2e; --muted:#4a4a5a;
+  --border:#c8c6d0;
+  --chip:#dcdae4;
+  --btn-bg:#e4e3ea; --btn-bg-active:#d4d2e0; --btn-border:#b8b6c0; --btn-active:#fcee0a;
+  --row-alt:#eae9f0; --row-hover:#e0dff0;
+  --overlay: rgba(20,20,40,.7);
+  --neon-yellow:#c4a800;
+  --neon-cyan:#0098a8;
+  --neon-magenta:#c4205a;
+  --neon-blue:#5a48cc;
+  --accent: var(--neon-yellow);
 }
 body.dark{
-  --bg:#0f141a; --bg-2:#121820;
-  --text:#e7eef7; --muted:#9fb0c6;
-  --border:#263241;
-  --chip:#1f2a37;
-  --btn-bg:#1a2330; --btn-bg-active:#16324a; --btn-border:#2b3a4d; --btn-active:#2d72d2;
-  --row-alt:#0f1722; --row-hover:#132033;
-  --overlay: rgba(0,0,0,.65);
+  --bg:#0a0a12; --bg-2:#12121f;
+  --text:#e8e6e3; --muted:#8a8f98;
+  --border:#2a2a3a;
+  --chip:#1a1a2e;
+  --btn-bg:#1a1a2e; --btn-bg-active:#2a1a3e; --btn-border:#3a2a4a; --btn-active:#fcee0a;
+  --row-alt:#0e0e1a; --row-hover:#1a1028;
+  --overlay: rgba(0,0,0,.85);
+  --neon-yellow:#fcee0a;
+  --neon-cyan:#05d9e8;
+  --neon-magenta:#ff2a6d;
+  --neon-blue:#7b61ff;
 }
 
 /* =============== Base Layout =============== */
@@ -31,40 +42,71 @@ body.dark{
 html,body{height:100%}
 body{
   margin:0; padding:var(--pad);
-  font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+  font-family:'Rajdhani', 'Share Tech Mono', 'Segoe UI', system-ui, sans-serif;
   background:var(--bg); color:var(--text);
 }
+body.dark{
+  background-image:
+    radial-gradient(ellipse at 20% 50%, rgba(252,238,10,.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(5,217,232,.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 80%, rgba(255,42,109,.02) 0%, transparent 50%);
+}
 #wrap{max-width:1100px;margin:0 auto}
-h1{margin:0 0 8px 0}
+h1{
+  margin:0 0 8px 0;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:2px;
+  color: var(--neon-yellow);
+  text-shadow: 0 0 10px rgba(252,238,10,.4), 0 0 40px rgba(252,238,10,.1);
+}
 
 /* Controls */
 #controls{display:grid;gap:8px;grid-template-columns:1fr;align-items:center;margin:8px 0 14px}
 .controls-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 input#ab-search, select#ab-sort, select#ab-page-size{
   flex:1 1 auto; padding:10px 12px; border:1px solid var(--border); border-radius:var(--radius);
-  background:var(--bg-2); color:var(--text)
+  background:var(--bg-2); color:var(--text);
+  transition: border-color .2s, box-shadow .2s;
+}
+input#ab-search:focus, select#ab-sort:focus, select#ab-page-size:focus{
+  border-color: var(--neon-cyan);
+  box-shadow: 0 0 8px rgba(5,217,232,.3), inset 0 0 4px rgba(5,217,232,.1);
 }
 button.btn{
   padding:10px 12px; border:1px solid var(--btn-border); border-radius:var(--radius);
-  background:var(--btn-bg); color:var(--text); cursor:pointer
+  background:var(--btn-bg); color:var(--text); cursor:pointer;
+  text-transform:uppercase; letter-spacing:.5px; font-weight:600; font-size:.85em;
+  transition: all .2s;
+  clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
+  padding: 10px 18px;
 }
-button.btn:focus, select:focus, input:focus{ outline:2px solid #2d72d2; outline-offset:2px }
+button.btn:hover{
+  background: var(--neon-yellow);
+  color: #0a0a12;
+  border-color: var(--neon-yellow);
+  box-shadow: 0 0 12px rgba(252,238,10,.4);
+}
+button.btn:focus, select:focus, input:focus{ outline:2px solid var(--neon-cyan); outline-offset:2px }
 
-/* Game button - exciting but not distracting */
+/* Game button - Cyberpunk neon style */
 .game-btn{
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+  background: linear-gradient(135deg, #ff2a6d 0%, #7b61ff 100%) !important;
   color: white !important;
   border: none !important;
-  font-weight: 600;
+  font-weight: 700;
   padding: 12px 20px !important;
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  box-shadow: 0 0 15px rgba(255,42,109,.4), 0 0 30px rgba(123,97,255,.2);
   transition: all 0.3s ease;
   position: relative;
   overflow: hidden;
+  clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
 }
 .game-btn:hover{
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 0 20px rgba(255,42,109,.6), 0 0 40px rgba(123,97,255,.3);
 }
 .game-btn:active{
   transform: translateY(0);
@@ -72,74 +114,92 @@ button.btn:focus, select:focus, input:focus{ outline:2px solid #2d72d2; outline-
 .game-btn::before{
   content: '';
   position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 0;
-  height: 0;
-  border-radius: 50%;
-  background: rgba(255,255,255,0.2);
-  transform: translate(-50%, -50%);
-  transition: width 0.6s, height 0.6s;
+  top: 0; left: -100%;
+  width: 100%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.15), transparent);
+  transition: left .5s;
 }
 .game-btn:hover::before{
-  width: 300px;
-  height: 300px;
+  left: 100%;
 }
 
 #meta{color:var(--muted)}
 
-/* Dark mode switch */
+/* Dark mode switch — neon toggle */
 .switch{ display:inline-flex; align-items:center; gap:8px; user-select:none }
-.switch .label{font-size:.95em; color:var(--muted)}
+.switch .label{font-size:.85em; color:var(--muted); text-transform:uppercase; letter-spacing:.5px}
 .switch input{display:none}
 .switch .track{
-  width:46px; height:26px; border-radius:999px; position:relative;
-  background:var(--btn-border); transition:background .2s
+  width:46px; height:26px; border-radius:4px; position:relative;
+  background:var(--border); transition:background .2s;
+  border:1px solid var(--border);
 }
 .switch .thumb{
-  width:20px; height:20px; border-radius:50%; position:absolute; top:3px; left:3px;
-  background:#fff; transition:left .2s, background .2s
+  width:20px; height:20px; border-radius:2px; position:absolute; top:2px; left:3px;
+  background:var(--muted); transition:left .2s, background .2s;
 }
-body.dark .switch .thumb{ background:#dbeafe }
-.switch input:checked + .track .thumb{ left:23px }
-.switch input:checked + .track{ background:#2d72d2 }
+.switch input:checked + .track .thumb{ left:23px; background:var(--neon-cyan); box-shadow:0 0 6px rgba(5,217,232,.5); }
+.switch input:checked + .track{ background:var(--bg-2); border-color:var(--neon-cyan); }
 
-/* Table */
+/* Table — cyberpunk grid */
 table{border-collapse:collapse;width:100%}
 th, td{border:1px solid var(--border); padding:10px; vertical-align:middle}
-th{background:var(--bg-2); user-select:none; position:sticky; top:0; z-index:1}
+th{
+  background:var(--bg-2); user-select:none; position:sticky; top:0; z-index:1;
+  text-transform:uppercase; font-size:.8em; letter-spacing:1px; color:var(--neon-cyan);
+  border-bottom:2px solid var(--neon-cyan);
+}
 tr:nth-child(even){background:var(--row-alt)}
-tbody tr:hover{background:var(--row-hover)}
+tbody tr:hover{
+  background:var(--row-hover);
+  box-shadow: inset 3px 0 0 var(--neon-magenta);
+}
 th[data-type="num"]{text-align:right}
 td:nth-child(4){text-align:right}
 
-/* Covers: de-bord cover cell + image/button */
+/* Covers: cyberpunk glow on hover */
 td:first-child{width:72px; border-top: none; border-bottom: 1px solid var(--border); border-left: none; border-right: none;}
-img.cover{width:56px;height:auto;border-radius:6px;display:block;border:none;box-shadow:none;background:transparent}
+img.cover{width:56px;height:auto;border-radius:2px;display:block;border:1px solid var(--border);box-shadow:none;background:transparent;transition:all .2s}
+img.cover:hover{border-color:var(--neon-cyan);box-shadow:0 0 8px rgba(5,217,232,.4)}
 button.cover-btn{display:block;border:none;background:transparent;padding:0;cursor:pointer}
-button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
+button.cover-btn:focus{ outline:2px solid var(--neon-cyan); outline-offset:2px }
 
-/* Cards */
+/* Cards — angular cyberpunk panels */
 #ab-cards{display:none;grid-template-columns:1fr;gap:10px}
 .ab-card{
   border:1px solid var(--border); border-radius:var(--radius); padding:12px;
   background:var(--bg-2); cursor:pointer;
+  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+  transition: all .2s;
 }
-.ab-card:hover{background:var(--row-hover)}
-.ab-card .t{font-weight:600;margin-bottom:4px;display:flex;align-items:center;gap:8px}
+.ab-card:hover{
+  background:var(--row-hover);
+  border-color:var(--neon-magenta);
+  box-shadow: 0 0 12px rgba(255,42,109,.2);
+}
+.ab-card .t{font-weight:600;margin-bottom:4px;display:flex;align-items:center;gap:8px;color:var(--neon-yellow)}
 .ab-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
-.ab-chip{background:var(--chip);padding:4px 8px;border-radius:999px;font-size:.9em;color:var(--text)}
-.cover-inline{width:40px;height:auto;border-radius:6px;display:inline-block;vertical-align:middle}
+.ab-chip{
+  background:var(--chip);padding:4px 8px;border-radius:2px;font-size:.85em;color:var(--muted);
+  border:1px solid var(--border);
+  font-family:'Share Tech Mono', monospace;
+}
+.cover-inline{width:40px;height:auto;border-radius:2px;display:inline-block;vertical-align:middle;border:1px solid var(--border)}
 
-/* Pagination */
+/* Pagination — neon pills */
 .pagination{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.pagination-info{color:var(--muted)}
+.pagination-info{color:var(--muted); font-family:'Share Tech Mono', monospace; font-size:.85em}
 #ab-page-nav{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .page-btn{
-  padding:6px 10px; border:1px solid var(--btn-border); border-radius:10px;
-  background:var(--btn-bg); cursor:pointer; color:var(--text)
+  padding:6px 10px; border:1px solid var(--btn-border); border-radius:2px;
+  background:var(--btn-bg); cursor:pointer; color:var(--text);
+  font-family:'Share Tech Mono', monospace; transition:all .2s;
 }
-.page-btn.active, .page-btn:disabled{background:var(--btn-bg-active); border-color:var(--btn-active); cursor:default}
+.page-btn:hover{border-color:var(--neon-cyan); color:var(--neon-cyan)}
+.page-btn.active, .page-btn:disabled{
+  background:var(--neon-yellow); color:#0a0a12; border-color:var(--neon-yellow); cursor:default;
+  box-shadow:0 0 8px rgba(252,238,10,.3);
+}
 
 /* Empty state */
 #ab-empty{
@@ -153,60 +213,86 @@ button.cover-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
   margin-top:10px;
 }
 
-/* Modal viewer */
+/* Modal viewer — cyberpunk panel */
 #modal{
   position:fixed; inset:0; display:none; align-items:center; justify-content:center;
-  background:var(--overlay); z-index:9999; padding:20px
+  background:var(--overlay); z-index:9999; padding:20px;
+  backdrop-filter: blur(4px);
 }
 #modal.open{ display:flex }
 #modal .panel{
   width:min(960px, 95vw); max-height:90vh; overflow:auto;
-  background:var(--bg); color:var(--text); border:1px solid var(--border);
-  border-radius:16px; display:grid; grid-template-columns: 240px 1fr; gap:16px; padding:16px;
+  background:var(--bg); color:var(--text); border:1px solid var(--neon-cyan);
+  border-radius:0; display:grid; grid-template-columns: 240px 1fr; gap:16px; padding:16px;
+  box-shadow: 0 0 20px rgba(5,217,232,.2), 0 0 60px rgba(5,217,232,.05);
+  clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 20px 100%, 0 calc(100% - 20px));
 }
-#modal .panel .cover-lg{ width: 100%; height:auto; border-radius:12px; display:block }
+#modal .panel .cover-lg{ width: 100%; height:auto; border-radius:2px; display:block; border:1px solid var(--border) }
 #modal .meta-grid{ display:grid; grid-template-columns: 120px 1fr; gap:8px; align-items:start }
-#modal .label{ color:var(--muted) }
-#modal .title{ font-size:1.1rem; font-weight:700; margin-bottom:6px }
+#modal .label{ color:var(--neon-cyan); text-transform:uppercase; font-size:.75em; letter-spacing:.5px }
+#modal .title{ font-size:1.1rem; font-weight:700; margin-bottom:6px; color:var(--neon-yellow); text-transform:uppercase }
 #modal .desc{ margin-top:10px; line-height:1.45; white-space:pre-wrap; color:var(--text) }
 #modal .close{
   position:absolute; top:14px; right:14px;
-  background:var(--btn-bg); border:1px solid var(--btn-border); border-radius:10px;
-  padding:8px 10px; cursor:pointer; color:var(--text)
+  background:var(--btn-bg); border:1px solid var(--neon-magenta); border-radius:0;
+  padding:8px 10px; cursor:pointer; color:var(--neon-magenta);
+  text-transform:uppercase; font-weight:700; font-size:.8em;
+  transition:all .2s;
+}
+#modal .close:hover{
+  background:var(--neon-magenta); color:#fff;
+  box-shadow:0 0 10px rgba(255,42,109,.4);
 }
 /* Link-style buttons */
 a.link-btn{
   display:inline-block;
   padding:8px 10px;
   border:1px solid var(--btn-border);
-  border-radius:10px;
+  border-radius:0;
   background:var(--btn-bg);
-  color:var(--text);
+  color:var(--neon-cyan);
   text-decoration:none;
   margin-top:4px;
+  font-size:.85em;
+  text-transform:uppercase;
+  letter-spacing:.5px;
+  transition:all .2s;
 }
-a.link-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
+a.link-btn:hover{
+  border-color:var(--neon-cyan);
+  box-shadow:0 0 8px rgba(5,217,232,.3);
+}
+a.link-btn:focus{ outline:2px solid var(--neon-cyan); outline-offset:2px }
 
 /* Responsive */
 @media (max-width: 820px){
-  body.cards #ab-table{display:none}
-  body.cards #ab-cards{display:grid}
-  body:not(.cards) #ab-cards{display:none}
-  body:not(.cards) #ab-table{display:table}
   th, td{padding:12px}
   input#ab-search, select#ab-sort, input#ab-page-size, button.btn{padding:12px 14px}
   #modal .panel{ grid-template-columns: 1fr; }
 }
 
+/* Toggle view: table vs cards (works at all widths) */
+body.cards #ab-table{display:none}
+body.cards #ab-cards{display:grid}
+body:not(.cards) #ab-cards{display:none}
+body:not(.cards) #ab-table{display:table}
+
 /* Make table rows look clickable */
 #ab-table tbody tr{ cursor:pointer; }
 
-/* =============== Identity Bar =============== */
+/* Rating column */
+.rating-cell{ font-family:'Share Tech Mono', monospace; white-space:nowrap; }
+.rating-cell .stars{ color: var(--neon-yellow); }
+.rating-chip .stars{ color: var(--neon-yellow); font-size:.9em; }
+
+/* =============== Identity Bar — Cyberpunk =============== */
 #identity-bar{
-  background: linear-gradient(135deg, var(--bg-2) 0%, var(--chip) 100%);
+  background: var(--bg-2);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-left: 3px solid var(--neon-magenta);
+  border-radius: 0;
   padding: 12px 16px;
+  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
 }
 .identity-bar--logged-in{
   display: flex;
@@ -214,32 +300,29 @@ a.link-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
   gap: 12px;
 }
 .identity-bar__greeting{
-  font-weight: 600;
+  font-weight: 700;
   font-size: 1rem;
-  background: linear-gradient(135deg, #667eea, #764ba2);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-body:not(.dark) .identity-bar__greeting{
-  background: linear-gradient(135deg, #4a56c8, #6b3fa0);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--neon-cyan);
+  text-transform: uppercase;
+  letter-spacing: 1px;
 }
 .identity-bar__logout-btn{
   padding: 6px 14px;
-  border: 1px solid var(--btn-border);
-  border-radius: 999px;
-  background: var(--btn-bg);
-  color: var(--muted);
+  border: 1px solid var(--neon-magenta);
+  border-radius: 0;
+  background: transparent;
+  color: var(--neon-magenta);
   cursor: pointer;
-  font-size: .85em;
+  font-size: .8em;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  font-weight: 700;
   transition: all .2s;
 }
 .identity-bar__logout-btn:hover{
-  background: var(--btn-bg-active);
-  color: var(--text);
+  background: var(--neon-magenta);
+  color: #fff;
+  box-shadow: 0 0 10px rgba(255,42,109,.4);
 }
 .identity-bar--logged-out{
   display: flex;
@@ -256,26 +339,27 @@ body:not(.dark) .identity-bar__greeting{
   display: flex;
   flex-direction: column;
   gap: 3px;
-  font-size: .8em;
-  font-weight: 600;
-  color: var(--muted);
+  font-size: .75em;
+  font-weight: 700;
+  color: var(--neon-cyan);
   text-transform: uppercase;
-  letter-spacing: .5px;
+  letter-spacing: 1px;
 }
 .identity-bar__input{
   padding: 9px 12px;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 0;
   background: var(--bg);
   color: var(--text);
   font-size: .95rem;
   width: 160px;
+  font-family: 'Share Tech Mono', monospace;
   transition: border-color .2s, box-shadow .2s;
 }
 .identity-bar__input:focus{
   outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, .15);
+  border-color: var(--neon-yellow);
+  box-shadow: 0 0 8px rgba(252,238,10,.2), inset 0 0 4px rgba(252,238,10,.05);
 }
 .identity-bar__buttons{
   display: flex;
@@ -285,20 +369,23 @@ body:not(.dark) .identity-bar__greeting{
 .identity-bar__signin-btn{
   padding: 9px 18px;
   border: none;
-  border-radius: 10px;
-  font-weight: 600;
-  font-size: .9em;
+  border-radius: 0;
+  font-weight: 700;
+  font-size: .85em;
   cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: .5px;
   transition: all .2s;
+  clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%);
 }
 .identity-bar__signin-btn{
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: #fff;
-  box-shadow: 0 2px 8px rgba(102, 126, 234, .3);
+  background: var(--neon-yellow);
+  color: #0a0a12;
+  box-shadow: 0 0 10px rgba(252,238,10,.3);
 }
 .identity-bar__signin-btn:hover{
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, .4);
+  box-shadow: 0 0 16px rgba(252,238,10,.5);
 }
 .identity-bar__register-btn{
   background: var(--btn-bg);
@@ -306,13 +393,15 @@ body:not(.dark) .identity-bar__greeting{
   border: 1px solid var(--btn-border);
 }
 .identity-bar__register-btn:hover{
-  background: var(--btn-bg-active);
+  border-color: var(--neon-cyan);
+  color: var(--neon-cyan);
 }
 .identity-bar__error{
   display: block;
   font-size: .8em;
-  color: #e53e3e;
+  color: var(--neon-magenta);
   margin-top: -4px;
+  text-shadow: 0 0 4px rgba(255,42,109,.3);
 }
 .identity-bar__error--general{
   width: 100%;
@@ -340,19 +429,19 @@ body:not(.dark) .identity-bar__greeting{
   </div>
 
   <!-- Book of the Day -->
-  <div id="book-of-day" style="background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; margin-bottom: 1rem;">
+  <div id="book-of-day" style="background: var(--bg-2); border: 1px solid var(--border); border-left:3px solid var(--neon-yellow); border-radius: 0; padding: 1rem; margin-bottom: 1rem; clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-      <h2 style="margin: 0; font-size: 1.2rem;">📚 Book of the Day</h2>
-      <button id="random-book-btn" class="btn" style="font-size: 0.9rem;">🎲 Random Book</button>
+      <h2 style="margin: 0; font-size: 1.1rem; text-transform:uppercase; letter-spacing:1px; color:var(--neon-yellow);">Book of the Day</h2>
+      <button id="random-book-btn" class="btn" style="font-size: 0.8rem;">Random</button>
     </div>
     <div id="book-of-day-content" style="display: flex; gap: 1rem; align-items: start;">
-      <div id="book-of-day-loading" style="color: var(--muted);">Loading...</div>
+      <div id="book-of-day-loading" style="color: var(--muted); font-family:'Share Tech Mono',monospace;">Loading...</div>
     </div>
   </div>
 
   <!-- Recently Added -->
-  <div id="recently-added" style="background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; margin-bottom: 1rem;">
-    <h2 style="margin: 0 0 0.5rem 0; font-size: 1.2rem;">🆕 Recently Added</h2>
+  <div id="recently-added" style="background: var(--bg-2); border: 1px solid var(--border); border-left:3px solid var(--neon-cyan); border-radius: 0; padding: 1rem; margin-bottom: 1rem; clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));">
+    <h2 style="margin: 0 0 0.5rem 0; font-size: 1.1rem; text-transform:uppercase; letter-spacing:1px; color:var(--neon-cyan);">Recently Added</h2>
     <div id="recently-added-content">{{RECENTLY_ADDED}}</div>
   </div>
 
@@ -368,6 +457,7 @@ body:not(.dark) .identity-bar__greeting{
         <option value="year|txt">Sort by Year</option>
         <option value="genre|txt">Sort by Genre</option>
         <option value="duration_hhmm|txt">Sort by Duration</option>
+        <option value="rating|num">Sort by Rating</option>
       </select>
       <button id="ab-sort-asc" class="btn">Asc</button>
       <button id="ab-sort-desc" class="btn">Desc</button>
@@ -417,6 +507,7 @@ body:not(.dark) .identity-bar__greeting{
       <th data-key="year">Year</th>
       <th data-key="genre">Genre</th>
       <th data-key="duration_hhmm">Duration (hh:mm)</th>
+      <th data-key="rating" data-type="num">Rating</th>
     </tr></thead>
     <tbody>{{TABLE_ROWS}}</tbody>
   </table>
@@ -965,6 +1056,73 @@ body:not(.dark) .identity-bar__greeting{
       identityEl.style.marginBottom = '8px';
       wrap.prepend(identityEl);
       renderIdentityBar(identityEl, db, { onAuthChange: function() {} });
+    }
+
+    // --- Populate rating column in table from Firestore reviews ---
+    populateRatings();
+  }
+
+  async function populateRatings() {
+    if (!db) return;
+    try {
+      const { collection, getDocs } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
+      const snapshot = await getDocs(collection(db, 'reviews'));
+
+      // Group reviews by bookId, compute averages
+      const reviewsByBook = {};
+      snapshot.docs.forEach(d => {
+        const data = d.data();
+        if (!data.bookId || !data.rating) return;
+        if (!reviewsByBook[data.bookId]) reviewsByBook[data.bookId] = [];
+        reviewsByBook[data.bookId].push(data.rating);
+      });
+
+      const avgByBook = {};
+      for (const [bookId, ratings] of Object.entries(reviewsByBook)) {
+        const sum = ratings.reduce((a, b) => a + b, 0);
+        avgByBook[bookId] = { avg: Math.round((sum / ratings.length) * 10) / 10, count: ratings.length };
+      }
+
+      // Inject into table cells — match by title (column index 1 has title)
+      document.querySelectorAll('#ab-table tbody tr').forEach(row => {
+        const titleCell = row.cells[1];
+        const ratingCell = row.querySelector('.rating-cell');
+        if (!titleCell || !ratingCell) return;
+
+        const title = titleCell.textContent.trim();
+        const bookId = bookIdFromTitle(title);
+        const info = avgByBook[bookId];
+
+        if (info) {
+          const stars = renderStars(Math.round(info.avg));
+          ratingCell.innerHTML = `${stars} <span style="font-size:.8em;color:var(--muted)">(${info.count})</span>`;
+          ratingCell.setAttribute('data-sort', String(info.avg));
+        }
+      });
+
+      // Also inject into card views
+      document.querySelectorAll('#ab-cards .ab-card').forEach(card => {
+        const title = card.getAttribute('data-title') || '';
+        const bookId = bookIdFromTitle(title);
+        const info = avgByBook[bookId];
+
+        if (info) {
+          // Add a rating chip if not already present
+          const row = card.querySelector('.ab-row');
+          if (row && !card.querySelector('.rating-chip')) {
+            const chip = document.createElement('span');
+            chip.className = 'ab-chip rating-chip';
+            chip.style.color = 'var(--neon-yellow)';
+            chip.innerHTML = `${renderStars(Math.round(info.avg))} ${info.avg}`;
+            row.prepend(chip);
+          }
+          card.setAttribute('data-rating', String(info.avg));
+        }
+      });
+
+      console.log(`[Reviews] Loaded ratings for ${Object.keys(avgByBook).length} books`);
+    } catch (e) {
+      console.warn('[Reviews] Failed to load ratings:', e);
     }
   }
 

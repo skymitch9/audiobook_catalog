@@ -38,6 +38,24 @@ def main() -> None:
     # Filter out "Copy of" files (leftovers from Drive reclaim operations)
     files = [f for f in files if not f.name.startswith("Copy of ")]
 
+    # Filter out numbered duplicates like "Title (1).m4b" when "Title.m4b" exists
+    import re
+    numbered_dupe_re = re.compile(r'^(.+?)\s*\(\d+\)(\.\w+)$')
+    all_names = {f.name for f in files}
+    filtered_files = []
+    numbered_dupes = 0
+    for f in files:
+        m = numbered_dupe_re.match(f.name)
+        if m:
+            original_name = m.group(1) + m.group(2)
+            if original_name in all_names:
+                numbered_dupes += 1
+                continue
+        filtered_files.append(f)
+    if numbered_dupes:
+        print(f"[INFO] Removed {numbered_dupes} numbered duplicates (e.g., 'Title (1).m4b')")
+    files = filtered_files
+
     # Deduplicate by filename: same .m4b in multiple author folders is always a copy.
     # Prefer the file in the longest folder path (most descriptive author folder).
     from collections import defaultdict
