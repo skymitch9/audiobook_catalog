@@ -34,8 +34,33 @@ def main() -> None:
     # Walk library and extract rows
     exts = set(EXTS) if isinstance(EXTS, (set, list, tuple)) else {".m4b", ".m4a", ".mp4"}
     files = walk_library(Path(ROOT_DIR), exts)
+
+    # Filter out "Copy of" files (leftovers from Drive reclaim operations)
+    files = [f for f in files if not f.name.startswith("Copy of ")]
+
+    # Deduplicate by filename: same .m4b in multiple author folders is always a copy.
+    # Prefer the file in the longest folder path (most descriptive author folder).
+    from collections import defaultdict
+    by_name: dict[str, list[Path]] = defaultdict(list)
+    for f in files:
+        by_name[f.name].append(f)
+
+    deduped_files = []
+    dupe_count = 0
+    for name, paths in by_name.items():
+        if len(paths) == 1:
+            deduped_files.append(paths[0])
+        else:
+            # Pick the one with the longest parent folder name (most descriptive)
+            best = max(paths, key=lambda p: len(str(p.parent)))
+            deduped_files.append(best)
+            dupe_count += len(paths) - 1
+
+    if dupe_count:
+        print(f"[INFO] Deduplicated {dupe_count} duplicate files (same book in multiple folders)")
+
     rows = []
-    for p in files:
+    for p in deduped_files:
         try:
             rows.append(extract_metadata(p))
         except Exception as e:
