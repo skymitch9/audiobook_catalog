@@ -335,6 +335,8 @@ a.link-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
         <div class="label">Duration</div><div id="m-duration"></div>
       </div>
       <div class="desc" id="m-desc"></div>
+      <!-- Reviews section -->
+      <div id="m-reviews" style="margin-top:12px; border-top:1px solid var(--border); padding-top:12px;"></div>
     </div>
   </div>
 </div>
@@ -845,6 +847,125 @@ a.link-btn:focus{ outline:2px solid #2d72d2; outline-offset:2px }
       identityEl.style.marginBottom = '8px';
       wrap.prepend(identityEl);
       renderIdentityBar(identityEl, db, { onAuthChange: function() {} });
+    }
+  }
+
+  // --- Reviews in modal ---
+  const reviewsContainer = document.getElementById('m-reviews');
+
+  // Listen for modal open events by observing the modal class change
+  const modal = document.getElementById('modal');
+  if (modal && db) {
+    const observer = new MutationObserver(function(mutations) {
+      mutations.forEach(function(m) {
+        if (m.attributeName === 'class' || m.attributeName === 'aria-hidden') {
+          if (modal.classList.contains('open')) {
+            const title = document.getElementById('modal-title').textContent;
+            if (title) renderReviewSection(title);
+          }
+        }
+      });
+    });
+    observer.observe(modal, { attributes: true });
+  }
+
+  async function renderReviewSection(bookTitle) {
+    if (!reviewsContainer || !db) return;
+    const bookId = bookIdFromTitle(bookTitle);
+
+    // Show loading
+    reviewsContainer.innerHTML = '<div style="color:var(--muted)">Loading reviews...</div>';
+
+    // Fetch reviews
+    const reviews = await getReviews(db, bookId);
+    const avg = computeAverageRating(reviews);
+
+    let html = '<div style="margin-bottom:8px"><strong>Reviews</strong>';
+    if (reviews.length > 0) {
+      html += ` <span style="color:var(--muted)">(${reviews.length}) ${renderStars(Math.round(avg))} ${avg}/5</span>`;
+    }
+    html += '</div>';
+
+    // Review form (if logged in)
+    const session = getSession();
+    if (session) {
+      html += `
+        <div id="review-form" style="margin-bottom:12px; padding:10px; background:var(--bg); border:1px solid var(--border); border-radius:var(--radius);">
+          <div style="margin-bottom:6px; font-size:.9em; color:var(--muted);">Leave a review as <strong>${session.displayName}</strong></div>
+          <div id="star-selector" style="font-size:1.4em; cursor:pointer; margin-bottom:6px;">
+            <span data-rating="1">☆</span><span data-rating="2">☆</span><span data-rating="3">☆</span><span data-rating="4">☆</span><span data-rating="5">☆</span>
+          </div>
+          <textarea id="review-text" placeholder="Write your review (1-1000 characters)..." rows="3"
+            style="width:100%; padding:8px; border:1px solid var(--border); border-radius:8px; background:var(--bg-2); color:var(--text); resize:vertical; font-family:inherit;"></textarea>
+          <div style="display:flex; gap:8px; align-items:center; margin-top:6px;">
+            <button id="submit-review-btn" class="btn" style="padding:8px 14px;">Submit Review</button>
+            <span id="review-status" style="font-size:.85em; color:var(--muted);"></span>
+          </div>
+        </div>`;
+    } else {
+      html += '<div style="color:var(--muted); font-size:.9em; margin-bottom:10px;">Sign in above to leave a review.</div>';
+    }
+
+    // Existing reviews list
+    if (reviews.length === 0) {
+      html += '<div style="color:var(--muted); font-size:.9em;">No reviews yet. Be the first!</div>';
+    } else {
+      for (const r of reviews) {
+        html += `
+          <div style="padding:8px 0; border-bottom:1px solid var(--border);">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <strong>${r.displayName}</strong>
+              <span style="font-size:.85em; color:var(--muted);">${formatDate(r.createdAt)}</span>
+            </div>
+            <div>${renderStars(r.rating)}</div>
+            <div style="margin-top:4px; font-size:.95em; white-space:pre-wrap;">${r.text}</div>
+          </div>`;
+      }
+    }
+
+    reviewsContainer.innerHTML = html;
+
+    // Wire up star selector
+    if (session) {
+      let selectedRating = 0;
+      const starEls = reviewsContainer.querySelectorAll('#star-selector span');
+      starEls.forEach(el => {
+        el.addEventListener('mouseenter', () => {
+          const r = parseInt(el.dataset.rating);
+          starEls.forEach(s => { s.textContent = parseInt(s.dataset.rating) <= r ? '★' : '☆'; });
+        });
+        el.addEventListener('mouseleave', () => {
+          starEls.forEach(s => { s.textContent = parseInt(s.dataset.rating) <= selectedRating ? '★' : '☆'; });
+        });
+        el.addEventListener('click', () => {
+          selectedRating = parseInt(el.dataset.rating);
+          starEls.forEach(s => { s.textContent = parseInt(s.dataset.rating) <= selectedRating ? '★' : '☆'; });
+        });
+      });
+
+      // Submit button
+      const submitBtn = reviewsContainer.querySelector('#submit-review-btn');
+      const statusEl = reviewsContainer.querySelector('#review-status');
+      if (submitBtn) {
+        submitBtn.addEventListener('click', async () => {
+          const text = reviewsContainer.querySelector('#review-text').value.trim();
+          if (!selectedRating) { statusEl.textContent = 'Please select a star rating.'; return; }
+          if (!text) { statusEl.textContent = 'Please write a review.'; return; }
+
+          submitBtn.disabled = true;
+          statusEl.textContent = 'Submitting...';
+
+          const result = await submitReview(db, bookId, session.displayName, selectedRating, text);
+          if (result.success) {
+            statusEl.textContent = 'Review submitted!';
+            // Refresh reviews
+            setTimeout(() => renderReviewSection(bookTitle), 500);
+          } else {
+            statusEl.textContent = result.error || 'Failed to submit.';
+            submitBtn.disabled = false;
+          }
+        });
+      }
     }
   }
 </script>
