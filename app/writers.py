@@ -138,4 +138,4 @@ def stage_site_files(
         drive_link=drive_link,
     )
 
-    print(f"Staged site: {site_index_path} (CSV → {csv_dst})")
+    print(f"Staged site: {site_index_path} (CSV -> {csv_dst})")

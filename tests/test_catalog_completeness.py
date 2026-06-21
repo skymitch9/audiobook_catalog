@@ -47,6 +47,8 @@ class TestCatalogCompleteness(unittest.TestCase):
         if len(self.books) == 0:
             self.skipTest("No library found (expected in CI environment)")
 
+        from app.config import OUTPUT_DIR
+
         missing_covers = []
         extraction_errors = []
 
@@ -55,10 +57,12 @@ class TestCatalogCompleteness(unittest.TestCase):
             if not cover_href:
                 missing_covers.append(str(book["path"]))
             else:
-                # Verify cover file exists
-                cover_path = SITE_DIR / cover_href
-                if not cover_path.exists():
-                    extraction_errors.append(f"{book['path']} (cover file missing: {cover_path})")
+                # Verify cover file exists in output directory (where extract_metadata writes it)
+                # Cover files are staged to site/ only during `stage_site_files()`, so check OUTPUT_DIR first.
+                output_cover_path = OUTPUT_DIR / cover_href
+                site_cover_path = SITE_DIR / cover_href
+                if not output_cover_path.exists() and not site_cover_path.exists():
+                    extraction_errors.append(f"{book['path']} (cover file missing from both output and site dirs)")
 
         # Report missing covers (not a failure, just informational)
         if missing_covers:
@@ -68,11 +72,13 @@ class TestCatalogCompleteness(unittest.TestCase):
             if len(missing_covers) > 20:
                 print(f"  ... and {len(missing_covers) - 20} more")
 
-        # Only fail if extraction failed (cover_href exists but file doesn't)
+        # Only fail if extraction failed (cover_href exists but file doesn't in either location)
         if extraction_errors:
             print(f"\n[ERROR] {len(extraction_errors)} cover extraction failures:")
             for error in extraction_errors[:10]:
                 print(f"  - {error}")
+            if len(extraction_errors) > 10:
+                print(f"  ... and {len(extraction_errors) - 10} more")
             self.fail(f"{len(extraction_errors)} covers failed to extract properly")
 
         print(f"\n[OK] Cover extraction working: {len(self.books) - len(missing_covers)} books have covers")

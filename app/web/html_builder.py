@@ -145,6 +145,39 @@ def _load_author_map() -> str:
         return "{}"
 
 
+def _recently_added_html(rows: List[Dict[str, str]], count: int = 5) -> str:
+    """Render the 'Recently Added' section showing the most recent books by file mtime."""
+    # Sort by file modification time (descending), take top N
+    sortable = [r for r in rows if r.get("file_mtime")]
+    sortable.sort(key=lambda r: r.get("file_mtime", 0), reverse=True)
+    recent = sortable[:count]
+
+    if not recent:
+        return ""
+
+    items = []
+    for r in recent:
+        cover = r.get("cover_href", "")
+        cover_img = f'<img src="{_esc(cover)}" alt="Cover" style="width:48px;height:auto;border-radius:6px;" loading="lazy">' if cover else ""
+        series_badge = ""
+        if r.get("series"):
+            idx = f' #{_esc(r["series_index_display"])}' if r.get("series_index_display") else ""
+            series_badge = f'<span class="ab-chip" style="font-size:.8em">{_esc(r["series"])}{idx}</span>'
+
+        items.append(
+            f'<div style="display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">'
+            f'<div style="flex-shrink:0">{cover_img}</div>'
+            f'<div style="flex:1;min-width:0">'
+            f'<div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{_esc(r.get("title",""))}</div>'
+            f'<div style="color:var(--muted);font-size:.9em">{_esc(r.get("author",""))}</div>'
+            f'{series_badge}'
+            f'</div>'
+            f'</div>'
+        )
+
+    return "\n".join(items)
+
+
 def render_index_html(
     rows: List[Dict[str, str]],
     out_path: Path,
@@ -166,6 +199,7 @@ def render_index_html(
         )
         .replace("{{TABLE_ROWS}}", table_rows)
         .replace("{{CARDS}}", cards)
+        .replace("{{RECENTLY_ADDED}}", _recently_added_html(rows))
         .replace("{{AUTHOR_MAP_JSON}}", author_map_json)
         .replace("{{AUTHOR_DRIVE_MAP_URL}}", "")  # Keep for compatibility
     )

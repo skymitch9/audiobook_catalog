@@ -472,11 +472,13 @@ def check_file_exists_on_drive(service, file_name: str, folder_id: str) -> str |
 
 
 def upload_file_to_drive(
-    service, file_path: Path, folder_id: str, dry_run: bool = False
+    service, file_path: Path, folder_id: str, dry_run: bool = False,
+    max_retries: int = 3,
 ) -> str | None:
     """
     Upload a file to a specific Google Drive folder using resumable upload.
     Checks for duplicates first — skips if file already exists on Drive.
+    Retries on transient failures with exponential backoff.
     Returns the Drive file ID or None on failure.
     """
     if dry_run:
@@ -492,40 +494,53 @@ def upload_file_to_drive(
 
     from googleapiclient.http import MediaFileUpload
 
-    file_metadata = {
-        "name": file_path.name,
-        "parents": [folder_id],
-    }
+    size_mb = file_path.stat().st_size / (1024 * 1024)
 
-    # Use resumable upload for large audiobook files
-    media = MediaFileUpload(
-        str(file_path),
-        resumable=True,
-        chunksize=10 * 1024 * 1024,  # 10 MB chunks
-    )
+    for attempt in range(1, max_retries + 1):
+        file_metadata = {
+            "name": file_path.name,
+            "parents": [folder_id],
+        }
 
-    try:
-        size_mb = file_path.stat().st_size / (1024 * 1024)
-        print(f"  [UPLOAD] {file_path.name} ({size_mb:.1f} MB) ...", end="", flush=True)
-
-        request = service.files().create(
-            body=file_metadata, media_body=media, fields="id"
+        # Use resumable upload for large audiobook files
+        media = MediaFileUpload(
+            str(file_path),
+            resumable=True,
+            chunksize=10 * 1024 * 1024,  # 10 MB chunks
         )
 
-        response = None
-        while response is None:
-            status, response = request.next_chunk()
-            if status:
-                pct = int(status.progress() * 100)
-                print(f"\r  [UPLOAD] {file_path.name} ({size_mb:.1f} MB) ... {pct}%", end="", flush=True)
+        try:
+            label = f"  [UPLOAD] {file_path.name} ({size_mb:.1f} MB)"
+            if attempt > 1:
+                label += f" (attempt {attempt}/{max_retries})"
+            print(f"{label} ...", end="", flush=True)
 
-        file_id = response.get("id")
-        print(f"\r  [UPLOAD] {file_path.name} ({size_mb:.1f} MB) ... done ({file_id})")
-        return file_id
+            request = service.files().create(
+                body=file_metadata, media_body=media, fields="id"
+            )
 
-    except Exception as e:
-        print(f"\n  [ERROR] Upload failed for {file_path.name}: {e}")
-        return None
+            response = None
+            while response is None:
+                status, response = request.next_chunk()
+                if status:
+                    pct = int(status.progress() * 100)
+                    print(f"\r{label} ... {pct}%", end="", flush=True)
+
+            file_id = response.get("id")
+            print(f"\r{label} ... done ({file_id})")
+            return file_id
+
+        except Exception as e:
+            print(f"\n  [ERROR] Upload failed for {file_path.name}: {e}")
+            if attempt < max_retries:
+                backoff = 2 ** (attempt - 1)  # 1s, 2s, 4s
+                print(f"  [RETRY] Waiting {backoff}s before retry...")
+                time.sleep(backoff)
+            else:
+                print(f"  [FAILED] All {max_retries} attempts exhausted for {file_path.name}")
+                return None
+
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -757,6 +772,15 @@ def _auto_commit_and_push() -> None:
             return
 
         print(f"  Committed: {commit_msg}")
+
+        # Pull with rebase to avoid push failures when remote has diverged
+        pull_result = subprocess.run(
+            ["git", "pull", "--rebase"],
+            capture_output=True, text=True, cwd=str(PROJECT_ROOT),
+        )
+        if pull_result.returncode != 0:
+            print(f"  [WARN] Pull --rebase failed: {pull_result.stderr.strip()}")
+            print("  Attempting push anyway...")
 
         # Push
         result = subprocess.run(

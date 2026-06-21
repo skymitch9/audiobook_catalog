@@ -290,6 +290,7 @@ def extract_metadata(path: Path) -> Dict[str, str]:
         "duration_hhmm": sec_to_hhmm(length_sec),
         "cover_href": cover_href or "",
         "desc": desc,  # cleaned text
+        "file_mtime": path.stat().st_mtime,  # for "Recently Added" sorting
     }
 
 

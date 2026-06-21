@@ -115,19 +115,46 @@ def create_embed(new_books_data, site_url):
     return embeds
 
 
+def verify_delivery(response):
+    """
+    Verify Discord webhook delivery.
+    Discord returns 204 No Content on success. Log details for debugging.
+    """
+    status = response.status_code
+    # Discord webhook success codes: 200 or 204
+    if status in (200, 204):
+        print(f"  ✓ Delivery verified: HTTP {status}")
+        # Log rate limit headers for observability
+        remaining = response.headers.get("X-RateLimit-Remaining")
+        reset_after = response.headers.get("X-RateLimit-Reset-After")
+        if remaining is not None:
+            print(f"  ℹ Rate limit remaining: {remaining} (resets in {reset_after}s)")
+        return True
+    else:
+        print(f"  ✗ Unexpected status: HTTP {status}")
+        print(f"  Response body: {response.text[:500]}")
+        return False
+
+
 def send_notification(webhook_url, embeds):
-    """Send notification to Discord webhook."""
+    """Send notification to Discord webhook with delivery verification."""
     payload = {"embeds": embeds}
 
     try:
-        response = requests.post(webhook_url, json=payload, headers={"Content-Type": "application/json"})
+        response = requests.post(
+            webhook_url, json=payload,
+            headers={"Content-Type": "application/json"},
+            timeout=30,
+        )
         response.raise_for_status()
-        print("✓ Discord notification sent successfully")
-        return True
+        verified = verify_delivery(response)
+        if verified:
+            print("✓ Discord notification sent and verified")
+        return verified
     except requests.exceptions.RequestException as e:
         print(f"✗ First attempt failed: {e}")
         if hasattr(e, "response") and e.response is not None:
-            print(f"Response: {e.response.text}")
+            print(f"  Response: {e.response.text[:300]}")
 
         # Retry without thumbnails (common cause of 400 errors)
         print("  Retrying without cover images...")
@@ -135,14 +162,20 @@ def send_notification(webhook_url, embeds):
             embed.pop("thumbnail", None)
         payload = {"embeds": embeds}
         try:
-            response = requests.post(webhook_url, json=payload, headers={"Content-Type": "application/json"})
+            response = requests.post(
+                webhook_url, json=payload,
+                headers={"Content-Type": "application/json"},
+                timeout=30,
+            )
             response.raise_for_status()
-            print("✓ Discord notification sent (without covers)")
-            return True
+            verified = verify_delivery(response)
+            if verified:
+                print("✓ Discord notification sent and verified (without covers)")
+            return verified
         except requests.exceptions.RequestException as e2:
             print(f"✗ Retry also failed: {e2}")
             if hasattr(e2, "response") and e2.response is not None:
-                print(f"Response: {e2.response.text}")
+                print(f"  Response: {e2.response.text[:300]}")
             return False
 
 
@@ -167,8 +200,16 @@ def main():
     # Create embeds
     embeds = create_embed(new_books_data, site_url)
 
-    # Send notification
+    # Send notification with verification
+    print(f"Sending Discord notification ({len(embeds)} embed(s))...")
+    print(f"  Target: {site_url}")
+    print(f"  New books: {new_books_data.get('new_count', 0)}")
     success = send_notification(webhook_url, embeds)
+
+    if success:
+        print("\n=== DISCORD NOTIFICATION: DELIVERED ===")
+    else:
+        print("\n=== DISCORD NOTIFICATION: FAILED ===")
 
     sys.exit(0 if success else 1)
 
