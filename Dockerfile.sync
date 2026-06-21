@@ -20,8 +20,8 @@ COPY . .
 # Create log directory
 RUN mkdir -p /var/log/audiobook-sync
 
-# Set up cron job - runs hourly
-RUN echo "0 * * * * cd /app && python scripts/sync_to_drive.py --upload-only >> /var/log/audiobook-sync/sync.log 2>&1" > /etc/cron.d/audiobook-sync \
+# Set up cron jobs - upload at :00, download missing at :30
+RUN printf "0 * * * * cd /app && /usr/local/bin/python scripts/sync_to_drive.py --upload-only >> /var/log/audiobook-sync/sync.log 2>&1\n30 * * * * cd /app && /usr/local/bin/python scripts/audit_drive_vs_local.py --fix >> /var/log/audiobook-sync/audit.log 2>&1\n" > /etc/cron.d/audiobook-sync \
     && chmod 0644 /etc/cron.d/audiobook-sync \
     && crontab /etc/cron.d/audiobook-sync
 

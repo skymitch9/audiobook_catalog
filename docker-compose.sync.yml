@@ -26,8 +26,8 @@ services:
       - DRIVE_FOLDER_URL=${DRIVE_FOLDER_URL}
       - DRIVE_AUTHORS_ROOT=${DRIVE_AUTHORS_ROOT}
     volumes:
-      # Mount your audiobook library (read-only for safety)
-      - C:\Users\nbasl\OpenAudible\books:/library:ro
+      # Mount your audiobook library (read-write for downloads from Drive)
+      - C:\Users\nbasl\OpenAudible\books:/library
       # Mount Google Drive OAuth tokens (so container doesn't need re-auth)
       - ./scripts/token.json:/app/scripts/token.json
       - ./scripts/credentials.json:/app/scripts/credentials.json
