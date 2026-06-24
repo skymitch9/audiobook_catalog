@@ -37,5 +37,13 @@ service cloud.firestore {
       // Allow delete
       allow delete: if true;
     }
+
+    match /profiles/{userId} {
+      // Allow read access to all profiles (for community page)
+      allow read: if true;
+
+      // Allow write when document has valid displayName
+      allow write: if request.resource.data.displayName is string;
+    }
   }
 }

@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<title>Community - Audiobook Catalog</title>
+<style>
+:root{
+  --bg:#0a0a12; --bg-2:#12121f;
+  --text:#e8e6e3; --muted:#8a8f98;
+  --border:#2a2a3a;
+  --neon-yellow:#fcee0a;
+  --neon-cyan:#05d9e8;
+  --neon-magenta:#ff2a6d;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; padding:20px;
+  font-family:'Rajdhani','Segoe UI',system-ui,sans-serif;
+  background:var(--bg); color:var(--text);
+  background-image:
+    radial-gradient(ellipse at 20% 50%, rgba(252,238,10,.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(5,217,232,.03) 0%, transparent 50%);
+  min-height:100vh;
+}
+#wrap{max-width:900px;margin:0 auto}
+h1{
+  color:var(--neon-yellow);text-transform:uppercase;letter-spacing:2px;
+  text-shadow:0 0 10px rgba(252,238,10,.3);margin:0 0 8px;
+}
+.nav-row{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
+.nav-link{
+  display:inline-block;padding:8px 14px;background:var(--bg-2);color:var(--neon-cyan);
+  text-decoration:none;border:1px solid var(--border);font-weight:700;font-size:.85em;
+  text-transform:uppercase;letter-spacing:.5px;transition:all .2s;
+}
+.nav-link:hover{border-color:var(--neon-cyan);box-shadow:0 0 8px rgba(5,217,232,.2)}
+#search-input{
+  flex:1;min-width:200px;padding:8px 12px;border:1px solid var(--border);
+  background:var(--bg-2);color:var(--text);font-size:.9em;
+  font-family:'Share Tech Mono',monospace;
+}
+#search-input:focus{outline:none;border-color:var(--neon-cyan)}
+.user-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;margin-top:16px}
+.user-card{
+  background:var(--bg-2);border:1px solid var(--border);padding:16px;
+  clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px));
+  transition:border-color .2s;
+}
+.user-card:hover{border-color:var(--neon-magenta)}
+.user-header{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.user-avatar{width:40px;height:40px;border-radius:50%;border:2px solid var(--neon-cyan);object-fit:cover}
+.user-name{font-weight:700;font-size:1.1em;color:var(--neon-cyan);text-transform:uppercase;letter-spacing:.5px}
+.user-stats{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:8px 0}
+.stat-box{background:var(--bg);border:1px solid var(--border);padding:6px;text-align:center}
+.stat-val{font-size:1.2em;font-weight:700;color:var(--neon-yellow);font-family:'Share Tech Mono',monospace}
+.stat-lbl{font-size:.65em;color:var(--muted);text-transform:uppercase}
+.user-reading{font-size:.85em;color:var(--muted);margin-top:8px}
+.user-reading strong{color:var(--neon-magenta)}
+.user-favs{margin-top:6px}
+.fav-chip{
+  display:inline-block;padding:2px 8px;margin:2px;font-size:.75em;
+  background:var(--bg);border:1px solid var(--border);color:var(--text);
+}
+.loading{text-align:center;padding:40px;color:var(--muted);font-family:'Share Tech Mono',monospace}
+.empty{text-align:center;padding:30px;color:var(--muted)}
+#user-count{color:var(--muted);font-size:.85em;font-family:'Share Tech Mono',monospace}
+/* User modal */
+#user-modal{
+  position:fixed;inset:0;display:none;align-items:center;justify-content:center;
+  background:rgba(0,0,0,.85);z-index:9999;padding:20px;backdrop-filter:blur(4px);
+}
+#user-modal.open{display:flex}
+.user-modal-panel{
+  background:var(--bg-2);border:1px solid var(--neon-cyan);
+  width:min(450px,92vw);padding:28px;position:relative;
+  clip-path:polygon(0 0,calc(100% - 16px) 0,100% 16px,100% 100%,16px 100%,0 calc(100% - 16px));
+}
+.user-modal-close{
+  position:absolute;top:10px;right:10px;background:none;border:1px solid var(--neon-magenta);
+  color:var(--neon-magenta);width:28px;height:28px;cursor:pointer;font-weight:bold;
+}
+.user-modal-close:hover{background:var(--neon-magenta);color:#fff}
+.um-avatar{width:64px;height:64px;border-radius:50%;border:2px solid var(--neon-cyan);object-fit:cover}
+.um-name{font-size:1.4em;font-weight:700;color:var(--neon-cyan);text-transform:uppercase;letter-spacing:1px}
+.um-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:14px 0}
+.um-stat{background:var(--bg);border:1px solid var(--border);padding:10px;text-align:center}
+.um-stat-val{font-size:1.5em;font-weight:700;color:var(--neon-yellow);font-family:'Share Tech Mono',monospace}
+.um-stat-lbl{font-size:.7em;color:var(--muted);text-transform:uppercase}
+.um-section{margin-top:12px;padding-top:10px;border-top:1px solid var(--border)}
+.um-section-title{font-size:.8em;color:var(--neon-magenta);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.um-favs{display:flex;gap:6px;flex-wrap:wrap}
+.um-favs img{width:48px;height:auto;border-radius:2px;border:1px solid var(--border)}
+@media(max-width:600px){
+  body{padding:10px}
+  .nav-row{flex-direction:column;align-items:stretch}
+  .nav-link{text-align:center;padding:12px;min-height:44px}
+  #search-input{width:100%}
+  .user-grid{grid-template-columns:1fr}
+  .user-card{clip-path:none}
+  .user-modal-panel{width:95vw;clip-path:none;padding:16px}
+}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <h1>Community</h1>
+  <div class="nav-row">
+    <a href="index.html" class="nav-link">Catalog</a>
+    <a href="stats.html" class="nav-link">Statistics</a>
+    <a href="guess-game.html" class="nav-link">Game</a>
+    <input id="search-input" type="search" placeholder="Search users..." />
+    <span id="user-count"></span>
+  </div>
+  <div id="user-grid" class="user-grid">
+    <div class="loading">Loading community...</div>
+  </div>
+</div>
+
+<!-- User Profile Modal -->
+<div id="user-modal">
+  <div class="user-modal-panel">
+    <button class="user-modal-close" id="user-modal-close">X</button>
+    <div id="user-modal-content"></div>
+  </div>
+</div>
+
+<script type="module">
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+  import { getFirestore, collection, getDocs } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyDgAblkxzVxl7nFbd7jXOo6PpuNPsJw11Y",
+    authDomain: "audiobook-catalog.firebaseapp.com",
+    projectId: "audiobook-catalog",
+    storageBucket: "audiobook-catalog.firebasestorage.app",
+    messagingSenderId: "68492219785",
+    appId: "1:68492219785:web:7cbe57dda8712377f0bd58"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  const grid = document.getElementById('user-grid');
+  const searchInput = document.getElementById('search-input');
+  const userCountEl = document.getElementById('user-count');
+
+  let allUsers = [];
+
+  async function loadCommunity() {
+    try {
+      // Fetch profiles and reviews in parallel
+      const [profilesSnap, reviewsSnap] = await Promise.all([
+        getDocs(collection(db, 'profiles')),
+        getDocs(collection(db, 'reviews'))
+      ]);
+
+      // Build review stats per user
+      const reviewStats = {};
+      reviewsSnap.docs.forEach(d => {
+        const data = d.data();
+        const name = (data.displayName || '').toLowerCase();
+        if (!name) return;
+        if (!reviewStats[name]) reviewStats[name] = { count: 0, totalRating: 0 };
+        reviewStats[name].count++;
+        reviewStats[name].totalRating += data.rating || 0;
+      });
+
+      // Build user list from profiles
+      allUsers = [];
+      profilesSnap.docs.forEach(d => {
+        const data = d.data();
+        const nameLower = (data.displayName || '').toLowerCase();
+        const stats = reviewStats[nameLower] || { count: 0, totalRating: 0 };
+        allUsers.push({
+          displayName: data.displayName || d.id,
+          photoURL: data.photoURL || '',
+          currentlyReading: data.currentlyReading || '',
+          currentlyReadingCover: data.currentlyReadingCover || '',
+          favorites: data.favorites || [],
+          favCovers: data.favCovers || {},
+          reviewCount: stats.count,
+          avgRating: stats.count > 0 ? (stats.totalRating / stats.count).toFixed(1) : '—',
+        });
+      });
+
+      // Also add users who have reviews but no profile
+      reviewsSnap.docs.forEach(d => {
+        const data = d.data();
+        const nameLower = (data.displayName || '').toLowerCase();
+        if (!allUsers.find(u => u.displayName.toLowerCase() === nameLower)) {
+          const stats = reviewStats[nameLower] || { count: 0, totalRating: 0 };
+          allUsers.push({
+            displayName: data.displayName,
+            photoURL: '',
+            currentlyReading: '',
+            favorites: [],
+            reviewCount: stats.count,
+            avgRating: stats.count > 0 ? (stats.totalRating / stats.count).toFixed(1) : '—',
+          });
+        }
+      });
+
+      // Sort by review count descending
+      allUsers.sort((a, b) => b.reviewCount - a.reviewCount);
+
+      renderUsers(allUsers);
+    } catch (e) {
+      grid.innerHTML = '<div class="empty">Failed to load community data.</div>';
+      console.error(e);
+    }
+  }
+
+  function renderUsers(users) {
+    userCountEl.textContent = `${users.length} member${users.length !== 1 ? 's' : ''}`;
+
+    if (users.length === 0) {
+      grid.innerHTML = '<div class="empty">No users found.</div>';
+      return;
+    }
+
+    grid.innerHTML = users.map(u => {
+      const avatar = u.photoURL
+        ? `<img class="user-avatar" src="${u.photoURL}" alt="">`
+        : `<div class="user-avatar" style="display:flex;align-items:center;justify-content:center;background:var(--border);font-size:1.2em">${u.displayName.charAt(0).toUpperCase()}</div>`;
+
+      const reading = u.currentlyReading
+        ? `<div class="user-reading"><strong>Reading:</strong> <span style="display:inline-flex;align-items:center;gap:6px">${u.currentlyReadingCover ? '<img src="' + u.currentlyReadingCover + '" style="width:24px;height:auto;border-radius:2px">' : ''}${u.currentlyReading}</span></div>`
+        : '';
+
+      const favs = u.favorites.length > 0
+        ? `<div class="user-favs" style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px">${u.favorites.map(f => {
+            const cover = u.favCovers[f] || '';
+            return cover
+              ? '<img src="' + cover + '" title="' + f + '" style="width:36px;height:auto;border-radius:2px;border:1px solid var(--border)">'
+              : '<span class="fav-chip">' + f + '</span>';
+          }).join('')}</div>`
+        : '';
+
+      return `
+        <div class="user-card" data-name="${u.displayName.toLowerCase()}">
+          <div class="user-header">
+            ${avatar}
+            <span class="user-name">${u.displayName}</span>
+          </div>
+          <div class="user-stats">
+            <div class="stat-box"><div class="stat-val">${u.reviewCount}</div><div class="stat-lbl">Reviews</div></div>
+            <div class="stat-box"><div class="stat-val">${u.avgRating}</div><div class="stat-lbl">Avg Rating</div></div>
+          </div>
+          ${reading}
+          ${favs}
+        </div>`;
+    }).join('');
+  }
+
+  // Search filter
+  searchInput.addEventListener('input', () => {
+    const q = searchInput.value.toLowerCase().trim();
+    if (!q) {
+      renderUsers(allUsers);
+      return;
+    }
+    const filtered = allUsers.filter(u =>
+      u.displayName.toLowerCase().includes(q) ||
+      u.currentlyReading.toLowerCase().includes(q) ||
+      u.favorites.some(f => f.toLowerCase().includes(q))
+    );
+    renderUsers(filtered);
+  });
+
+  // User modal
+  const userModal = document.getElementById('user-modal');
+  const userModalContent = document.getElementById('user-modal-content');
+  document.getElementById('user-modal-close').addEventListener('click', () => userModal.classList.remove('open'));
+  userModal.addEventListener('click', (e) => { if (e.target === userModal) userModal.classList.remove('open'); });
+
+  function openUserModal(user) {
+    const avatar = user.photoURL
+      ? `<img class="um-avatar" src="${user.photoURL}" alt="">`
+      : `<div class="um-avatar" style="display:flex;align-items:center;justify-content:center;background:var(--border);font-size:1.6em">${user.displayName.charAt(0).toUpperCase()}</div>`;
+
+    const reading = user.currentlyReading
+      ? `<div class="um-section">
+          <div class="um-section-title">Currently Reading</div>
+          <div style="display:flex;align-items:center;gap:10px">
+            ${user.currentlyReadingCover ? '<img src="' + user.currentlyReadingCover + '" style="width:40px;height:auto;border-radius:2px;border:1px solid var(--border)">' : ''}
+            <span>${user.currentlyReading}</span>
+          </div>
+        </div>` : '';
+
+    const favs = user.favorites.length > 0
+      ? `<div class="um-section">
+          <div class="um-section-title">Favorite Books</div>
+          <div class="um-favs">${user.favorites.map(f => {
+            const cover = user.favCovers[f] || '';
+            return cover
+              ? '<img src="' + cover + '" title="' + f + '">'
+              : '<span class="fav-chip" style="padding:4px 8px;border:1px solid var(--border);font-size:.85em">' + f + '</span>';
+          }).join('')}</div>
+        </div>` : '';
+
+    userModalContent.innerHTML = `
+      <div style="text-align:center;margin-bottom:14px">
+        ${avatar}
+        <div class="um-name" style="margin-top:8px">${user.displayName}</div>
+      </div>
+      <div class="um-stats">
+        <div class="um-stat"><div class="um-stat-val">${user.reviewCount}</div><div class="um-stat-lbl">Reviews</div></div>
+        <div class="um-stat"><div class="um-stat-val">${user.avgRating}</div><div class="um-stat-lbl">Avg Rating</div></div>
+      </div>
+      ${reading}
+      ${favs}
+    `;
+    userModal.classList.add('open');
+  }
+
+  // Click handler for user cards
+  grid.addEventListener('click', (e) => {
+    const card = e.target.closest('.user-card');
+    if (!card) return;
+    const name = card.dataset.name;
+    const user = allUsers.find(u => u.displayName.toLowerCase() === name);
+    if (user) openUserModal(user);
+  });
+
+  loadCommunity();
+</script>
+</body>
+</html>
