@@ -655,42 +655,6 @@
             }
             
             updateLeaderboard();
-
-            // Sync to Firestore profile (for community page)
-            syncGameStatsToFirestore();
-        }
-
-        function syncGameStatsToFirestore() {
-            // Only sync if signed in
-            const ssoName = localStorage.getItem('ab_identity_name');
-            const ssoSession = localStorage.getItem('ab_identity_session');
-            if (!ssoName || ssoSession !== 'active') return;
-
-            const prefix = `guessGame_${ssoName}_`;
-            const allCorrect = parseInt(localStorage.getItem(prefix + 'correct') || '0');
-            const allWrong = parseInt(localStorage.getItem(prefix + 'wrong') || '0');
-            const streak = parseInt(localStorage.getItem(prefix + 'streak') || '0');
-            const accuracy = (allCorrect + allWrong) > 0 ? Math.round((allCorrect / (allCorrect + allWrong)) * 100) : 0;
-
-            // Use dynamic import to avoid blocking game load
-            import('https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js').then(({ initializeApp }) => {
-              import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js').then(({ getFirestore, doc, setDoc }) => {
-                const app = initializeApp({
-                  apiKey: "AIzaSyDgAblkxzVxl7nFbd7jXOo6PpuNPsJw11Y",
-                  authDomain: "audiobook-catalog.firebaseapp.com",
-                  projectId: "audiobook-catalog"
-                }, 'game-sync');
-                const db = getFirestore(app);
-                const profileId = ssoName.toLowerCase();
-                setDoc(doc(db, 'profiles', profileId), {
-                  displayName: ssoName,
-                  gameCorrect: allCorrect,
-                  gameWrong: allWrong,
-                  gameBestStreak: streak,
-                  gameAccuracy: accuracy
-                }, { merge: true }).catch(() => {});
-              });
-            });
         }
 
         function recordWeeklyGame(isCorrect, bonusPoints = 1) {
