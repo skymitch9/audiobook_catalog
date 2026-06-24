@@ -432,6 +432,8 @@ body:not(.cards) #ab-table{display:table}
         <option value="genre|txt">Sort by Genre</option>
         <option value="duration_hhmm|txt">Sort by Duration</option>
         <option value="rating|num">Sort by Rating</option>
+        <option value="_myread|filter">My Read Books</option>
+        <option value="_mytbr|filter">My TBR List</option>
       </select>
       <div style="display:flex;gap:4px;flex-wrap:wrap">
         <button id="ab-search-btn" class="btn">Search</button>
@@ -525,6 +527,8 @@ body:not(.cards) #ab-table{display:table}
         <div class="label">Duration</div><div id="m-duration"></div>
       </div>
       <div class="desc" id="m-desc"></div>
+      <!-- Reading list buttons -->
+      <div id="m-reading-list" style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap;"></div>
       <!-- Reviews section -->
       <div id="m-reviews" style="margin-top:12px; border-top:1px solid var(--border); padding-top:12px;"></div>
     </div>
@@ -896,16 +900,76 @@ function toggleDarkMode(isDark){
     // Sort dropdown triggers sort on change (desc for rating/series#, asc for others)
     var descDefaultSorts = {rating:true, series_index_sort:true};
     if(sortSelect) sortSelect.addEventListener("change", function(){
-      var key=sortSelect.value.split("|")[0];
-      doSort(!descDefaultSorts[key]);
+      var parts = sortSelect.value.split("|");
+      var key = parts[0], type = parts[1];
+      if (type === 'filter') {
+        // Reading list filter — handled async
+        filterByReadingList(key);
+      } else {
+        // Clear any reading list filter first
+        clearReadingListFilter();
+        doSort(!descDefaultSorts[key]);
+      }
     });
 
     var searchBtn=document.getElementById("ab-search-btn");
     if(searchBtn) searchBtn.addEventListener("click", function(){
       _applySearch(search.value);
-      var key=sortSelect.value.split("|")[0];
-      doSort(!descDefaultSorts[key]);
+      var parts = sortSelect.value.split("|");
+      var key = parts[0], type = parts[1];
+      if (type === 'filter') {
+        filterByReadingList(key);
+      } else {
+        clearReadingListFilter();
+        doSort(!descDefaultSorts[key]);
+      }
     });
+
+    // Reading list filter functions
+    function clearReadingListFilter() {
+      document.querySelectorAll("#ab-table tbody tr").forEach(function(r){ delete r.dataset.rlFilter; });
+      document.querySelectorAll("#ab-cards .ab-card").forEach(function(c){ delete c.dataset.rlFilter; });
+    }
+
+    async function filterByReadingList(filterKey) {
+      var session = null;
+      try { var identityMod = await import('./identity.js'); session = identityMod.getSession(); } catch(e) {}
+      if (!session) { alert('Sign in to see your reading lists.'); return; }
+
+      try {
+        var { collection, getDocs } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
+        var { getFirestore } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
+        var { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js');
+
+        // Use existing db or init
+        var firestore = getFirestore();
+        var snapshot = await getDocs(collection(firestore, 'readingLists'));
+        var status = filterKey === '_myread' ? 'read' : 'tbr';
+        var myBooks = new Set();
+        snapshot.docs.forEach(function(d) {
+          var data = d.data();
+          if (data.displayName && data.displayName.toLowerCase() === session.displayName.toLowerCase() && data.status === status) {
+            myBooks.add(data.bookTitle);
+          }
+        });
+
+        // Filter table rows
+        document.querySelectorAll("#ab-table tbody tr").forEach(function(r) {
+          var titleCell = r.cells[1];
+          var title = titleCell ? titleCell.textContent.trim() : '';
+          r.dataset.searchMatch = myBooks.has(title) ? "1" : "0";
+        });
+        document.querySelectorAll("#ab-cards .ab-card").forEach(function(c) {
+          var title = c.getAttribute('data-title') || '';
+          c.dataset.searchMatch = myBooks.has(title) ? "1" : "0";
+        });
+
+        currentPage = 1;
+        renderPage();
+      } catch(e) {
+        console.warn('[ReadingList] Filter failed:', e);
+      }
+    }
 
     var toggle=document.getElementById("ab-toggle-view");
     if(toggle){ toggle.addEventListener("click", function(){ document.body.classList.toggle("cards"); currentPage=1; renderPage(); }); }
@@ -1555,6 +1619,68 @@ function toggleDarkMode(isDark){
     }
   }
 
+  // --- Reading list buttons in modal ---
+  const readingListContainer = document.getElementById('m-reading-list');
+
+  async function renderReadingListButtons(bookTitle) {
+    if (!readingListContainer || !db) return;
+    const bookId = bookIdFromTitle(bookTitle);
+    const session = getSession();
+
+    if (!session) {
+      readingListContainer.innerHTML = '';
+      return;
+    }
+
+    const { doc, getDoc, setDoc, deleteDoc, serverTimestamp, collection } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
+    const docId = `${session.displayName.toLowerCase()}_${bookId}`;
+    const listRef = doc(db, 'readingLists', docId);
+
+    let currentStatus = null;
+    try {
+      const snap = await getDoc(listRef);
+      if (snap.exists()) currentStatus = snap.data().status;
+    } catch(e) {}
+
+    // Get cover from modal
+    const cover = document.getElementById('modal-cover')?.src || '';
+
+    function renderBtns() {
+      const readActive = currentStatus === 'read';
+      const tbrActive = currentStatus === 'tbr';
+      readingListContainer.innerHTML = `
+        <button id="rl-read-btn" class="btn" style="padding:6px 14px;font-size:.75em;${readActive ? 'background:var(--neon-cyan);color:#0a0a12;border-color:var(--neon-cyan)' : ''}">
+          ${readActive ? '✓ Read' : '📖 Mark Read'}
+        </button>
+        <button id="rl-tbr-btn" class="btn" style="padding:6px 14px;font-size:.75em;${tbrActive ? 'background:var(--neon-magenta);color:#fff;border-color:var(--neon-magenta)' : ''}">
+          ${tbrActive ? '✓ To Be Read' : '📋 Add to TBR'}
+        </button>`;
+
+      readingListContainer.querySelector('#rl-read-btn').addEventListener('click', async () => {
+        if (currentStatus === 'read') {
+          await deleteDoc(listRef);
+          currentStatus = null;
+        } else {
+          await setDoc(listRef, { displayName: session.displayName, bookId, bookTitle, bookCover: cover, status: 'read', addedAt: serverTimestamp() });
+          currentStatus = 'read';
+        }
+        renderBtns();
+      });
+
+      readingListContainer.querySelector('#rl-tbr-btn').addEventListener('click', async () => {
+        if (currentStatus === 'tbr') {
+          await deleteDoc(listRef);
+          currentStatus = null;
+        } else {
+          await setDoc(listRef, { displayName: session.displayName, bookId, bookTitle, bookCover: cover, status: 'tbr', addedAt: serverTimestamp() });
+          currentStatus = 'tbr';
+        }
+        renderBtns();
+      });
+    }
+    renderBtns();
+  }
+
   // --- Reviews in modal ---
   const reviewsContainer = document.getElementById('m-reviews');
 
@@ -1566,7 +1692,10 @@ function toggleDarkMode(isDark){
         if (m.attributeName === 'class' || m.attributeName === 'aria-hidden') {
           if (modal.classList.contains('open')) {
             const title = document.getElementById('modal-title').textContent;
-            if (title) renderReviewSection(title);
+            if (title) {
+              renderReviewSection(title);
+              renderReadingListButtons(title);
+            }
           }
         }
       });

@@ -153,10 +153,22 @@ h1{
   async function loadCommunity() {
     try {
       // Fetch profiles and reviews in parallel
-      const [profilesSnap, reviewsSnap] = await Promise.all([
+      const [profilesSnap, reviewsSnap, readingListsSnap] = await Promise.all([
         getDocs(collection(db, 'profiles')),
-        getDocs(collection(db, 'reviews'))
+        getDocs(collection(db, 'reviews')),
+        getDocs(collection(db, 'readingLists'))
       ]);
+
+      // Build reading list stats per user
+      const readingStats = {};
+      readingListsSnap.docs.forEach(d => {
+        const data = d.data();
+        const name = (data.displayName || '').toLowerCase();
+        if (!name) return;
+        if (!readingStats[name]) readingStats[name] = { read: 0, tbr: 0 };
+        if (data.status === 'read') readingStats[name].read++;
+        else if (data.status === 'tbr') readingStats[name].tbr++;
+      });
 
       // Build review stats per user
       const reviewStats = {};
@@ -186,6 +198,8 @@ h1{
           avgRating: stats.count > 0 ? (stats.totalRating / stats.count).toFixed(1) : '—',
           gameBestStreak: data.gameBestStreak || 0,
           gameAccuracy: data.gameAccuracy || 0,
+          booksRead: (readingStats[nameLower] || {}).read || 0,
+          booksTbr: (readingStats[nameLower] || {}).tbr || 0,
         });
       });
 
@@ -257,6 +271,8 @@ h1{
             <div class="stat-box"><div class="stat-val">${u.avgRating}</div><div class="stat-lbl">Avg Rating</div></div>
             <div class="stat-box"><div class="stat-val">${u.gameBestStreak}</div><div class="stat-lbl">Best Streak</div></div>
             <div class="stat-box"><div class="stat-val">${u.gameAccuracy}%</div><div class="stat-lbl">Game Acc</div></div>
+            <div class="stat-box"><div class="stat-val">${u.booksRead}</div><div class="stat-lbl">Read</div></div>
+            <div class="stat-box"><div class="stat-val">${u.booksTbr}</div><div class="stat-lbl">TBR</div></div>
           </div>
           ${reading}
           ${favs}
@@ -320,6 +336,8 @@ h1{
         <div class="um-stat"><div class="um-stat-val">${user.avgRating}</div><div class="um-stat-lbl">Avg Rating</div></div>
         <div class="um-stat"><div class="um-stat-val">${user.gameBestStreak}</div><div class="um-stat-lbl">Best Streak</div></div>
         <div class="um-stat"><div class="um-stat-val">${user.gameAccuracy}%</div><div class="um-stat-lbl">Game Accuracy</div></div>
+        <div class="um-stat"><div class="um-stat-val">${user.booksRead}</div><div class="um-stat-lbl">Books Read</div></div>
+        <div class="um-stat"><div class="um-stat-val">${user.booksTbr}</div><div class="um-stat-lbl">TBR</div></div>
       </div>
       ${reading}
       ${favs}
