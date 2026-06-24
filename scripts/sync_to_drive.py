@@ -361,7 +361,23 @@ def resolve_author_to_drive_folder(
         if folder_name.lower() == author_name.lower():
             return (folder_name, folder_id)
 
-    # 2. Check if author name is contained in a folder name (handles "Author - Series" pattern)
+    # 2. Normalized match (strip all non-alphanumeric, compare base before " - ")
+    import re
+    def _normalize(s: str) -> str:
+        return re.sub(r'[^a-z0-9]', '', s.lower())
+
+    author_norm = _normalize(author_name)
+    for folder_name, folder_id in drive_folders.items():
+        # Compare against the base (before first " - ") and against the full name
+        folder_base = folder_name.split(" - ")[0].strip()
+        if _normalize(folder_base) == author_norm:
+            print(f"  [NORM] '{author_name}' -> '{folder_name}' (normalized match)")
+            return (folder_name, folder_id)
+        if _normalize(folder_name) == author_norm:
+            print(f"  [NORM] '{author_name}' -> '{folder_name}' (normalized match)")
+            return (folder_name, folder_id)
+
+    # 3. Check if author name is contained in a folder name (handles "Author - Series" pattern)
     for folder_name, folder_id in drive_folders.items():
         # Check if author is the prefix before a dash or slash
         parts = folder_name.replace("/", " - ").split(" - ")
@@ -376,7 +392,7 @@ def resolve_author_to_drive_folder(
                     if sub.lower() == author_name.lower():
                         return (folder_name, folder_id)
 
-    # 3. Fuzzy match
+    # 4. Fuzzy match
     from thefuzz import fuzz
 
     scored = []
@@ -393,7 +409,7 @@ def resolve_author_to_drive_folder(
         print(f"  [MATCH] '{author_name}' -> '{match_name}' (score: {scored[0][1]})")
         return (match_name, drive_folders[match_name])
 
-    # 4. Ask Claude for ambiguous cases
+    # 5. Ask Claude for ambiguous cases
     if CLAUDE_API_KEY:
         # Send all folder names for Claude to consider
         all_folder_names = list(drive_folders.keys())
@@ -402,7 +418,7 @@ def resolve_author_to_drive_folder(
             print(f"  [CLAUDE] '{author_name}' -> '{claude_match}'")
             return (claude_match, drive_folders[claude_match])
 
-    # 5. If we have a decent fuzzy match, confirm with user
+    # 6. If we have a decent fuzzy match, confirm with user
     if scored:
         best_name = scored[0][0]
         best_score = scored[0][1]
@@ -411,7 +427,7 @@ def resolve_author_to_drive_folder(
         if response in ("y", "yes", ""):
             return (best_name, drive_folders[best_name])
 
-    # 6. No match - create new folder
+    # 7. No match - create new folder
     return None
 
 
