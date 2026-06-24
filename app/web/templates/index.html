@@ -843,11 +843,19 @@ body:not(.cards) #ab-table{display:table}
     if(sortAscBtn) sortAscBtn.addEventListener("click", function(){ doSort(true); });
     if(sortDescBtn)sortDescBtn.addEventListener("click", function(){ doSort(false); });
 
-    // Sort dropdown triggers sort on change
-    if(sortSelect) sortSelect.addEventListener("change", function(){ doSort(true); });
+    // Sort dropdown triggers sort on change (desc for rating/series#, asc for others)
+    var descDefaultSorts = {rating:true, series_index_sort:true};
+    if(sortSelect) sortSelect.addEventListener("change", function(){
+      var key=sortSelect.value.split("|")[0];
+      doSort(!descDefaultSorts[key]);
+    });
 
     var searchBtn=document.getElementById("ab-search-btn");
-    if(searchBtn) searchBtn.addEventListener("click", function(){ _applySearch(search.value); doSort(true); });
+    if(searchBtn) searchBtn.addEventListener("click", function(){
+      _applySearch(search.value);
+      var key=sortSelect.value.split("|")[0];
+      doSort(!descDefaultSorts[key]);
+    });
 
     var toggle=document.getElementById("ab-toggle-view");
     if(toggle){ toggle.addEventListener("click", function(){ document.body.classList.toggle("cards"); currentPage=1; renderPage(); }); }
