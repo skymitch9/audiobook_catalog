@@ -357,6 +357,7 @@ body:not(.cards) #ab-table{display:table}
   <div id="controls">
     <div class="controls-row">
       <input id="ab-search" type="search" placeholder="Search any field…" aria-label="Search" />
+      <button id="ab-search-btn" class="btn">Search</button>
       <select id="ab-sort">
         <option value="title|txt">Sort by Title</option>
         <option value="series|txt">Sort by Series</option>
@@ -424,6 +425,16 @@ body:not(.cards) #ab-table{display:table}
   <div id="ab-cards">{{CARDS}}</div>
 
   <div id="ab-empty">No results for "<span id="ab-empty-q"></span>". Try a different search.</div>
+
+  <!-- Bottom pagination -->
+  <div class="controls-row pagination" style="margin-top:14px">
+    <button id="ab-page-first-bottom" class="btn">« First</button>
+    <button id="ab-page-prev-bottom"  class="btn">‹ Prev</button>
+    <div id="ab-page-nav-bottom"></div>
+    <button id="ab-page-next-bottom"  class="btn">Next ›</button>
+    <button id="ab-page-last-bottom"  class="btn">Last »</button>
+    <span id="ab-page-info-bottom" class="pagination-info"></span>
+  </div>
 </div>
 
 <!-- Modal -->
@@ -534,23 +545,32 @@ body:not(.cards) #ab-table{display:table}
   function drawPager(pages,total){
     if(!pageNav) return;
     pageNav.innerHTML="";
-    function pill(label,handler,active){ var b=document.createElement("button"); b.className="page-btn"+(active?" active":""); b.textContent=label; b.addEventListener("click",handler); pageNav.appendChild(b); }
-    document.getElementById("ab-page-first").onclick=function(){ currentPage=1; renderPage(); }
-    document.getElementById("ab-page-prev").onclick =function(){ currentPage=Math.max(1,currentPage-1); renderPage(); }
-    document.getElementById("ab-page-next").onclick =function(){ currentPage=Math.min(pages,currentPage+1); renderPage(); }
-    document.getElementById("ab-page-last").onclick =function(){ currentPage=pages; renderPage(); }
+    var pageNavBottom=document.getElementById("ab-page-nav-bottom");
+    if(pageNavBottom) pageNavBottom.innerHTML="";
+    function pill(label,handler,active){ var b=document.createElement("button"); b.className="page-btn"+(active?" active":""); b.textContent=label; b.addEventListener("click",handler); pageNav.appendChild(b); if(pageNavBottom){var b2=b.cloneNode(true);b2.addEventListener("click",handler);pageNavBottom.appendChild(b2);} }
+    function wireBtn(id,handler){ var el=document.getElementById(id); if(el) el.onclick=handler; }
+    wireBtn("ab-page-first",function(){ currentPage=1; renderPage(); });
+    wireBtn("ab-page-prev",function(){ currentPage=Math.max(1,currentPage-1); renderPage(); });
+    wireBtn("ab-page-next",function(){ currentPage=Math.min(pages,currentPage+1); renderPage(); });
+    wireBtn("ab-page-last",function(){ currentPage=pages; renderPage(); });
+    wireBtn("ab-page-first-bottom",function(){ currentPage=1; renderPage(); });
+    wireBtn("ab-page-prev-bottom",function(){ currentPage=Math.max(1,currentPage-1); renderPage(); });
+    wireBtn("ab-page-next-bottom",function(){ currentPage=Math.min(pages,currentPage+1); renderPage(); });
+    wireBtn("ab-page-last-bottom",function(){ currentPage=pages; renderPage(); });
 
     var windowSize=2, start=Math.max(1,currentPage-windowSize), end=Math.min(pages,currentPage+windowSize);
-    if(start>1){ pill(1,function(){ currentPage=1; renderPage(); }, currentPage===1); if(start>2) pageNav.append("…"); }
+    if(start>1){ pill(1,function(){ currentPage=1; renderPage(); }, currentPage===1); if(start>2){ pageNav.append("…"); if(pageNavBottom) pageNavBottom.append("…"); } }
     for(var i=start;i<=end;i++){ (function(i0){ pill(i0,function(){ currentPage=i0; renderPage(); }, i0===currentPage); })(i); }
-    if(end<pages){ if(end<pages-1) pageNav.append("…"); pill(pages,function(){ currentPage=pages; renderPage(); }, currentPage===pages); }
+    if(end<pages){ if(end<pages-1){ pageNav.append("…"); if(pageNavBottom) pageNavBottom.append("…"); } pill(pages,function(){ currentPage=pages; renderPage(); }, currentPage===pages); }
 
     var ps=pageSize();
-    if(pageInfo){
-      if(total===0){ pageInfo.textContent="No results"; }
-      else if(ps===Infinity){ pageInfo.textContent="Showing all "+total+" items"; }
-      else{ var sIdx=(currentPage-1)*ps+1, eIdx=Math.min(total,currentPage*ps); pageInfo.textContent="Showing "+sIdx+"–"+eIdx+" of "+total; }
-    }
+    var infoText="";
+    if(total===0){ infoText="No results"; }
+    else if(ps===Infinity){ infoText="Showing all "+total+" items"; }
+    else{ var sIdx=(currentPage-1)*ps+1, eIdx=Math.min(total,currentPage*ps); infoText="Showing "+sIdx+"–"+eIdx+" of "+total; }
+    if(pageInfo) pageInfo.textContent=infoText;
+    var pageInfoBottom=document.getElementById("ab-page-info-bottom");
+    if(pageInfoBottom) pageInfoBottom.textContent=infoText;
   }
 
   /* Search cache */
@@ -768,6 +788,9 @@ body:not(.cards) #ab-table{display:table}
 
     var search=document.getElementById("ab-search");
     if(search) search.addEventListener("input", _debounce(function(){ _applySearch(search.value); currentPage=1; renderPage(); }, 120));
+
+    var searchBtn=document.getElementById("ab-search-btn");
+    if(searchBtn) searchBtn.addEventListener("click", function(){ _applySearch(search.value); currentPage=1; renderPage(); });
 
     var sortSelect=document.getElementById("ab-sort");
     var sortAscBtn=document.getElementById("ab-sort-asc");
@@ -1112,6 +1135,46 @@ body:not(.cards) #ab-table{display:table}
     container.querySelector('#auth-signin-btn').addEventListener('click', () => handlePassphrase(login));
   }
 
+  async function _updateTableRating(bookTitle, bookId) {
+    // Fetch fresh reviews for this book and update the table cell
+    const reviews = await getReviews(db, bookId);
+    const avg = computeAverageRating(reviews);
+    const count = reviews.length;
+
+    // Update table cell
+    document.querySelectorAll('#ab-table tbody tr').forEach(row => {
+      const titleCell = row.cells[1];
+      const ratingCell = row.querySelector('.rating-cell');
+      if (!titleCell || !ratingCell) return;
+      if (titleCell.textContent.trim() === bookTitle) {
+        if (count > 0) {
+          ratingCell.innerHTML = `${renderStars(avg)} <span style="font-size:.8em;color:var(--muted)">(${count})</span>`;
+          ratingCell.setAttribute('data-sort', String(avg));
+        }
+      }
+    });
+
+    // Update card chip
+    document.querySelectorAll('#ab-cards .ab-card').forEach(card => {
+      if ((card.getAttribute('data-title') || '') === bookTitle) {
+        card.setAttribute('data-rating', String(avg));
+        const existingChip = card.querySelector('.rating-chip');
+        if (existingChip) {
+          existingChip.innerHTML = `${renderStars(avg)} ${avg}`;
+        } else if (count > 0) {
+          const row = card.querySelector('.ab-row');
+          if (row) {
+            const chip = document.createElement('span');
+            chip.className = 'ab-chip rating-chip';
+            chip.style.color = 'var(--neon-yellow)';
+            chip.innerHTML = `${renderStars(avg)} ${avg}`;
+            row.prepend(chip);
+          }
+        }
+      }
+    });
+  }
+
   async function populateRatings() {
     if (!db) return;
     try {
@@ -1144,7 +1207,7 @@ body:not(.cards) #ab-table{display:table}
         const info = avgByBook[bookId];
 
         if (info) {
-          const stars = renderStars(Math.round(info.avg));
+          const stars = renderStars(info.avg);
           ratingCell.innerHTML = `${stars} <span style="font-size:.8em;color:var(--muted)">(${info.count})</span>`;
           ratingCell.setAttribute('data-sort', String(info.avg));
         }
@@ -1163,7 +1226,7 @@ body:not(.cards) #ab-table{display:table}
             const chip = document.createElement('span');
             chip.className = 'ab-chip rating-chip';
             chip.style.color = 'var(--neon-yellow)';
-            chip.innerHTML = `${renderStars(Math.round(info.avg))} ${info.avg}`;
+            chip.innerHTML = `${renderStars(info.avg)} ${info.avg}`;
             row.prepend(chip);
           }
           card.setAttribute('data-rating', String(info.avg));
@@ -1329,6 +1392,8 @@ body:not(.cards) #ab-table{display:table}
           const result = await submitReview(db, bookId, session.displayName, selectedRating, text || '');
           if (result.success) {
             statusEl.textContent = 'Review saved!';
+            // Update table rating cell immediately
+            _updateTableRating(bookTitle, bookId);
             setTimeout(() => renderReviewSection(bookTitle), 500);
           } else {
             statusEl.textContent = result.error || 'Failed to submit.';
