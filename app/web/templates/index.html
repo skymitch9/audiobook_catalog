@@ -711,9 +711,11 @@ function toggleDarkMode(isDark){
   }
   function _authorFolderHref(author){
     var id=_resolveAuthorFolder(author);
-    return (id && String(id).trim())
-      ? ("https://drive.google.com/drive/folders/"+encodeURIComponent(String(id).trim()))
-      : null;
+    if (!id || !String(id).trim()) return null;
+    var val = String(id).trim();
+    // If already a full URL, use directly
+    if (val.startsWith("http")) return val;
+    return "https://drive.google.com/drive/folders/"+encodeURIComponent(val);
   }
   function _authorSearchHref(author){
     return author && author.trim()
