@@ -21,6 +21,12 @@ def _esc(s) -> str:
     return html.escape(s)
 
 
+def _url_encode_path(path: str) -> str:
+    """URL-encode a file path for use in img src, preserving / separators."""
+    from urllib.parse import quote
+    return quote(path, safe="/")
+
+
 def _cover_button(r: Dict[str, str], inline: bool = False) -> str:
     """
     Wrap cover <img> in a button with data-* attributes used by the modal.
@@ -30,10 +36,11 @@ def _cover_button(r: Dict[str, str], inline: bool = False) -> str:
     if not cover:
         return ""
     cls = "cover-btn inline" if inline else "cover-btn"
+    cover_url = _url_encode_path(cover)
     # Data attributes: keep short names to minimize HTML size
     data_attrs = " ".join(
         [
-            f'data-cover="{_esc(cover)}"',
+            f'data-cover="{_esc(cover_url)}"',
             f'data-title="{_esc(r.get("title",""))}"',
             f'data-series="{_esc(r.get("series",""))}"',
             f'data-index="{_esc(r.get("series_index_display",""))}"',
@@ -46,7 +53,7 @@ def _cover_button(r: Dict[str, str], inline: bool = False) -> str:
         ]
     )
     img_cls = "cover-inline" if inline else "cover"
-    return f'<button class="{cls}" {data_attrs}><img class="{img_cls}" src="{_esc(cover)}" alt="Cover of {_esc(r.get("title",""))}" loading="lazy" /></button>'
+    return f'<button class="{cls}" {data_attrs}><img class="{img_cls}" src="{cover_url}" alt="Cover of {_esc(r.get("title",""))}" loading="lazy" /></button>'
 
 
 def _row_cells(r: Dict[str, str]) -> str:
@@ -159,7 +166,8 @@ def _recently_added_html(rows: List[Dict[str, str]], count: int = 5) -> str:
     items = []
     for r in recent:
         cover = r.get("cover_href", "")
-        cover_img = f'<img src="{_esc(cover)}" alt="Cover" style="width:48px;height:auto;border-radius:6px;" loading="lazy">' if cover else ""
+        cover_url = _url_encode_path(cover) if cover else ""
+        cover_img = f'<img src="{cover_url}" alt="Cover" style="width:48px;height:auto;border-radius:6px;" loading="lazy">' if cover else ""
         series_badge = ""
         if r.get("series"):
             idx = f' #{_esc(r["series_index_display"])}' if r.get("series_index_display") else ""
@@ -167,7 +175,7 @@ def _recently_added_html(rows: List[Dict[str, str]], count: int = 5) -> str:
 
         # Data attributes for modal opening on click
         data_attrs = " ".join([
-            f'data-cover="{_esc(cover)}"',
+            f'data-cover="{_esc(cover_url)}"',
             f'data-title="{_esc(r.get("title",""))}"',
             f'data-series="{_esc(r.get("series",""))}"',
             f'data-index="{_esc(r.get("series_index_display",""))}"',
