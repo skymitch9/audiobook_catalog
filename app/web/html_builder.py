@@ -180,7 +180,9 @@ def _recently_added_html(rows: List[Dict[str, str]], count: int = 5) -> str:
         ])
 
         items.append(
-            f'<div class="recently-added-item" {data_attrs} style="display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer">'
+            f'<div class="recently-added-item" {data_attrs}'
+            f' style="display:flex;gap:10px;align-items:center;padding:8px 0;'
+            f'border-bottom:1px solid var(--border);cursor:pointer">'
             f'<div style="flex-shrink:0">{cover_img}</div>'
             f'<div style="flex:1;min-width:0">'
             f'<div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{_esc(r.get("title",""))}</div>'
