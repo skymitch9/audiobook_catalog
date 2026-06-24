@@ -165,9 +165,18 @@ h1{
         const data = d.data();
         const name = (data.displayName || '').toLowerCase();
         if (!name) return;
-        if (!readingStats[name]) readingStats[name] = { read: 0, tbr: 0 };
-        if (data.status === 'read') readingStats[name].read++;
+        if (!readingStats[name]) readingStats[name] = { readBooks: new Set(), tbr: 0 };
+        if (data.status === 'read') readingStats[name].readBooks.add(data.bookId);
         else if (data.status === 'tbr') readingStats[name].tbr++;
+      });
+
+      // Reviews also count as "read"
+      reviewsSnap.docs.forEach(d => {
+        const data = d.data();
+        const name = (data.displayName || '').toLowerCase();
+        if (!name || !data.bookId) return;
+        if (!readingStats[name]) readingStats[name] = { readBooks: new Set(), tbr: 0 };
+        readingStats[name].readBooks.add(data.bookId);
       });
 
       // Build review stats per user
@@ -198,7 +207,7 @@ h1{
           avgRating: stats.count > 0 ? (stats.totalRating / stats.count).toFixed(1) : '—',
           gameBestStreak: data.gameBestStreak || 0,
           gameAccuracy: data.gameAccuracy || 0,
-          booksRead: (readingStats[nameLower] || {}).read || 0,
+          booksRead: (readingStats[nameLower] || {}).readBooks?.size || 0,
           booksTbr: (readingStats[nameLower] || {}).tbr || 0,
         });
       });
@@ -220,6 +229,8 @@ h1{
             avgRating: stats.count > 0 ? (stats.totalRating / stats.count).toFixed(1) : '—',
             gameBestStreak: 0,
             gameAccuracy: 0,
+            booksRead: (readingStats[nameLower] || {}).readBooks?.size || 0,
+            booksTbr: (readingStats[nameLower] || {}).tbr || 0,
           });
         }
       });

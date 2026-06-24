@@ -941,19 +941,37 @@ function toggleDarkMode(isDark){
       try {
         var { collection, getDocs } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
         var { getFirestore } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
-        var { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js');
 
-        // Use existing db or init
         var firestore = getFirestore();
-        var snapshot = await getDocs(collection(firestore, 'readingLists'));
         var status = filterKey === '_myread' ? 'read' : 'tbr';
         var myBooks = new Set();
-        snapshot.docs.forEach(function(d) {
+
+        // Reading lists
+        var rlSnap = await getDocs(collection(firestore, 'readingLists'));
+        rlSnap.docs.forEach(function(d) {
           var data = d.data();
           if (data.displayName && data.displayName.toLowerCase() === session.displayName.toLowerCase() && data.status === status) {
             myBooks.add(data.bookTitle);
           }
         });
+
+        // For "read" — also include all books the user reviewed
+        if (status === 'read') {
+          var revSnap = await getDocs(collection(firestore, 'reviews'));
+          revSnap.docs.forEach(function(d) {
+            var data = d.data();
+            if (data.displayName && data.displayName.toLowerCase() === session.displayName.toLowerCase() && data.bookId) {
+              // Convert bookId back to title by matching table
+              document.querySelectorAll('#ab-table tbody tr').forEach(function(r) {
+                var titleCell = r.cells[1];
+                if (!titleCell) return;
+                var title = titleCell.textContent.trim();
+                var bid = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-{2,}/g, '-').replace(/^-|-$/g, '');
+                if (bid === data.bookId) myBooks.add(title);
+              });
+            }
+          });
+        }
 
         // Filter table rows
         document.querySelectorAll("#ab-table tbody tr").forEach(function(r) {
@@ -1450,23 +1468,12 @@ function toggleDarkMode(isDark){
 
   async function _renderLoggedOutModal(container, db, authBtn) {
     container.innerHTML = `
-      <div style="padding:10px 0;text-align:center">
+      <div style="padding:20px 0;text-align:center">
         <h3 style="color:var(--neon-yellow);text-transform:uppercase;letter-spacing:1px;margin-bottom:16px">Sign In</h3>
-        <button id="auth-google-btn" class="identity-bar__google-btn" style="width:100%;justify-content:center;padding:10px 16px;font-size:.9em">
+        <button id="auth-google-btn" class="identity-bar__google-btn" style="width:100%;justify-content:center;padding:12px 16px;font-size:.95em">
           <svg width="18" height="18" viewBox="0 0 48 48" style="vertical-align:middle;margin-right:8px"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
           Continue with Google
         </button>
-        <div style="display:flex;align-items:center;gap:8px;margin:14px 0;color:var(--muted);font-size:.8em">
-          <span style="flex:1;height:1px;background:var(--border)"></span>or<span style="flex:1;height:1px;background:var(--border)"></span>
-        </div>
-        <div id="auth-passphrase-form" style="display:flex;flex-direction:column;gap:8px;align-items:stretch">
-          <input id="auth-name" type="text" placeholder="Display Name (2-20)" style="padding:8px 10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:'Share Tech Mono',monospace">
-          <input id="auth-pass" type="password" placeholder="Passphrase (4+)" style="padding:8px 10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:'Share Tech Mono',monospace">
-          <div style="display:flex;gap:6px">
-            <button id="auth-register-btn" class="btn" style="flex:1;background:var(--btn-bg);border:1px solid var(--btn-border);font-size:.8em;padding:8px">Register</button>
-            <button id="auth-signin-btn" class="btn" style="flex:1;background:var(--neon-yellow);color:#0a0a12;border:none;font-size:.8em;padding:8px">Sign In</button>
-          </div>
-        </div>
         <div id="auth-error" style="color:var(--neon-magenta);font-size:.8em;margin-top:8px;display:none"></div>
         <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-top:1px solid var(--border);margin-top:12px">
           <span style="font-size:.85em;color:var(--muted)">Dark Mode</span>
@@ -1496,25 +1503,6 @@ function toggleDarkMode(isDark){
         err.textContent = result.error; err.style.display = '';
       }
     });
-
-    // Passphrase handlers
-    async function handlePassphrase(authFn) {
-      const name = container.querySelector('#auth-name').value;
-      const pass = container.querySelector('#auth-pass').value;
-      const err = container.querySelector('#auth-error');
-      err.style.display = 'none';
-      if (!validateDisplayName(name)) { err.textContent = 'Name must be 2-20 characters.'; err.style.display = ''; return; }
-      if (!validatePassphrase(pass)) { err.textContent = 'Passphrase must be 4+ characters.'; err.style.display = ''; return; }
-      const result = await authFn(name, pass, db);
-      if (result.success) {
-        _updateAuthButton(authBtn);
-        document.getElementById('auth-modal').classList.remove('open');
-      } else {
-        err.textContent = result.error; err.style.display = '';
-      }
-    }
-    container.querySelector('#auth-register-btn').addEventListener('click', () => handlePassphrase(register));
-    container.querySelector('#auth-signin-btn').addEventListener('click', () => handlePassphrase(login));
   }
 
   async function _updateTableRating(bookTitle, bookId) {
@@ -1643,6 +1631,17 @@ function toggleDarkMode(isDark){
       const snap = await getDoc(listRef);
       if (snap.exists()) currentStatus = snap.data().status;
     } catch(e) {}
+
+    // If user reviewed this book, it counts as "read"
+    if (!currentStatus) {
+      const { collection, getDocs } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
+      const revSnap = await getDocs(collection(db, 'reviews'));
+      const hasReview = revSnap.docs.some(d => {
+        const data = d.data();
+        return data.bookId === bookId && data.displayName && data.displayName.toLowerCase() === session.displayName.toLowerCase();
+      });
+      if (hasReview) currentStatus = 'read';
+    }
 
     // Get cover from modal
     const cover = document.getElementById('modal-cover')?.src || '';
@@ -1846,7 +1845,14 @@ function toggleDarkMode(isDark){
             statusEl.textContent = 'Review saved!';
             // Update table rating cell immediately
             _updateTableRating(bookTitle, bookId);
-            setTimeout(() => renderReviewSection(bookTitle), 500);
+            // Auto-mark as read (reviewed = read)
+            try {
+              const { doc, setDoc, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
+              const rlDocId = `${session.displayName.toLowerCase()}_${bookId}`;
+              const cover = document.getElementById('modal-cover')?.src || '';
+              await setDoc(doc(db, 'readingLists', rlDocId), { displayName: session.displayName, bookId, bookTitle, bookCover: cover, status: 'read', addedAt: serverTimestamp() }, { merge: true });
+            } catch(e) {}
+            setTimeout(() => { renderReviewSection(bookTitle); renderReadingListButtons(bookTitle); }, 500);
           } else {
             statusEl.textContent = result.error || 'Failed to submit.';
             submitBtn.disabled = false;
