@@ -75,7 +75,7 @@ export async function submitReview(db, bookId, displayName, rating, text) {
 
 /**
  * Render a star rating as an accessible HTML string.
- * Supports half-star increments using CSS half-star technique.
+ * Supports half-star increments using CSS clip for half-filled stars.
  * @param {number} rating - 0.5 to 5 in 0.5 increments
  * @returns {string} HTML string with star display and aria-label
  */
@@ -85,7 +85,7 @@ export function renderStars(rating) {
     if (rating >= i) {
       html += '<span class="star star-full">★</span>';
     } else if (rating >= i - 0.5) {
-      html += '<span class="star star-half">★</span>';
+      html += '<span class="star star-half"><span class="star-half-fill">★</span>☆</span>';
     } else {
       html += '<span class="star star-empty">☆</span>';
     }

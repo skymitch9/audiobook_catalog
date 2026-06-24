@@ -284,9 +284,15 @@ body:not(.cards) #ab-table{display:table}
 .rating-cell{ font-family:'Share Tech Mono', monospace; white-space:nowrap; }
 .rating-cell .stars{ color: var(--neon-yellow); }
 .rating-chip .stars{ color: var(--neon-yellow); font-size:.9em; }
+.stars .star{ display:inline-block; position:relative; }
 .stars .star-full{ color: var(--neon-yellow); }
-.stars .star-half{ color: var(--neon-yellow); opacity:.6; }
-.stars .star-empty{ color: var(--muted); opacity:.4; }
+.stars .star-half{ color: var(--muted); display:inline-block; position:relative; }
+.stars .star-half .star-half-fill{
+  position:absolute; left:0; top:0;
+  color: var(--neon-yellow);
+  overflow:hidden; width:50%;
+}
+.stars .star-empty{ color: var(--muted); }
 .star-pick{ user-select:none; transition: transform .1s; }
 .star-pick:hover{ transform: scale(1.2); }
 
@@ -357,7 +363,6 @@ body:not(.cards) #ab-table{display:table}
   <div id="controls">
     <div class="controls-row">
       <input id="ab-search" type="search" placeholder="Search any field…" aria-label="Search" />
-      <button id="ab-search-btn" class="btn">Search</button>
       <select id="ab-sort">
         <option value="title|txt">Sort by Title</option>
         <option value="series|txt">Sort by Series</option>
@@ -369,6 +374,7 @@ body:not(.cards) #ab-table{display:table}
         <option value="duration_hhmm|txt">Sort by Duration</option>
         <option value="rating|num">Sort by Rating</option>
       </select>
+      <button id="ab-search-btn" class="btn">Search</button>
       <button id="ab-sort-asc" class="btn">Asc</button>
       <button id="ab-sort-desc" class="btn">Desc</button>
       <button id="ab-toggle-view" class="btn">Toggle View</button>
@@ -504,8 +510,28 @@ body:not(.cards) #ab-table{display:table}
   /* Sorting */
   function getCellVal(row,idx,numeric){ var cell=row.children[idx]; if(!cell) return ""; if(numeric){ var key=cell.getAttribute("data-sort"); if(key!==null&&key!==""){ var n=parseFloat(key); if(!isNaN(n)) return n; } var txt=cell.innerText||cell.textContent||""; var n2=parseFloat(txt); return isNaN(n2)?-Infinity:n2; } return cell.innerText||cell.textContent||""; }
   function cmp(a,b,numeric){ return numeric?(a-b):(""+a).localeCompare(""+b,undefined,{numeric:true,sensitivity:"base"}); }
-  function sortTableBy(table,idx,numeric,asc){ var tbody=table.tBodies[0]; var rows=Array.from(tbody.querySelectorAll("tr")); rows.sort(function(r1,r2){ var v1=getCellVal(r1,idx,numeric),v2=getCellVal(r2,idx,numeric); return asc?cmp(v1,v2,numeric):cmp(v2,v1,numeric); }); rows.forEach(function(r){ tbody.appendChild(r); }); currentPage=1; renderPage(); }
-  function makeTableSortable(table){ var ths=table.querySelectorAll("th"); ths.forEach(function(th,idx){ var asc=true; if(th.getAttribute("data-key")==="cover_href") return; th.style.cursor="pointer"; th.addEventListener("click",function(){ var numeric=th.dataset.type==="num"; sortTableBy(table,idx,numeric,asc); asc=!asc; }); }); }
+  // Sorts that should use series order as secondary sort
+  var seriesSecondarySorts = {author:true, series:true, genre:true, narrator:true};
+
+  function sortTableBy(table,idx,numeric,asc,sortKey){
+    var tbody=table.tBodies[0];
+    var rows=Array.from(tbody.querySelectorAll("tr"));
+    var useSeriesSecondary = sortKey && seriesSecondarySorts[sortKey];
+    rows.sort(function(r1,r2){
+      var v1=getCellVal(r1,idx,numeric),v2=getCellVal(r2,idx,numeric);
+      var primary = asc?cmp(v1,v2,numeric):cmp(v2,v1,numeric);
+      if(primary !== 0 || !useSeriesSecondary) return primary;
+      // Secondary: sort by series name, then series index
+      var s1=getCellVal(r1,2,false), s2=getCellVal(r2,2,false); // col 2 = series
+      var sc=cmp(s1,s2,false);
+      if(sc!==0) return sc;
+      var si1=getCellVal(r1,3,true), si2=getCellVal(r2,3,true); // col 3 = series index
+      return cmp(si1,si2,true);
+    });
+    rows.forEach(function(r){ tbody.appendChild(r); });
+    currentPage=1; renderPage();
+  }
+  function makeTableSortable(table){ var ths=table.querySelectorAll("th"); ths.forEach(function(th,idx){ var asc=true; if(th.getAttribute("data-key")==="cover_href") return; th.style.cursor="pointer"; th.addEventListener("click",function(){ var numeric=th.dataset.type==="num"; var sortKey=th.getAttribute("data-key"); sortTableBy(table,idx,numeric,asc,sortKey); asc=!asc; }); }); }
   function getCardSortKey(card,key,numeric){ var v=card.getAttribute("data-"+key)||""; return numeric?(isNaN(parseFloat(v))?-Infinity:parseFloat(v)):v; }
   function sortCards(container,key,numeric,asc){ var cards=Array.from(container.querySelectorAll(".ab-card")); cards.sort(function(a,b){ var v1=getCardSortKey(a,key,numeric),v2=getCardSortKey(b,key,numeric); return asc?(numeric?(v1-v2):(""+v1).localeCompare(""+v2,undefined,{numeric:true,sensitivity:"base"})):(numeric?(v2-v1):(""+v2).localeCompare(""+v1,undefined,{numeric:true,sensitivity:"base"})); }); cards.forEach(function(c){ container.appendChild(c); }); currentPage=1; renderPage(); }
 
@@ -789,9 +815,6 @@ body:not(.cards) #ab-table{display:table}
     var search=document.getElementById("ab-search");
     if(search) search.addEventListener("input", _debounce(function(){ _applySearch(search.value); currentPage=1; renderPage(); }, 120));
 
-    var searchBtn=document.getElementById("ab-search-btn");
-    if(searchBtn) searchBtn.addEventListener("click", function(){ _applySearch(search.value); currentPage=1; renderPage(); });
-
     var sortSelect=document.getElementById("ab-sort");
     var sortAscBtn=document.getElementById("ab-sort-asc");
     var sortDescBtn=document.getElementById("ab-sort-desc");
@@ -799,19 +822,32 @@ body:not(.cards) #ab-table{display:table}
       var parts=sortSelect.value.split("|");
       var key=parts[0], numeric=(parts[1]==="num");
       var idx=Array.from(document.querySelectorAll("#ab-table thead th")).findIndex(function(th){ return th.getAttribute("data-key")===key; });
-      if(idx>=0){ sortTableBy(table, idx, numeric, asc); }
+      if(idx>=0){ sortTableBy(table, idx, numeric, asc, key); }
       var cards=Array.from(cardsWrap.querySelectorAll(".ab-card"));
       cards.sort(function(a,b){
         var v1=a.getAttribute("data-"+key)||"", v2=b.getAttribute("data-"+key)||"";
         if(numeric){ v1=parseFloat(v1); v2=parseFloat(v2); if(isNaN(v1)) v1=-Infinity; if(isNaN(v2)) v2=-Infinity; }
-        return asc ? ((numeric ? (v1-v2) : (""+v1).localeCompare(""+v2,undefined,{numeric:true,sensitivity:"base"})))
+        var primary = asc ? ((numeric ? (v1-v2) : (""+v1).localeCompare(""+v2,undefined,{numeric:true,sensitivity:"base"})))
                    : ((numeric ? (v2-v1) : (""+v2).localeCompare(""+v1,undefined,{numeric:true,sensitivity:"base"})));
+        if(primary!==0 || !seriesSecondarySorts[key]) return primary;
+        var s1=a.getAttribute("data-series")||"", s2=b.getAttribute("data-series")||"";
+        var sc=s1.localeCompare(s2,undefined,{sensitivity:"base"});
+        if(sc!==0) return sc;
+        var si1=parseFloat(a.getAttribute("data-series_index_sort")||"-Infinity");
+        var si2=parseFloat(b.getAttribute("data-series_index_sort")||"-Infinity");
+        return si1-si2;
       });
       cards.forEach(function(c){ cardsWrap.appendChild(c); });
       currentPage=1; renderPage();
     }
     if(sortAscBtn) sortAscBtn.addEventListener("click", function(){ doSort(true); });
     if(sortDescBtn)sortDescBtn.addEventListener("click", function(){ doSort(false); });
+
+    // Sort dropdown triggers sort on change
+    if(sortSelect) sortSelect.addEventListener("change", function(){ doSort(true); });
+
+    var searchBtn=document.getElementById("ab-search-btn");
+    if(searchBtn) searchBtn.addEventListener("click", function(){ _applySearch(search.value); doSort(true); });
 
     var toggle=document.getElementById("ab-toggle-view");
     if(toggle){ toggle.addEventListener("click", function(){ document.body.classList.toggle("cards"); currentPage=1; renderPage(); }); }
@@ -1340,13 +1376,18 @@ body:not(.cards) #ab-table{display:table}
         selector.querySelectorAll('.star-pick').forEach(pick => {
           const i = parseInt(pick.dataset.star);
           const display = pick.querySelector('.star-display');
-          if (rating >= i) display.textContent = '★';
-          else if (rating >= i - 0.5) display.textContent = '★';
-          else display.textContent = '☆';
-          // Add half-star visual via opacity
-          if (rating >= i) { display.style.opacity = '1'; }
-          else if (rating >= i - 0.5) { display.style.opacity = '0.6'; }
-          else { display.style.opacity = '0.4'; }
+          if (rating >= i) {
+            display.textContent = '★';
+            display.style.color = 'var(--neon-yellow)';
+            display.style.opacity = '1';
+          } else if (rating >= i - 0.5) {
+            display.innerHTML = '<span style="position:relative;display:inline-block"><span style="position:absolute;left:0;top:0;overflow:hidden;width:50%;color:var(--neon-yellow)">★</span><span style="color:var(--muted)">☆</span></span>';
+            display.style.opacity = '1';
+          } else {
+            display.textContent = '☆';
+            display.style.color = 'var(--muted)';
+            display.style.opacity = '1';
+          }
         });
         if (ratingLabel) ratingLabel.textContent = rating ? rating + '/5' : '';
       }
