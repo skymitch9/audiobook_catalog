@@ -245,7 +245,7 @@ function _renderLoggedOut(containerEl, db, options) {
   const wrapper = document.createElement('div');
   wrapper.className = 'identity-bar identity-bar--logged-out';
 
-  // Single row: Google button + expandable passphrase
+  // Single row: Google button only
   const row = document.createElement('div');
   row.style.cssText = 'display:flex;align-items:center;gap:10px;flex-wrap:wrap';
 
@@ -267,79 +267,6 @@ function _renderLoggedOut(containerEl, db, options) {
     }
   });
   row.appendChild(googleBtn);
-
-  // "or passphrase" toggle
-  const toggleLink = document.createElement('button');
-  toggleLink.style.cssText = 'background:none;border:none;color:var(--muted);font-size:.8em;cursor:pointer;text-decoration:underline;padding:0';
-  toggleLink.textContent = 'use passphrase';
-  row.appendChild(toggleLink);
-
   wrapper.appendChild(row);
-
-  // Passphrase form (hidden by default)
-  const form = document.createElement('form');
-  form.className = 'identity-bar__form';
-  form.style.display = 'none';
-  form.addEventListener('submit', (e) => e.preventDefault());
-
-  const nameInput = document.createElement('input');
-  nameInput.type = 'text';
-  nameInput.className = 'identity-bar__input';
-  nameInput.placeholder = 'Name (2-20)';
-  nameInput.setAttribute('aria-label', 'Display Name');
-  form.appendChild(nameInput);
-
-  const passInput = document.createElement('input');
-  passInput.type = 'password';
-  passInput.className = 'identity-bar__input';
-  passInput.placeholder = 'Passphrase (4+)';
-  passInput.setAttribute('aria-label', 'Passphrase');
-  form.appendChild(passInput);
-
-  const btnGroup = document.createElement('div');
-  btnGroup.className = 'identity-bar__buttons';
-  const registerBtn = document.createElement('button');
-  registerBtn.type = 'button';
-  registerBtn.className = 'identity-bar__register-btn';
-  registerBtn.textContent = 'Register';
-  const signInBtn = document.createElement('button');
-  signInBtn.type = 'button';
-  signInBtn.className = 'identity-bar__signin-btn';
-  signInBtn.textContent = 'Sign In';
-  btnGroup.appendChild(registerBtn);
-  btnGroup.appendChild(signInBtn);
-  form.appendChild(btnGroup);
-  wrapper.appendChild(form);
-
-  // Error
-  const errorEl = document.createElement('span');
-  errorEl.className = 'identity-bar__error identity-bar__error--general';
-  errorEl.style.display = 'none';
-  wrapper.appendChild(errorEl);
-
   containerEl.appendChild(wrapper);
-
-  // Toggle passphrase form
-  toggleLink.addEventListener('click', () => {
-    const showing = form.style.display !== 'none';
-    form.style.display = showing ? 'none' : 'flex';
-    toggleLink.textContent = showing ? 'use passphrase' : 'hide';
-  });
-
-  // Passphrase handlers
-  async function handleAuth(authFn) {
-    if (!validateDisplayName(nameInput.value)) { errorEl.textContent = 'Name: 2-20 chars.'; errorEl.style.display = ''; return; }
-    if (!validatePassphrase(passInput.value)) { errorEl.textContent = 'Passphrase: 4+ chars.'; errorEl.style.display = ''; return; }
-    errorEl.style.display = 'none';
-    const result = await authFn(nameInput.value, passInput.value, db);
-    if (result.success) {
-      renderIdentityBar(containerEl, db, options);
-      options?.onAuthChange?.(getSession());
-    } else {
-      errorEl.textContent = result.error;
-      errorEl.style.display = '';
-    }
-  }
-  registerBtn.addEventListener('click', () => handleAuth(register));
-  signInBtn.addEventListener('click', () => handleAuth(login));
 }
