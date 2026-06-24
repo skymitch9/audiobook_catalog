@@ -1,0 +1,12 @@
+{
+  "_description": "Books sourced from BookFunnel (combined from multiple MP3s via Audiobook Converter). These files may have incomplete metadata (missing description, genre, etc.) and should be excluded from completeness checks.",
+  "_source": "BookFunnel -> Audiobook Converter -> .m4b",
+  "_note": "Add new BookFunnel books here as they're converted. Format: relative path from library root.",
+  "books": [
+    "Dakota Krout - CAL Universe/Everything - Full Murderhobo, Book 3.m4b",
+    "Dakota Krout - CAL Universe/Dakota Krout - [Uncapped - 14] - Uncapped (Luke Daniels).m4b",
+    "Dakota Krout - CAL Universe/Unmapped - Completionist Chronicles, Book 13.m4b",
+    "Dakota Krout - CAL Universe/Untapped - The Completionist Chronicles, Book 11.m4b",
+    "J.l.mullins/J.L.Mullins - [Binding - 1] - Binding (Tess Irondale).m4b"
+  ]
+}

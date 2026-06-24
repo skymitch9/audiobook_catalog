@@ -1,6 +1,8 @@
 """
 Test catalog completeness - verify every book has cover, drive link, and author link.
 This test ensures the catalog is fully functional with all required resources.
+Books flagged as BookFunnel sourced (scripts/bookfunnel_books.json) are excluded
+from description/genre checks since they have known metadata gaps.
 """
 
 import json
@@ -9,6 +11,14 @@ from pathlib import Path
 
 from app.config import EXTS, ROOT_DIR, SITE_DIR
 from app.metadata import extract_metadata, walk_library
+
+# Load BookFunnel exclusion list
+BOOKFUNNEL_PATH = Path(__file__).parent.parent / "scripts" / "bookfunnel_books.json"
+BOOKFUNNEL_BOOKS: set = set()
+if BOOKFUNNEL_PATH.exists():
+    with open(BOOKFUNNEL_PATH, "r", encoding="utf-8") as f:
+        data = json.load(f)
+        BOOKFUNNEL_BOOKS = set(data.get("books", []))
 
 
 class TestCatalogCompleteness(unittest.TestCase):
@@ -24,6 +34,12 @@ class TestCatalogCompleteness(unittest.TestCase):
         for file_path in cls.files:
             try:
                 metadata = extract_metadata(file_path)
+                # Flag if BookFunnel sourced
+                try:
+                    rel_path = str(file_path.relative_to(ROOT_DIR)).replace("\\", "/")
+                except ValueError:
+                    rel_path = ""
+                metadata["_is_bookfunnel"] = rel_path in BOOKFUNNEL_BOOKS
                 cls.books.append({"path": file_path, "metadata": metadata})
             except Exception as e:
                 print(f"Warning: Failed to extract metadata from {file_path}: {e}")
@@ -183,18 +199,24 @@ class TestCatalogCompleteness(unittest.TestCase):
         print(f"\n[OK] Books with authors: {len(self.books) - len(missing_authors)}/{len(self.books)}")
 
     def test_all_books_have_descriptions(self):
-        """Test that all books have description metadata."""
+        """Test that all books have description metadata (excludes BookFunnel books)."""
         if len(self.books) == 0:
             self.skipTest("No library found (expected in CI environment)")
 
         missing = []
+        skipped_bf = 0
         for book in self.books:
+            if book["metadata"].get("_is_bookfunnel"):
+                skipped_bf += 1
+                continue
             desc = book["metadata"].get("desc", "")
             if not desc.strip():
                 missing.append(book["metadata"].get("title", str(book["path"])))
 
-        pct = ((len(self.books) - len(missing)) / len(self.books)) * 100
-        print(f"\n[REPORT] Books with descriptions: {len(self.books) - len(missing)}/{len(self.books)} ({pct:.1f}%)")
+        checked = len(self.books) - skipped_bf
+        pct = ((checked - len(missing)) / checked) * 100 if checked else 0
+        print(f"\n[REPORT] Books with descriptions: {checked - len(missing)}/{checked} ({pct:.1f}%)")
+        print(f"  (Excluded {skipped_bf} BookFunnel books with known gaps)")
         if missing:
             for title in missing[:10]:
                 print(f"  - {title}")
