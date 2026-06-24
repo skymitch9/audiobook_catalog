@@ -1233,7 +1233,7 @@ body:not(.cards) #ab-table{display:table}
             ${[1,2,3,4,5].map(i => `<span class="star-pick" data-star="${i}" style="position:relative;display:inline-block;width:1em"><span class="star-half-left" data-value="${i-0.5}" style="position:absolute;left:0;top:0;width:50%;height:100%;overflow:hidden;z-index:1"></span><span class="star-half-right" data-value="${i}" style="position:absolute;right:0;top:0;width:50%;height:100%;z-index:1"></span><span class="star-display">${prefillRating >= i ? '★' : prefillRating >= i-0.5 ? '★' : '☆'}</span></span>`).join('')}
           </div>
           <div id="star-rating-label" style="font-size:.8em;color:var(--muted);margin-bottom:6px">${prefillRating ? prefillRating + '/5' : ''}</div>
-          <textarea id="review-text" placeholder="Write your review (1-1000 characters)..." rows="3"
+          <textarea id="review-text" placeholder="Add a written review (optional)..." rows="3"
             style="width:100%; padding:8px; border:1px solid var(--border); background:var(--bg-2); color:var(--text); resize:vertical; font-family:inherit;">${prefillText}</textarea>
           <div style="display:flex; gap:8px; align-items:center; margin-top:6px;">
             <button id="submit-review-btn" class="btn" style="padding:8px 14px;">${btnLabel}</button>
@@ -1251,6 +1251,7 @@ body:not(.cards) #ab-table{display:table}
       for (const r of reviews) {
         const isOwn = currentUser && r.displayName.toLowerCase() === currentUser.toLowerCase();
         const editBtn = isOwn ? `<button class="edit-review-btn" style="background:none;border:none;cursor:pointer;color:var(--neon-cyan);font-size:1em;padding:2px 4px" title="Edit your review">&#9998;</button>` : '';
+        const textHtml = r.text ? `<div style="margin-top:4px; font-size:.95em; white-space:pre-wrap;">${r.text}</div>` : '';
         html += `
           <div class="review-item" style="padding:8px 0; border-bottom:1px solid var(--border);">
             <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -1258,7 +1259,7 @@ body:not(.cards) #ab-table{display:table}
               <span style="font-size:.85em; color:var(--muted);">${formatDate(r.createdAt)}</span>
             </div>
             <div>${renderStars(r.rating)}</div>
-            <div style="margin-top:4px; font-size:.95em; white-space:pre-wrap;">${r.text}</div>
+            ${textHtml}
           </div>`;
       }
     }
@@ -1321,12 +1322,11 @@ body:not(.cards) #ab-table{display:table}
         submitBtn.addEventListener('click', async () => {
           const text = reviewsContainer.querySelector('#review-text').value.trim();
           if (!selectedRating) { statusEl.textContent = 'Please select a star rating.'; return; }
-          if (!text) { statusEl.textContent = 'Please write a review.'; return; }
 
           submitBtn.disabled = true;
           statusEl.textContent = 'Submitting...';
 
-          const result = await submitReview(db, bookId, session.displayName, selectedRating, text);
+          const result = await submitReview(db, bookId, session.displayName, selectedRating, text || '');
           if (result.success) {
             statusEl.textContent = 'Review saved!';
             setTimeout(() => renderReviewSection(bookTitle), 500);

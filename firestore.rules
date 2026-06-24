@@ -28,13 +28,11 @@ service cloud.firestore {
       // Allow read access to all reviews
       allow read: if true;
 
-      // Allow write when document has valid displayName, rating (0.5-5), and non-empty text
+      // Allow write when document has valid displayName and rating (0.5-5). Text is optional.
       allow write: if request.resource.data.displayName is string
                    && request.resource.data.rating is number
                    && request.resource.data.rating >= 0.5
-                   && request.resource.data.rating <= 5
-                   && request.resource.data.text is string
-                   && request.resource.data.text.size() > 0;
+                   && request.resource.data.rating <= 5;
 
       // Allow delete
       allow delete: if true;

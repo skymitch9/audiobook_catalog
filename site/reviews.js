@@ -46,8 +46,8 @@ export async function submitReview(db, bookId, displayName, rating, text) {
   if (typeof rating !== 'number' || rating < 0.5 || rating > 5 || (rating * 2) % 1 !== 0) {
     return { success: false, error: 'Rating must be between 0.5 and 5 in half-star increments.' };
   }
-  if (typeof text !== 'string' || text.length < 1 || text.length > 1000) {
-    return { success: false, error: 'Review text must be between 1 and 1000 characters.' };
+  if (text && text.length > 1000) {
+    return { success: false, error: 'Review text must be 1000 characters or fewer.' };
   }
 
   const docId = `${bookId}_${displayName.toLowerCase()}`;
