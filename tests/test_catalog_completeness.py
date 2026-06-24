@@ -182,6 +182,101 @@ class TestCatalogCompleteness(unittest.TestCase):
 
         print(f"\n[OK] Books with authors: {len(self.books) - len(missing_authors)}/{len(self.books)}")
 
+    def test_all_books_have_descriptions(self):
+        """Test that all books have description metadata."""
+        if len(self.books) == 0:
+            self.skipTest("No library found (expected in CI environment)")
+
+        missing = []
+        for book in self.books:
+            desc = book["metadata"].get("desc", "")
+            if not desc.strip():
+                missing.append(book["metadata"].get("title", str(book["path"])))
+
+        pct = ((len(self.books) - len(missing)) / len(self.books)) * 100
+        print(f"\n[REPORT] Books with descriptions: {len(self.books) - len(missing)}/{len(self.books)} ({pct:.1f}%)")
+        if missing:
+            for title in missing[:10]:
+                print(f"  - {title}")
+            if len(missing) > 10:
+                print(f"  ... and {len(missing) - 10} more")
+
+    def test_all_books_have_titles(self):
+        """Test that all books have title metadata."""
+        if len(self.books) == 0:
+            self.skipTest("No library found (expected in CI environment)")
+
+        missing = []
+        for book in self.books:
+            title = book["metadata"].get("title", "")
+            if not title.strip():
+                missing.append(str(book["path"]))
+
+        if missing:
+            print(f"\n[ERROR] {len(missing)} books missing titles:")
+            for path in missing[:10]:
+                print(f"  - {path}")
+            self.fail(f"{len(missing)} books have no title metadata")
+
+        print(f"\n[OK] All {len(self.books)} books have titles")
+
+    def test_all_books_have_narrators(self):
+        """Test that all books have narrator metadata."""
+        if len(self.books) == 0:
+            self.skipTest("No library found (expected in CI environment)")
+
+        missing = []
+        for book in self.books:
+            narrator = book["metadata"].get("narrator", "")
+            if not narrator.strip():
+                missing.append(book["metadata"].get("title", str(book["path"])))
+
+        pct = ((len(self.books) - len(missing)) / len(self.books)) * 100
+        print(f"\n[REPORT] Books with narrators: {len(self.books) - len(missing)}/{len(self.books)} ({pct:.1f}%)")
+        if missing:
+            for title in missing[:10]:
+                print(f"  - {title}")
+            if len(missing) > 10:
+                print(f"  ... and {len(missing) - 10} more")
+
+    def test_all_books_have_duration(self):
+        """Test that all books have duration metadata."""
+        if len(self.books) == 0:
+            self.skipTest("No library found (expected in CI environment)")
+
+        missing = []
+        for book in self.books:
+            duration = book["metadata"].get("duration_hhmm", "")
+            if not duration.strip() or duration == "0:00":
+                missing.append(book["metadata"].get("title", str(book["path"])))
+
+        pct = ((len(self.books) - len(missing)) / len(self.books)) * 100
+        print(f"\n[REPORT] Books with duration: {len(self.books) - len(missing)}/{len(self.books)} ({pct:.1f}%)")
+        if missing:
+            for title in missing[:10]:
+                print(f"  - {title}")
+            if len(missing) > 10:
+                print(f"  ... and {len(missing) - 10} more")
+
+    def test_all_books_have_genre(self):
+        """Test that all books have genre metadata."""
+        if len(self.books) == 0:
+            self.skipTest("No library found (expected in CI environment)")
+
+        missing = []
+        for book in self.books:
+            genre = book["metadata"].get("genre", "")
+            if not genre.strip():
+                missing.append(book["metadata"].get("title", str(book["path"])))
+
+        pct = ((len(self.books) - len(missing)) / len(self.books)) * 100
+        print(f"\n[REPORT] Books with genre: {len(self.books) - len(missing)}/{len(self.books)} ({pct:.1f}%)")
+        if missing:
+            for title in missing[:10]:
+                print(f"  - {title}")
+            if len(missing) > 10:
+                print(f"  ... and {len(missing) - 10} more")
+
     def test_catalog_has_books(self):
         """Test that the catalog is not empty."""
         # Skip if running in CI without library

@@ -165,8 +165,22 @@ def _recently_added_html(rows: List[Dict[str, str]], count: int = 5) -> str:
             idx = f' #{_esc(r["series_index_display"])}' if r.get("series_index_display") else ""
             series_badge = f'<span class="ab-chip" style="font-size:.8em">{_esc(r["series"])}{idx}</span>'
 
+        # Data attributes for modal opening on click
+        data_attrs = " ".join([
+            f'data-cover="{_esc(cover)}"',
+            f'data-title="{_esc(r.get("title",""))}"',
+            f'data-series="{_esc(r.get("series",""))}"',
+            f'data-index="{_esc(r.get("series_index_display",""))}"',
+            f'data-author="{_esc(r.get("author",""))}"',
+            f'data-narrator="{_esc(r.get("narrator",""))}"',
+            f'data-year="{_esc(r.get("year",""))}"',
+            f'data-genre="{_esc(r.get("genre",""))}"',
+            f'data-duration="{_esc(r.get("duration_hhmm",""))}"',
+            f'data-desc="{_esc(r.get("desc",""))}"',
+        ])
+
         items.append(
-            f'<div style="display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">'
+            f'<div class="recently-added-item" {data_attrs} style="display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer">'
             f'<div style="flex-shrink:0">{cover_img}</div>'
             f'<div style="flex:1;min-width:0">'
             f'<div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{_esc(r.get("title",""))}</div>'

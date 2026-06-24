@@ -828,6 +828,18 @@ body:not(.cards) #ab-table{display:table}
   modal.addEventListener("click", function(e){ if(e.target===modal) closeModal(); });
   document.addEventListener("keydown", function(e){ if(e.key==="Escape") closeModal(); });
 
+  // Recently Added item click -> open modal
+  document.addEventListener("click", function(e){
+    var item=e.target.closest(".recently-added-item");
+    if(!item) return;
+    var d=item.dataset;
+    openModal({
+      cover:d.cover||"", title:d.title||"", series:d.series||"", index:d.index||"",
+      author:d.author||"", narrator:d.narrator||"", year:d.year||"",
+      genre:d.genre||"", duration:d.duration||"", desc:d.desc||""
+    });
+  });
+
   document.addEventListener("DOMContentLoaded", function(){
     _loadAuthorMapInline();
 
@@ -910,7 +922,8 @@ body:not(.cards) #ab-table{display:table}
             narrator: coverBtn ? coverBtn.getAttribute('data-narrator') : (cells[5].textContent || ''),
             year: coverBtn ? coverBtn.getAttribute('data-year') : (cells[6].textContent || ''),
             genre: coverBtn ? coverBtn.getAttribute('data-genre') : (cells[7].textContent || ''),
-            duration_hhmm: coverBtn ? coverBtn.getAttribute('data-duration') : (cells[8].textContent || '')
+            duration_hhmm: coverBtn ? coverBtn.getAttribute('data-duration') : (cells[8].textContent || ''),
+            desc: coverBtn ? coverBtn.getAttribute('data-desc') : ''
           };
           books.push(book);
         });
@@ -1004,6 +1017,15 @@ body:not(.cards) #ab-table{display:table}
       html += '</div>';
       
       container.innerHTML = html;
+      container.style.cursor = 'pointer';
+      container.onclick = function() {
+        openModal({
+          cover: book.cover_href || '', title: book.title || '', series: book.series || '',
+          index: book.series_index_display || '', author: book.author || '',
+          narrator: book.narrator || '', year: book.year || '',
+          genre: book.genre || '', duration: book.duration_hhmm || '', desc: book.desc || ''
+        });
+      };
     }
 
     // Initialize Book of the Day
