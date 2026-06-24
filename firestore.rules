@@ -35,6 +35,9 @@ service cloud.firestore {
                    && request.resource.data.rating <= 5
                    && request.resource.data.text is string
                    && request.resource.data.text.size() > 0;
+
+      // Allow delete
+      allow delete: if true;
     }
   }
 }

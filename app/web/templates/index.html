@@ -285,128 +285,32 @@ body:not(.cards) #ab-table{display:table}
 .rating-cell .stars{ color: var(--neon-yellow); }
 .rating-chip .stars{ color: var(--neon-yellow); font-size:.9em; }
 
-/* =============== Identity Bar — Cyberpunk =============== */
-#identity-bar{
-  background: var(--bg-2);
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--neon-magenta);
-  border-radius: 0;
-  padding: 12px 16px;
-  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
+/* =============== Auth Modal =============== */
+#auth-modal{
+  position:fixed; inset:0; display:none; align-items:center; justify-content:center;
+  background:var(--overlay); z-index:10000; padding:20px;
+  backdrop-filter:blur(4px);
 }
-.identity-bar--logged-in{
-  display: flex;
-  align-items: center;
-  gap: 12px;
+#auth-modal.open{ display:flex; }
+.auth-modal-panel{
+  background:var(--bg-2); border:1px solid var(--neon-magenta);
+  width:min(360px, 90vw); padding:24px; position:relative;
+  clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px));
 }
-.identity-bar__greeting{
-  font-weight: 700;
-  font-size: 1rem;
-  color: var(--neon-cyan);
-  text-transform: uppercase;
-  letter-spacing: 1px;
+.auth-modal-close{
+  position:absolute; top:10px; right:10px;
+  background:none; border:1px solid var(--neon-magenta); color:var(--neon-magenta);
+  width:28px; height:28px; cursor:pointer; font-weight:bold; font-size:.9em;
+  transition:all .2s;
 }
-.identity-bar__logout-btn{
-  padding: 6px 14px;
-  border: 1px solid var(--neon-magenta);
-  border-radius: 0;
-  background: transparent;
-  color: var(--neon-magenta);
-  cursor: pointer;
-  font-size: .8em;
-  text-transform: uppercase;
-  letter-spacing: .5px;
-  font-weight: 700;
-  transition: all .2s;
+.auth-modal-close:hover{ background:var(--neon-magenta); color:#fff; }
+.identity-bar__google-btn{
+  display:inline-flex; align-items:center; padding:8px 14px;
+  border:1px solid var(--border); background:var(--bg); color:var(--text);
+  font-weight:700; font-size:.85em; cursor:pointer; transition:all .2s;
 }
-.identity-bar__logout-btn:hover{
-  background: var(--neon-magenta);
-  color: #fff;
-  box-shadow: 0 0 10px rgba(255,42,109,.4);
-}
-.identity-bar--logged-out{
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.identity-bar__form{
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: flex-end;
-}
-.identity-bar__label{
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  font-size: .75em;
-  font-weight: 700;
-  color: var(--neon-cyan);
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-.identity-bar__input{
-  padding: 9px 12px;
-  border: 1px solid var(--border);
-  border-radius: 0;
-  background: var(--bg);
-  color: var(--text);
-  font-size: .95rem;
-  width: 160px;
-  font-family: 'Share Tech Mono', monospace;
-  transition: border-color .2s, box-shadow .2s;
-}
-.identity-bar__input:focus{
-  outline: none;
-  border-color: var(--neon-yellow);
-  box-shadow: 0 0 8px rgba(252,238,10,.2), inset 0 0 4px rgba(252,238,10,.05);
-}
-.identity-bar__buttons{
-  display: flex;
-  gap: 6px;
-}
-.identity-bar__register-btn,
-.identity-bar__signin-btn{
-  padding: 9px 18px;
-  border: none;
-  border-radius: 0;
-  font-weight: 700;
-  font-size: .85em;
-  cursor: pointer;
-  text-transform: uppercase;
-  letter-spacing: .5px;
-  transition: all .2s;
-  clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%);
-}
-.identity-bar__signin-btn{
-  background: var(--neon-yellow);
-  color: #0a0a12;
-  box-shadow: 0 0 10px rgba(252,238,10,.3);
-}
-.identity-bar__signin-btn:hover{
-  transform: translateY(-1px);
-  box-shadow: 0 0 16px rgba(252,238,10,.5);
-}
-.identity-bar__register-btn{
-  background: var(--btn-bg);
-  color: var(--text);
-  border: 1px solid var(--btn-border);
-}
-.identity-bar__register-btn:hover{
-  border-color: var(--neon-cyan);
-  color: var(--neon-cyan);
-}
-.identity-bar__error{
-  display: block;
-  font-size: .8em;
-  color: var(--neon-magenta);
-  margin-top: -4px;
-  text-shadow: 0 0 4px rgba(255,42,109,.3);
-}
-.identity-bar__error--general{
-  width: 100%;
-  margin-top: 2px;
-}
+.identity-bar__google-btn:hover{ border-color:var(--neon-cyan); }
+.identity-bar__google-btn:disabled{ opacity:.6; cursor:wait; }
 </style>
 
 <!-- Author → Drive map loaded from external JSON file -->
@@ -1048,7 +952,7 @@ body:not(.cards) #ab-table{display:table}
 <script type="module">
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
   import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
-  import { renderIdentityBar, getSession } from './identity.js';
+  import { getSession, signInWithGoogle, signOutGoogle, register, login, logout, validateDisplayName, validatePassphrase } from './identity.js';
   import { submitReview, getReviews, renderStars, bookIdFromTitle, computeAverageRating, formatDate } from './reviews.js';
 
   // Production Firebase config
@@ -1062,26 +966,145 @@ body:not(.cards) #ab-table{display:table}
   };
 
   let db = null;
+  let app = null;
   try {
-    const app = initializeApp(firebaseConfig);
+    app = initializeApp(firebaseConfig);
     db = getFirestore(app);
   } catch (e) {
     console.warn('[Firebase] Init failed:', e);
   }
 
-  // Render identity bar at top of page
+  // Render auth button in header + auth modal
   if (db) {
-    const wrap = document.getElementById('wrap');
-    if (wrap) {
-      const identityEl = document.createElement('div');
-      identityEl.id = 'identity-bar';
-      identityEl.style.marginBottom = '8px';
-      wrap.prepend(identityEl);
-      renderIdentityBar(identityEl, db, { onAuthChange: function() {} });
+    const headerRow = document.querySelector('#wrap > div:first-child');
+    if (headerRow) {
+      const authBtn = document.createElement('button');
+      authBtn.id = 'auth-header-btn';
+      authBtn.className = 'btn';
+      authBtn.style.cssText = 'margin-left:auto;font-size:.8em;padding:8px 14px';
+      _updateAuthButton(authBtn);
+      headerRow.appendChild(authBtn);
+
+      // Create auth modal
+      const authModal = document.createElement('div');
+      authModal.id = 'auth-modal';
+      authModal.innerHTML = `
+        <div class="auth-modal-panel">
+          <button class="auth-modal-close" id="auth-modal-close">X</button>
+          <div id="auth-modal-content"></div>
+        </div>`;
+      document.body.appendChild(authModal);
+
+      // Open modal on button click
+      authBtn.addEventListener('click', () => {
+        const session = getSession();
+        const content = document.getElementById('auth-modal-content');
+        if (session) {
+          _renderLoggedInModal(content, db, authBtn);
+        } else {
+          _renderLoggedOutModal(content, db, authBtn);
+        }
+        authModal.classList.add('open');
+      });
+
+      // Close
+      document.getElementById('auth-modal-close').addEventListener('click', () => authModal.classList.remove('open'));
+      authModal.addEventListener('click', (e) => { if (e.target === authModal) authModal.classList.remove('open'); });
     }
 
     // --- Populate rating column in table from Firestore reviews ---
     populateRatings();
+  }
+
+  function _updateAuthButton(btn) {
+    const session = getSession();
+    if (session) {
+      const photo = session.photoURL ? `<img src="${session.photoURL}" style="width:20px;height:20px;border-radius:50%;vertical-align:middle;margin-right:6px">` : '';
+      btn.innerHTML = `${photo}${session.displayName}`;
+      btn.style.color = 'var(--neon-cyan)';
+    } else {
+      btn.textContent = 'Sign In';
+      btn.style.color = '';
+    }
+  }
+
+  function _renderLoggedInModal(container, db, authBtn) {
+    const session = getSession();
+    const photo = session.photoURL ? `<img src="${session.photoURL}" style="width:48px;height:48px;border-radius:50%;border:2px solid var(--neon-cyan)">` : '';
+    container.innerHTML = `
+      <div style="text-align:center;padding:20px 0">
+        ${photo}
+        <div style="margin-top:10px;font-size:1.2em;font-weight:700;color:var(--neon-cyan);text-transform:uppercase">${session.displayName}</div>
+        <div style="color:var(--muted);font-size:.8em;margin-top:4px">${session.method === 'google' ? 'Signed in with Google' : 'Passphrase account'}</div>
+        <button id="auth-logout-btn" class="btn" style="margin-top:16px;background:var(--neon-magenta);color:#fff;border:none;padding:8px 20px">Logout</button>
+      </div>`;
+    container.querySelector('#auth-logout-btn').addEventListener('click', async () => {
+      if (session.method === 'google') {
+        await signOutGoogle(app);
+      } else {
+        logout();
+      }
+      _updateAuthButton(authBtn);
+      document.getElementById('auth-modal').classList.remove('open');
+    });
+  }
+
+  async function _renderLoggedOutModal(container, db, authBtn) {
+    container.innerHTML = `
+      <div style="padding:10px 0;text-align:center">
+        <h3 style="color:var(--neon-yellow);text-transform:uppercase;letter-spacing:1px;margin-bottom:16px">Sign In</h3>
+        <button id="auth-google-btn" class="identity-bar__google-btn" style="width:100%;justify-content:center;padding:10px 16px;font-size:.9em">
+          <svg width="18" height="18" viewBox="0 0 48 48" style="vertical-align:middle;margin-right:8px"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+          Continue with Google
+        </button>
+        <div style="display:flex;align-items:center;gap:8px;margin:14px 0;color:var(--muted);font-size:.8em">
+          <span style="flex:1;height:1px;background:var(--border)"></span>or<span style="flex:1;height:1px;background:var(--border)"></span>
+        </div>
+        <div id="auth-passphrase-form" style="display:flex;flex-direction:column;gap:8px;align-items:stretch">
+          <input id="auth-name" type="text" placeholder="Display Name (2-20)" style="padding:8px 10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:'Share Tech Mono',monospace">
+          <input id="auth-pass" type="password" placeholder="Passphrase (4+)" style="padding:8px 10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:'Share Tech Mono',monospace">
+          <div style="display:flex;gap:6px">
+            <button id="auth-register-btn" class="btn" style="flex:1;background:var(--btn-bg);border:1px solid var(--btn-border);font-size:.8em;padding:8px">Register</button>
+            <button id="auth-signin-btn" class="btn" style="flex:1;background:var(--neon-yellow);color:#0a0a12;border:none;font-size:.8em;padding:8px">Sign In</button>
+          </div>
+        </div>
+        <div id="auth-error" style="color:var(--neon-magenta);font-size:.8em;margin-top:8px;display:none"></div>
+      </div>`;
+
+    // Google SSO handler
+    container.querySelector('#auth-google-btn').addEventListener('click', async () => {
+      const btn = container.querySelector('#auth-google-btn');
+      btn.disabled = true; btn.textContent = 'Signing in...';
+      const result = await signInWithGoogle(app);
+      if (result.success) {
+        _updateAuthButton(authBtn);
+        document.getElementById('auth-modal').classList.remove('open');
+      } else {
+        btn.disabled = false;
+        btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 48 48" style="vertical-align:middle;margin-right:8px"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>Continue with Google';
+        const err = container.querySelector('#auth-error');
+        err.textContent = result.error; err.style.display = '';
+      }
+    });
+
+    // Passphrase handlers
+    async function handlePassphrase(authFn) {
+      const name = container.querySelector('#auth-name').value;
+      const pass = container.querySelector('#auth-pass').value;
+      const err = container.querySelector('#auth-error');
+      err.style.display = 'none';
+      if (!validateDisplayName(name)) { err.textContent = 'Name must be 2-20 characters.'; err.style.display = ''; return; }
+      if (!validatePassphrase(pass)) { err.textContent = 'Passphrase must be 4+ characters.'; err.style.display = ''; return; }
+      const result = await authFn(name, pass, db);
+      if (result.success) {
+        _updateAuthButton(authBtn);
+        document.getElementById('auth-modal').classList.remove('open');
+      } else {
+        err.textContent = result.error; err.style.display = '';
+      }
+    }
+    container.querySelector('#auth-register-btn').addEventListener('click', () => handlePassphrase(register));
+    container.querySelector('#auth-signin-btn').addEventListener('click', () => handlePassphrase(login));
   }
 
   async function populateRatings() {
@@ -1177,6 +1200,11 @@ body:not(.cards) #ab-table{display:table}
     // Fetch reviews
     const reviews = await getReviews(db, bookId);
     const avg = computeAverageRating(reviews);
+    const session = getSession();
+    const currentUser = session ? session.displayName : null;
+
+    // Check if current user already has a review
+    const existingReview = currentUser ? reviews.find(r => r.displayName.toLowerCase() === currentUser.toLowerCase()) : null;
 
     let html = '<div style="margin-bottom:8px"><strong>Reviews</strong>';
     if (reviews.length > 0) {
@@ -1185,23 +1213,29 @@ body:not(.cards) #ab-table{display:table}
     html += '</div>';
 
     // Review form (if logged in)
-    const session = getSession();
     if (session) {
+      const isEdit = !!existingReview;
+      const formLabel = isEdit ? 'Edit your review' : 'Leave a review';
+      const btnLabel = isEdit ? 'Update Review' : 'Submit Review';
+      const prefillRating = isEdit ? existingReview.rating : 0;
+      const prefillText = isEdit ? existingReview.text : '';
+      const formHidden = isEdit ? 'display:none;' : '';
+
       html += `
-        <div id="review-form" style="margin-bottom:12px; padding:10px; background:var(--bg); border:1px solid var(--border); border-radius:var(--radius);">
-          <div style="margin-bottom:6px; font-size:.9em; color:var(--muted);">Leave a review as <strong>${session.displayName}</strong></div>
-          <div id="star-selector" style="font-size:1.4em; cursor:pointer; margin-bottom:6px;">
-            <span data-rating="1">☆</span><span data-rating="2">☆</span><span data-rating="3">☆</span><span data-rating="4">☆</span><span data-rating="5">☆</span>
+        <div id="review-form" style="${formHidden}margin-bottom:12px; padding:10px; background:var(--bg); border:1px solid var(--border);">
+          <div style="margin-bottom:6px; font-size:.85em; color:var(--muted);">${formLabel} as <strong>${session.displayName}</strong></div>
+          <div id="star-selector" style="font-size:1.4em; cursor:pointer; margin-bottom:6px;" data-prefill="${prefillRating}">
+            <span data-rating="1">${prefillRating >= 1 ? '★' : '☆'}</span><span data-rating="2">${prefillRating >= 2 ? '★' : '☆'}</span><span data-rating="3">${prefillRating >= 3 ? '★' : '☆'}</span><span data-rating="4">${prefillRating >= 4 ? '★' : '☆'}</span><span data-rating="5">${prefillRating >= 5 ? '★' : '☆'}</span>
           </div>
           <textarea id="review-text" placeholder="Write your review (1-1000 characters)..." rows="3"
-            style="width:100%; padding:8px; border:1px solid var(--border); border-radius:8px; background:var(--bg-2); color:var(--text); resize:vertical; font-family:inherit;"></textarea>
+            style="width:100%; padding:8px; border:1px solid var(--border); background:var(--bg-2); color:var(--text); resize:vertical; font-family:inherit;">${prefillText}</textarea>
           <div style="display:flex; gap:8px; align-items:center; margin-top:6px;">
-            <button id="submit-review-btn" class="btn" style="padding:8px 14px;">Submit Review</button>
+            <button id="submit-review-btn" class="btn" style="padding:8px 14px;">${btnLabel}</button>
             <span id="review-status" style="font-size:.85em; color:var(--muted);"></span>
           </div>
         </div>`;
     } else {
-      html += '<div style="color:var(--muted); font-size:.9em; margin-bottom:10px;">Sign in above to leave a review.</div>';
+      html += '<div style="color:var(--muted); font-size:.9em; margin-bottom:10px;"><button onclick="document.getElementById(\'auth-header-btn\').click()" style="background:none;border:none;color:var(--neon-cyan);cursor:pointer;text-decoration:underline;font-size:1em;padding:0">Sign in</button> to leave a review.</div>';
     }
 
     // Existing reviews list
@@ -1209,10 +1243,12 @@ body:not(.cards) #ab-table{display:table}
       html += '<div style="color:var(--muted); font-size:.9em;">No reviews yet. Be the first!</div>';
     } else {
       for (const r of reviews) {
+        const isOwn = currentUser && r.displayName.toLowerCase() === currentUser.toLowerCase();
+        const editBtn = isOwn ? `<button class="edit-review-btn" style="background:none;border:none;cursor:pointer;color:var(--neon-cyan);font-size:1em;padding:2px 4px" title="Edit your review">&#9998;</button>` : '';
         html += `
-          <div style="padding:8px 0; border-bottom:1px solid var(--border);">
+          <div class="review-item" style="padding:8px 0; border-bottom:1px solid var(--border);">
             <div style="display:flex; justify-content:space-between; align-items:center;">
-              <strong>${r.displayName}</strong>
+              <span><strong>${r.displayName}</strong> ${editBtn}</span>
               <span style="font-size:.85em; color:var(--muted);">${formatDate(r.createdAt)}</span>
             </div>
             <div>${renderStars(r.rating)}</div>
@@ -1225,7 +1261,8 @@ body:not(.cards) #ab-table{display:table}
 
     // Wire up star selector
     if (session) {
-      let selectedRating = 0;
+      const prefill = parseInt(reviewsContainer.querySelector('#star-selector')?.dataset.prefill || '0');
+      let selectedRating = prefill;
       const starEls = reviewsContainer.querySelectorAll('#star-selector span');
       starEls.forEach(el => {
         el.addEventListener('mouseenter', () => {
@@ -1255,8 +1292,7 @@ body:not(.cards) #ab-table{display:table}
 
           const result = await submitReview(db, bookId, session.displayName, selectedRating, text);
           if (result.success) {
-            statusEl.textContent = 'Review submitted!';
-            // Refresh reviews
+            statusEl.textContent = 'Review saved!';
             setTimeout(() => renderReviewSection(bookTitle), 500);
           } else {
             statusEl.textContent = result.error || 'Failed to submit.';
@@ -1264,6 +1300,18 @@ body:not(.cards) #ab-table{display:table}
           }
         });
       }
+
+      // Edit buttons — show form and scroll to it
+      reviewsContainer.querySelectorAll('.edit-review-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const form = reviewsContainer.querySelector('#review-form');
+          if (form) {
+            form.style.display = '';
+            form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            reviewsContainer.querySelector('#review-text')?.focus();
+          }
+        });
+      });
     }
   }
 </script>
