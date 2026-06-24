@@ -22,6 +22,11 @@ import json
 import os
 import sys
 import time
+
+# Fix Windows console encoding for non-ASCII filenames
+if sys.stdout.encoding != 'utf-8':
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 from datetime import datetime
 from pathlib import Path
 
