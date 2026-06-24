@@ -228,6 +228,12 @@ h1{margin:0 0 8px 0; color:var(--neon-yellow); text-transform:uppercase; letter-
     </div>
   </div>
 
+  <!-- Community Stats (loaded from Firebase) -->
+  <div id="community-stats" class="top-list" style="margin-top:20px">
+    <h3>👥 Community Stats</h3>
+    <div id="community-stats-content" style="color:var(--muted)">Loading community data...</div>
+  </div>
+
   <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
     <div class="top-list">
       <h3>📚 Top Authors</h3>
@@ -431,8 +437,97 @@ h1{margin:0 0 8px 0; color:var(--neon-yellow); text-transform:uppercase; letter-
   </div>
 
   <div style="margin-top: 30px; padding: 20px; background: var(--bg-2); border-radius: var(--radius); text-align: center; color: var(--muted);">
-    <small>Generated at: 2026-06-24 12:01:07</small>
+    <small>Generated at: 2026-06-24 12:25:01</small>
   </div>
 </div>
+
+<script type="module">
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+  import { getFirestore, collection, getDocs } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+
+  const app = initializeApp({
+    apiKey: "AIzaSyDgAblkxzVxl7nFbd7jXOo6PpuNPsJw11Y",
+    authDomain: "audiobook-catalog.firebaseapp.com",
+    projectId: "audiobook-catalog",
+    storageBucket: "audiobook-catalog.firebasestorage.app",
+    messagingSenderId: "68492219785",
+    appId: "1:68492219785:web:7cbe57dda8712377f0bd58"
+  });
+  const db = getFirestore(app);
+
+  async function loadCommunityStats() {
+    try {
+      const [profilesSnap, reviewsSnap] = await Promise.all([
+        getDocs(collection(db, 'profiles')),
+        getDocs(collection(db, 'reviews'))
+      ]);
+
+      const totalMembers = profilesSnap.size;
+      const totalReviews = reviewsSnap.size;
+
+      // Most active reviewers
+      const reviewerCounts = {};
+      let totalRating = 0;
+      reviewsSnap.docs.forEach(d => {
+        const data = d.data();
+        const name = data.displayName || '';
+        reviewerCounts[name] = (reviewerCounts[name] || 0) + 1;
+        totalRating += data.rating || 0;
+      });
+
+      const avgRating = totalReviews > 0 ? (totalRating / totalReviews).toFixed(1) : '—';
+      const topReviewers = Object.entries(reviewerCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5);
+
+      // Most read books (most reviews)
+      const bookCounts = {};
+      reviewsSnap.docs.forEach(d => {
+        const data = d.data();
+        const bookId = data.bookId || '';
+        if (bookId) bookCounts[bookId] = (bookCounts[bookId] || 0) + 1;
+      });
+      const topBooks = Object.entries(bookCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5);
+
+      // Currently reading count
+      let readingCount = 0;
+      profilesSnap.docs.forEach(d => {
+        if (d.data().currentlyReading) readingCount++;
+      });
+
+      let html = `
+        <div class="stats-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:16px">
+          <div class="stat-card"><div class="stat-number">${totalMembers}</div><div class="stat-label">Members</div></div>
+          <div class="stat-card"><div class="stat-number">${totalReviews}</div><div class="stat-label">Reviews</div></div>
+          <div class="stat-card"><div class="stat-number">${avgRating}</div><div class="stat-label">Avg Rating</div></div>
+          <div class="stat-card"><div class="stat-number">${readingCount}</div><div class="stat-label">Reading Now</div></div>
+        </div>`;
+
+      if (topReviewers.length > 0) {
+        html += '<div style="margin-top:12px"><strong style="color:var(--neon-cyan);font-size:.85em;text-transform:uppercase">Top Reviewers</strong>';
+        topReviewers.forEach(([name, count]) => {
+          html += `<div class="top-item"><span class="top-name">${name}</span><span class="top-count">${count} reviews</span></div>`;
+        });
+        html += '</div>';
+      }
+
+      if (topBooks.length > 0) {
+        html += '<div style="margin-top:12px"><strong style="color:var(--neon-cyan);font-size:.85em;text-transform:uppercase">Most Reviewed Books</strong>';
+        topBooks.forEach(([bookId, count]) => {
+          const title = bookId.replace(/-/g, ' ').replace(/\w/g, c => c.toUpperCase());
+          html += `<div class="top-item"><span class="top-name">${title}</span><span class="top-count">${count} reviews</span></div>`;
+        });
+        html += '</div>';
+      }
+
+      document.getElementById('community-stats-content').innerHTML = html;
+    } catch (e) {
+      document.getElementById('community-stats-content').textContent = 'Could not load community data.';
+    }
+  }
+  loadCommunityStats();
+</script>
 </body>
 </html>

@@ -488,7 +488,7 @@ body:not(.cards) #ab-table{display:table}
   <div id="ab-empty">No results for "<span id="ab-empty-q"></span>". Try a different search.</div>
 
   <!-- Bottom pagination -->
-  <div class="controls-row pagination" style="margin-top:14px">
+  <div class="controls-row pagination" style="margin-top:14px;margin-bottom:40px">
     <button id="ab-page-first-bottom" class="btn">« First</button>
     <button id="ab-page-prev-bottom"  class="btn">‹ Prev</button>
     <div id="ab-page-nav-bottom"></div>
@@ -623,8 +623,8 @@ function toggleDarkMode(isDark){
     pageNav.innerHTML="";
     var pageNavBottom=document.getElementById("ab-page-nav-bottom");
     if(pageNavBottom) pageNavBottom.innerHTML="";
-    function pill(label,handler,active){ var b=document.createElement("button"); b.className="page-btn"+(active?" active":""); b.textContent=label; b.addEventListener("click",handler); pageNav.appendChild(b); if(pageNavBottom){var b2=b.cloneNode(true);b2.addEventListener("click",handler);pageNavBottom.appendChild(b2);} }
-    function wireBtn(id,handler){ var el=document.getElementById(id); if(el) el.onclick=handler; }
+    function pill(label,handler,active){ var b=document.createElement("button"); b.className="page-btn"+(active?" active":""); b.textContent=label; b.addEventListener("click",handler); pageNav.appendChild(b); if(pageNavBottom){var b2=b.cloneNode(true);b2.addEventListener("click",function(){ handler(); window.scrollTo({top:0,behavior:'smooth'}); });pageNavBottom.appendChild(b2);} }
+    function wireBtn(id,handler){ var el=document.getElementById(id); if(el) el.onclick=function(){ handler(); window.scrollTo({top:0,behavior:'smooth'}); }; }
     wireBtn("ab-page-first",function(){ currentPage=1; renderPage(); });
     wireBtn("ab-page-prev",function(){ currentPage=Math.max(1,currentPage-1); renderPage(); });
     wireBtn("ab-page-next",function(){ currentPage=Math.min(pages,currentPage+1); renderPage(); });

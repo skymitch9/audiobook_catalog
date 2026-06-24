@@ -589,8 +589,17 @@
             container.innerHTML = html;
         }
 
-        // Get or set player name
+        // Get or set player name — uses SSO identity if available
         function getPlayerName() {
+            // Check for SSO/passphrase session first
+            const ssoName = localStorage.getItem('ab_identity_name');
+            const ssoSession = localStorage.getItem('ab_identity_session');
+            if (ssoName && ssoSession === 'active') {
+                // Sync game name with SSO
+                localStorage.setItem('guessGame_playerName', ssoName);
+                return ssoName;
+            }
+            // Fallback to game-specific name
             let name = localStorage.getItem('guessGame_playerName');
             if (!name) {
                 name = prompt('Welcome! Enter your name to track your scores:') || 'Guest';
@@ -600,6 +609,13 @@
         }
 
         function changePlayer() {
+            // If signed in via SSO, don't allow name change here
+            const ssoName = localStorage.getItem('ab_identity_name');
+            const ssoSession = localStorage.getItem('ab_identity_session');
+            if (ssoName && ssoSession === 'active') {
+                alert('Your name is linked to your account (' + ssoName + '). Sign in on the catalog page to change accounts.');
+                return;
+            }
             const newName = prompt('Enter your name:', playerName) || playerName;
             if (newName && newName !== playerName) {
                 playerName = newName;

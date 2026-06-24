@@ -42,25 +42,27 @@ h1{
   font-family:'Share Tech Mono',monospace;
 }
 #search-input:focus{outline:none;border-color:var(--neon-cyan)}
-.user-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;margin-top:16px}
+.user-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;margin-top:16px}
 .user-card{
-  background:var(--bg-2);border:1px solid var(--border);padding:16px;
+  background:var(--bg-2);border:1px solid var(--border);padding:20px;
   clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px));
-  transition:border-color .2s;
+  transition:border-color .2s; cursor:pointer;
 }
 .user-card:hover{border-color:var(--neon-magenta)}
-.user-header{display:flex;align-items:center;gap:10px;margin-bottom:10px}
-.user-avatar{width:40px;height:40px;border-radius:50%;border:2px solid var(--neon-cyan);object-fit:cover}
-.user-name{font-weight:700;font-size:1.1em;color:var(--neon-cyan);text-transform:uppercase;letter-spacing:.5px}
-.user-stats{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:8px 0}
-.stat-box{background:var(--bg);border:1px solid var(--border);padding:6px;text-align:center}
-.stat-val{font-size:1.2em;font-weight:700;color:var(--neon-yellow);font-family:'Share Tech Mono',monospace}
-.stat-lbl{font-size:.65em;color:var(--muted);text-transform:uppercase}
-.user-reading{font-size:.85em;color:var(--muted);margin-top:8px}
+.user-header{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.user-avatar{width:48px;height:48px;border-radius:50%;border:2px solid var(--neon-cyan);object-fit:cover}
+.user-name{font-weight:700;font-size:1.2em;color:var(--neon-cyan);text-transform:uppercase;letter-spacing:.5px}
+.user-stats{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin:10px 0}
+.stat-box{background:var(--bg);border:1px solid var(--border);padding:8px;text-align:center}
+.stat-val{font-size:1.3em;font-weight:700;color:var(--neon-yellow);font-family:'Share Tech Mono',monospace}
+.stat-lbl{font-size:.7em;color:var(--muted);text-transform:uppercase}
+.user-reading{font-size:.9em;color:var(--muted);margin-top:10px;display:flex;align-items:center;gap:8px}
 .user-reading strong{color:var(--neon-magenta)}
-.user-favs{margin-top:6px}
+.user-reading img{width:36px;height:auto;border-radius:2px;border:1px solid var(--border)}
+.user-favs{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap}
+.user-favs img{width:44px;height:auto;border-radius:2px;border:1px solid var(--border)}
 .fav-chip{
-  display:inline-block;padding:2px 8px;margin:2px;font-size:.75em;
+  display:inline-block;padding:3px 8px;margin:2px;font-size:.8em;
   background:var(--bg);border:1px solid var(--border);color:var(--text);
 }
 .loading{text-align:center;padding:40px;color:var(--muted);font-family:'Share Tech Mono',monospace}
@@ -74,24 +76,24 @@ h1{
 #user-modal.open{display:flex}
 .user-modal-panel{
   background:var(--bg-2);border:1px solid var(--neon-cyan);
-  width:min(450px,92vw);padding:28px;position:relative;
+  width:min(520px,92vw);padding:32px;position:relative;
   clip-path:polygon(0 0,calc(100% - 16px) 0,100% 16px,100% 100%,16px 100%,0 calc(100% - 16px));
 }
 .user-modal-close{
-  position:absolute;top:10px;right:10px;background:none;border:1px solid var(--neon-magenta);
-  color:var(--neon-magenta);width:28px;height:28px;cursor:pointer;font-weight:bold;
+  position:absolute;top:12px;right:12px;background:none;border:1px solid var(--neon-magenta);
+  color:var(--neon-magenta);width:30px;height:30px;cursor:pointer;font-weight:bold;
 }
 .user-modal-close:hover{background:var(--neon-magenta);color:#fff}
-.um-avatar{width:64px;height:64px;border-radius:50%;border:2px solid var(--neon-cyan);object-fit:cover}
-.um-name{font-size:1.4em;font-weight:700;color:var(--neon-cyan);text-transform:uppercase;letter-spacing:1px}
-.um-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:14px 0}
-.um-stat{background:var(--bg);border:1px solid var(--border);padding:10px;text-align:center}
-.um-stat-val{font-size:1.5em;font-weight:700;color:var(--neon-yellow);font-family:'Share Tech Mono',monospace}
-.um-stat-lbl{font-size:.7em;color:var(--muted);text-transform:uppercase}
-.um-section{margin-top:12px;padding-top:10px;border-top:1px solid var(--border)}
-.um-section-title{font-size:.8em;color:var(--neon-magenta);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
-.um-favs{display:flex;gap:6px;flex-wrap:wrap}
-.um-favs img{width:48px;height:auto;border-radius:2px;border:1px solid var(--border)}
+.um-avatar{width:80px;height:80px;border-radius:50%;border:3px solid var(--neon-cyan);object-fit:cover}
+.um-name{font-size:1.6em;font-weight:700;color:var(--neon-cyan);text-transform:uppercase;letter-spacing:1px}
+.um-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0}
+.um-stat{background:var(--bg);border:1px solid var(--border);padding:14px;text-align:center}
+.um-stat-val{font-size:1.8em;font-weight:700;color:var(--neon-yellow);font-family:'Share Tech Mono',monospace}
+.um-stat-lbl{font-size:.75em;color:var(--muted);text-transform:uppercase}
+.um-section{margin-top:16px;padding-top:14px;border-top:1px solid var(--border)}
+.um-section-title{font-size:.85em;color:var(--neon-magenta);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+.um-favs{display:flex;gap:8px;flex-wrap:wrap}
+.um-favs img{width:64px;height:auto;border-radius:3px;border:1px solid var(--border)}
 @media(max-width:600px){
   body{padding:10px}
   .nav-row{flex-direction:column;align-items:stretch}
@@ -182,6 +184,8 @@ h1{
           favCovers: data.favCovers || {},
           reviewCount: stats.count,
           avgRating: stats.count > 0 ? (stats.totalRating / stats.count).toFixed(1) : '—',
+          gameBestStreak: data.gameBestStreak || 0,
+          gameAccuracy: data.gameAccuracy || 0,
         });
       });
 
@@ -195,9 +199,13 @@ h1{
             displayName: data.displayName,
             photoURL: '',
             currentlyReading: '',
+            currentlyReadingCover: '',
             favorites: [],
+            favCovers: {},
             reviewCount: stats.count,
             avgRating: stats.count > 0 ? (stats.totalRating / stats.count).toFixed(1) : '—',
+            gameBestStreak: 0,
+            gameAccuracy: 0,
           });
         }
       });
@@ -226,14 +234,14 @@ h1{
         : `<div class="user-avatar" style="display:flex;align-items:center;justify-content:center;background:var(--border);font-size:1.2em">${u.displayName.charAt(0).toUpperCase()}</div>`;
 
       const reading = u.currentlyReading
-        ? `<div class="user-reading"><strong>Reading:</strong> <span style="display:inline-flex;align-items:center;gap:6px">${u.currentlyReadingCover ? '<img src="' + u.currentlyReadingCover + '" style="width:24px;height:auto;border-radius:2px">' : ''}${u.currentlyReading}</span></div>`
+        ? `<div class="user-reading"><strong>Reading:</strong> <span style="display:inline-flex;align-items:center;gap:6px">${u.currentlyReadingCover ? '<a href="index.html#q=' + encodeURIComponent(u.currentlyReading) + '"><img src="' + u.currentlyReadingCover + '"></a>' : ''}${u.currentlyReading}</span></div>`
         : '';
 
       const favs = u.favorites.length > 0
-        ? `<div class="user-favs" style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px">${u.favorites.map(f => {
+        ? `<div class="user-favs">${u.favorites.map(f => {
             const cover = u.favCovers[f] || '';
             return cover
-              ? '<img src="' + cover + '" title="' + f + '" style="width:36px;height:auto;border-radius:2px;border:1px solid var(--border)">'
+              ? '<a href="index.html#q=' + encodeURIComponent(f) + '"><img src="' + cover + '" title="' + f + '"></a>'
               : '<span class="fav-chip">' + f + '</span>';
           }).join('')}</div>`
         : '';
@@ -247,6 +255,8 @@ h1{
           <div class="user-stats">
             <div class="stat-box"><div class="stat-val">${u.reviewCount}</div><div class="stat-lbl">Reviews</div></div>
             <div class="stat-box"><div class="stat-val">${u.avgRating}</div><div class="stat-lbl">Avg Rating</div></div>
+            <div class="stat-box"><div class="stat-val">${u.gameBestStreak}</div><div class="stat-lbl">Best Streak</div></div>
+            <div class="stat-box"><div class="stat-val">${u.gameAccuracy}%</div><div class="stat-lbl">Game Acc</div></div>
           </div>
           ${reading}
           ${favs}
@@ -283,9 +293,9 @@ h1{
     const reading = user.currentlyReading
       ? `<div class="um-section">
           <div class="um-section-title">Currently Reading</div>
-          <div style="display:flex;align-items:center;gap:10px">
-            ${user.currentlyReadingCover ? '<img src="' + user.currentlyReadingCover + '" style="width:40px;height:auto;border-radius:2px;border:1px solid var(--border)">' : ''}
-            <span>${user.currentlyReading}</span>
+          <div style="display:flex;align-items:center;gap:12px">
+            ${user.currentlyReadingCover ? '<a href="index.html#q=' + encodeURIComponent(user.currentlyReading) + '"><img src="' + user.currentlyReadingCover + '" style="width:56px;height:auto;border-radius:3px;border:1px solid var(--border)"></a>' : ''}
+            <span style="font-size:1.05em">${user.currentlyReading}</span>
           </div>
         </div>` : '';
 
@@ -295,7 +305,7 @@ h1{
           <div class="um-favs">${user.favorites.map(f => {
             const cover = user.favCovers[f] || '';
             return cover
-              ? '<img src="' + cover + '" title="' + f + '">'
+              ? '<a href="index.html#q=' + encodeURIComponent(f) + '"><img src="' + cover + '" title="' + f + '"></a>'
               : '<span class="fav-chip" style="padding:4px 8px;border:1px solid var(--border);font-size:.85em">' + f + '</span>';
           }).join('')}</div>
         </div>` : '';
@@ -308,6 +318,8 @@ h1{
       <div class="um-stats">
         <div class="um-stat"><div class="um-stat-val">${user.reviewCount}</div><div class="um-stat-lbl">Reviews</div></div>
         <div class="um-stat"><div class="um-stat-val">${user.avgRating}</div><div class="um-stat-lbl">Avg Rating</div></div>
+        <div class="um-stat"><div class="um-stat-val">${user.gameBestStreak}</div><div class="um-stat-lbl">Best Streak</div></div>
+        <div class="um-stat"><div class="um-stat-val">${user.gameAccuracy}%</div><div class="um-stat-lbl">Game Accuracy</div></div>
       </div>
       ${reading}
       ${favs}
@@ -315,8 +327,9 @@ h1{
     userModal.classList.add('open');
   }
 
-  // Click handler for user cards
+  // Click handler for user cards (ignore clicks on cover links)
   grid.addEventListener('click', (e) => {
+    if (e.target.closest('a')) return;
     const card = e.target.closest('.user-card');
     if (!card) return;
     const name = card.dataset.name;
