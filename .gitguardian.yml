@@ -1,0 +1,9 @@
+# GitGuardian configuration
+# Firebase API keys are designed to be public (client-side web SDK).
+# Security is enforced via Firestore rules, not key secrecy.
+# See: https://firebase.google.com/docs/projects/api-keys
+
+secret:
+  ignored-matches:
+    - name: "Firebase Web API Key"
+      match: "AIzaSyDgAblkxzVxl7nFbd7jXOo6PpuNPsJw11Y"
