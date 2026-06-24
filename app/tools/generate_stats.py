@@ -530,7 +530,7 @@ h1{{margin:0 0 8px 0; color:var(--neon-yellow); text-transform:uppercase; letter
       if (topBooks.length > 0) {{
         html += '<div style="margin-top:12px"><strong style="color:var(--neon-cyan);font-size:.85em;text-transform:uppercase">Most Reviewed Books</strong>';
         topBooks.forEach(([bookId, count]) => {{
-          const title = bookId.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+          const title = bookId.replace(/-/g, ' ').replace(/\\b\\w/g, c => c.toUpperCase());
           html += `<div class="top-item"><span class="top-name">${{title}}</span><span class="top-count">${{count}} reviews</span></div>`;
         }});
         html += '</div>';

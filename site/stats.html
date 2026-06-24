@@ -437,7 +437,7 @@ h1{margin:0 0 8px 0; color:var(--neon-yellow); text-transform:uppercase; letter-
   </div>
 
   <div style="margin-top: 30px; padding: 20px; background: var(--bg-2); border-radius: var(--radius); text-align: center; color: var(--muted);">
-    <small>Generated at: 2026-06-24 12:43:35</small>
+    <small>Generated at: 2026-06-24 12:46:02</small>
   </div>
 </div>
 
@@ -516,7 +516,7 @@ h1{margin:0 0 8px 0; color:var(--neon-yellow); text-transform:uppercase; letter-
       if (topBooks.length > 0) {
         html += '<div style="margin-top:12px"><strong style="color:var(--neon-cyan);font-size:.85em;text-transform:uppercase">Most Reviewed Books</strong>';
         topBooks.forEach(([bookId, count]) => {
-          const title = bookId.replace(/-/g, ' ').replace(/\w/g, c => c.toUpperCase());
+          const title = bookId.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
           html += `<div class="top-item"><span class="top-name">${title}</span><span class="top-count">${count} reviews</span></div>`;
         });
         html += '</div>';
