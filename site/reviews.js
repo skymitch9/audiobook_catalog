@@ -43,8 +43,8 @@ export function computeAverageRating(reviews) {
  * @returns {Promise<{success: boolean, error?: string}>}
  */
 export async function submitReview(db, bookId, displayName, rating, text) {
-  if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
-    return { success: false, error: 'Rating must be an integer between 1 and 5.' };
+  if (typeof rating !== 'number' || rating < 0.5 || rating > 5 || (rating * 2) % 1 !== 0) {
+    return { success: false, error: 'Rating must be between 0.5 and 5 in half-star increments.' };
   }
   if (typeof text !== 'string' || text.length < 1 || text.length > 1000) {
     return { success: false, error: 'Review text must be between 1 and 1000 characters.' };
@@ -75,14 +75,22 @@ export async function submitReview(db, bookId, displayName, rating, text) {
 
 /**
  * Render a star rating as an accessible HTML string.
- * Uses ★ (U+2605) for filled stars and ☆ (U+2606) for empty stars.
- * @param {number} rating - Integer 1-5
+ * Supports half-star increments using CSS half-star technique.
+ * @param {number} rating - 0.5 to 5 in 0.5 increments
  * @returns {string} HTML string with star display and aria-label
  */
 export function renderStars(rating) {
-  const filled = '★'.repeat(rating);
-  const empty = '☆'.repeat(5 - rating);
-  return `<span class="stars" aria-label="Rating: ${rating} out of 5 stars">${filled}${empty}</span>`;
+  let html = '';
+  for (let i = 1; i <= 5; i++) {
+    if (rating >= i) {
+      html += '<span class="star star-full">★</span>';
+    } else if (rating >= i - 0.5) {
+      html += '<span class="star star-half">★</span>';
+    } else {
+      html += '<span class="star star-empty">☆</span>';
+    }
+  }
+  return `<span class="stars" aria-label="Rating: ${rating} out of 5 stars">${html}</span>`;
 }
 
 /**

@@ -284,6 +284,11 @@ body:not(.cards) #ab-table{display:table}
 .rating-cell{ font-family:'Share Tech Mono', monospace; white-space:nowrap; }
 .rating-cell .stars{ color: var(--neon-yellow); }
 .rating-chip .stars{ color: var(--neon-yellow); font-size:.9em; }
+.stars .star-full{ color: var(--neon-yellow); }
+.stars .star-half{ color: var(--neon-yellow); opacity:.6; }
+.stars .star-empty{ color: var(--muted); opacity:.4; }
+.star-pick{ user-select:none; transition: transform .1s; }
+.star-pick:hover{ transform: scale(1.2); }
 
 /* =============== Auth Modal =============== */
 #auth-modal{
@@ -1224,9 +1229,10 @@ body:not(.cards) #ab-table{display:table}
       html += `
         <div id="review-form" style="${formHidden}margin-bottom:12px; padding:10px; background:var(--bg); border:1px solid var(--border);">
           <div style="margin-bottom:6px; font-size:.85em; color:var(--muted);">${formLabel} as <strong>${session.displayName}</strong></div>
-          <div id="star-selector" style="font-size:1.4em; cursor:pointer; margin-bottom:6px;" data-prefill="${prefillRating}">
-            <span data-rating="1">${prefillRating >= 1 ? '★' : '☆'}</span><span data-rating="2">${prefillRating >= 2 ? '★' : '☆'}</span><span data-rating="3">${prefillRating >= 3 ? '★' : '☆'}</span><span data-rating="4">${prefillRating >= 4 ? '★' : '☆'}</span><span data-rating="5">${prefillRating >= 5 ? '★' : '☆'}</span>
+          <div id="star-selector" style="font-size:1.6em; cursor:pointer; margin-bottom:6px; display:inline-flex;" data-prefill="${prefillRating}">
+            ${[1,2,3,4,5].map(i => `<span class="star-pick" data-star="${i}" style="position:relative;display:inline-block;width:1em"><span class="star-half-left" data-value="${i-0.5}" style="position:absolute;left:0;top:0;width:50%;height:100%;overflow:hidden;z-index:1"></span><span class="star-half-right" data-value="${i}" style="position:absolute;right:0;top:0;width:50%;height:100%;z-index:1"></span><span class="star-display">${prefillRating >= i ? '★' : prefillRating >= i-0.5 ? '★' : '☆'}</span></span>`).join('')}
           </div>
+          <div id="star-rating-label" style="font-size:.8em;color:var(--muted);margin-bottom:6px">${prefillRating ? prefillRating + '/5' : ''}</div>
           <textarea id="review-text" placeholder="Write your review (1-1000 characters)..." rows="3"
             style="width:100%; padding:8px; border:1px solid var(--border); background:var(--bg-2); color:var(--text); resize:vertical; font-family:inherit;">${prefillText}</textarea>
           <div style="display:flex; gap:8px; align-items:center; margin-top:6px;">
@@ -1259,23 +1265,53 @@ body:not(.cards) #ab-table{display:table}
 
     reviewsContainer.innerHTML = html;
 
-    // Wire up star selector
+    // Wire up half-star selector
     if (session) {
-      const prefill = parseInt(reviewsContainer.querySelector('#star-selector')?.dataset.prefill || '0');
+      const prefill = parseFloat(reviewsContainer.querySelector('#star-selector')?.dataset.prefill || '0');
       let selectedRating = prefill;
-      const starEls = reviewsContainer.querySelectorAll('#star-selector span');
-      starEls.forEach(el => {
-        el.addEventListener('mouseenter', () => {
-          const r = parseInt(el.dataset.rating);
-          starEls.forEach(s => { s.textContent = parseInt(s.dataset.rating) <= r ? '★' : '☆'; });
+      const selector = reviewsContainer.querySelector('#star-selector');
+      const ratingLabel = reviewsContainer.querySelector('#star-rating-label');
+
+      function updateStarDisplay(rating) {
+        selector.querySelectorAll('.star-pick').forEach(pick => {
+          const i = parseInt(pick.dataset.star);
+          const display = pick.querySelector('.star-display');
+          if (rating >= i) display.textContent = '★';
+          else if (rating >= i - 0.5) display.textContent = '★';
+          else display.textContent = '☆';
+          // Add half-star visual via opacity
+          if (rating >= i) { display.style.opacity = '1'; }
+          else if (rating >= i - 0.5) { display.style.opacity = '0.6'; }
+          else { display.style.opacity = '0.4'; }
         });
-        el.addEventListener('mouseleave', () => {
-          starEls.forEach(s => { s.textContent = parseInt(s.dataset.rating) <= selectedRating ? '★' : '☆'; });
-        });
-        el.addEventListener('click', () => {
-          selectedRating = parseInt(el.dataset.rating);
-          starEls.forEach(s => { s.textContent = parseInt(s.dataset.rating) <= selectedRating ? '★' : '☆'; });
-        });
+        if (ratingLabel) ratingLabel.textContent = rating ? rating + '/5' : '';
+      }
+      updateStarDisplay(selectedRating);
+
+      selector.addEventListener('click', (e) => {
+        const star = e.target.closest('.star-pick');
+        if (!star) return;
+        const rect = star.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const half = x < rect.width / 2;
+        const starNum = parseInt(star.dataset.star);
+        selectedRating = half ? starNum - 0.5 : starNum;
+        updateStarDisplay(selectedRating);
+      });
+
+      selector.addEventListener('mousemove', (e) => {
+        const star = e.target.closest('.star-pick');
+        if (!star) return;
+        const rect = star.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const half = x < rect.width / 2;
+        const starNum = parseInt(star.dataset.star);
+        const hoverRating = half ? starNum - 0.5 : starNum;
+        updateStarDisplay(hoverRating);
+      });
+
+      selector.addEventListener('mouseleave', () => {
+        updateStarDisplay(selectedRating);
       });
 
       // Submit button
