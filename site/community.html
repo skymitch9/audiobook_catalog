@@ -282,8 +282,8 @@ h1{
             <div class="stat-box"><div class="stat-val">${u.avgRating}</div><div class="stat-lbl">Avg Rating</div></div>
             <div class="stat-box"><div class="stat-val">${u.gameBestStreak}</div><div class="stat-lbl">Best Streak</div></div>
             <div class="stat-box"><div class="stat-val">${u.gameAccuracy}%</div><div class="stat-lbl">Game Acc</div></div>
-            <div class="stat-box"><div class="stat-val">${u.booksRead}</div><div class="stat-lbl">Read</div></div>
-            <div class="stat-box"><div class="stat-val">${u.booksTbr}</div><div class="stat-lbl">TBR</div></div>
+            <div class="stat-box"><a href="index.html#list=read&user=${encodeURIComponent(u.displayName)}" style="text-decoration:none"><div class="stat-val">${u.booksRead}</div><div class="stat-lbl">Read</div></a></div>
+            <div class="stat-box"><a href="index.html#list=tbr&user=${encodeURIComponent(u.displayName)}" style="text-decoration:none"><div class="stat-val">${u.booksTbr}</div><div class="stat-lbl">TBR</div></a></div>
           </div>
           ${reading}
           ${favs}
@@ -347,8 +347,8 @@ h1{
         <div class="um-stat"><div class="um-stat-val">${user.avgRating}</div><div class="um-stat-lbl">Avg Rating</div></div>
         <div class="um-stat"><div class="um-stat-val">${user.gameBestStreak}</div><div class="um-stat-lbl">Best Streak</div></div>
         <div class="um-stat"><div class="um-stat-val">${user.gameAccuracy}%</div><div class="um-stat-lbl">Game Accuracy</div></div>
-        <div class="um-stat"><div class="um-stat-val">${user.booksRead}</div><div class="um-stat-lbl">Books Read</div></div>
-        <div class="um-stat"><div class="um-stat-val">${user.booksTbr}</div><div class="um-stat-lbl">TBR</div></div>
+        <div class="um-stat"><a href="index.html#list=read&user=${encodeURIComponent(user.displayName)}" style="text-decoration:none"><div class="um-stat-val">${user.booksRead}</div><div class="um-stat-lbl">Read</div></a></div>
+        <div class="um-stat"><a href="index.html#list=tbr&user=${encodeURIComponent(user.displayName)}" style="text-decoration:none"><div class="um-stat-val">${user.booksTbr}</div><div class="um-stat-lbl">TBR</div></a></div>
       </div>
       ${reading}
       ${favs}

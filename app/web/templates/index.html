@@ -933,10 +933,11 @@ function toggleDarkMode(isDark){
       document.querySelectorAll("#ab-cards .ab-card").forEach(function(c){ delete c.dataset.rlFilter; });
     }
 
-    async function filterByReadingList(filterKey) {
+    async function filterByReadingList(filterKey, forUser) {
       var session = null;
       try { var identityMod = await import('./identity.js'); session = identityMod.getSession(); } catch(e) {}
-      if (!session) { alert('Sign in to see your reading lists.'); return; }
+      var targetUser = forUser || (session ? session.displayName : null);
+      if (!targetUser) { alert('Sign in to see reading lists.'); return; }
 
       try {
         var { collection, getDocs } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
@@ -950,7 +951,7 @@ function toggleDarkMode(isDark){
         var rlSnap = await getDocs(collection(firestore, 'readingLists'));
         rlSnap.docs.forEach(function(d) {
           var data = d.data();
-          if (data.displayName && data.displayName.toLowerCase() === session.displayName.toLowerCase() && data.status === status) {
+          if (data.displayName && data.displayName.toLowerCase() === targetUser.toLowerCase() && data.status === status) {
             myBooks.add(data.bookTitle);
           }
         });
@@ -960,7 +961,7 @@ function toggleDarkMode(isDark){
           var revSnap = await getDocs(collection(firestore, 'reviews'));
           revSnap.docs.forEach(function(d) {
             var data = d.data();
-            if (data.displayName && data.displayName.toLowerCase() === session.displayName.toLowerCase() && data.bookId) {
+            if (data.displayName && data.displayName.toLowerCase() === targetUser.toLowerCase() && data.bookId) {
               // Convert bookId back to title by matching table
               document.querySelectorAll('#ab-table tbody tr').forEach(function(r) {
                 var titleCell = r.cells[1];
@@ -997,10 +998,29 @@ function toggleDarkMode(isDark){
     if(pageSizeEl){ pageSizeEl.addEventListener("change", function(){ currentPage=1; renderPage(); }); }
 
     var hashState=_parseHash();
-    if(search && hashState.q){ search.value=hashState.q; _applySearch(hashState.q); }
-    if(hashState.p>1){ currentPage=hashState.p; }
-    if(!hashState.q){ _applySearch((search||{}).value||""); }
-    renderPage();
+
+    // Check for list filter from URL hash (e.g. #list=read&user=Skylar)
+    var _listFilterActive = false;
+    (function() {
+      var h = (location.hash || '').replace(/^#/, '');
+      var sp = new URLSearchParams(h);
+      var listType = sp.get('list');
+      var listUser = sp.get('user');
+      if (listType && listUser) {
+        _listFilterActive = true;
+        var label = decodeURIComponent(listUser) + "'s " + (listType === 'tbr' ? 'TBR' : 'Read') + ' list';
+        if (search) search.value = label;
+        var filterKey = listType === 'tbr' ? '_mytbr' : '_myread';
+        filterByReadingList(filterKey, decodeURIComponent(listUser));
+      }
+    })();
+
+    if (!_listFilterActive) {
+      if(search && hashState.q){ search.value=hashState.q; _applySearch(hashState.q); }
+      if(hashState.p>1){ currentPage=hashState.p; }
+      if(!hashState.q){ _applySearch((search||{}).value||""); }
+      renderPage();
+    }
 
     window.addEventListener("hashchange", function(){
       var s2=_parseHash();
