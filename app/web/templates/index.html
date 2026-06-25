@@ -432,7 +432,6 @@ body:not(.cards) #ab-table{display:table}
         <option value="genre|txt">Sort by Genre</option>
         <option value="duration_hhmm|txt">Sort by Duration</option>
         <option value="rating|num">Sort by Rating</option>
-        <option value="_myread|filter">My Read Books</option>
         <option value="_mytbr|filter">My TBR List</option>
       </select>
       <div style="display:flex;gap:4px;flex-wrap:wrap">
@@ -944,35 +943,16 @@ function toggleDarkMode(isDark){
         var { getFirestore } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
 
         var firestore = getFirestore();
-        var status = filterKey === '_myread' ? 'read' : 'tbr';
         var myBooks = new Set();
 
-        // Reading lists
+        // Reading lists — TBR only
         var rlSnap = await getDocs(collection(firestore, 'readingLists'));
         rlSnap.docs.forEach(function(d) {
           var data = d.data();
-          if (data.displayName && data.displayName.toLowerCase() === targetUser.toLowerCase() && data.status === status) {
+          if (data.displayName && data.displayName.toLowerCase() === targetUser.toLowerCase() && data.status === 'tbr') {
             myBooks.add(data.bookTitle);
           }
         });
-
-        // For "read" — also include all books the user reviewed
-        if (status === 'read') {
-          var revSnap = await getDocs(collection(firestore, 'reviews'));
-          revSnap.docs.forEach(function(d) {
-            var data = d.data();
-            if (data.displayName && data.displayName.toLowerCase() === targetUser.toLowerCase() && data.bookId) {
-              // Convert bookId back to title by matching table
-              document.querySelectorAll('#ab-table tbody tr').forEach(function(r) {
-                var titleCell = r.cells[1];
-                if (!titleCell) return;
-                var title = titleCell.textContent.trim();
-                var bid = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-{2,}/g, '-').replace(/^-|-$/g, '');
-                if (bid === data.bookId) myBooks.add(title);
-              });
-            }
-          });
-        }
 
         // Filter table rows
         document.querySelectorAll("#ab-table tbody tr").forEach(function(r) {
@@ -999,19 +979,18 @@ function toggleDarkMode(isDark){
 
     var hashState=_parseHash();
 
-    // Check for list filter from URL hash (e.g. #list=read&user=Skylar)
+    // Check for list filter from URL hash (e.g. #list=tbr&user=Skylar)
     var _listFilterActive = false;
     (function() {
       var h = (location.hash || '').replace(/^#/, '');
       var sp = new URLSearchParams(h);
       var listType = sp.get('list');
       var listUser = sp.get('user');
-      if (listType && listUser) {
+      if (listType === 'tbr' && listUser) {
         _listFilterActive = true;
-        var label = decodeURIComponent(listUser) + "'s " + (listType === 'tbr' ? 'TBR' : 'Read') + ' list';
+        var label = decodeURIComponent(listUser) + "'s TBR list";
         if (search) search.value = label;
-        var filterKey = listType === 'tbr' ? '_mytbr' : '_myread';
-        filterByReadingList(filterKey, decodeURIComponent(listUser));
+        filterByReadingList('_mytbr', decodeURIComponent(listUser));
       }
     })();
 
@@ -1652,41 +1631,15 @@ function toggleDarkMode(isDark){
       if (snap.exists()) currentStatus = snap.data().status;
     } catch(e) {}
 
-    // If user reviewed this book, it counts as "read"
-    if (!currentStatus) {
-      const { collection, getDocs } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
-      const revSnap = await getDocs(collection(db, 'reviews'));
-      const hasReview = revSnap.docs.some(d => {
-        const data = d.data();
-        return data.bookId === bookId && data.displayName && data.displayName.toLowerCase() === session.displayName.toLowerCase();
-      });
-      if (hasReview) currentStatus = 'read';
-    }
-
     // Get cover from modal
     const cover = document.getElementById('modal-cover')?.src || '';
 
     function renderBtns() {
-      const readActive = currentStatus === 'read';
       const tbrActive = currentStatus === 'tbr';
       readingListContainer.innerHTML = `
-        <button id="rl-read-btn" class="btn" style="padding:6px 14px;font-size:.75em;${readActive ? 'background:var(--neon-cyan);color:#0a0a12;border-color:var(--neon-cyan)' : ''}">
-          ${readActive ? '✓ Read' : '📖 Mark Read'}
-        </button>
         <button id="rl-tbr-btn" class="btn" style="padding:6px 14px;font-size:.75em;${tbrActive ? 'background:var(--neon-magenta);color:#fff;border-color:var(--neon-magenta)' : ''}">
           ${tbrActive ? '✓ To Be Read' : '📋 Add to TBR'}
         </button>`;
-
-      readingListContainer.querySelector('#rl-read-btn').addEventListener('click', async () => {
-        if (currentStatus === 'read') {
-          await deleteDoc(listRef);
-          currentStatus = null;
-        } else {
-          await setDoc(listRef, { displayName: session.displayName, bookId, bookTitle, bookCover: cover, status: 'read', addedAt: serverTimestamp() });
-          currentStatus = 'read';
-        }
-        renderBtns();
-      });
 
       readingListContainer.querySelector('#rl-tbr-btn').addEventListener('click', async () => {
         if (currentStatus === 'tbr') {
@@ -1865,13 +1818,6 @@ function toggleDarkMode(isDark){
             statusEl.textContent = 'Review saved!';
             // Update table rating cell immediately
             _updateTableRating(bookTitle, bookId);
-            // Auto-mark as read (reviewed = read)
-            try {
-              const { doc, setDoc, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
-              const rlDocId = `${session.displayName.toLowerCase()}_${bookId}`;
-              const cover = document.getElementById('modal-cover')?.src || '';
-              await setDoc(doc(db, 'readingLists', rlDocId), { displayName: session.displayName, bookId, bookTitle, bookCover: cover, status: 'read', addedAt: serverTimestamp() }, { merge: true });
-            } catch(e) {}
             setTimeout(() => { renderReviewSection(bookTitle); renderReadingListButtons(bookTitle); }, 500);
           } else {
             statusEl.textContent = result.error || 'Failed to submit.';
