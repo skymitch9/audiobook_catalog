@@ -24,7 +24,50 @@ def _esc(s) -> str:
 def _url_encode_path(path: str) -> str:
     """URL-encode a file path for use in img src, preserving / separators."""
     from urllib.parse import quote
+
     return quote(path, safe="/")
+
+
+def _rating_sort(r: Dict[str, str]) -> str:
+    try:
+        rating = float(r.get("hardcover_rating") or 0)
+    except (TypeError, ValueError):
+        rating = 0.0
+    return f"{rating:.4f}" if rating > 0 else "0"
+
+
+def _rating_label(r: Dict[str, str]) -> str:
+    try:
+        rating = float(r.get("hardcover_rating") or 0)
+    except (TypeError, ValueError):
+        return ""
+    if rating <= 0:
+        return ""
+    label = f"{rating:.2f}".rstrip("0").rstrip(".")
+    count = str(r.get("hardcover_ratings_count") or "").strip()
+    return f"HC {label}" + (f" ({_esc(count)})" if count else "")
+
+
+def _rating_html(r: Dict[str, str]) -> str:
+    label = _rating_label(r)
+    if not label:
+        return "-"
+    url = str(r.get("hardcover_url") or "").strip()
+    if url:
+        return f'<a href="{_esc(url)}" target="_blank" rel="noopener" title="Open in Hardcover">{label}</a>'
+    return label
+
+
+def _hardcover_chip(r: Dict[str, str]) -> str:
+    label = _rating_label(r)
+    url = str(r.get("hardcover_url") or "").strip()
+    confidence = str(r.get("hardcover_match_confidence") or "").strip()
+    if not (label or url or confidence):
+        return ""
+    text = f"HC: {label or 'match'}" + (f" - {confidence}" if confidence else "")
+    if url:
+        return f'<a class="ab-chip" href="{_esc(url)}" target="_blank" rel="noopener">{text}</a>'
+    return f'<span class="ab-chip">{text}</span>'
 
 
 def _cover_button(r: Dict[str, str], inline: bool = False) -> str:
@@ -41,19 +84,22 @@ def _cover_button(r: Dict[str, str], inline: bool = False) -> str:
     data_attrs = " ".join(
         [
             f'data-cover="{_esc(cover_url)}"',
-            f'data-title="{_esc(r.get("title",""))}"',
-            f'data-series="{_esc(r.get("series",""))}"',
-            f'data-index="{_esc(r.get("series_index_display",""))}"',
-            f'data-author="{_esc(r.get("author",""))}"',
-            f'data-narrator="{_esc(r.get("narrator",""))}"',
-            f'data-year="{_esc(r.get("year",""))}"',
-            f'data-genre="{_esc(r.get("genre",""))}"',
-            f'data-duration="{_esc(r.get("duration_hhmm",""))}"',
-            f'data-desc="{_esc(r.get("desc",""))}"',  # may be empty if not provided
+            f'data-title="{_esc(r.get("title", ""))}"',
+            f'data-series="{_esc(r.get("series", ""))}"',
+            f'data-index="{_esc(r.get("series_index_display", ""))}"',
+            f'data-author="{_esc(r.get("author", ""))}"',
+            f'data-narrator="{_esc(r.get("narrator", ""))}"',
+            f'data-year="{_esc(r.get("year", ""))}"',
+            f'data-genre="{_esc(r.get("genre", ""))}"',
+            f'data-duration="{_esc(r.get("duration_hhmm", ""))}"',
+            f'data-desc="{_esc(r.get("desc", ""))}"',
+            f'data-hardcover-url="{_esc(r.get("hardcover_url", ""))}"',
+            f'data-hardcover-rating="{_esc(r.get("hardcover_rating", ""))}"',
+            f'data-hardcover-confidence="{_esc(r.get("hardcover_match_confidence", ""))}"',
         ]
     )
     img_cls = "cover-inline" if inline else "cover"
-    return f'<button class="{cls}" {data_attrs}><img class="{img_cls}" src="{cover_url}" alt="Cover of {_esc(r.get("title",""))}" loading="lazy" /></button>'
+    return f'<button class="{cls}" {data_attrs}><img class="{img_cls}" src="{cover_url}" alt="Cover of {_esc(r.get("title", ""))}" loading="lazy" /></button>'
 
 
 def _row_cells(r: Dict[str, str]) -> str:
@@ -65,15 +111,15 @@ def _row_cells(r: Dict[str, str]) -> str:
     return "".join(
         [
             f"<td>{cover_html}</td>",
-            f"<td>{_esc(r.get('title',''))}</td>",
-            f"<td>{_esc(r.get('series',''))}</td>",
-            f'<td data-sort="{_esc(r.get("series_index_sort",""))}">{_esc(r.get("series_index_display",""))}</td>',
-            f"<td>{_esc(r.get('author',''))}</td>",
-            f"<td>{_esc(r.get('narrator',''))}</td>",
-            f"<td>{_esc(r.get('year',''))}</td>",
-            f"<td>{_esc(r.get('genre',''))}</td>",
-            f"<td>{_esc(r.get('duration_hhmm',''))}</td>",
-            f'<td class="rating-cell" data-sort="0">—</td>',
+            f"<td>{_esc(r.get('title', ''))}</td>",
+            f"<td>{_esc(r.get('series', ''))}</td>",
+            f'<td data-sort="{_esc(r.get("series_index_sort", ""))}">{_esc(r.get("series_index_display", ""))}</td>',
+            f"<td>{_esc(r.get('author', ''))}</td>",
+            f"<td>{_esc(r.get('narrator', ''))}</td>",
+            f"<td>{_esc(r.get('year', ''))}</td>",
+            f"<td>{_esc(r.get('genre', ''))}</td>",
+            f"<td>{_esc(r.get('duration_hhmm', ''))}</td>",
+            f'<td class="rating-cell" data-sort="{_rating_sort(r)}">{_rating_html(r)}</td>',
         ]
     )
 
@@ -93,6 +139,9 @@ def _card_html(r: Dict[str, str]) -> str:
         "year": r.get("year", ""),
         "genre": r.get("genre", ""),
         "duration_hhmm": r.get("duration_hhmm", ""),
+        "rating": _rating_sort(r),
+        "hardcover_url": r.get("hardcover_url", ""),
+        "hardcover_match_confidence": r.get("hardcover_match_confidence", ""),
         # Add modal data attributes
         "cover": r.get("cover_href", ""),
         "index": r.get("series_index_display", ""),
@@ -116,10 +165,13 @@ def _card_html(r: Dict[str, str]) -> str:
         chips.append(f'<span class="ab-chip">Genre: {_esc(r["genre"])}</span>')
     if r.get("duration_hhmm"):
         chips.append(f'<span class="ab-chip">Dur: {_esc(r["duration_hhmm"])}</span>')
+    hc_chip = _hardcover_chip(r)
+    if hc_chip:
+        chips.append(hc_chip)
 
     return f"""
 <div class="ab-card" {data_attrs}>
-  <div class="t">{thumb}<span>{_esc(r.get("title",""))}</span></div>
+  <div class="t">{thumb}<span>{_esc(r.get("title", ""))}</span></div>
   <div class="ab-row">{''.join(chips)}</div>
 </div>
 """
@@ -174,28 +226,34 @@ def _recently_added_html(rows: List[Dict[str, str]], count: int = 5) -> str:
             series_badge = f'<span class="ab-chip" style="font-size:.8em">{_esc(r["series"])}{idx}</span>'
 
         # Data attributes for modal opening on click
-        data_attrs = " ".join([
-            f'data-cover="{_esc(cover_url)}"',
-            f'data-title="{_esc(r.get("title",""))}"',
-            f'data-series="{_esc(r.get("series",""))}"',
-            f'data-index="{_esc(r.get("series_index_display",""))}"',
-            f'data-author="{_esc(r.get("author",""))}"',
-            f'data-narrator="{_esc(r.get("narrator",""))}"',
-            f'data-year="{_esc(r.get("year",""))}"',
-            f'data-genre="{_esc(r.get("genre",""))}"',
-            f'data-duration="{_esc(r.get("duration_hhmm",""))}"',
-            f'data-desc="{_esc(r.get("desc",""))}"',
-        ])
+        data_attrs = " ".join(
+            [
+                f'data-cover="{_esc(cover_url)}"',
+                f'data-title="{_esc(r.get("title", ""))}"',
+                f'data-series="{_esc(r.get("series", ""))}"',
+                f'data-index="{_esc(r.get("series_index_display", ""))}"',
+                f'data-author="{_esc(r.get("author", ""))}"',
+                f'data-narrator="{_esc(r.get("narrator", ""))}"',
+                f'data-year="{_esc(r.get("year", ""))}"',
+                f'data-genre="{_esc(r.get("genre", ""))}"',
+                f'data-duration="{_esc(r.get("duration_hhmm", ""))}"',
+                f'data-desc="{_esc(r.get("desc", ""))}"',
+                f'data-hardcover-url="{_esc(r.get("hardcover_url", ""))}"',
+                f'data-hardcover-rating="{_esc(r.get("hardcover_rating", ""))}"',
+                f'data-hardcover-confidence="{_esc(r.get("hardcover_match_confidence", ""))}"',
+            ]
+        )
 
+        hc_chip = _hardcover_chip(r)
         items.append(
             f'<div class="recently-added-item" {data_attrs}'
             f' style="display:flex;gap:10px;align-items:center;padding:8px 0;'
             f'border-bottom:1px solid var(--border);cursor:pointer">'
             f'<div style="flex-shrink:0">{cover_img}</div>'
             f'<div style="flex:1;min-width:0">'
-            f'<div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{_esc(r.get("title",""))}</div>'
-            f'<div style="color:var(--muted);font-size:.9em">{_esc(r.get("author",""))}</div>'
-            f'{series_badge}'
+            f'<div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{_esc(r.get("title", ""))}</div>'
+            f'<div style="color:var(--muted);font-size:.9em">{_esc(r.get("author", ""))}</div>'
+            f'{series_badge}{hc_chip}'
             f'</div>'
             f'</div>'
         )

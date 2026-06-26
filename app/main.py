@@ -14,6 +14,7 @@ from app.config import (
     SITE_DIR,
     SITE_INDEX_NAME,
 )
+from app.enrich.hardcover import enrich_rows_with_hardcover
 from app.metadata import extract_metadata, walk_library
 from app.writers import render_output_html, stage_site_files, write_csv
 
@@ -87,6 +88,8 @@ def main() -> None:
     if not rows:
         print("No audiobook files found.")
         return
+
+    rows = enrich_rows_with_hardcover(rows)
 
     # 1) Write CSV (timestamped) into output_files/
     write_csv(rows, out_csv)

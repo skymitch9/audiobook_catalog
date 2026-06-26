@@ -43,6 +43,27 @@ git commit -m "Update catalog"
 git push
 ```
 
+## Optional Hardcover enrichment
+
+The catalog can enrich local audiobook tags with Hardcover.app metadata during generation. This is build-time only, so your API token is never published to GitHub Pages.
+
+1. Copy `.env.example` to `.env`.
+2. Set `HARDCOVER_ENABLED=true`.
+3. Add `HARDCOVER_TOKEN=<your token>`.
+4. Run `python -m app.main`.
+
+The enrichment layer uses your local file tags as the source of truth, then adds optional `hardcover_*` fields such as Hardcover book/edition IDs, URL, rating, rating count, audiobook duration, and match confidence. It caches lookups in `.cache/hardcover.json` so normal rebuilds do not repeatedly call the API.
+
+Useful settings:
+
+```env
+HARDCOVER_ENABLED=true
+HARDCOVER_TOKEN=
+HARDCOVER_CACHE=.cache/hardcover.json
+HARDCOVER_MIN_CONFIDENCE=0.86
+HARDCOVER_MAX_RESULTS=8
+```
+
 ## Development
 
 ### Pre-commit Hooks

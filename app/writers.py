@@ -30,6 +30,17 @@ def write_csv(rows: List[Dict[str, str]], out_path: Path) -> None:
         "duration_hhmm",
         "cover_href",
         "desc",
+        "hardcover_book_id",
+        "hardcover_edition_id",
+        "hardcover_slug",
+        "hardcover_series",
+        "hardcover_url",
+        "hardcover_match_confidence",
+        "hardcover_rating",
+        "hardcover_ratings_count",
+        "hardcover_has_audiobook",
+        "hardcover_audio_duration_hhmm",
+        "hardcover_metadata_source",
     ]
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("w", newline="", encoding="utf-8") as f:
