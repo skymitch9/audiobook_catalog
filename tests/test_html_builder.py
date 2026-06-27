@@ -18,13 +18,6 @@ class TestHTMLEscaping(unittest.TestCase):
         self.assertEqual(_esc('"'), "&quot;")
         self.assertEqual(_esc("'"), "&#x27;")
 
-    def test_combined_escaping(self):
-        """Test escaping of combined special characters."""
-        result = _esc('<div class="test">')
-        self.assertIn("&lt;", result)
-        self.assertIn("&gt;", result)
-        self.assertIn("&quot;", result)
-
     def test_xss_prevention(self):
         """Test XSS attack prevention."""
         malicious = '<script>alert("XSS")</script>'

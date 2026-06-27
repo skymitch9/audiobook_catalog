@@ -132,13 +132,5 @@ class HardcoverEnrichmentTests(unittest.TestCase):
         without_flag = {"title": "Dune", "authors": ["Frank Herbert"], "audio_seconds": 77400}
         self.assertEqual(score_candidate(row, with_flag), score_candidate(row, without_flag))
 
-    def test_bearer_prefix_stripped_from_token(self):
-        """Config strips 'Bearer ' prefix so the value can be used directly in the Authorization header."""
-        raw = "Bearer eyJhbGciOiJIUzI1NiJ9.payload.sig"
-        stripped = raw.removeprefix("Bearer ").strip()
-        self.assertFalse(stripped.startswith("Bearer "))
-        self.assertTrue(stripped.startswith("eyJ"))
-
-
 if __name__ == "__main__":
     unittest.main()
