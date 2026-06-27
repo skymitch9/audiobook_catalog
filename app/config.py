@@ -11,6 +11,29 @@ except Exception:
     pass
 
 PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent
+_GCP_PROJECT = "audiobook-catalog"
+
+
+def _gcp_secret(name: str) -> str | None:
+    """Fetch a secret from GCP Secret Manager. Returns None if unavailable or not authenticated."""
+    try:
+        from google.cloud import secretmanager  # type: ignore
+
+        client = secretmanager.SecretManagerServiceClient()
+        resource = f"projects/{_GCP_PROJECT}/secrets/{name}/versions/latest"
+        response = client.access_secret_version(request={"name": resource}, timeout=5.0)
+        return response.payload.data.decode().strip() or None
+    except Exception:
+        return None
+
+
+def _env_or_secret(name: str, *aliases: str) -> str | None:
+    """Return first non-empty value from env vars / .env, then fall back to GCP Secret Manager."""
+    for key in (name, *aliases):
+        val = os.getenv(key, "").strip()
+        if val:
+            return val
+    return _gcp_secret(name)
 
 
 def _project_path_from_env(name: str, default: str) -> Path:
@@ -81,7 +104,8 @@ SITE_CSV_NAME: str = os.getenv("SITE_CSV_NAME", "catalog.csv")
 
 # Optional Hardcover.app enrichment. This runs at build time only, never in the browser.
 HARDCOVER_ENABLED: bool = _bool_from_env("HARDCOVER_ENABLED", False)
-HARDCOVER_TOKEN: str | None = os.getenv("HARDCOVER_TOKEN") or os.getenv("HARDCOVER_API_TOKEN") or None
+_raw_token = _env_or_secret("HARDCOVER_TOKEN", "HARDCOVER_API_TOKEN") or ""
+HARDCOVER_TOKEN: str | None = _raw_token.removeprefix("Bearer ").strip() or None
 HARDCOVER_API_URL: str = os.getenv("HARDCOVER_API_URL", "https://api.hardcover.app/v1/graphql")
 HARDCOVER_CACHE_PATH: Path = _project_path_from_env("HARDCOVER_CACHE", ".cache/hardcover.json")
 HARDCOVER_MIN_CONFIDENCE: float = _float_from_env("HARDCOVER_MIN_CONFIDENCE", 0.86)

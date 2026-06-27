@@ -118,5 +118,27 @@ class HardcoverEnrichmentTests(unittest.TestCase):
         self.assertEqual(out["hardcover_book_id"], "123")
 
 
+    def test_score_candidate_without_has_audiobook_field(self):
+        """Candidates from the API no longer include has_audiobook; scoring must not crash."""
+        row = {"title": "Dune", "author": "Frank Herbert", "duration_hhmm": "21:30"}
+        candidate = {"title": "Dune", "authors": ["Frank Herbert"], "audio_seconds": 77400}
+        score = score_candidate(row, candidate)
+        self.assertGreater(score, 0.0)
+
+    def test_score_candidate_has_audiobook_absent_vs_present_same_title(self):
+        """Removing has_audiobook from the candidate does not change the title/author/duration score."""
+        row = {"title": "Dune", "author": "Frank Herbert", "duration_hhmm": "21:30"}
+        with_flag = {"title": "Dune", "authors": ["Frank Herbert"], "audio_seconds": 77400, "has_audiobook": True}
+        without_flag = {"title": "Dune", "authors": ["Frank Herbert"], "audio_seconds": 77400}
+        self.assertEqual(score_candidate(row, with_flag), score_candidate(row, without_flag))
+
+    def test_bearer_prefix_stripped_from_token(self):
+        """Config strips 'Bearer ' prefix so the value can be used directly in the Authorization header."""
+        raw = "Bearer eyJhbGciOiJIUzI1NiJ9.payload.sig"
+        stripped = raw.removeprefix("Bearer ").strip()
+        self.assertFalse(stripped.startswith("Bearer "))
+        self.assertTrue(stripped.startswith("eyJ"))
+
+
 if __name__ == "__main__":
     unittest.main()

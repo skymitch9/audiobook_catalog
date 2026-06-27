@@ -48,11 +48,16 @@ def _rating_label(r: Dict[str, str]) -> str:
     return f"HC {label}" + (f" ({_esc(count)})" if count else "")
 
 
+def _safe_url(url: str) -> str:
+    """Return url only if it uses an allowed scheme; empty string otherwise."""
+    return url if url.startswith(("https://", "http://")) else ""
+
+
 def _rating_html(r: Dict[str, str]) -> str:
     label = _rating_label(r)
     if not label:
         return "-"
-    url = str(r.get("hardcover_url") or "").strip()
+    url = _safe_url(str(r.get("hardcover_url") or "").strip())
     if url:
         return f'<a href="{_esc(url)}" target="_blank" rel="noopener" title="Open in Hardcover">{label}</a>'
     return label
@@ -60,7 +65,7 @@ def _rating_html(r: Dict[str, str]) -> str:
 
 def _hardcover_chip(r: Dict[str, str]) -> str:
     label = _rating_label(r)
-    url = str(r.get("hardcover_url") or "").strip()
+    url = _safe_url(str(r.get("hardcover_url") or "").strip())
     confidence = str(r.get("hardcover_match_confidence") or "").strip()
     if not (label or url or confidence):
         return ""

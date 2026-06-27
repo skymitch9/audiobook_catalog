@@ -280,13 +280,10 @@ class HardcoverClient:
             return []
 
         candidates: List[CatalogRow] = []
-        for searcher in (self._search_endpoint, self._books_ilike):
-            try:
-                candidates.extend(searcher(row, query_text))
-            except HardcoverError as exc:
-                print(f"[WARN] Hardcover search strategy failed for {row.get('title', '')!r}: {exc}")
-            if candidates:
-                break
+        try:
+            candidates.extend(self._search_endpoint(row, query_text))
+        except (HardcoverError, requests.RequestException) as exc:
+            print(f"[WARN] Hardcover search failed for {row.get('title', '')!r}: {exc}")
 
         if candidates:
             try:
@@ -343,7 +340,6 @@ class HardcoverClient:
             rating
             ratings_count
             users_count
-            has_audiobook
           }
         }
         """
@@ -365,7 +361,6 @@ class HardcoverClient:
             rating
             ratings_count
             users_count
-            has_audiobook
           }
         }
         """
