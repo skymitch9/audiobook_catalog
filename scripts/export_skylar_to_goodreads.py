@@ -26,7 +26,9 @@ GOODREADS_FIELDS = [
     "Number of Pages", "Year Published", "Original Publication Year",
     "Date Read", "Date Added", "Bookshelves", "Bookshelves with positions",
     "Exclusive Shelf", "My Review", "Spoiler", "Private Notes",
-    "Read Count", "Owned Copies",
+    "Read Count", "Recommended For", "Recommended By", "Owned Copies",
+    "Original Purchase Date", "Original Purchase Location", "Condition",
+    "Condition Description", "BCID",
 ]
 
 
@@ -51,6 +53,14 @@ def author_last_first(author: str) -> str:
     return author
 
 
+def split_authors(authors: str) -> tuple[str, str]:
+    """Split the catalog's comma-separated contributors into Goodreads fields."""
+    parts = [part.strip() for part in authors.split(",") if part.strip()]
+    if not parts:
+        return "", ""
+    return parts[0], ", ".join(parts[1:])
+
+
 def format_date(ts) -> str:
     """Convert Firestore timestamp to YYYY/MM/DD."""
     if ts is None:
@@ -59,6 +69,14 @@ def format_date(ts) -> str:
         return ts.strftime("%Y/%m/%d")
     except Exception:
         return str(ts)[:10].replace("-", "/")
+
+
+def format_year(value) -> str:
+    """Return the four-digit year used by Goodreads export columns."""
+    if value in (None, ""):
+        return ""
+    match = re.search(r"\b(\d{4})\b", str(value))
+    return match.group(1) if match else ""
 
 
 def load_catalog(path: Path) -> dict[str, dict]:
@@ -111,40 +129,73 @@ def build_goodreads_row(
     cat = match_book(book_id, catalog)
 
     title = cat["title"] if cat else slug_to_title(book_id)
-    author = cat["author"] if cat else ""
-    year = cat.get("year", "") if cat else ""
+    catalog_authors = cat["author"] if cat else ""
+    author, additional_authors = split_authors(catalog_authors)
+    year = format_year(cat.get("year", "")) if cat else ""
     avg_rating = cat.get("hardcover_rating", "") if cat else ""
 
-    gr_rating = 0
+    gr_rating = "0"
     if rating:
-        gr_rating = min(5, max(1, round(float(rating))))
+        gr_rating = str(min(5, max(1, round(float(rating)))))
 
     return {
-        "Book Id": row_num,
+        # This source data has no Goodreads edition identifier. A made-up
+        # sequential value can match an unrelated real Goodreads book, so leave
+        # it empty and let importers use the title/author metadata instead.
+        "Book Id": "",
         "Title": title,
         "Author": author,
         "Author l-f": author_last_first(author) if author else "",
-        "Additional Authors": "",
-        "ISBN": "",
-        "ISBN13": "",
+        "Additional Authors": additional_authors,
+        # Goodreads represents a missing identifier as an empty Excel formula,
+        # not as an empty CSV cell.
+        "ISBN": '=""',
+        "ISBN13": '=""',
         "My Rating": gr_rating,
         "Average Rating": avg_rating,
         "Publisher": "",
-        "Binding": "Audiobook",
+        "Binding": "Audible Audio",
         "Number of Pages": "",
         "Year Published": year,
         "Original Publication Year": year,
         "Date Read": format_date(updated_at),
         "Date Added": format_date(created_at),
         "Bookshelves": shelf,
-        "Bookshelves with positions": f"{shelf} (#1)" if shelf else "",
+        "Bookshelves with positions": f"{shelf} (#{row_num})" if shelf else "",
         "Exclusive Shelf": shelf,
         "My Review": review_text or "",
         "Spoiler": "",
         "Private Notes": "",
-        "Read Count": 1 if shelf == "read" else 0,
-        "Owned Copies": 0,
+        "Read Count": "1" if shelf == "read" else "0",
+        "Recommended For": "",
+        "Recommended By": "",
+        "Owned Copies": "0",
+        "Original Purchase Date": "",
+        "Original Purchase Location": "",
+        "Condition": "",
+        "Condition Description": "",
+        "BCID": "",
     }
+
+
+def validate_goodreads_rows(rows: list[dict]) -> None:
+    """Reject output that no longer conforms to Goodreads' export contract."""
+    allowed_shelves = {"read", "currently-reading", "to-read"}
+    for index, row in enumerate(rows, start=2):
+        if list(row) != GOODREADS_FIELDS:
+            raise ValueError(f"row {index} does not use the exact Goodreads field order")
+        if not str(row["Title"]).strip() or not str(row["Author"]).strip():
+            raise ValueError(f"row {index} is missing Title or Author")
+        if row["Exclusive Shelf"] not in allowed_shelves:
+            raise ValueError(f"row {index} has an invalid Exclusive Shelf")
+        if row["Bookshelves"] != row["Exclusive Shelf"]:
+            raise ValueError(f"row {index} must include the exclusive shelf in Bookshelves")
+        if str(row["My Rating"]) not in {"0", "1", "2", "3", "4", "5"}:
+            raise ValueError(f"row {index} has an invalid My Rating")
+        for field in ("Year Published", "Original Publication Year"):
+            value = str(row[field])
+            if value and not re.fullmatch(r"\d{4}", value):
+                raise ValueError(f"row {index} has an invalid {field}")
 
 
 def main():
@@ -214,6 +265,7 @@ def main():
         print(f"Added currently-reading: {currently_reading}")
 
     out_path = Path(args.out)
+    validate_goodreads_rows(rows)
     with open(out_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=GOODREADS_FIELDS)
         writer.writeheader()
