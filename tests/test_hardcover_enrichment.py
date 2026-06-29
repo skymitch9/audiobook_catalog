@@ -117,7 +117,6 @@ class HardcoverEnrichmentTests(unittest.TestCase):
         self.assertEqual(out["series"], "Local Series")
         self.assertEqual(out["hardcover_book_id"], "123")
 
-
     def test_score_candidate_without_has_audiobook_field(self):
         """Candidates from the API no longer include has_audiobook; scoring must not crash."""
         row = {"title": "Dune", "author": "Frank Herbert", "duration_hhmm": "21:30"}
@@ -131,6 +130,7 @@ class HardcoverEnrichmentTests(unittest.TestCase):
         with_flag = {"title": "Dune", "authors": ["Frank Herbert"], "audio_seconds": 77400, "has_audiobook": True}
         without_flag = {"title": "Dune", "authors": ["Frank Herbert"], "audio_seconds": 77400}
         self.assertEqual(score_candidate(row, with_flag), score_candidate(row, without_flag))
+
 
 if __name__ == "__main__":
     unittest.main()
