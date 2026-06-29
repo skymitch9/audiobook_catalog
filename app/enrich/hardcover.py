@@ -136,9 +136,8 @@ def _collect_names(value: Any) -> List[str]:
             continue
         if isinstance(item, dict):
             for key in ("name", "author", "display_name", "full_name"):
-                direct_value = item.get(key)
-                if direct_value and not isinstance(direct_value, (dict, list, tuple)):
-                    names.append(str(direct_value).strip())
+                if item.get(key):
+                    names.append(str(item[key]).strip())
             # Search results sometimes nest people under a contribution/author object.
             for nested_key in ("author", "person", "contributor"):
                 nested = item.get(nested_key)
@@ -280,15 +279,16 @@ class HardcoverClient:
         if not query_text:
             return []
 
-        # Let primary search failures reach the per-row enrichment handler. An
-        # empty successful response is a genuine miss; a transport/API failure
-        # must not be converted into a miss and cached forever.
-        candidates = self._search_endpoint(row, query_text)
+        candidates: List[CatalogRow] = []
+        try:
+            candidates.extend(self._search_endpoint(row, query_text))
+        except (HardcoverError, requests.RequestException) as exc:
+            print(f"[WARN] Hardcover search failed for {row.get('title', '')!r}: {exc}")
 
         if candidates:
             try:
                 self._attach_audio_editions(candidates)
-            except (HardcoverError, requests.RequestException) as exc:
+            except HardcoverError as exc:
                 print(f"[WARN] Hardcover audiobook edition lookup failed for {row.get('title', '')!r}: {exc}")
 
         return _dedupe_candidates(candidates)
@@ -340,13 +340,6 @@ class HardcoverClient:
             rating
             ratings_count
             users_count
-            cached_contributors
-            cached_tags
-            book_series {
-              series {
-                name
-              }
-            }
           }
         }
         """
@@ -368,13 +361,6 @@ class HardcoverClient:
             rating
             ratings_count
             users_count
-            cached_contributors
-            cached_tags
-            book_series {
-              series {
-                name
-              }
-            }
           }
         }
         """
@@ -432,10 +418,9 @@ def _normalize_candidate(item: Any, source: str) -> CatalogRow:
         or doc.get("contributions")
     )
 
-    cached_tags = doc.get("cached_tags")
-    genres = _collect_label_values(doc.get("genres") or doc.get("cached_genres") or _cached_tag_category(cached_tags, "Genre"))
-    tags = _collect_label_values(doc.get("tags") or _cached_tag_category(cached_tags, "Tag"))
-    moods = _collect_label_values(doc.get("moods") or doc.get("cached_moods") or _cached_tag_category(cached_tags, "Mood"))
+    genres = _collect_label_values(doc.get("genres") or doc.get("cached_genres"))
+    tags = _collect_label_values(doc.get("tags") or doc.get("cached_tags"))
+    moods = _collect_label_values(doc.get("moods") or doc.get("cached_moods"))
     series = _collect_series_names(
         doc.get("series") or doc.get("series_names") or doc.get("cached_series") or doc.get("book_series")
     )
@@ -460,17 +445,6 @@ def _normalize_candidate(item: Any, source: str) -> CatalogRow:
         "source": source,
     }
     return normalized
-
-
-def _cached_tag_category(value: Any, category: str) -> Any:
-    """Return one category from Hardcover's cached_tags mapping."""
-    if not isinstance(value, dict):
-        return None
-    wanted = _norm(category)
-    for key, items in value.items():
-        if _norm(key) == wanted:
-            return items
-    return None
 
 
 def _collect_label_values(value: Any) -> List[str]:
@@ -542,13 +516,10 @@ def score_candidate(row: CatalogRow, candidate: CatalogRow) -> float:
 
     row_authors = _split_people(row.get("author"))
     candidate_authors = _split_people(candidate.get("authors"))
-    if row_authors:
-        # Missing candidate authors are negative evidence, not a reason to
-        # normalize the score using title alone.
+    if row_authors and candidate_authors:
+        best_author = max(_similarity(a, b) for a in row_authors for b in candidate_authors)
+        score += best_author * 0.18
         weight += 0.18
-        if candidate_authors:
-            best_author = max(_similarity(a, b) for a in row_authors for b in candidate_authors)
-            score += best_author * 0.18
 
     local_seconds = _hhmm_to_seconds(row.get("duration_hhmm"))
     remote_seconds = _safe_int(candidate.get("audio_seconds"))

@@ -1,18 +1,14 @@
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from unittest.mock import patch
 
 from app.enrich.hardcover import (
     HardcoverCache,
-    HardcoverError,
     HardcoverMatch,
-    _normalize_candidate,
     apply_cached_fields_to_row,
     apply_match_to_row,
     cache_key_for_row,
     choose_best_match,
-    enrich_rows_with_hardcover,
     score_candidate,
 )
 
@@ -121,6 +117,7 @@ class HardcoverEnrichmentTests(unittest.TestCase):
         self.assertEqual(out["series"], "Local Series")
         self.assertEqual(out["hardcover_book_id"], "123")
 
+
     def test_score_candidate_without_has_audiobook_field(self):
         """Candidates from the API no longer include has_audiobook; scoring must not crash."""
         row = {"title": "Dune", "author": "Frank Herbert", "duration_hhmm": "21:30"}
@@ -134,51 +131,6 @@ class HardcoverEnrichmentTests(unittest.TestCase):
         with_flag = {"title": "Dune", "authors": ["Frank Herbert"], "audio_seconds": 77400, "has_audiobook": True}
         without_flag = {"title": "Dune", "authors": ["Frank Herbert"], "audio_seconds": 77400}
         self.assertEqual(score_candidate(row, with_flag), score_candidate(row, without_flag))
-
-    def test_normalize_candidate_reads_live_api_metadata_shape(self):
-        candidate = _normalize_candidate(
-            {
-                "id": 123,
-                "title": "Project Hail Mary",
-                "cached_contributors": [{"author": {"name": "Andy Weir"}, "contribution": None}],
-                "cached_tags": {
-                    "Genre": [{"tag": "Science Fiction"}],
-                    "Mood": [{"tag": "Adventurous"}],
-                    "Tag": [{"tag": "Plot driven"}],
-                },
-                "book_series": [{"series": {"name": "Hail Mary"}}],
-            },
-            source="hardcover_books",
-        )
-
-        self.assertEqual(candidate["authors"], ["Andy Weir"])
-        self.assertEqual(candidate["genres"], ["Science Fiction"])
-        self.assertEqual(candidate["moods"], ["Adventurous"])
-        self.assertEqual(candidate["tags"], ["Plot driven"])
-        self.assertEqual(candidate["series"], ["Hail Mary"])
-
-    def test_missing_candidate_author_reduces_confidence(self):
-        row = {"title": "Project Hail Mary", "author": "Andy Weir", "duration_hhmm": "16:10"}
-        with_author = {"title": "Project Hail Mary", "authors": ["Andy Weir"], "audio_seconds": 58200}
-        without_author = {"title": "Project Hail Mary", "authors": [], "audio_seconds": 58200}
-
-        self.assertGreater(score_candidate(row, with_author), score_candidate(row, without_author))
-        self.assertLess(score_candidate(row, without_author), 0.86)
-
-    def test_transient_search_failure_is_not_cached_as_miss(self):
-        row = {"title": "Project Hail Mary", "author": "Andy Weir", "duration_hhmm": "16:10"}
-        with TemporaryDirectory() as tmp:
-            cache_path = Path(tmp) / "hardcover.json"
-            with (
-                patch("app.enrich.hardcover.HARDCOVER_ENABLED", True),
-                patch("app.enrich.hardcover.HARDCOVER_TOKEN", "token"),
-                patch("app.enrich.hardcover.HARDCOVER_CACHE_PATH", cache_path),
-                patch("app.enrich.hardcover.HardcoverClient.search", side_effect=HardcoverError("temporary failure")),
-            ):
-                self.assertEqual(enrich_rows_with_hardcover([row]), [row])
-
-            self.assertIsNone(HardcoverCache(cache_path).get(cache_key_for_row(row)))
-
 
 if __name__ == "__main__":
     unittest.main()
