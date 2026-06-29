@@ -1,0 +1,12 @@
+{
+  "_description": "Authors who are always treated as the primary/first author when co-authoring. The catalog, Drive sync, and folder assignment will use these as the main author when ambiguous multi-author metadata is found.",
+  "priority_authors": [
+    "Dakota Krout",
+    "Brandon Sanderson",
+    "James Hunter",
+    "Drew Hayes",
+    "Andrew Rowe",
+    "Aleron Kong",
+    "Jim Butcher"
+  ]
+}

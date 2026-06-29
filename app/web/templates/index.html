@@ -525,6 +525,10 @@ body:not(.cards) #ab-table{display:table}
         <div class="label">Genre</div><div id="m-genre"></div>
         <div class="label">Duration</div><div id="m-duration"></div>
       </div>
+      <div id="m-companions" style="display:none; margin-top:8px; padding:6px 10px; background:var(--surface); border:1px solid var(--border); border-radius:4px;">
+        <span class="label" style="display:block; margin-bottom:4px; color:var(--neon-cyan); text-transform:uppercase; font-size:.75em; letter-spacing:.5px">Companion Files</span>
+        <span id="m-companions-list" style="font-size:.85em"></span>
+      </div>
       <div class="desc" id="m-desc"></div>
       <!-- Reading list buttons -->
       <div id="m-reading-list" style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap;"></div>
@@ -739,6 +743,8 @@ function toggleDarkMode(isDark){
   var mGenre=document.getElementById("m-genre");
   var mDuration=document.getElementById("m-duration");
   var mDesc=document.getElementById("m-desc");
+  var mCompanions=document.getElementById("m-companions");
+  var mCompanionsList=document.getElementById("m-companions-list");
 
   var mAuthorDrive=document.getElementById("m-author-drive");
   var mAuthorFolder=document.getElementById("m-author-folder");
@@ -757,6 +763,15 @@ function toggleDarkMode(isDark){
     mGenre.textContent=payload.genre||"";
     mDuration.textContent=payload.duration||"";
     mDesc.textContent=payload.desc ? payload.desc : "No description available.";
+
+    // Companion files
+    if(payload.companions){
+      mCompanionsList.textContent=payload.companions;
+      mCompanions.style.display="block";
+    } else {
+      mCompanions.style.display="none";
+      mCompanionsList.textContent="";
+    }
 
     var author=payload.author||"";
     var folderHref=_authorFolderHref(author);
@@ -800,7 +815,7 @@ function toggleDarkMode(isDark){
       openModal({
         cover:d.cover||"", title:d.title||"", series:d.series||"", index:d.index||"",
         author:d.author||"", narrator:d.narrator||"", year:d.year||"",
-        genre:d.genre||"", duration:d.duration||"", desc:d.desc||""
+        genre:d.genre||"", duration:d.duration||"", desc:d.desc||"", companions:d.companions||""
       });
     }
   });
@@ -816,7 +831,7 @@ function toggleDarkMode(isDark){
     openModal({
       cover:d.cover||"", title:d.title||"", series:d.series||"", index:d.index||"",
       author:d.author||"", narrator:d.narrator||"", year:d.year||"",
-      genre:d.genre||"", duration:d.duration||"", desc:d.desc||""
+      genre:d.genre||"", duration:d.duration||"", desc:d.desc||"", companions:d.companions||""
     });
   });
 
@@ -830,7 +845,7 @@ function toggleDarkMode(isDark){
     openModal({
       cover:d.cover||"", title:d.title||"", series:d.series||"", index:d.index||"",
       author:d.author||"", narrator:d.narrator||"", year:d.year||"",
-      genre:d.genre||"", duration:d.duration||"", desc:d.desc||""
+      genre:d.genre||"", duration:d.duration||"", desc:d.desc||"", companions:d.companions||""
     });
   });
 
@@ -846,7 +861,7 @@ function toggleDarkMode(isDark){
     openModal({
       cover:d.cover||"", title:d.title||"", series:d.series||"", index:d.index||"",
       author:d.author||"", narrator:d.narrator||"", year:d.year||"",
-      genre:d.genre||"", duration:d.duration||"", desc:d.desc||""
+      genre:d.genre||"", duration:d.duration||"", desc:d.desc||"", companions:d.companions||""
     });
   });
 
@@ -1032,6 +1047,7 @@ function toggleDarkMode(isDark){
             year: coverBtn ? coverBtn.getAttribute('data-year') : (cells[6].textContent || ''),
             genre: coverBtn ? coverBtn.getAttribute('data-genre') : (cells[7].textContent || ''),
             duration_hhmm: coverBtn ? coverBtn.getAttribute('data-duration') : (cells[8].textContent || ''),
+            companion_files: coverBtn ? coverBtn.getAttribute('data-companions') : '',
             desc: coverBtn ? coverBtn.getAttribute('data-desc') : ''
           };
           books.push(book);
@@ -1132,7 +1148,8 @@ function toggleDarkMode(isDark){
           cover: book.cover_href || '', title: book.title || '', series: book.series || '',
           index: book.series_index_display || '', author: book.author || '',
           narrator: book.narrator || '', year: book.year || '',
-          genre: book.genre || '', duration: book.duration_hhmm || '', desc: book.desc || ''
+          genre: book.genre || '', duration: book.duration_hhmm || '', desc: book.desc || '',
+          companions: book.companion_files || ''
         });
       };
     }

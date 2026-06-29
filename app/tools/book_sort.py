@@ -35,11 +35,26 @@ def _first_str(val) -> Optional[str]:
     return str(v).strip()
 
 
+def _load_priority_authors() -> list[str]:
+    """Load priority authors list from scripts/priority_authors.json."""
+    import json
+    priority_path = Path(__file__).resolve().parent.parent.parent / "scripts" / "priority_authors.json"
+    if priority_path.exists():
+        try:
+            with open(priority_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return [a.lower() for a in data.get("priority_authors", [])]
+        except Exception:
+            pass
+    return []
+
+
 def get_author_name(file_path: Path) -> Optional[str]:
     """
     Returns a normalized primary author string from MP4/M4B tags.
     - Reads ©ART / \xa9ART (iTunes 'Artist' a.k.a. Author in many audiobook rips)
-    - Uses the first author before a comma, normalized to Title Case.
+    - For multi-author fields, uses priority-author classification to select primary.
+    - Falls back to first author before comma if no priority author found.
     """
     try:
         audio = MP4(str(file_path))
@@ -50,14 +65,35 @@ def get_author_name(file_path: Path) -> Optional[str]:
         raw = _first_str(author_field)
         if not raw:
             return None
-        # Take only the first author before comma
-        first_author = raw.split(",")[0].strip()
-        # Normalize casing (avoid shouting acronyms up to 5 chars)
-        parts = first_author.split()
-        if not parts:
+
+        # Split all authors and normalize each
+        import re
+        parts = re.split(r"[;,/&]| and ", raw, flags=re.IGNORECASE)
+        authors = []
+        for p in parts:
+            name = p.strip()
+            if not name:
+                continue
+            name_parts = name.split()
+            if not name_parts:
+                continue
+            normalized = " ".join(
+                w if (w.isupper() and len(w) <= 5) else w.capitalize()
+                for w in name_parts
+            )
+            authors.append(normalized)
+
+        if not authors:
             return None
-        normalized_author = " ".join(p if (p.isupper() and len(p) <= 5) else p.capitalize() for p in parts)
-        return normalized_author
+
+        # Check if any author is in the priority list
+        priority = _load_priority_authors()
+        for author in authors:
+            if author.lower() in priority:
+                return author
+
+        # Default to first author
+        return authors[0]
     except Exception as e:
         print(f"[WARN] Metadata read failed: {file_path} - {e}")
         return None

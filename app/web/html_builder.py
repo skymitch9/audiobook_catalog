@@ -49,6 +49,7 @@ def _cover_button(r: Dict[str, str], inline: bool = False) -> str:
             f'data-year="{_esc(r.get("year",""))}"',
             f'data-genre="{_esc(r.get("genre",""))}"',
             f'data-duration="{_esc(r.get("duration_hhmm",""))}"',
+            f'data-companions="{_esc(r.get("companion_files",""))}"',
             f'data-desc="{_esc(r.get("desc",""))}"',  # may be empty if not provided
         ]
     )
@@ -96,6 +97,7 @@ def _card_html(r: Dict[str, str]) -> str:
         # Add modal data attributes
         "cover": r.get("cover_href", ""),
         "index": r.get("series_index_display", ""),
+        "companions": r.get("companion_files", ""),
         "desc": r.get("desc", ""),
     }
     data_attrs = " ".join(f'data-{k}="{_esc(v)}"' for k, v in attrs.items())
@@ -184,6 +186,7 @@ def _recently_added_html(rows: List[Dict[str, str]], count: int = 5) -> str:
             f'data-year="{_esc(r.get("year",""))}"',
             f'data-genre="{_esc(r.get("genre",""))}"',
             f'data-duration="{_esc(r.get("duration_hhmm",""))}"',
+            f'data-companions="{_esc(r.get("companion_files",""))}"',
             f'data-desc="{_esc(r.get("desc",""))}"',
         ])
 

@@ -29,6 +29,7 @@ def write_csv(rows: List[Dict[str, str]], out_path: Path) -> None:
         "genre",
         "duration_hhmm",
         "cover_href",
+        "companion_files",
         "desc",
     ]
     out_path.parent.mkdir(parents=True, exist_ok=True)

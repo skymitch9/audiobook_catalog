@@ -39,8 +39,13 @@ def get_credentials() -> Credentials | None:
 
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
+            try:
+                creds.refresh(Request())
+            except Exception as e:
+                print(f"Token refresh failed ({e}), re-authorizing...")
+                creds = None
+
+        if not creds or not creds.valid:
             if not CREDENTIALS_PATH.exists():
                 print("ERROR: credentials.json not found in scripts/ directory!")
                 print()
@@ -68,3 +73,12 @@ def build_drive_service():
     if not creds:
         return None
     return build("drive", "v3", credentials=creds)
+
+
+if __name__ == "__main__":
+    print("Authenticating with Google Drive...")
+    creds = get_credentials()
+    if creds and creds.valid:
+        print("Authentication successful! Token saved to scripts/token.json")
+    else:
+        print("Authentication failed. Check credentials.json and try again.")

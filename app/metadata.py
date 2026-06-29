@@ -100,6 +100,24 @@ def _cleanup_series(name: Optional[str]) -> Optional[str]:
     return re.sub(r"\s{2,}", " ", s).strip()
 
 
+def _load_priority_authors() -> list[str]:
+    """Load the priority authors list from scripts/priority_authors.json."""
+    priority_path = Path(__file__).resolve().parent.parent / "scripts" / "priority_authors.json"
+    if priority_path.exists():
+        import json
+        try:
+            with open(priority_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return [a.lower() for a in data.get("priority_authors", [])]
+        except Exception:
+            pass
+    return []
+
+
+# Cache priority authors at module level
+_PRIORITY_AUTHORS: list[str] = _load_priority_authors()
+
+
 def normalize_people_field(s: Optional[str]) -> Optional[str]:
     if not s:
         return None
@@ -115,6 +133,32 @@ def normalize_people_field(s: Optional[str]) -> Optional[str]:
             seen.add(key)
             cleaned.append(norm)
     return ", ".join(cleaned) if cleaned else None
+
+
+def resolve_primary_author(author_field: Optional[str]) -> Optional[str]:
+    """
+    Given a multi-author field like "Dennis Vanderkerken, Dakota Krout",
+    reorder so the priority author comes first. This ensures catalog display,
+    Drive folder assignment, and author links all use the canonical primary.
+
+    If no priority author is found, the original order is preserved.
+    """
+    if not author_field:
+        return author_field
+    parts = [a.strip() for a in author_field.split(",")]
+    if len(parts) <= 1:
+        return author_field
+
+    # Check if any author in the list is a priority author
+    for i, author in enumerate(parts):
+        if author.lower() in _PRIORITY_AUTHORS:
+            if i == 0:
+                return author_field  # already first
+            # Move priority author to front
+            reordered = [parts[i]] + parts[:i] + parts[i + 1:]
+            return ", ".join(reordered)
+
+    return author_field
 
 
 def sec_to_hhmm(s: Optional[int]) -> str:
@@ -236,6 +280,26 @@ def _extract_description(tags: Dict) -> Optional[str]:
     return None
 
 
+COMPANION_EXTS = {".pdf", ".epub", ".mobi", ".azw3"}
+
+
+def _find_companion_files(audio_path: Path) -> str:
+    """
+    Look for companion files (PDF, EPUB, MOBI) in the same directory as an audiobook.
+    Returns a pipe-separated string of companion filenames, or empty string if none.
+    """
+    parent = audio_path.parent
+    companions = []
+    try:
+        for f in parent.iterdir():
+            if f.is_file() and f.suffix.lower() in COMPANION_EXTS:
+                companions.append(f.name)
+    except OSError:
+        pass
+    companions.sort()
+    return " | ".join(companions)
+
+
 def extract_metadata(path: Path) -> Dict[str, str]:
     """Extract metadata from an MP4/M4B file, preferring SRNM/SRSQ,
     then free-form tags, and finally conservative title parsing. Also saves cover and cleaned description."""
@@ -245,7 +309,7 @@ def extract_metadata(path: Path) -> Dict[str, str]:
     length_sec = int(duration) if duration else None
 
     title = get_tag_any(tags, [K_TITLE]) or ""
-    author = normalize_people_field(get_tag_any(tags, [K_ARTIST]))
+    author = resolve_primary_author(normalize_people_field(get_tag_any(tags, [K_ARTIST])))
     narrator = normalize_people_field(get_tag_any(tags, [K_WRITER]))
     year = get_tag_any(tags, [K_DAY]) or ""
     genre = get_tag_any(tags, [K_GENRE]) or ""
@@ -278,6 +342,9 @@ def extract_metadata(path: Path) -> Dict[str, str]:
     # 4) Cover extraction (site-relative href)
     cover_href = _save_cover_for_file(path)
 
+    # 5) Companion files (PDF, EPUB in same directory)
+    companion_files = _find_companion_files(path)
+
     return {
         "title": title,
         "series": series or "",
@@ -290,6 +357,7 @@ def extract_metadata(path: Path) -> Dict[str, str]:
         "duration_hhmm": sec_to_hhmm(length_sec),
         "cover_href": cover_href or "",
         "desc": desc,  # cleaned text
+        "companion_files": companion_files,
         "file_mtime": path.stat().st_mtime,  # for "Recently Added" sorting
     }
 

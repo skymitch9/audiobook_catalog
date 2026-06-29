@@ -47,8 +47,13 @@ DRIVE_PARENT_FOLDER_ID = "1yZHU_UryCZkuhg9zFzu5uOadx3NI0FJv"
 
 
 def normalize(s: str) -> str:
-    """Strip to bare alphanumeric lowercase for comparison."""
-    return re.sub(r'[^a-z0-9]', '', s.lower())
+    """Strip to bare alphanumeric lowercase for comparison.
+    If the result is empty (e.g. pure CJK/non-latin text), use the original stripped string."""
+    norm = re.sub(r'[^a-z0-9]', '', s.lower())
+    if not norm:
+        # Keep original characters for non-latin names (Japanese, etc.)
+        return s.strip().lower()
+    return norm
 
 
 def fetch_all_folders(service) -> list[dict]:
@@ -194,7 +199,33 @@ def main():
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text("\n".join(lines), encoding="utf-8")
 
+    # Write CSV for manual verification
+    import csv
+    csv_path = PROJECT_ROOT / "docs" / "DRIVE_AUDIT_REPORT.csv"
+    with open(csv_path, "w", newline="", encoding="utf-8") as cf:
+        writer = csv.writer(cf)
+        writer.writerow(["type", "name", "folder", "file_id", "size_mb", "group_key", "action_suggested"])
+
+        # Duplicate folders
+        for norm, group in sorted(dupe_folders.items()):
+            base_name = group[0]["name"].split(" - ")[0]
+            for f in group:
+                writer.writerow([
+                    "duplicate_folder", f["name"], "(parent)", f["id"], "",
+                    base_name, "merge" if len(group) == 2 else "review"
+                ])
+
+        # Duplicate files
+        for filename, locations in sorted(dupe_files.items(), key=lambda x: -len(x[1])):
+            for i, loc in enumerate(locations):
+                size_mb = loc["size"] / (1024 * 1024) if loc["size"] else 0
+                writer.writerow([
+                    "duplicate_file", filename, loc["folder"], loc["file_id"],
+                    f"{size_mb:.1f}", filename, "keep" if i == 0 else "delete"
+                ])
+
     print(f"\n  Report: {report_path}")
+    print(f"  CSV:    {csv_path}")
     print(f"  Duplicate folders: {len(dupe_folders)}")
     print(f"  Duplicate files: {len(dupe_files)}")
     print("=" * 60)
