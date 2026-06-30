@@ -3,6 +3,7 @@ old_versions/
 temp/
 output_files/
 logs/
+runtime/
 *.json
 !package.json
 !package-lock.json
