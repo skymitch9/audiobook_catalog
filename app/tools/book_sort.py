@@ -86,11 +86,18 @@ def get_author_name(file_path: Path) -> Optional[str]:
         if not authors:
             return None
 
-        # Check if any author is in the priority list
+        # Check if any author is in the priority list — pick highest rank
         priority = _load_priority_authors()
+        best_author = None
+        best_rank = len(priority) + 1
         for author in authors:
             if author.lower() in priority:
-                return author
+                rank = priority.index(author.lower())
+                if rank < best_rank:
+                    best_rank = rank
+                    best_author = author
+        if best_author:
+            return best_author
 
         # Default to first author
         return authors[0]

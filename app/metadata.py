@@ -138,8 +138,9 @@ def normalize_people_field(s: Optional[str]) -> Optional[str]:
 def resolve_primary_author(author_field: Optional[str]) -> Optional[str]:
     """
     Given a multi-author field like "Dennis Vanderkerken, Dakota Krout",
-    reorder so the priority author comes first. This ensures catalog display,
-    Drive folder assignment, and author links all use the canonical primary.
+    reorder so the highest-ranked priority author comes first. This ensures
+    catalog display, Drive folder assignment, and author links all use the
+    canonical primary.
 
     If no priority author is found, the original order is preserved.
     """
@@ -149,16 +150,24 @@ def resolve_primary_author(author_field: Optional[str]) -> Optional[str]:
     if len(parts) <= 1:
         return author_field
 
-    # Check if any author in the list is a priority author
+    # Find the highest-ranked priority author (lowest index in _PRIORITY_AUTHORS)
+    best_idx = -1
+    best_rank = len(_PRIORITY_AUTHORS) + 1
     for i, author in enumerate(parts):
         if author.lower() in _PRIORITY_AUTHORS:
-            if i == 0:
-                return author_field  # already first
-            # Move priority author to front
-            reordered = [parts[i]] + parts[:i] + parts[i + 1:]
-            return ", ".join(reordered)
+            rank = _PRIORITY_AUTHORS.index(author.lower())
+            if rank < best_rank:
+                best_rank = rank
+                best_idx = i
 
-    return author_field
+    if best_idx < 0:
+        return author_field  # no priority author found
+    if best_idx == 0:
+        return author_field  # already first
+
+    # Move highest-ranked priority author to front
+    reordered = [parts[best_idx]] + parts[:best_idx] + parts[best_idx + 1:]
+    return ", ".join(reordered)
 
 
 def sec_to_hhmm(s: Optional[int]) -> str:
