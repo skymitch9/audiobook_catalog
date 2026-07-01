@@ -159,7 +159,7 @@ jobs:
         echo "::notice::Site URL: ${{ steps.deployment.outputs.page_url }}"
     
     - name: 📢 Notify Discord
-      if: success()
+      if: success() && steps.detect_books.outputs.has_new_books == 'true'
       env:
         DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         SITE_URL: ${{ steps.deployment.outputs.page_url }}
@@ -167,7 +167,7 @@ jobs:
         python -m app.tools.send_discord_notification
 
     - name: 💾 Save catalog snapshot
-      if: success()
+      if: success() && steps.detect_books.outputs.has_new_books == 'true'
       run: |
         python -m app.tools.detect_new_books --update-snapshot
         if [ -f "last_catalog_snapshot.json" ]; then

@@ -9,6 +9,7 @@ Outputs new_books.json for Discord notification.
 """
 import csv
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -104,6 +105,14 @@ def main():
         print("  Snapshot updated.")
 
     print(f"Found {len(new_books)} new books (total: {len(current_books)})")
+
+    # Set GitHub Actions output for conditional Discord notification
+    github_output = os.environ.get("GITHUB_OUTPUT")
+    if github_output:
+        with open(github_output, "a", encoding="utf-8") as gh:
+            gh.write(f"has_new_books={'true' if new_books else 'false'}\n")
+            gh.write(f"new_count={len(new_books)}\n")
+
     if new_books:
         print("New books:")
         for book in new_books[:5]:
