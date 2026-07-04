@@ -599,30 +599,21 @@
                 localStorage.setItem('guessGame_playerName', ssoName);
                 return ssoName;
             }
-            // Fallback to game-specific name
-            let name = localStorage.getItem('guessGame_playerName');
-            if (!name) {
-                name = prompt('Welcome! Enter your name to track your scores:') || 'Guest';
-                localStorage.setItem('guessGame_playerName', name);
-            }
-            return name;
+            // Not logged in — default to Guest (local only, no DB writes)
+            localStorage.setItem('guessGame_playerName', 'Guest');
+            return 'Guest';
         }
 
         function changePlayer() {
-            // If signed in via SSO, don't allow name change here
+            // If not signed in, direct them to log in
             const ssoName = localStorage.getItem('ab_identity_name');
             const ssoSession = localStorage.getItem('ab_identity_session');
-            if (ssoName && ssoSession === 'active') {
-                alert('Your name is linked to your account (' + ssoName + '). Sign in on the catalog page to change accounts.');
+            if (!ssoName || ssoSession !== 'active') {
+                alert('Sign in on the catalog page to track your scores on the leaderboard.');
                 return;
             }
-            const newName = prompt('Enter your name:', playerName) || playerName;
-            if (newName && newName !== playerName) {
-                playerName = newName;
-                localStorage.setItem('guessGame_playerName', playerName);
-                document.getElementById('player-name').textContent = playerName;
-                loadScores();
-            }
+            // If signed in via SSO, don't allow name change here
+            alert('Your name is linked to your account (' + ssoName + '). Sign in on the catalog page to change accounts.');
         }
 
         // Load scores from localStorage (player-specific)
