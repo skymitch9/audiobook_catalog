@@ -1,0 +1,533 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Audiobook Catalog - Statistics</title>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+/* =============== Cyberpunk 2077 Theme =============== */
+:root{
+  --pad:14px; --radius:4px;
+  --bg:#0a0a12; --bg-2:#12121f;
+  --text:#e8e6e3; --muted:#8a8f98;
+  --border:#2a2a3a;
+  --neon-yellow:#fcee0a;
+  --neon-cyan:#05d9e8;
+  --neon-magenta:#ff2a6d;
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0; padding:40px 20px;
+  font-family:'Rajdhani','Segoe UI',system-ui,sans-serif;
+  background:var(--bg);
+  background-image:
+    radial-gradient(ellipse at 20% 50%, rgba(252,238,10,.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(5,217,232,.03) 0%, transparent 50%);
+  min-height:100vh;
+  display:flex;
+  justify-content:center;
+  align-items:flex-start;
+  color:var(--text);
+}
+#wrap{
+  background:var(--bg-2);
+  border:1px solid var(--border);
+  border-radius:0;
+  box-shadow:0 0 30px rgba(5,217,232,.1);
+  max-width:1100px;
+  width:100%;
+  padding:40px;
+  clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 16px 100%, 0 calc(100% - 16px));
+}
+h1{margin:0 0 8px 0; color:var(--neon-yellow); text-transform:uppercase; letter-spacing:2px; text-shadow:0 0 10px rgba(252,238,10,.3)}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 20px;
+  margin: 20px 0;
+}
+.stat-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--neon-cyan);
+  border-radius: 0;
+  padding: 20px;
+  text-align: center;
+}
+.stat-number {
+  font-size: 2.5em;
+  font-weight: bold;
+  color: var(--neon-yellow);
+  margin-bottom: 8px;
+  text-shadow: 0 0 8px rgba(252,238,10,.3);
+  font-family: 'Share Tech Mono', monospace;
+}
+.stat-label {
+  font-size: 1.1em;
+  color: var(--neon-cyan);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  font-size: .9em;
+}
+.stat-sublabel {
+  font-size: 0.85em;
+  color: var(--muted);
+}
+.top-list {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 0;
+  padding: 20px;
+  margin: 20px 0;
+}
+.top-list h3 {
+  margin-top: 0;
+  color: var(--neon-magenta);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-size: 1em;
+}
+.top-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.top-item:last-child {
+  border-bottom: none;
+}
+.top-name {
+  font-weight: 500;
+  color: var(--text);
+}
+.top-count {
+  color: var(--neon-cyan);
+  font-weight: bold;
+  font-family: 'Share Tech Mono', monospace;
+}
+.insights {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 0;
+  padding: 20px;
+  margin: 20px 0;
+}
+.insights h3 {
+  margin-top: 0;
+  color: var(--neon-magenta);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.insight-item {
+  margin: 12px 0;
+  padding: 12px;
+  background: var(--bg-2);
+  border-radius: 0;
+  border-left: 3px solid var(--neon-yellow);
+}
+.insight-label {
+  font-weight: bold;
+  color: var(--neon-yellow);
+  text-transform: uppercase;
+  font-size: .85em;
+}
+.insight-value {
+  color: var(--muted);
+  margin-top: 4px;
+}
+.nav-link {
+  display: inline-block;
+  padding: 10px 16px;
+  background: var(--bg);
+  color: var(--neon-cyan);
+  text-decoration: none;
+  border-radius: 0;
+  border: 1px solid var(--border);
+  margin: 10px 10px 10px 0;
+  text-transform: uppercase;
+  font-weight: 600;
+  font-size: .85em;
+  letter-spacing: .5px;
+  transition: all .2s;
+  clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%);
+}
+.nav-link:hover {
+  border-color: var(--neon-cyan);
+  box-shadow: 0 0 8px rgba(5,217,232,.3);
+}
+@media (max-width: 768px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <h1>📊 Audiobook Statistics</h1>
+
+  <div style="margin-bottom: 20px;">
+    <a href="index.html" class="nav-link">← Back to Catalog</a>
+    <a href="guess-game.html" class="nav-link">🎮 Play Game</a>
+  </div>
+
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-number">988</div>
+      <div class="stat-label">Total Books</div>
+    </div>
+    
+    <div class="stat-card">
+      <div class="stat-number">13,694</div>
+      <div class="stat-label">Total Hours</div>
+      <div class="stat-sublabel">570.6 days</div>
+    </div>
+    
+    <div class="stat-card">
+      <div class="stat-number">398</div>
+      <div class="stat-label">Unique Authors</div>
+    </div>
+    
+    <div class="stat-card">
+      <div class="stat-number">428</div>
+      <div class="stat-label">Unique Narrators</div>
+    </div>
+    
+    <div class="stat-card">
+      <div class="stat-number">319</div>
+      <div class="stat-label">Unique Series</div>
+    </div>
+    
+    <div class="stat-card">
+      <div class="stat-number">13.8</div>
+      <div class="stat-label">Average Duration</div>
+      <div class="stat-sublabel">hours per book</div>
+    </div>
+  </div>
+
+  <div class="insights">
+    <h3>📋 Collection Insights</h3>
+    <div class="insight-item">
+      <div class="insight-label">Listening Marathon</div>
+      <div class="insight-value">It would take 1.56 years (19.0 months) to listen to your entire collection!</div>
+    </div>
+    <div class="insight-item">
+      <div class="insight-label">Author Diversity</div>
+      <div class="insight-value">You have an average of 2.5 books per author.</div>
+    </div>
+    <div class="insight-item">
+      <div class="insight-label">Series Collection</div>
+      <div class="insight-value">32.3% of your books are part of a series.</div>
+    </div>
+    <div class="insight-item">
+      <div class="insight-label">Narrator Preference</div>
+      <div class="insight-value">You have an average of 2.3 books per narrator.</div>
+    </div>
+  </div>
+
+  <!-- Community Stats (loaded from Firebase) -->
+  <div id="community-stats" class="top-list" style="margin-top:20px">
+    <h3>👥 Community Stats</h3>
+    <div id="community-stats-content" style="color:var(--muted)">Loading community data...</div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+    <div class="top-list">
+      <h3>📚 Top Authors</h3>
+      <div class="top-item">
+        <span class="top-name">Brandon Sanderson</span>
+        <span class="top-count">31 books</span>
+      </div>
+      <div class="top-item">
+        <span class="top-name">Dakota Krout</span>
+        <span class="top-count">29 books</span>
+      </div>
+      <div class="top-item">
+        <span class="top-name">William D. Arand</span>
+        <span class="top-count">25 books</span>
+      </div>
+      <div class="top-item">
+        <span class="top-name">Jim Butcher</span>
+        <span class="top-count">21 books</span>
+      </div>
+      <div class="top-item">
+        <span class="top-name">Caroline Peckham, Susanne Valenti</span>
+        <span class="top-count">19 books</span>
+      </div>
+      <div class="top-item">
+        <span class="top-name">Disney Books</span>
+        <span class="top-count">19 books</span>
+      </div>
+      <div class="top-item">
+        <span class="top-name">Sarah J. Maas</span>
+        <span class="top-count">19 books</span>
+      </div>
+      <div class="top-item">
+        <span class="top-name">Yuu Tanaka</span>
+        <span class="top-count">18 books</span>
+      </div>
+      <div class="top-item">
+        <span class="top-name">Pirateaba</span>
+        <span class="top-count">17 books</span>
+      </div>
+      <div class="top-item">
+        <span class="top-name">Selkie Myth</span>
+        <span class="top-count">16 books</span>
+      </div>
+    </div>
+    
+    <div class="top-list">
+      <h3>🎙️ Top Narrators</h3>
+      <div class="top-item">
+        <span class="top-name">Andrea Parsneau</span>
+        <span class="top-count">67 books</span>
+      </div>
+      <div class="top-item">
+        <span class="top-name">Travis Baldree</span>
+        <span class="top-count">38 books</span>
+      </div>
+      <div class="top-item">
+        <span class="top-name">Nick Podehl</span>
+        <span class="top-count">27 books</span>
+      </div>
+      <div class="top-item">
+        <span class="top-name">Luke Daniels</span>
+        <span class="top-count">26 books</span>
+      </div>
+      <div class="top-item">
+        <span class="top-name">James Marsters</span>
+        <span class="top-count">19 books</span>
+      </div>
+      <div class="top-item">
+        <span class="top-name">Josh Hurley</span>
+        <span class="top-count">18 books</span>
+      </div>
+      <div class="top-item">
+        <span class="top-name">Andrea Emmes</span>
+        <span class="top-count">17 books</span>
+      </div>
+      <div class="top-item">
+        <span class="top-name">Jonathan Johns</span>
+        <span class="top-count">15 books</span>
+      </div>
+      <div class="top-item">
+        <span class="top-name">Virtual Voice</span>
+        <span class="top-count">14 books</span>
+      </div>
+      <div class="top-item">
+        <span class="top-name">Michael Kramer</span>
+        <span class="top-count">13 books</span>
+      </div>
+    </div>
+    
+    <div class="top-list">
+      <h3>📖 Top Series</h3>
+      <div class="top-item">
+        <span class="top-name">The Dresden Files</span>
+        <span class="top-count">21 books</span>
+      </div>
+      <div class="top-item">
+        <span class="top-name">Reincarnated as a Sword</span>
+        <span class="top-count">17 books</span>
+      </div>
+      <div class="top-item">
+        <span class="top-name">Beneath the Dragoneye Moons</span>
+        <span class="top-count">16 books</span>
+      </div>
+      <div class="top-item">
+        <span class="top-name">Healer's Way</span>
+        <span class="top-count">15 books</span>
+      </div>
+      <div class="top-item">
+        <span class="top-name">The Wandering Inn</span>
+        <span class="top-count">15 books</span>
+      </div>
+      <div class="top-item">
+        <span class="top-name">Zodiac Academy</span>
+        <span class="top-count">14 books</span>
+      </div>
+      <div class="top-item">
+        <span class="top-name">The Primal Hunter</span>
+        <span class="top-count">14 books</span>
+      </div>
+      <div class="top-item">
+        <span class="top-name">Summoner</span>
+        <span class="top-count">13 books</span>
+      </div>
+      <div class="top-item">
+        <span class="top-name">He Who Fights with Monsters</span>
+        <span class="top-count">12 books</span>
+      </div>
+      <div class="top-item">
+        <span class="top-name">Binding Words</span>
+        <span class="top-count">11 books</span>
+      </div>
+    </div>
+    
+    <div class="top-list">
+      <h3>🎭 Top Genres</h3>
+      <div class="top-item">
+        <span class="top-name">Science Fiction & Fantasy:Fantasy:Action & Adventure</span>
+        <span class="top-count">208 books</span>
+      </div>
+      <div class="top-item">
+        <span class="top-name">Science Fiction & Fantasy:Fantasy:Epic</span>
+        <span class="top-count">100 books</span>
+      </div>
+      <div class="top-item">
+        <span class="top-name">Science Fiction & Fantasy:Fantasy</span>
+        <span class="top-count">81 books</span>
+      </div>
+      <div class="top-item">
+        <span class="top-name">Romance:Fantasy</span>
+        <span class="top-count">40 books</span>
+      </div>
+      <div class="top-item">
+        <span class="top-name">Science Fiction & Fantasy:Science Fiction:Adventure</span>
+        <span class="top-count">27 books</span>
+      </div>
+      <div class="top-item">
+        <span class="top-name">Literature & Fiction:Classics</span>
+        <span class="top-count">26 books</span>
+      </div>
+      <div class="top-item">
+        <span class="top-name">Teen & Young Adult:Literature & Fiction:Action & Adventure</span>
+        <span class="top-count">22 books</span>
+      </div>
+      <div class="top-item">
+        <span class="top-name">Literature & Fiction:Action & Adventure</span>
+        <span class="top-count">19 books</span>
+      </div>
+      <div class="top-item">
+        <span class="top-name">Teen & Young Adult:Literature & Fiction</span>
+        <span class="top-count">19 books</span>
+      </div>
+      <div class="top-item">
+        <span class="top-name">Romance:Contemporary</span>
+        <span class="top-count">17 books</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="top-list">
+    <h3>⏱️ Duration Categories</h3>
+    <div class="top-item">
+      <span class="top-name">Novella (< 5h)</span>
+      <span class="top-count">86 books (8.7%)</span>
+    </div>
+    <div class="top-item">
+      <span class="top-name">Short (5-10h)</span>
+      <span class="top-count">243 books (24.6%)</span>
+    </div>
+    <div class="top-item">
+      <span class="top-name">Medium (11-15h)</span>
+      <span class="top-count">344 books (34.8%)</span>
+    </div>
+    <div class="top-item">
+      <span class="top-name">Long (16-24h)</span>
+      <span class="top-count">223 books (22.6%)</span>
+    </div>
+    <div class="top-item">
+      <span class="top-name">Extra Long (25h+)</span>
+      <span class="top-count">92 books (9.3%)</span>
+    </div>
+  </div>
+
+  <div style="margin-top: 30px; padding: 20px; background: var(--bg-2); border-radius: var(--radius); text-align: center; color: var(--muted);">
+    <small>Generated at: 2026-07-01 16:03:25</small>
+  </div>
+</div>
+
+<script type="module">
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+  import { getFirestore, collection, getDocs } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+
+  const app = initializeApp({
+    apiKey: "AIzaSyDgAblkxzVxl7nFbd7jXOo6PpuNPsJw11Y",
+    authDomain: "audiobook-catalog.firebaseapp.com",
+    projectId: "audiobook-catalog",
+    storageBucket: "audiobook-catalog.firebasestorage.app",
+    messagingSenderId: "68492219785",
+    appId: "1:68492219785:web:7cbe57dda8712377f0bd58"
+  });
+  const db = getFirestore(app);
+
+  async function loadCommunityStats() {
+    try {
+      const [profilesSnap, reviewsSnap] = await Promise.all([
+        getDocs(collection(db, 'profiles')),
+        getDocs(collection(db, 'reviews'))
+      ]);
+
+      const totalMembers = profilesSnap.size;
+      const totalReviews = reviewsSnap.size;
+
+      // Most active reviewers
+      const reviewerCounts = {};
+      let totalRating = 0;
+      reviewsSnap.docs.forEach(d => {
+        const data = d.data();
+        const name = data.displayName || '';
+        reviewerCounts[name] = (reviewerCounts[name] || 0) + 1;
+        totalRating += data.rating || 0;
+      });
+
+      const avgRating = totalReviews > 0 ? (totalRating / totalReviews).toFixed(1) : '—';
+      const topReviewers = Object.entries(reviewerCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5);
+
+      // Most read books (most reviews)
+      const bookCounts = {};
+      reviewsSnap.docs.forEach(d => {
+        const data = d.data();
+        const bookId = data.bookId || '';
+        if (bookId) bookCounts[bookId] = (bookCounts[bookId] || 0) + 1;
+      });
+      const topBooks = Object.entries(bookCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5);
+
+      // Currently reading count
+      let readingCount = 0;
+      profilesSnap.docs.forEach(d => {
+        if (d.data().currentlyReading) readingCount++;
+      });
+
+      let html = `
+        <div class="stats-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:16px">
+          <div class="stat-card"><div class="stat-number">${totalMembers}</div><div class="stat-label">Members</div></div>
+          <div class="stat-card"><div class="stat-number">${totalReviews}</div><div class="stat-label">Reviews</div></div>
+          <div class="stat-card"><div class="stat-number">${avgRating}</div><div class="stat-label">Avg Rating</div></div>
+          <div class="stat-card"><div class="stat-number">${readingCount}</div><div class="stat-label">Reading Now</div></div>
+        </div>`;
+
+      if (topReviewers.length > 0) {
+        html += '<div style="margin-top:12px"><strong style="color:var(--neon-cyan);font-size:.85em;text-transform:uppercase">Top Reviewers</strong>';
+        topReviewers.forEach(([name, count]) => {
+          html += `<div class="top-item"><span class="top-name">${name}</span><span class="top-count">${count} reviews</span></div>`;
+        });
+        html += '</div>';
+      }
+
+      if (topBooks.length > 0) {
+        html += '<div style="margin-top:12px"><strong style="color:var(--neon-cyan);font-size:.85em;text-transform:uppercase">Most Reviewed Books</strong>';
+        topBooks.forEach(([bookId, count]) => {
+          const title = bookId.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+          html += `<div class="top-item"><span class="top-name">${title}</span><span class="top-count">${count} reviews</span></div>`;
+        });
+        html += '</div>';
+      }
+
+      document.getElementById('community-stats-content').innerHTML = html;
+    } catch (e) {
+      document.getElementById('community-stats-content').textContent = 'Could not load community data.';
+    }
+  }
+  loadCommunityStats();
+</script>
+</body>
+</html>

@@ -20,11 +20,11 @@ scripts/token.json
 scripts/credentials.json
 node_modules/
 
-# Generated site outputs (rebuilt by app.main)
-site/index.html
-site/catalog.csv
-site/stats.html
-site/covers/
+# Generated site outputs (rebuilt locally, committed for Pages deployment)
+# site/index.html — committed (needed for GitHub Pages)
+# site/catalog.csv — committed (needed for GitHub Pages)
+# site/stats.html — committed (needed for GitHub Pages)
+# site/covers/ — committed (needed for GitHub Pages)
 
 # Runtime artifacts
 new_books.json
