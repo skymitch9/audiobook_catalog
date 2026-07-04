@@ -3,18 +3,34 @@ old_versions/
 temp/
 output_files/
 logs/
+runtime/
+docs/
 *.json
 !package.json
 !package-lock.json
 !author_drive_map.json
 !scripts/author_aliases.json
 !scripts/priority_authors.json
+!scripts/bookfunnel_books.json
 !last_catalog_snapshot.json
 !vitest.config.js
+!firebase.json
 scripts/upload_manifest.json
 scripts/token.json
 scripts/credentials.json
 node_modules/
+
+# Generated site outputs (rebuilt by app.main)
+site/index.html
+site/catalog.csv
+site/stats.html
+site/covers/
+
+# Runtime artifacts
+new_books.json
+drive_folders_cache.json
+FIREBASE_SETUP.md
+generate_stats.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
