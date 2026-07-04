@@ -34,8 +34,9 @@ try:
 except ImportError:
     pass
 
-# Paths
-MANIFEST_PATH = SCRIPTS_DIR / "upload_manifest.json"
+# Paths (SYNC_DATA_DIR must match sync_to_drive.py, which owns the manifest)
+SYNC_DATA_DIR = Path(os.getenv("SYNC_DATA_DIR", str(SCRIPTS_DIR)))
+MANIFEST_PATH = SYNC_DATA_DIR / "upload_manifest.json"
 CATALOG_CSV = PROJECT_ROOT / "site" / "catalog.csv"
 LIBRARY_ROOT = Path(os.getenv("ROOT_DIR", r"C:\Users\nbasl\OpenAudible\books"))
 AUDIOBOOK_EXTS = {".m4b", ".m4a", ".mp4"}

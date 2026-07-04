@@ -54,7 +54,21 @@ OPENAUDIBLE_BOOKS_DIR = Path(os.getenv("ROOT_DIR", r"C:\Users\nbasl\OpenAudible\
 
 # Extensions to process
 AUDIOBOOK_EXTS: set[str] = {".m4b", ".m4a", ".mp4"}
-MIN_FILE_AGE_SECONDS = max(0, int(os.getenv("MIN_FILE_AGE_SECONDS", "0")))
+
+
+def _min_file_age_seconds() -> int:
+    """Read MIN_FILE_AGE_SECONDS, tolerating blank/invalid values.
+
+    Default 300 matches .env.example and docker-compose.sync.yml so a direct
+    (non-Docker) run gets the same partially-converted-file protection.
+    """
+    try:
+        return max(0, int(os.getenv("MIN_FILE_AGE_SECONDS", "300")))
+    except ValueError:
+        return 300
+
+
+MIN_FILE_AGE_SECONDS = _min_file_age_seconds()
 
 # Fuzzy match threshold (0-100). Below this, ask Claude.
 FUZZY_THRESHOLD = 80
@@ -255,12 +269,22 @@ def detect_new_books(manifest: dict) -> list[Path]:
         return []
 
     now = time.time()
+
+    def _settled(p: Path) -> bool:
+        """True when the file has been unchanged long enough to upload safely.
+
+        Files can vanish mid-scan (OpenAudible replaces them during
+        conversion); treat those as not settled instead of crashing the run.
+        """
+        try:
+            return now - p.stat().st_mtime >= MIN_FILE_AGE_SECONDS
+        except OSError:
+            return False
+
     all_files = [
         p
         for p in library_root.rglob("*")
-        if p.is_file()
-        and p.suffix.lower() in AUDIOBOOK_EXTS
-        and now - p.stat().st_mtime >= MIN_FILE_AGE_SECONDS
+        if p.is_file() and p.suffix.lower() in AUDIOBOOK_EXTS and _settled(p)
     ]
 
     new_files = []

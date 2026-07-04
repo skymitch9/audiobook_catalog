@@ -19,10 +19,10 @@ services:
       - OA_KIOSK=true
       - KASM_AUDIO_ENABLED=1
       - oa_internal_browser=true
-      - DWEBKIT_DISABLE_DMABUF_RENDERER=1
-      - DWEBKIT_DISABLE_COMPOSITING_MODE=1
-      - DWEBKIT_FORCE_SOFTWARE_RENDERING=1
-      - DGDK_GL=disable
+      - WEBKIT_DISABLE_DMABUF_RENDERER=1
+      - WEBKIT_DISABLE_COMPOSITING_MODE=1
+      - WEBKIT_FORCE_SOFTWARE_RENDERING=1
+      - GDK_GL=disable
       - PASSWORD=${OPENAUDIBLE_PASSWORD:-}
     volumes:
       - type: bind
