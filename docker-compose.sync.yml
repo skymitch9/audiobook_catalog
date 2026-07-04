@@ -1,16 +1,71 @@
-# Docker Compose for autonomous audiobook sync pipeline
+# Docker Compose for the OpenAudible + autonomous audiobook sync pipeline.
 # Usage:
-#   docker compose -f docker-compose.sync.yml up -d
+#   docker compose -f docker-compose.sync.yml up -d openaudible
+#   docker compose -f docker-compose.sync.yml --profile automation up -d
 #   docker compose -f docker-compose.sync.yml logs -f
 #   docker compose -f docker-compose.sync.yml down
 
 services:
+  openaudible:
+    image: openaudible/openaudible:latest
+    container_name: openaudible
+    restart: unless-stopped
+    ports:
+      # Localhost-only by design. Do not expose the remote desktop directly to the LAN/WAN.
+      - "127.0.0.1:${OPENAUDIBLE_PORT:-3000}:3000"
+    environment:
+      - TZ=${TZ:-America/Phoenix}
+      - OA_BETA=false
+      - OA_KIOSK=true
+      - KASM_AUDIO_ENABLED=1
+      - oa_internal_browser=true
+      - WEBKIT_DISABLE_DMABUF_RENDERER=1
+      - WEBKIT_DISABLE_COMPOSITING_MODE=1
+      - WEBKIT_FORCE_SOFTWARE_RENDERING=1
+      - GDK_GL=disable
+      - PASSWORD=${OPENAUDIBLE_PASSWORD:-}
+    volumes:
+      - type: bind
+        source: ${OPENAUDIBLE_DATA_DIR:-./runtime/openaudible}
+        target: /config/OpenAudible
+    security_opt:
+      - seccomp:unconfined
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # OpenAudible only documents refresh-on-startup. This small controller uses the
+  # command queue exposed by current releases to request a periodic Quick Sync.
+  # Automatic download/convert remain explicit one-time choices in OpenAudible's UI.
+  openaudible-scheduler:
+    image: python:3.12-alpine
+    container_name: openaudible-scheduler
+    profiles: ["automation"]
+    restart: unless-stopped
+    depends_on:
+      - openaudible
+    environment:
+      - OPENAUDIBLE_HOME=/config/OpenAudible
+      - OPENAUDIBLE_SYNC_INTERVAL_SECONDS=${OPENAUDIBLE_SYNC_INTERVAL_SECONDS:-21600}
+      - OPENAUDIBLE_INITIAL_DELAY_SECONDS=${OPENAUDIBLE_INITIAL_DELAY_SECONDS:-180}
+    volumes:
+      - type: bind
+        source: ${OPENAUDIBLE_DATA_DIR:-./runtime/openaudible}
+        target: /config/OpenAudible
+      - ./scripts/openaudible_scheduler.py:/app/openaudible_scheduler.py:ro
+    command: ["python", "/app/openaudible_scheduler.py"]
+
   audiobook-sync:
     build:
       context: .
       dockerfile: Dockerfile.sync
     container_name: audiobook-sync
+    profiles: ["automation"]
     restart: unless-stopped
+    depends_on:
+      - openaudible
     env_file:
       - .env
     environment:
@@ -25,14 +80,19 @@ services:
       - Email=${Email}
       - DRIVE_FOLDER_URL=${DRIVE_FOLDER_URL}
       - DRIVE_AUTHORS_ROOT=${DRIVE_AUTHORS_ROOT}
+      - SYNC_DATA_DIR=/app/data
+      - MIN_FILE_AGE_SECONDS=${MIN_FILE_AGE_SECONDS:-300}
     volumes:
-      # Mount your audiobook library (read-write for downloads from Drive)
-      - C:\Users\nbasl\OpenAudible\books:/library
+      # Share the Dockerized OpenAudible library. Read-write is required by
+      # audit_drive_vs_local.py when restoring a missing file from Drive.
+      - type: bind
+        source: ${OPENAUDIBLE_DATA_DIR:-./runtime/openaudible}/books
+        target: /library
       # Mount Google Drive OAuth tokens (so container doesn't need re-auth)
       - ./scripts/token.json:/app/scripts/token.json
       - ./scripts/credentials.json:/app/scripts/credentials.json
       # Persist upload manifest between container restarts
-      - sync-data:/app/scripts/data
+      - sync-data:/app/data
     logging:
       driver: json-file
       options:

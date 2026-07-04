@@ -31,7 +31,7 @@ git pull origin main 2>/dev/null || true
 echo "  Repo synced to latest main."
 
 # --- Pass environment variables to cron ---
-env | grep -E '^(ROOT_DIR|Claude|Email|GITHUB_TOKEN|GITHUB_USER|GIT_EMAIL|GIT_USER|DRIVE_|DISCORD_|PATH|HOME|PYTHONPATH)' > /etc/environment
+env | grep -E '^(ROOT_DIR|Claude|Email|GITHUB_TOKEN|GITHUB_USER|GIT_EMAIL|GIT_USER|DRIVE_|DISCORD_|PATH|HOME|PYTHONPATH|SYNC_DATA_DIR|MIN_FILE_AGE_SECONDS)' > /etc/environment
 
 # --- Run once immediately on container start ---
 echo ""

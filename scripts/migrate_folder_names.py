@@ -52,8 +52,10 @@ LIBRARY_ROOT = Path(os.getenv("ROOT_DIR", r"C:\Users\nbasl\OpenAudible\books"))
 DRIVE_PARENT_FOLDER_ID = "1yZHU_UryCZkuhg9zFzu5uOadx3NI0FJv"
 AUTHOR_MAP_PATH = PROJECT_ROOT / "author_drive_map.json"
 ALIASES_PATH = SCRIPTS_DIR / "author_aliases.json"
-MANIFEST_PATH = SCRIPTS_DIR / "upload_manifest.json"
-CACHE_PATH = SCRIPTS_DIR / "drive_folders_cache.json"
+# SYNC_DATA_DIR must match sync_to_drive.py, which owns these files
+SYNC_DATA_DIR = Path(os.getenv("SYNC_DATA_DIR", str(SCRIPTS_DIR)))
+MANIFEST_PATH = SYNC_DATA_DIR / "upload_manifest.json"
+CACHE_PATH = SYNC_DATA_DIR / "drive_folders_cache.json"
 
 
 def get_base_name(folder_name: str) -> str:

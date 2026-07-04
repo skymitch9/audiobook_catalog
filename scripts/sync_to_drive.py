@@ -36,8 +36,9 @@ from pathlib import Path
 
 SCRIPTS_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPTS_DIR.parent
-MANIFEST_PATH = SCRIPTS_DIR / "upload_manifest.json"
-DRIVE_FOLDERS_CACHE_PATH = SCRIPTS_DIR / "drive_folders_cache.json"
+SYNC_DATA_DIR = Path(os.getenv("SYNC_DATA_DIR", str(SCRIPTS_DIR)))
+MANIFEST_PATH = SYNC_DATA_DIR / "upload_manifest.json"
+DRIVE_FOLDERS_CACHE_PATH = SYNC_DATA_DIR / "drive_folders_cache.json"
 AUTHOR_ALIASES_PATH = SCRIPTS_DIR / "author_aliases.json"
 
 # Load .env
@@ -53,6 +54,21 @@ OPENAUDIBLE_BOOKS_DIR = Path(os.getenv("ROOT_DIR", r"C:\Users\nbasl\OpenAudible\
 
 # Extensions to process
 AUDIOBOOK_EXTS: set[str] = {".m4b", ".m4a", ".mp4"}
+
+
+def _min_file_age_seconds() -> int:
+    """Read MIN_FILE_AGE_SECONDS, tolerating blank/invalid values.
+
+    Default 300 matches .env.example and docker-compose.sync.yml so a direct
+    (non-Docker) run gets the same partially-converted-file protection.
+    """
+    try:
+        return max(0, int(os.getenv("MIN_FILE_AGE_SECONDS", "300")))
+    except ValueError:
+        return 300
+
+
+MIN_FILE_AGE_SECONDS = _min_file_age_seconds()
 
 # Fuzzy match threshold (0-100). Below this, ask Claude.
 FUZZY_THRESHOLD = 80
@@ -79,6 +95,7 @@ def load_manifest() -> dict:
 
 def save_manifest(manifest: dict) -> None:
     """Persist the upload manifest."""
+    MANIFEST_PATH.parent.mkdir(parents=True, exist_ok=True)
     with open(MANIFEST_PATH, "w", encoding="utf-8") as f:
         json.dump(manifest, f, ensure_ascii=False, indent=2)
 
@@ -251,10 +268,23 @@ def detect_new_books(manifest: dict) -> list[Path]:
         print(f"[ERROR] Library root not found: {library_root}")
         return []
 
+    now = time.time()
+
+    def _settled(p: Path) -> bool:
+        """True when the file has been unchanged long enough to upload safely.
+
+        Files can vanish mid-scan (OpenAudible replaces them during
+        conversion); treat those as not settled instead of crashing the run.
+        """
+        try:
+            return now - p.stat().st_mtime >= MIN_FILE_AGE_SECONDS
+        except OSError:
+            return False
+
     all_files = [
         p
         for p in library_root.rglob("*")
-        if p.is_file() and p.suffix.lower() in AUDIOBOOK_EXTS
+        if p.is_file() and p.suffix.lower() in AUDIOBOOK_EXTS and _settled(p)
     ]
 
     new_files = []

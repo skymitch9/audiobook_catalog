@@ -1,5 +1,6 @@
 node_modules/
 output_files/
+runtime/
 old_versions/
 __pycache__/
 *.pyc
