@@ -108,13 +108,6 @@ jobs:
         fi
         echo "::endgroup::"
     
-    - name: 🧹 Exclude covers from artifact
-      # TEMPORARY (2026-07-04): GitHub Pages repeatedly fails to sync the full
-      # 153MB artifact ("Deployment failed, try again later" during
-      # syncing_files) while small artifacts deploy fine. Dropping covers/
-      # restores the site; remove this step once a full-size deploy succeeds.
-      run: rm -rf site/covers
-
     - name: 📄 Setup Pages
       uses: actions/configure-pages@v5
     
