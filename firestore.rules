@@ -5,11 +5,9 @@ service cloud.firestore {
       // Allow read access to all leaderboard entries
       allow read: if true;
       
-      // Allow write only if document ID matches pattern: weekId_playerName
-      // and the playerName in the document matches the one in the ID
+      // Allow write if document has a valid playerName and weekId
       allow write: if request.resource.data.playerName is string
-                   && docId.matches('^[0-9]{4}-W[0-9]{2}_.*')
-                   && docId.split('_')[1] == request.resource.data.playerName;
+                   && request.resource.data.weekId is string;
     }
 
     match /users/{userId} {

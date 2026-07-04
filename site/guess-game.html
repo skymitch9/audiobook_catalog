@@ -427,6 +427,123 @@
         <a href="stats.html" class="nav-link">📊 Statistics</a>
     </div>
 
+    <script type="module">
+        // Firebase integration for logged-in player score persistence
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+        import { getFirestore, doc, getDoc, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDgAblkxzVxl7nFbd7jXOo6PpuNPsJw11Y",
+            authDomain: "audiobook-catalog.firebaseapp.com",
+            projectId: "audiobook-catalog",
+            storageBucket: "audiobook-catalog.firebasestorage.app",
+            messagingSenderId: "68492219785",
+            appId: "1:68492219785:web:7cbe57dda8712377f0bd58"
+        };
+
+        let db = null;
+        try {
+            const app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+        } catch (e) {
+            console.warn('[Game] Firebase init failed:', e);
+        }
+
+        function isLoggedIn() {
+            const name = localStorage.getItem('ab_identity_name');
+            const session = localStorage.getItem('ab_identity_session');
+            return !!(name && session === 'active');
+        }
+
+        function getProfileId() {
+            const name = localStorage.getItem('ab_identity_name');
+            return name ? name.toLowerCase() : null;
+        }
+
+        // Load game stats from Firestore profile (for logged-in users)
+        window._firebaseLoadGameStats = async function() {
+            if (!db || !isLoggedIn()) return null;
+            const profileId = getProfileId();
+            if (!profileId) return null;
+            try {
+                const profileRef = doc(db, 'profiles', profileId);
+                const snap = await getDoc(profileRef);
+                if (snap.exists()) {
+                    const data = snap.data();
+                    return {
+                        correct: data.gameCorrect || 0,
+                        wrong: data.gameWrong || 0,
+                        bestStreak: data.gameBestStreak || 0,
+                        accuracy: data.gameAccuracy || 0,
+                        weeklyCorrect: data.gameWeeklyCorrect || 0,
+                        weeklyWrong: data.gameWeeklyWrong || 0,
+                        weeklyBestStreak: data.gameWeeklyBestStreak || 0,
+                        weeklyPoints: data.gameWeeklyPoints || 0,
+                        weekId: data.gameWeekId || '',
+                    };
+                }
+            } catch (e) {
+                console.warn('[Game] Failed to load stats from Firestore:', e);
+            }
+            return null;
+        };
+
+        // Save game stats to Firestore profile (for logged-in users)
+        window._firebaseSaveGameStats = async function(stats) {
+            if (!db || !isLoggedIn()) return;
+            const profileId = getProfileId();
+            if (!profileId) return;
+            try {
+                const profileRef = doc(db, 'profiles', profileId);
+                await setDoc(profileRef, {
+                    displayName: localStorage.getItem('ab_identity_name'),
+                    gameCorrect: stats.correct,
+                    gameWrong: stats.wrong,
+                    gameBestStreak: stats.bestStreak,
+                    gameAccuracy: stats.accuracy,
+                    gameWeeklyCorrect: stats.weeklyCorrect,
+                    gameWeeklyWrong: stats.weeklyWrong,
+                    gameWeeklyBestStreak: stats.weeklyBestStreak,
+                    gameWeeklyPoints: stats.weeklyPoints,
+                    gameWeekId: stats.weekId,
+                    gameUpdatedAt: serverTimestamp(),
+                }, { merge: true });
+            } catch (e) {
+                console.warn('[Game] Failed to save stats to Firestore:', e);
+            }
+        };
+
+        // Save weekly leaderboard entry to Firestore
+        window._firebaseSaveLeaderboard = async function(stats) {
+            if (!db || !isLoggedIn()) return;
+            const profileId = getProfileId();
+            const name = localStorage.getItem('ab_identity_name');
+            if (!profileId || !name) return;
+            const weekId = stats.weekId;
+            if (!weekId) return;
+            try {
+                const docId = `${weekId}_${profileId}`;
+                const leaderRef = doc(db, 'leaderboard', docId);
+                await setDoc(leaderRef, {
+                    playerName: name,
+                    weekId: weekId,
+                    correct: stats.weeklyCorrect,
+                    wrong: stats.weeklyWrong,
+                    bestStreak: stats.weeklyBestStreak,
+                    points: stats.weeklyPoints,
+                    accuracy: stats.accuracy,
+                    updatedAt: serverTimestamp(),
+                });
+            } catch (e) {
+                console.warn('[Game] Failed to save leaderboard to Firestore:', e);
+            }
+        };
+
+        // Signal that Firebase is ready
+        window._firebaseReady = true;
+        window.dispatchEvent(new Event('firebaseReady'));
+    </script>
+
     <script>
         function toggleFAQ() {
             const content = document.getElementById('faq-content');
@@ -616,15 +733,49 @@
             alert('Your name is linked to your account (' + ssoName + '). Sign in on the catalog page to change accounts.');
         }
 
-        // Load scores from localStorage (player-specific)
+        // Load scores from localStorage (player-specific) + Firestore for logged-in users
         function loadScores() {
-            // All-time stats
+            // All-time stats from localStorage
             const prefix = `guessGame_${playerName}_`;
             correctCount = parseInt(localStorage.getItem(prefix + 'correct') || '0');
             wrongCount = parseInt(localStorage.getItem(prefix + 'wrong') || '0');
             currentStreak = parseInt(localStorage.getItem(prefix + 'streak') || '0');
             updateScoreDisplay();
             updateLeaderboard();
+
+            // For logged-in users, also load from Firestore (takes priority if higher)
+            if (playerName !== 'Guest' && window._firebaseLoadGameStats) {
+                window._firebaseLoadGameStats().then(fbStats => {
+                    if (!fbStats) return;
+                    // Use Firestore values if they're higher (merge cloud + local)
+                    const fbCorrect = fbStats.correct || 0;
+                    const fbWrong = fbStats.wrong || 0;
+                    const fbStreak = fbStats.bestStreak || 0;
+                    if (fbCorrect > correctCount) correctCount = fbCorrect;
+                    if (fbWrong > wrongCount) wrongCount = fbWrong;
+                    // Best streak is always the max
+                    const localBestStreak = parseInt(localStorage.getItem(prefix + 'bestStreak') || '0');
+                    const bestStreak = Math.max(localBestStreak, fbStreak, currentStreak);
+                    localStorage.setItem(prefix + 'bestStreak', bestStreak);
+                    // Sync weekly stats from Firestore if same week
+                    if (fbStats.weekId === currentWeek) {
+                        const weeklyPrefix = `guessGame_${playerName}_weekly_`;
+                        const localWC = parseInt(localStorage.getItem(weeklyPrefix + 'correct') || '0');
+                        const localWW = parseInt(localStorage.getItem(weeklyPrefix + 'wrong') || '0');
+                        const localWS = parseInt(localStorage.getItem(weeklyPrefix + 'bestStreak') || '0');
+                        const localWP = parseInt(localStorage.getItem(weeklyPrefix + 'points') || '0');
+                        if (fbStats.weeklyCorrect > localWC) localStorage.setItem(weeklyPrefix + 'correct', fbStats.weeklyCorrect);
+                        if (fbStats.weeklyWrong > localWW) localStorage.setItem(weeklyPrefix + 'wrong', fbStats.weeklyWrong);
+                        if (fbStats.weeklyBestStreak > localWS) localStorage.setItem(weeklyPrefix + 'bestStreak', fbStats.weeklyBestStreak);
+                        if (fbStats.weeklyPoints > localWP) localStorage.setItem(weeklyPrefix + 'points', fbStats.weeklyPoints);
+                    }
+                    // Update localStorage with merged values
+                    localStorage.setItem(prefix + 'correct', correctCount);
+                    localStorage.setItem(prefix + 'wrong', wrongCount);
+                    updateScoreDisplay();
+                    updateLeaderboard();
+                });
+            }
         }
 
         function saveScores() {
@@ -646,6 +797,31 @@
             }
             
             updateLeaderboard();
+
+            // Persist to Firestore for logged-in users
+            if (playerName !== 'Guest' && window._firebaseSaveGameStats) {
+                const bestStreak = Math.max(
+                    parseInt(localStorage.getItem(prefix + 'bestStreak') || '0'),
+                    parseInt(localStorage.getItem(weeklyPrefix + 'bestStreak') || '0'),
+                    currentStreak
+                );
+                localStorage.setItem(prefix + 'bestStreak', bestStreak);
+                const total = correctCount + wrongCount;
+                const accuracy = total > 0 ? Math.round((correctCount / total) * 100) : 0;
+                const stats = {
+                    correct: correctCount,
+                    wrong: wrongCount,
+                    bestStreak: bestStreak,
+                    accuracy: accuracy,
+                    weeklyCorrect: parseInt(localStorage.getItem(weeklyPrefix + 'correct') || '0'),
+                    weeklyWrong: parseInt(localStorage.getItem(weeklyPrefix + 'wrong') || '0'),
+                    weeklyBestStreak: Math.max(parseInt(localStorage.getItem(weeklyPrefix + 'bestStreak') || '0'), currentStreak),
+                    weeklyPoints: parseInt(localStorage.getItem(weeklyPrefix + 'points') || '0'),
+                    weekId: currentWeek,
+                };
+                window._firebaseSaveGameStats(stats);
+                window._firebaseSaveLeaderboard(stats);
+            }
         }
 
         function recordWeeklyGame(isCorrect, bonusPoints = 1) {
