@@ -7,6 +7,30 @@ watching the exact same `books/` folder it watches today.
 The single hard rule: **the desktop app and the container must never run at
 the same time** against this directory. Sharing is sequential, not concurrent.
 
+## Status (updated 2026-07-04)
+
+- ✅ Automation pilot merged to main (PR #40): compose services, scheduler,
+  cron env passthrough, tests (80/80 green)
+- ⬜ Nothing migrated yet — desktop OpenAudible remains the live setup and
+  nothing changes until the phases below are executed
+- ⬜ Phases 0–3 all pending
+
+## Next steps (in order — start here next session)
+
+Pre-flight, before Phase 0:
+
+1. Docker Desktop → Settings → Resources → File Sharing: confirm `C:\Users`
+   (or at least `C:\Users\nbasl\OpenAudible`) is shareable to containers.
+2. Create `.env` entries if not present: `OPENAUDIBLE_PASSWORD` (the container
+   UI is localhost-only but still set one), `TZ`, and leave
+   `OPENAUDIBLE_DATA_DIR` at its default until Phase 2.
+3. `docker compose -f docker-compose.sync.yml config --quiet` to validate.
+
+Then execute the phases below top to bottom. Rough time: Phase 0 ~15 min
+(audit runtime dominates), Phase 1 ~30 min (one book download/convert),
+Phase 2 ~15 min, Phase 3 ~1 sync cycle of watching. Each phase is a safe
+stopping point; the desktop setup keeps working until Phase 2.
+
 ## How it works
 
 `.env`:
