@@ -82,6 +82,7 @@ const {
   addComment, deleteComment, getComments,
   setProgress, getProgressAll,
   getTbr, addTbrItem, removeTbrItem, toggleTbrVote,
+  toggleReaction, togglePin, REACTION_EMOJI,
   MAX_MILESTONES, GENERAL_MILESTONE,
 } = await import('../club-reads.js');
 
@@ -356,6 +357,42 @@ describe('club TBR', () => {
     const r = await addTbrItem(fakeDb, CLUB, book, jane);
     await removeTbrItem(fakeDb, CLUB, r.itemId);
     expect(await getTbr(fakeDb, CLUB)).toHaveLength(0);
+  });
+});
+
+describe('reactions and pinning', () => {
+  let readId, commentId;
+  beforeEach(async () => {
+    readId = (await startRead(fakeDb, CLUB, bookInput(), jane)).readId;
+    commentId = (await addComment(fakeDb, CLUB, readId, { milestoneId: 'm0', text: 'Hot take!' }, jane)).commentId;
+  });
+
+  const getComment = async () => (await getComments(fakeDb, CLUB, readId)).find(c => c.id === commentId);
+
+  it('reactions toggle per user and disappear at zero', async () => {
+    const emoji = REACTION_EMOJI[0];
+    await toggleReaction(fakeDb, CLUB, readId, commentId, emoji, jane);
+    await toggleReaction(fakeDb, CLUB, readId, commentId, emoji, bob);
+    expect((await getComment()).reactions[emoji]).toEqual(['jane doe', 'bob brown']);
+
+    await toggleReaction(fakeDb, CLUB, readId, commentId, emoji, jane);
+    expect((await getComment()).reactions[emoji]).toEqual(['bob brown']);
+
+    await toggleReaction(fakeDb, CLUB, readId, commentId, emoji, bob);
+    expect((await getComment()).reactions[emoji]).toBeUndefined();
+  });
+
+  it('rejects unknown emoji and missing session', async () => {
+    expect((await toggleReaction(fakeDb, CLUB, readId, commentId, '🦖', jane)).success).toBe(false);
+    expect((await toggleReaction(fakeDb, CLUB, readId, commentId, REACTION_EMOJI[0], null)).success).toBe(false);
+  });
+
+  it('pin toggles on and off', async () => {
+    expect((await getComment()).isPinned).toBe(false);
+    await togglePin(fakeDb, CLUB, readId, commentId);
+    expect((await getComment()).isPinned).toBe(true);
+    await togglePin(fakeDb, CLUB, readId, commentId);
+    expect((await getComment()).isPinned).toBe(false);
   });
 });
 

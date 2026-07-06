@@ -398,10 +398,54 @@ export async function addComment(db, clubId, readId, input, session) {
       displayName: session.displayName,
       slug: slugifyName(session.displayName),
       text,
+      reactions: {},
+      isPinned: false,
       createdAt: serverTimestamp(),
     });
     await updateDoc(doc(db, col('clubs'), clubId, 'reads', readId), { commentCount: increment(1) });
     return { success: true, commentId: commentRef.id };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+export const REACTION_EMOJI = ['👍', '❤️', '😂', '😮', '😢', '🎉'];
+
+/** Toggle the caller's reaction (one of REACTION_EMOJI) on a comment. */
+export async function toggleReaction(db, clubId, readId, commentId, emoji, session) {
+  if (!session || !session.displayName) {
+    return { success: false, error: 'Sign in to react.' };
+  }
+  if (!REACTION_EMOJI.includes(emoji)) return { success: false, error: 'Invalid reaction.' };
+  const slug = slugifyName(session.displayName);
+  const ref = doc(db, col('clubs'), clubId, 'reads', readId, 'comments', commentId);
+  try {
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists()) throw new Error('Comment not found.');
+      const reactions = { ...(snap.data().reactions || {}) };
+      const who = reactions[emoji] || [];
+      const next = who.includes(slug) ? who.filter(s => s !== slug) : [...who, slug];
+      if (next.length) reactions[emoji] = next; else delete reactions[emoji];
+      tx.update(ref, { reactions });
+    });
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+/** Pin/unpin a comment (host/moderator — enforced in the UI). Pinned
+ * comments sort to the top of their milestone's discussion. */
+export async function togglePin(db, clubId, readId, commentId) {
+  const ref = doc(db, col('clubs'), clubId, 'reads', readId, 'comments', commentId);
+  try {
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists()) throw new Error('Comment not found.');
+      tx.update(ref, { isPinned: !snap.data().isPinned });
+    });
+    return { success: true };
   } catch (e) {
     return { success: false, error: e.message };
   }

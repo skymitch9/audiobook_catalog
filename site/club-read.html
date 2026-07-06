@@ -91,6 +91,20 @@ details[open].milestone summary::before{transform:rotate(90deg)}
 }
 .c-actions button:hover{color:var(--neon-cyan)}
 .c-actions button.danger:hover{color:var(--neon-magenta)}
+.rx-row{display:flex;gap:6px;flex-wrap:wrap;margin:2px 0 6px;align-items:center}
+.rx-chip{
+  background:var(--bg);border:1px solid var(--border);color:var(--text);cursor:pointer;
+  font-size:.8em;padding:2px 8px;font-family:'Share Tech Mono',monospace;
+}
+button.rx-chip:hover{border-color:var(--neon-yellow)}
+.rx-chip.mine{border-color:var(--neon-yellow);color:var(--neon-yellow)}
+.rx-picker{display:inline-flex;gap:4px}
+.rx-picker button{
+  background:var(--bg);border:1px solid var(--border);cursor:pointer;font-size:1em;
+  padding:2px 6px;
+}
+.rx-picker button:hover{border-color:var(--neon-cyan)}
+.pin-badge{font-size:.72em;color:var(--neon-yellow);text-transform:uppercase;letter-spacing:.5px}
 .composer{margin-top:12px;display:flex;flex-direction:column;gap:8px}
 .composer textarea{
   width:100%;min-height:60px;padding:10px;background:var(--bg);color:var(--text);
@@ -143,6 +157,7 @@ details[open].milestone summary::before{transform:rotate(90deg)}
   import { getClub, getMembers } from './clubs.js';
   import {
     getRead, getComments, addComment, deleteComment,
+    toggleReaction, togglePin, REACTION_EMOJI,
     setProgress, getProgressAll, isMilestoneLocked, GENERAL_MILESTONE, MAX_COMMENT_LENGTH,
   } from './club-reads.js';
 
@@ -167,6 +182,7 @@ details[open].milestone summary::before{transform:rotate(90deg)}
   let club = null, read = null, comments = [], progressAll = [], members = [];
   const openSections = new Set([GENERAL_MILESTONE]);
   let replyTo = null; // comment id an inline reply composer is open for
+  let reactingTo = null; // comment id with the emoji picker open
 
   function escapeHtml(s) {
     return (s || '').replace(/[&<>"']/g, c => ({
@@ -190,20 +206,40 @@ details[open].milestone summary::before{transform:rotate(90deg)}
     const inSection = comments
       .filter(c => (c.milestoneId || GENERAL_MILESTONE) === milestoneId)
       .sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
-    const topLevel = inSection.filter(c => !c.parentId);
+    const topLevel = inSection.filter(c => !c.parentId)
+      .sort((a, b) => (b.isPinned === true) - (a.isPinned === true));
     const repliesFor = id => inSection.filter(c => c.parentId === id);
 
     const canDelete = c => session && (c.slug === mySlug || isMod());
+
+    const reactionChips = (c) => {
+      const reactions = c.reactions || {};
+      const chips = Object.entries(reactions).map(([emoji, who]) => {
+        const mine = mySlug && who.includes(mySlug);
+        return session
+          ? `<button class="rx-chip ${mine ? 'mine' : ''}" data-react="${c.id}" data-emoji="${emoji}" title="${escapeHtml(who.join(', '))}">${emoji} ${who.length}</button>`
+          : `<span class="rx-chip" title="${escapeHtml(who.join(', '))}">${emoji} ${who.length}</span>`;
+      }).join('');
+      const picker = reactingTo === c.id
+        ? `<span class="rx-picker">${REACTION_EMOJI.map(e =>
+            `<button data-react="${c.id}" data-emoji="${e}">${e}</button>`).join('')}</span>`
+        : '';
+      return chips || picker ? `<div class="rx-row">${chips}${picker}</div>` : '';
+    };
 
     const one = (c, isReply) => `
       <div class="comment ${isReply ? 'reply' : ''}">
         <div class="c-head">
           <span class="c-author">${escapeHtml(c.displayName)}</span>
           <span class="c-date">${fmtDate(c.createdAt)}</span>
+          ${c.isPinned ? '<span class="pin-badge">\ud83d\udccc pinned</span>' : ''}
         </div>
         <div class="c-text">${escapeHtml(c.text)}</div>
+        ${reactionChips(c)}
         <div class="c-actions">
+          ${session ? `<button data-react-open="${c.id}">React</button>` : ''}
           ${!isReply && session ? `<button data-reply="${c.id}" data-ms="${escapeHtml(milestoneId)}">Reply</button>` : ''}
+          ${!isReply && isMod() ? `<button data-pin="${c.id}">${c.isPinned ? 'Unpin' : 'Pin'}</button>` : ''}
           ${canDelete(c) ? `<button class="danger" data-del="${c.id}">Delete</button>` : ''}
         </div>
         ${replyTo === c.id ? composerHtml(milestoneId, c.id) : ''}
@@ -329,6 +365,24 @@ details[open].milestone summary::before{transform:rotate(90deg)}
       btn.addEventListener('click', async () => {
         if (!confirm('Delete this comment?')) return;
         const r = await deleteComment(db, clubId, readId, btn.dataset.del);
+        if (r.success) reload(); else showError(r.error);
+      }));
+
+    contentEl.querySelectorAll('[data-react-open]').forEach(btn =>
+      btn.addEventListener('click', () => {
+        reactingTo = reactingTo === btn.dataset.reactOpen ? null : btn.dataset.reactOpen;
+        render();
+      }));
+
+    contentEl.querySelectorAll('[data-react]').forEach(btn =>
+      btn.addEventListener('click', async () => {
+        const r = await toggleReaction(db, clubId, readId, btn.dataset.react, btn.dataset.emoji, session);
+        if (r.success) { reactingTo = null; reload(); } else showError(r.error);
+      }));
+
+    contentEl.querySelectorAll('[data-pin]').forEach(btn =>
+      btn.addEventListener('click', async () => {
+        const r = await togglePin(db, clubId, readId, btn.dataset.pin);
         if (r.success) reload(); else showError(r.error);
       }));
   }
