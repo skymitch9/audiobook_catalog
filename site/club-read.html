@@ -55,6 +55,12 @@ body{
   font-family:inherit;font-size:.95em;
 }
 .progress-row select:focus{outline:none;border-color:var(--neon-cyan)}
+.finish-me{
+  padding:7px 14px;background:none;border:1px solid var(--neon-yellow);color:var(--neon-yellow);
+  cursor:pointer;font-weight:700;text-transform:uppercase;font-size:.75em;letter-spacing:.5px;
+  font-family:inherit;
+}
+.finish-me:hover{background:var(--neon-yellow);color:#141406}
 .member-progress{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
 .mp-chip{
   font-size:.75em;padding:2px 8px;border:1px solid var(--border);color:var(--muted);
@@ -522,6 +528,7 @@ details.milestone.ch-section summary{padding:10px 14px;font-size:.85em;color:var
         <div class="progress-row">
           <label for="progress-select">${hasChapters() ? "I'm in:" : "I've finished through:"}</label>
           <select id="progress-select">${options}</select>
+          <button id="finished-btn" class="finish-me" title="Mark the whole book finished">I'm finished ✓</button>
           <div class="member-progress">${progressChips}</div>
         </div>` : `
         <div class="progress-row"><div class="member-progress" style="margin-left:0">${progressChips}</div></div>`}
@@ -688,6 +695,17 @@ details.milestone.ch-section summary{padding:10px 14px;font-size:.85em;color:var
         const r = await deleteQuote(db, clubId, readId, btn.dataset.quoteDel);
         if (r.success) reload(); else showError(r.error);
       }));
+
+    const finishedBtn = document.getElementById('finished-btn');
+    if (finishedBtn) finishedBtn.addEventListener('click', async () => {
+      if (!confirm(`Mark yourself FINISHED with "${read.bookTitle}"?\n\nThis unlocks every chapter section and every spoiler-tagged comment — only click Yes if you've really finished the book.`)) return;
+      const last = hasChapters() ? chapterTitles().length - 1
+        : Math.max(...read.milestones.map(m => m.position));
+      const r = hasChapters()
+        ? await setChapterProgress(db, clubId, readId, last, session)
+        : await setProgress(db, clubId, readId, last, session);
+      if (r.success) reload(); else showError(r.error);
+    });
 
     const sel = document.getElementById('progress-select');
     if (sel) sel.addEventListener('change', async () => {

@@ -221,8 +221,8 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
       <div id="book-results"></div>
       <div id="picked-book"></div>
     </div>
-    <div class="field">
-      <label>Milestones (discussion checkpoints)</label>
+    <div class="field" id="ms-field">
+      <label>Discussion sections (no chapter data found for this book)</label>
       <select id="ms-mode"></select>
       <div id="ms-count-row" style="margin-top:8px">
         <select id="ms-parts">
@@ -333,9 +333,8 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
   } from './clubs.js';
   import {
     getReads, startRead, removeRead, finishRead, getComments, updateReadLabel, splitByDuration, parseManualMilestones,
-    loadCatalogBooks, MAX_ACTIVE_READS, MAX_MILESTONES,
-    getBookChapters, milestonesFromChapters, milestonesFromChapterRanges,
-    milestonesFromParts, wholeBookMilestones, formatHhmm,
+    loadCatalogBooks, MAX_ACTIVE_READS, groupChapters,
+    getBookChapters, wholeBookMilestones, formatHhmm,
     getTbr, addTbrItem, removeTbrItem, toggleTbrVote,
   } from './club-reads.js';
 
@@ -412,7 +411,7 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
         <button class="tab ${activeTab === 'tbr' ? 'active' : ''}" data-tab="tbr">Club TBR</button>
         <button class="tab ${activeTab === 'history' ? 'active' : ''}" data-tab="history">History</button>
         <button class="tab ${activeTab === 'stats' ? 'active' : ''}" data-tab="stats">Stats</button>
-        <button class="tab ${activeTab === 'members' ? 'active' : ''}" data-tab="members">Members (${activeMembers().length})${isMod() && requests.length ? ` \u00b7 ${requests.length} pending` : ''}</button>
+        <button class="tab ${activeTab === 'members' ? 'active' : ''}" data-tab="members">Members (${activeMembers().length})${isMod() && requests.length ? ` · ${requests.length} pending` : ''}</button>
       </div>
       <div class="tab-panel" id="tab-panel">${renderTab()}</div>
 
@@ -449,7 +448,7 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
       </div>
       ${s.years.length ? `
         <div class="stat-line" style="margin-top:14px"><strong>By year:</strong></div>
-        ${s.years.map(y => `<div class="stat-line">${y.year} \u2014 ${y.books} book${y.books !== 1 ? 's' : ''} \u00b7 ${y.hours} h</div>`).join('')}` : ''}
+        ${s.years.map(y => `<div class="stat-line">${y.year} \u2014 ${y.books} book${y.books !== 1 ? 's' : ''} · ${y.hours} h</div>`).join('')}` : ''}
       ${s.topCommenter ? `<div class="stat-line">Most active: <strong>${escapeHtml(s.topCommenter.name)}</strong> with ${s.topCommenter.count} comments</div>` : ''}
       ${s.disagreement ? `<div class="stat-line">Biggest disagreement: <strong>${escapeHtml(s.disagreement.title)}</strong> (${s.disagreement.low}\u2605 vs ${s.disagreement.high}\u2605)</div>` : ''}
     `;
@@ -585,10 +584,10 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
       <a class="read-card" href="club-read.html?club=${encodeURIComponent(clubId)}&read=${encodeURIComponent(r.id)}">
         ${r.coverHref ? `<img class="rc-cover" src="${escapeHtml(r.coverHref)}" alt="" onerror="this.remove()">` : ''}
         <div>
-          <div class="rc-slot">${r.status === 'finished' ? 'Finished' : 'Abandoned'}${fmtDate(r.finishedAt) ? ` \u00b7 ${fmtDate(r.finishedAt)}` : ''}</div>
+          <div class="rc-slot">${r.status === 'finished' ? 'Finished' : 'Abandoned'}${fmtDate(r.finishedAt) ? ` · ${fmtDate(r.finishedAt)}` : ''}</div>
           <div class="rc-title">${escapeHtml(r.bookTitle)}</div>
           <div class="rc-author">${escapeHtml(r.bookAuthor)}</div>
-          <div class="rc-meta">${r.commentCount || 0} comments${rating ? ` \u00b7 club verdict ${rating.avg}\u2605 (${rating.count})` : ''}</div>
+          <div class="rc-meta">${r.commentCount || 0} comments${rating ? ` · club verdict ${rating.avg}\u2605 (${rating.count})` : ''}</div>
         </div>
         ${session && isMember() ? `
           <div class="rc-actions">
@@ -608,7 +607,7 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
           <div class="rc-slot">${escapeHtml(r.slotLabel || (active.length > 1 ? (r.slot === 1 ? 'Main read' : 'Side read') : 'Current read'))}${isMember() ? ` <button class="rc-label-edit" data-edit-label="${r.id}" title="Rename this slot">\u270e</button>` : ''}</div>
           <div class="rc-title">${escapeHtml(r.bookTitle)}</div>
           <div class="rc-author">${escapeHtml(r.bookAuthor)}</div>
-          <div class="rc-meta">${(r.milestones || []).length} milestones \u00b7 ${r.commentCount || 0} comments \u00b7 started by ${escapeHtml(r.startedBy || '')}</div>
+          <div class="rc-meta">${(r.milestones || []).length} milestones · ${r.commentCount || 0} comments · started by ${escapeHtml(r.startedBy || '')}</div>
         </div>
         ${isMember() ? `
           <div class="rc-actions">
@@ -982,7 +981,7 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
       ${b.coverHref ? `<img src="${escapeHtml(b.coverHref)}" alt="" onerror="this.remove()">` : ''}
       <div>
         <div class="pb-title">${escapeHtml(b.title)}</div>
-        <div class="pb-sub">${escapeHtml(b.author)}${b.durationHhmm ? ` \u00b7 ${escapeHtml(b.durationHhmm)}` : ''}</div>
+        <div class="pb-sub">${escapeHtml(b.author)}${b.durationHhmm ? ` · ${escapeHtml(b.durationHhmm)}` : ''}</div>
       </div>`;
     bookResults.innerHTML = '';
     bookSearch.value = b.title;
@@ -993,33 +992,35 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
   // Milestone-split modes, in preference order. Chapter modes appear only
   // when chapters.json has data for the picked book.
   function msModeOptions() {
-    const opts = [];
-    if (bookChapters) {
-      const nCh = bookChapters.chapters.length;
-      if ((bookChapters.parts || []).length > 1) {
-        opts.push(['parts', `By parts (${bookChapters.parts.length} parts)`]);
-      }
-      if (nCh <= MAX_MILESTONES) opts.push(['chapters', `By chapter (${nCh} chapters)`]);
-      opts.push(['ranges', 'By chapter ranges']);
-    }
-    opts.push(['duration', 'Auto-split by duration']);
-    opts.push(['whole', 'Whole book (one discussion)']);
-    opts.push(['manual', 'Manual (one per line)']);
-    return opts;
+    return [
+      ['whole', 'Whole book (one discussion)'],
+      ['duration', 'Auto-split by duration'],
+      ['manual', 'Manual (one per line)'],
+    ];
   }
 
   function currentMilestones() {
+    if (bookChapters) {
+      // Parts hierarchy handles display; store part-shaped milestones so
+      // legacy mapping (comments -> containing part) keeps working.
+      const titles = bookChapters.chapters.map(c => c.title);
+      const groups = groupChapters(titles);
+      return { milestones: groups.map((g, i) => ({
+        id: `m${i}`, label: g.label, position: i, chStart: g.start, chEnd: g.end,
+      })) };
+    }
     const mode = msMode.value;
     const n = parseInt(msParts.value, 10);
-    if (mode === 'parts') return { milestones: milestonesFromParts(bookChapters.parts) };
-    if (mode === 'chapters') return milestonesFromChapters(bookChapters.chapters);
-    if (mode === 'ranges') return { milestones: milestonesFromChapterRanges(bookChapters.chapters, n) };
     if (mode === 'whole') return { milestones: wholeBookMilestones() };
     if (mode === 'manual') return parseManualMilestones(msManual.value);
     return { milestones: splitByDuration(pickedBook ? pickedBook.durationMinutes : 0, n) };
   }
 
   function refreshMsUI() {
+    // Chaptered books need no milestone choice — parts drive the discussion
+    // hierarchy automatically. The editor only remains for books without
+    // chapter data (whole book / duration split / manual).
+    document.getElementById('ms-field').style.display = bookChapters ? 'none' : 'block';
     const prev = msMode.value;
     const opts = msModeOptions();
     msMode.innerHTML = opts.map(([v, label]) => `<option value="${v}">${escapeHtml(label)}</option>`).join('');
@@ -1031,7 +1032,15 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
   }
 
   function renderMsPreview() {
-    if (!pickedBook || msMode.value === 'manual') { msPreview.innerHTML = ''; return; }
+    if (!pickedBook) { msPreview.innerHTML = ''; return; }
+    if (bookChapters) {
+      const result = currentMilestones();
+      msPreview.innerHTML = `${bookChapters.chapters.length} chapters · discussion sections: `
+        + result.milestones.map(m => escapeHtml(m.label)).slice(0, 8).join(' · ')
+        + (result.milestones.length > 8 ? ` … (+${result.milestones.length - 8})` : '');
+      return;
+    }
+    if (msMode.value === 'manual') { msPreview.innerHTML = ''; return; }
     const result = currentMilestones();
     if (result.error) { msPreview.innerHTML = escapeHtml(result.error); return; }
     const shown = result.milestones.slice(0, 20).map(m => escapeHtml(m.label));
