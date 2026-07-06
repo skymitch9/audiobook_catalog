@@ -12,6 +12,7 @@ import { slugifyName } from './identity.js';
 export const MAX_ACTIVE_READS = 2;
 export const MAX_MILESTONES = 400;
 export const MAX_COMMENT_LENGTH = 2000;
+export const MAX_QUOTE_LENGTH = 500;
 export const GENERAL_MILESTONE = 'general';
 
 // ==================== Pure utilities ====================
@@ -96,6 +97,41 @@ export function groupChapters(chapterTitles) {
     groups.push({ label: `Ch ${start + 1}–${end + 1}`, start, end });
   }
   return groups;
+}
+
+const HTML_ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+
+function escapeHtmlText(s) {
+  return (s || '').replace(/[&<>"']/g, c => HTML_ESCAPES[c]);
+}
+
+function escapeRegExp(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Escape text for HTML and wrap @mentions of club members in
+ * <span class="mention"> (plus .mention-me when it's the viewer).
+ * Longest names match first so "@Jane Doe" beats "@Jane".
+ */
+export function highlightMentions(rawText, memberNames, myDisplayName) {
+  const html = escapeHtmlText(rawText);
+  const names = [...(memberNames || [])].filter(Boolean)
+    .sort((a, b) => b.length - a.length);
+  if (!names.length) return html;
+  const alternation = names.map(n => escapeRegExp(escapeHtmlText(n))).join('|');
+  const re = new RegExp(`@(${alternation})(?![\\w])`, 'gi');
+  return html.replace(re, (match, name) => {
+    const me = myDisplayName && name.toLowerCase() === myDisplayName.toLowerCase();
+    return `<span class="mention${me ? ' mention-me' : ''}">@${name}</span>`;
+  });
+}
+
+/** True when the text @mentions the given display name. */
+export function mentionsUser(rawText, displayName) {
+  if (!displayName) return false;
+  const re = new RegExp(`@${escapeRegExp(escapeHtmlText(displayName))}(?![\\w])`, 'i');
+  return re.test(escapeHtmlText(rawText || ''));
 }
 
 /**
@@ -524,6 +560,51 @@ export async function togglePin(db, clubId, readId, commentId) {
       if (!snap.exists()) throw new Error('Comment not found.');
       tx.update(ref, { isPinned: !snap.data().isPinned });
     });
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+// ==================== Quotes ====================
+
+/** Save a favorite quote from the book. Chapter-taggable like comments. */
+export async function addQuote(db, clubId, readId, input, session) {
+  if (!session || !session.displayName) {
+    return { success: false, error: 'Sign in to save quotes.' };
+  }
+  const text = (input.text || '').trim();
+  if (!text) return { success: false, error: 'Quote cannot be empty.' };
+  if (text.length > MAX_QUOTE_LENGTH) {
+    return { success: false, error: `Quotes must be ${MAX_QUOTE_LENGTH} characters or fewer.` };
+  }
+  try {
+    const ref = doc(collection(db, col('clubs'), clubId, 'reads', readId, 'quotes'));
+    await setDoc(ref, {
+      text,
+      chapterIndex: typeof input.chapterIndex === 'number' && input.chapterIndex >= 0 ? input.chapterIndex : null,
+      displayName: session.displayName,
+      slug: slugifyName(session.displayName),
+      createdAt: serverTimestamp(),
+    });
+    return { success: true, quoteId: ref.id };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+/** All quotes for a read, oldest first. */
+export async function getQuotes(db, clubId, readId) {
+  const snap = await getDocs(collection(db, col('clubs'), clubId, 'reads', readId, 'quotes'));
+  return snap.docs
+    .map(d => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
+}
+
+/** Delete a quote (saver or host/moderator — enforced in the UI). */
+export async function deleteQuote(db, clubId, readId, quoteId) {
+  try {
+    await deleteDoc(doc(db, col('clubs'), clubId, 'reads', readId, 'quotes', quoteId));
     return { success: true };
   } catch (e) {
     return { success: false, error: e.message };

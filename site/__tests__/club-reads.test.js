@@ -83,6 +83,8 @@ const {
   setProgress, setChapterProgress, getProgressAll, isCommentSpoiler,
   getTbr, addTbrItem, removeTbrItem, toggleTbrVote,
   toggleReaction, togglePin, REACTION_EMOJI,
+  addQuote, getQuotes, deleteQuote, MAX_QUOTE_LENGTH,
+  highlightMentions, mentionsUser,
   MAX_MILESTONES, GENERAL_MILESTONE,
 } = await import('../club-reads.js');
 
@@ -483,6 +485,56 @@ describe('chapter tags and comment spoilers', () => {
     const all = await getProgressAll(fakeDb, CLUB, readId);
     expect(all.find(p => p.slug === 'jane doe').chapterIndex).toBe(51);
     expect((await setChapterProgress(fakeDb, CLUB, readId, 1, null)).success).toBe(false);
+  });
+});
+
+describe('quotes', () => {
+  let readId;
+  beforeEach(async () => {
+    readId = (await startRead(fakeDb, CLUB, bookInput(), jane)).readId;
+  });
+
+  it('saves, lists, and deletes quotes with optional chapter tags', async () => {
+    const r = await addQuote(fakeDb, CLUB, readId, { text: 'A reader lives a thousand lives.', chapterIndex: 4 }, jane);
+    expect(r.success).toBe(true);
+    await addQuote(fakeDb, CLUB, readId, { text: 'Untagged wisdom.' }, bob);
+    const quotes = await getQuotes(fakeDb, CLUB, readId);
+    expect(quotes).toHaveLength(2);
+    expect(quotes.find(q => q.slug === 'jane doe').chapterIndex).toBe(4);
+    expect(quotes.find(q => q.slug === 'bob brown').chapterIndex).toBeNull();
+
+    await deleteQuote(fakeDb, CLUB, readId, r.quoteId);
+    expect(await getQuotes(fakeDb, CLUB, readId)).toHaveLength(1);
+  });
+
+  it('validates text and session', async () => {
+    expect((await addQuote(fakeDb, CLUB, readId, { text: '  ' }, jane)).success).toBe(false);
+    expect((await addQuote(fakeDb, CLUB, readId, { text: 'x'.repeat(MAX_QUOTE_LENGTH + 1) }, jane)).success).toBe(false);
+    expect((await addQuote(fakeDb, CLUB, readId, { text: 'ok' }, null)).success).toBe(false);
+  });
+});
+
+describe('mentions', () => {
+  it('highlights member mentions, longest name wins, no nesting', () => {
+    const html = highlightMentions('@Jane Doe and @Jane disagree', ['Jane Doe', 'Jane'], null);
+    expect(html).toBe('<span class="mention">@Jane Doe</span> and <span class="mention">@Jane</span> disagree');
+  });
+
+  it('marks mentions of the viewer and matches case-insensitively', () => {
+    const html = highlightMentions('ping @skylar', ['Skylar'], 'Skylar');
+    expect(html).toContain('mention-me');
+  });
+
+  it('escapes HTML and skips partial-word matches', () => {
+    expect(highlightMentions('<b>@Jane</b>', ['Jane'], null))
+      .toBe('&lt;b&gt;<span class="mention">@Jane</span>&lt;/b&gt;');
+    expect(highlightMentions('email @Janet', ['Jane'], null)).toBe('email @Janet');
+  });
+
+  it('mentionsUser detects mentions of a specific person', () => {
+    expect(mentionsUser('hey @Skylar!', 'Skylar')).toBe(true);
+    expect(mentionsUser('hey @Skylarlar', 'Skylar')).toBe(false);
+    expect(mentionsUser('no one', 'Skylar')).toBe(false);
   });
 });
 
