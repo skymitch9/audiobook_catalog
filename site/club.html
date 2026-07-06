@@ -436,6 +436,9 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
         ${box(s.avgRating !== null ? s.avgRating + '\u2605' : '\u2014', 'Club avg rating')}
         ${box(activeMembers().length, 'Members')}
       </div>
+      ${s.years.length ? `
+        <div class="stat-line" style="margin-top:14px"><strong>By year:</strong></div>
+        ${s.years.map(y => `<div class="stat-line">${y.year} \u2014 ${y.books} book${y.books !== 1 ? 's' : ''} \u00b7 ${y.hours} h</div>`).join('')}` : ''}
       ${s.topCommenter ? `<div class="stat-line">Most active: <strong>${escapeHtml(s.topCommenter.name)}</strong> with ${s.topCommenter.count} comments</div>` : ''}
       ${s.disagreement ? `<div class="stat-line">Biggest disagreement: <strong>${escapeHtml(s.disagreement.title)}</strong> (${s.disagreement.low}\u2605 vs ${s.disagreement.high}\u2605)</div>` : ''}
     `;
@@ -470,7 +473,21 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
         disagreement = { title: x.title, spread, low: Math.min(...vals), high: Math.max(...vals) };
       }
     }
+    const byYear = {};
+    for (const r of finishedReads) {
+      let y = null;
+      try { y = r.finishedAt ? r.finishedAt.toDate().getFullYear() : null; } catch { y = null; }
+      if (y === null) continue;
+      if (!byYear[y]) byYear[y] = { books: 0, minutes: 0 };
+      byYear[y].books += 1;
+      byYear[y].minutes += r.durationMinutes || 0;
+    }
+    const years = Object.entries(byYear)
+      .map(([year, v]) => ({ year, books: v.books, hours: Math.round(v.minutes / 60) }))
+      .sort((a, b) => b.year - a.year);
+
     clubStats = {
+      years,
       finished: finishedReads.length,
       finishedThisYear: finishedReads.filter(r => {
         try { return r.finishedAt && r.finishedAt.toDate().getFullYear() === year; } catch { return false; }
@@ -676,11 +693,9 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
       }
       return '<button id="join-btn" class="nav-link btn-primary">Join This Club</button>';
     }
-    const actions = [];
+    const actions = ['<button id="leave-btn" class="nav-link btn-danger">Leave Club</button>'];
     if (isHost()) {
       actions.push('<button id="delete-btn" class="nav-link btn-danger">Delete Club</button>');
-    } else {
-      actions.push('<button id="leave-btn" class="nav-link btn-danger">Leave Club</button>');
     }
     return actions.join('');
   }
@@ -819,7 +834,13 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
 
     const leaveBtn = document.getElementById('leave-btn');
     if (leaveBtn) leaveBtn.addEventListener('click', async () => {
-      if (!confirm(`Leave ${club.name}?`)) return;
+      let msg = `Leave ${club.name}?`;
+      if (isHost()) {
+        msg = activeMembers().length <= 1
+          ? `Leave ${club.name}? You're the last member — the club will be archived.`
+          : `Leave ${club.name}? The next member alphabetically becomes host.`;
+      }
+      if (!confirm(msg)) return;
       const r = await leaveClub(db, clubId, session);
       if (r.success) window.location.href = 'clubs.html'; else showError(r.error);
     });

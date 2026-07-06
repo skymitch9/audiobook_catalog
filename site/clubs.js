@@ -82,7 +82,7 @@ export async function createClub(db, input, session) {
  */
 export async function getAllClubs(db) {
   const snap = await getDocs(collection(db, col('clubs')));
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(c => !c.archived);
 }
 
 /**
@@ -105,7 +105,7 @@ export async function getMyClubs(db, displayName) {
   for (const d of memberSnap.docs) {
     if (!seen.has(d.id)) out.push({ id: d.id, ...d.data(), invited: false });
   }
-  return out;
+  return out.filter(c => !c.archived);
 }
 
 /**
@@ -193,15 +193,54 @@ export async function joinClub(db, clubId, session) {
 }
 
 /**
- * Leave a club. The host cannot leave — they must delete the club
- * (or a future phase adds host transfer).
+ * Leave a club — anyone can, including the host. If the host leaves,
+ * the next member alphabetically becomes host. If the last member
+ * leaves, the club is archived in place (hidden from lists, fully
+ * recoverable from the database).
  */
 export async function leaveClub(db, clubId, session) {
   if (!session || !session.displayName) {
     return { success: false, error: 'Not signed in.' };
   }
   const slug = slugifyName(session.displayName);
-  return removeMemberBySlug(db, clubId, slug);
+  const clubRef = doc(db, col('clubs'), clubId);
+  try {
+    let outcome = 'left';
+    await runTransaction(db, async (tx) => {
+      const clubSnap = await tx.get(clubRef);
+      if (!clubSnap.exists()) throw new Error('Club not found.');
+      const data = clubSnap.data();
+      const slugs = (data.memberSlugs || []).filter(s => s !== slug);
+      const invited = (data.invitedSlugs || []).filter(s => s !== slug);
+      const updates = { memberSlugs: slugs, invitedSlugs: invited, memberCount: slugs.length };
+
+      let newHostRef = null;
+      let newHostData = null;
+      if (data.hostSlug === slug) {
+        if (slugs.length === 0) {
+          updates.archived = true;
+          updates.archivedAt = serverTimestamp();
+          outcome = 'archived';
+        } else {
+          const newHostSlug = [...slugs].sort()[0];
+          newHostRef = doc(db, col('clubs'), clubId, 'members', newHostSlug);
+          const snap = await tx.get(newHostRef); // reads before writes
+          newHostData = snap.exists() ? snap.data() : { displayName: newHostSlug };
+          updates.hostSlug = newHostSlug;
+          updates.hostDisplayName = newHostData.displayName || newHostSlug;
+          outcome = 'transferred';
+        }
+      }
+      tx.update(clubRef, updates);
+      if (newHostRef) {
+        tx.set(newHostRef, { ...newHostData, role: 'host' });
+      }
+    });
+    await deleteDoc(doc(db, col('clubs'), clubId, 'members', slug));
+    return { success: true, outcome };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
 }
 
 /**
@@ -216,7 +255,7 @@ export async function removeMemberBySlug(db, clubId, targetSlug) {
       if (!clubSnap.exists()) throw new Error('Club not found.');
       const data = clubSnap.data();
       if (data.hostSlug === targetSlug) {
-        throw new Error('The host cannot leave. Delete the club instead.');
+        throw new Error('The host cannot be removed.');
       }
       const slugs = (data.memberSlugs || []).filter(s => s !== targetSlug);
       const invited = (data.invitedSlugs || []).filter(s => s !== targetSlug);

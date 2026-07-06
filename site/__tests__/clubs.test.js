@@ -178,11 +178,37 @@ describe('joinClub / leaveClub', () => {
     expect(await getMembers(fakeDb, clubId)).toHaveLength(1);
   });
 
-  it('the host cannot leave', async () => {
+  it('host leaving passes host to the next member alphabetically', async () => {
+    const clubId = await makeClub(); // jane doe hosts
+    await joinClub(fakeDb, clubId, bob); // bob brown
+    const r = await leaveClub(fakeDb, clubId, jane);
+    expect(r.success).toBe(true);
+    expect(r.outcome).toBe('transferred');
+    const club = await getClub(fakeDb, clubId);
+    expect(club.hostSlug).toBe('bob brown');
+    expect(club.hostDisplayName).toBe('Bob Brown');
+    expect(club.memberCount).toBe(1);
+    const members = await getMembers(fakeDb, clubId);
+    expect(members.find(m => m.slug === 'bob brown').role).toBe('host');
+    expect(members.find(m => m.slug === 'jane doe')).toBeUndefined();
+  });
+
+  it('last member leaving archives the club in place (recoverable)', async () => {
     const clubId = await makeClub();
     const r = await leaveClub(fakeDb, clubId, jane);
-    expect(r.success).toBe(false);
-    expect((await getClub(fakeDb, clubId)).memberCount).toBe(1);
+    expect(r.success).toBe(true);
+    expect(r.outcome).toBe('archived');
+    const club = await getClub(fakeDb, clubId);
+    expect(club.archived).toBe(true);
+    expect(club.memberCount).toBe(0);
+    // hidden from lists but still in the db
+    expect(await getAllClubs(fakeDb)).toHaveLength(0);
+    expect(await getMyClubs(fakeDb, 'Jane Doe')).toHaveLength(0);
+  });
+
+  it('mods still cannot remove the host directly', async () => {
+    const clubId = await makeClub();
+    expect((await removeMemberBySlug(fakeDb, clubId, 'jane doe')).success).toBe(false);
   });
 });
 

@@ -104,6 +104,12 @@ h1{
 .um-section{margin-top:16px;padding-top:14px;border-top:1px solid var(--border)}
 .um-section-title{font-size:.85em;color:var(--neon-magenta);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
 .um-favs{display:flex;gap:8px;flex-wrap:wrap}
+.um-years{display:flex;gap:8px;flex-wrap:wrap}
+.um-year{
+  padding:6px 12px;background:var(--bg);border:1px solid var(--border);
+  font-family:'Share Tech Mono',monospace;font-size:.9em;color:var(--neon-yellow);
+}
+.um-year strong{color:var(--muted);font-weight:400;margin-right:6px}
 .um-clubs{display:flex;flex-direction:column;gap:8px}
 .um-club{
   display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--bg);
@@ -215,16 +221,28 @@ h1{
         if (data.status === 'tbr') readingStats[name].tbr++;
       });
 
-      // Build review stats per user
+      // Build review stats per user (+ distinct books reviewed per year)
       const reviewStats = {};
+      const thisYear = new Date().getFullYear();
       reviewsSnap.docs.forEach(d => {
         const data = d.data();
         const name = (data.displayName || '').toLowerCase();
         if (!name) return;
-        if (!reviewStats[name]) reviewStats[name] = { count: 0, totalRating: 0 };
+        if (!reviewStats[name]) reviewStats[name] = { count: 0, totalRating: 0, yearBooks: {} };
         reviewStats[name].count++;
         reviewStats[name].totalRating += data.rating || 0;
+        try {
+          const y = data.createdAt && data.createdAt.toDate ? data.createdAt.toDate().getFullYear() : null;
+          if (y !== null && data.bookId) {
+            if (!reviewStats[name].yearBooks[y]) reviewStats[name].yearBooks[y] = new Set();
+            reviewStats[name].yearBooks[y].add(data.bookId);
+          }
+        } catch (e) { /* old reviews without timestamps */ }
       });
+      const yearsFor = (stats) => Object.entries(stats.yearBooks || {})
+        .map(([y, set]) => ({ year: y, books: set.size }))
+        .sort((a, b) => b.year - a.year);
+      const readThisYear = (stats) => (stats.yearBooks && stats.yearBooks[thisYear]) ? stats.yearBooks[thisYear].size : 0;
 
       // Build user list from profiles
       allUsers = [];
@@ -235,6 +253,8 @@ h1{
         allUsers.push({
           displayName: data.displayName || d.id,
           clubs: clubsByUser[nameLower] || [],
+          readYears: yearsFor(stats),
+          readThisYear: readThisYear(stats),
           photoURL: data.photoURL || '',
           currentlyReading: data.currentlyReading || '',
           currentlyReadingCover: data.currentlyReadingCover || '',
@@ -257,6 +277,8 @@ h1{
           allUsers.push({
             displayName: data.displayName,
             clubs: clubsByUser[nameLower] || [],
+            readYears: yearsFor(stats),
+            readThisYear: readThisYear(stats),
             photoURL: '',
             currentlyReading: '',
             currentlyReadingCover: '',
@@ -320,6 +342,7 @@ h1{
             <div class="stat-box"><div class="stat-val">${u.gameAccuracy}%</div><div class="stat-lbl">Game Acc</div></div>
             <div class="stat-box"><a href="index.html#list=tbr&user=${encodeURIComponent(u.displayName)}" style="text-decoration:none"><div class="stat-val">${u.booksTbr}</div><div class="stat-lbl">TBR</div></a></div>
             <div class="stat-box"><div class="stat-val">${u.clubs.length}</div><div class="stat-lbl">Clubs</div></div>
+            <div class="stat-box"><div class="stat-val">${u.readThisYear}</div><div class="stat-lbl">Read ${String(new Date().getFullYear()).slice(2)}'</div></div>
           </div>
           ${reading}
           ${favs}
@@ -386,6 +409,12 @@ h1{
         <div class="um-stat"><a href="index.html#list=tbr&user=${encodeURIComponent(user.displayName)}" style="text-decoration:none"><div class="um-stat-val">${user.booksTbr}</div><div class="um-stat-lbl">TBR</div></a></div>
         <div class="um-stat"><div class="um-stat-val">${user.clubs.length}</div><div class="um-stat-lbl">Clubs</div></div>
       </div>
+      ${user.readYears.length ? `
+        <div class="um-section">
+          <div class="um-section-title">Books Read by Year</div>
+          <div class="um-years">${user.readYears.map(y =>
+            `<span class="um-year"><strong>${y.year}</strong> ${y.books}</span>`).join('')}</div>
+        </div>` : ''}
       ${user.clubs.length ? `
         <div class="um-section">
           <div class="um-section-title">Book Clubs</div>
