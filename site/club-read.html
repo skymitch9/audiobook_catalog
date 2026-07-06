@@ -870,7 +870,7 @@ details.milestone.ch-section summary{padding:10px 14px;font-size:.85em;color:var
       contentEl.innerHTML = '<div class="empty">Read not found — it may have been removed.</div>';
       return;
     }
-    markReadSeen(clubId, readId, read.commentCount || comments.length);
+    markReadSeen(db, mySlug, clubId, readId, read.commentCount || comments.length);
     document.getElementById('back-link').href = `club.html?id=${encodeURIComponent(clubId)}`;
     document.title = `${read.bookTitle} - Club Read`;
     if (firstRender) {

@@ -104,6 +104,11 @@ service cloud.firestore {
       allow delete: if true;
     }
 
+    match /club_seen/{userId} {
+      allow read: if true;
+      allow write: if request.resource.data.seen is map;
+    }
+
     match /profiles/{userId} {
       allow read: if true;
       allow write: if validProfile();
@@ -197,6 +202,11 @@ service cloud.firestore {
       allow read: if true;
       allow write: if validCwRequest();
       allow delete: if true;
+    }
+
+    match /club_seen_dev/{userId} {
+      allow read: if true;
+      allow write: if request.resource.data.seen is map;
     }
 
     match /profiles_dev/{userId} {

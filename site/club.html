@@ -353,7 +353,7 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
     getBookChapters, wholeBookMilestones, formatHhmm,
     getTbr, addTbrItem, removeTbrItem, toggleTbrVote,
   } from './club-reads.js';
-  import { loadSeen } from './club-notify.js';
+  import { loadSeen, syncSeen } from './club-notify.js';
 
   const firebaseConfig = {
     apiKey: "AIzaSyDgAblkxzVxl7nFbd7jXOo6PpuNPsJw11Y",
@@ -908,6 +908,7 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
   }
 
   async function reload() {
+    if (session) await syncSeen(db, mySlug).catch(() => {});
     [club, members, reads, requests, tbr] = await Promise.all([
       getClub(db, clubId), getMembers(db, clubId), getReads(db, clubId),
       getRequests(db, clubId), getTbr(db, clubId),
