@@ -54,21 +54,29 @@ DTDD_API_KEY = os.getenv("DOESTHEDOGDIE_API_KEY")
 DTDD_BASE = "https://www.doesthedogdie.com"
 
 
+SEVERITY_RE = re.compile(r"^(graphic|moderate|minor)\s*:\s*", re.IGNORECASE)
+SEVERITY_RANK = {"graphic": 3, "moderate": 2, "minor": 1}
+
+
 def filter_warnings(raw):
-    """Keep only warnings with a label and an http(s) source URL."""
-    out = []
-    seen = set()
+    """Keep only warnings with a label and an http(s) source URL, deduped by
+    topic. StoryGraph lists the same topic at several severities (Graphic:
+    Death / Moderate: Death) — the highest severity wins."""
+    by_topic = {}
+    order = []
     for w in raw or []:
         label = (w.get("label") or "").strip()
         url = (w.get("source_url") or "").strip()
         if not label or not url.lower().startswith(("http://", "https://")):
             continue
-        key = label.lower()
-        if key in seen:
-            continue
-        seen.add(key)
-        out.append({"label": label, "source_url": url})
-    return out[:20]
+        m = SEVERITY_RE.match(label)
+        rank = SEVERITY_RANK[m.group(1).lower()] if m else 0
+        topic = SEVERITY_RE.sub("", label).strip().lower()
+        if topic not in by_topic:
+            order.append(topic)
+        if topic not in by_topic or rank > by_topic[topic][0]:
+            by_topic[topic] = (rank, {"label": label, "source_url": url})
+    return [by_topic[t][1] for t in order][:20]
 
 
 def extract_json(text):
@@ -321,7 +329,21 @@ def main():
     parser.add_argument("--no-llm", action="store_true",
                         help="Hardcover only — free; empty results not recorded")
     parser.add_argument("--force", action="store_true", help="re-check books already recorded")
+    parser.add_argument("--dedup", action="store_true",
+                        help="re-filter recorded entries in place (no lookups)")
     args = parser.parse_args()
+
+    if args.dedup:
+        data = load_json(WARNINGS_PATH, {})
+        changed = 0
+        for entry in data.values():
+            cleaned = filter_warnings(entry.get("warnings"))
+            if cleaned != entry.get("warnings"):
+                entry["warnings"] = cleaned
+                changed += 1
+        save_json_with_retry(data, WARNINGS_PATH)
+        print(f"deduped {changed} of {len(data)} entries")
+        return 0
 
     if args.title:
         books = {(args.title, "")}
