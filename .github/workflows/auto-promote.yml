@@ -1,0 +1,79 @@
+name: Auto-promote books to prod
+
+# Full CI/CD for BOOK additions only.
+#
+# When the sync pipeline auto-commits a new book to main, that commit flows
+# all the way to prod on its own. Dev work does NOT — it stops at /dev/ and
+# waits for a manual `Promote to Prod` run, exactly as before.
+#
+# How we tell the two apart (both must hold — belt and suspenders):
+#   1. The commit message is the pipeline's auto-commit marker
+#      ("feat(catalog): Auto-update catalog ...") — see _auto_commit_and_push
+#      in scripts/sync_to_drive.py.
+#   2. Every file the commit changed is site DATA (catalog/covers/chapters/
+#      warnings/stats/index/author map) — never code, workflows, or rules.
+#      If a commit wearing the marker touches anything outside that allowlist,
+#      we refuse to auto-promote and leave it for manual review.
+#
+# We only run after Tests go green on main, then hand off to promote.yml
+# (still the sole writer of prod, still runs every guard). We pin the promote
+# to the exact tested SHA so a dev commit racing in behind the book can't ride
+# along.
+
+on:
+  workflow_run:
+    workflows: ["Tests"]
+    types: [completed]
+
+permissions:
+  contents: read
+  actions: write   # dispatch promote.yml
+
+concurrency:
+  group: "auto-promote"
+  cancel-in-progress: false
+
+jobs:
+  gate-and-promote:
+    # Cheap gates from the event payload: tests passed, on main, and the tip
+    # commit carries the pipeline's auto-commit marker.
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      startsWith(github.event.workflow_run.head_commit.message, 'feat(catalog): Auto-update catalog')
+    runs-on: ubuntu-latest
+    steps:
+    - name: 📥 Checkout tested commit
+      uses: actions/checkout@v5
+      with:
+        ref: ${{ github.event.workflow_run.head_sha }}
+        fetch-depth: 2
+
+    - name: 🛡️ Commit changed only book/site-data files (no code)
+      env:
+        SHA: ${{ github.event.workflow_run.head_sha }}
+      run: |
+        # Files the pipeline's auto-commit is allowed to touch. Anything else
+        # means dev work snuck in under the marker — refuse to auto-promote.
+        allow='^(site/(catalog\.csv|index\.html|stats\.html|chapters\.json|content_warnings\.json)|site/covers/.*|author_drive_map\.json)$'
+        # core.quotePath=false: emit raw UTF-8 paths (cover filenames often
+        # carry non-ASCII chars git would otherwise wrap in quotes + \escapes).
+        files=$(git -c core.quotePath=false diff-tree --no-commit-id --name-only -r "$SHA")
+        echo "Changed files:"; echo "$files"
+        bad=0
+        while IFS= read -r f; do
+          [ -z "$f" ] && continue
+          if ! echo "$f" | grep -Eq "$allow"; then
+            echo "::error::$f is outside the book-data allowlist — not auto-promoting (promote manually if intended)"
+            bad=1
+          fi
+        done <<< "$files"
+        exit $bad
+
+    - name: 🚀 Dispatch promote for this exact commit
+      env:
+        GH_TOKEN: ${{ github.token }}
+        SHA: ${{ github.event.workflow_run.head_sha }}
+      run: |
+        gh workflow run promote.yml --ref main -f ref="$SHA"
+        echo "::notice::Book commit $SHA passed tests + data-only check — promoting to prod"
