@@ -167,6 +167,8 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
 }
 .field input:focus,.field textarea:focus,.field select:focus{outline:none;border-color:var(--neon-cyan)}
 .field textarea{resize:vertical;min-height:80px}
+.field-inline{display:flex;align-items:center;gap:8px}
+.field-inline input[type=checkbox]{width:18px;height:18px}
 #book-results,#suggest-results{max-height:180px;overflow-y:auto;border:1px solid var(--border);margin-top:4px}
 #book-results button,#suggest-results button{
   display:block;width:100%;text-align:left;padding:8px 12px;background:none;border:none;
@@ -245,6 +247,10 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
     <div class="field" id="edit-avatar-field" style="display:none">
       <label for="edit-avatar">Club cover (shown as the club's avatar)</label>
       <select id="edit-avatar"></select>
+    </div>
+    <div class="field field-inline">
+      <input id="edit-prompts" type="checkbox" checked />
+      <label for="edit-prompts" style="margin:0;text-transform:none">Starter questions (AI-suggested discussion prompts for hosts)</label>
     </div>
     <div class="field" id="edit-joinmode-field" style="display:none">
       <label for="edit-joinmode">Join mode (host setting)</label>
@@ -1005,6 +1011,7 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
     document.getElementById('edit-name').value = club.name || '';
     document.getElementById('edit-desc').value = club.description || '';
     document.getElementById('edit-error').textContent = '';
+    document.getElementById('edit-prompts').checked = club.promptsEnabled !== false;
     const active = reads.filter(r => r.status === 'active').sort((a, b) => a.slot - b.slot);
     const avatarField = document.getElementById('edit-avatar-field');
     avatarField.style.display = active.length > 1 ? 'block' : 'none';
@@ -1026,6 +1033,7 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
     const input = {
       name: document.getElementById('edit-name').value,
       description: document.getElementById('edit-desc').value,
+      promptsEnabled: document.getElementById('edit-prompts').checked,
     };
     const avatarField = document.getElementById('edit-avatar-field');
     if (avatarField.style.display !== 'none') {

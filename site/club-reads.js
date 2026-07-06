@@ -216,6 +216,38 @@ export function wholeBookMilestones() {
   return [{ id: 'm0', label: 'Whole book', position: 0 }];
 }
 
+let promptsCache = null;
+
+/** Discussion prompts for a book (site/discussion_prompts.json), or null. */
+export async function getBookPrompts(title) {
+  if (!promptsCache) {
+    try {
+      const res = await fetch('discussion_prompts.json');
+      promptsCache = res.ok ? await res.json() : {};
+    } catch {
+      promptsCache = {};
+    }
+  }
+  const entry = promptsCache[title];
+  return entry && Array.isArray(entry.prompts) && entry.prompts.length ? entry.prompts : null;
+}
+
+let warningsCache = null;
+
+/** Published content warnings for a book (site/content_warnings.json), or null. */
+export async function getBookWarnings(title) {
+  if (!warningsCache) {
+    try {
+      const res = await fetch('content_warnings.json');
+      warningsCache = res.ok ? await res.json() : {};
+    } catch {
+      warningsCache = {};
+    }
+  }
+  const entry = warningsCache[title];
+  return entry && Array.isArray(entry.warnings) && entry.warnings.length ? entry.warnings : null;
+}
+
 /** Minimal RFC-4180 CSV parser (quoted fields, embedded commas/newlines). */
 export function parseCsv(text) {
   const rows = [];

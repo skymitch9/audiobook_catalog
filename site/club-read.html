@@ -154,6 +154,22 @@ button.rx-chip:hover{border-color:var(--neon-yellow)}
 .new-dot{width:8px;height:8px;border-radius:50%;background:var(--neon-yellow);display:inline-block}
 .new-count{color:var(--neon-yellow)}
 .comment.linked{background:rgba(5,217,232,.07);outline:1px solid var(--neon-cyan);padding:10px}
+.cw-notes{
+  background:var(--bg-2);border:1px solid var(--border);padding:10px 16px;margin-bottom:16px;
+  color:var(--muted);font-size:.92em;
+}
+.cw-notes summary{cursor:pointer;color:var(--neon-yellow)}
+.cw-notes ul{margin:8px 0 2px;padding-left:20px}
+.cw-notes a{color:var(--neon-cyan);font-size:.85em}
+.starter-q{
+  background:var(--bg);border:1px dashed var(--border);padding:10px 12px;margin:10px 0 4px;
+  color:var(--muted);display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+}
+.starter-q button{
+  background:none;border:1px solid var(--border);color:var(--muted);cursor:pointer;
+  font-size:.72em;padding:3px 9px;font-family:inherit;text-transform:uppercase;
+}
+.starter-q button:hover{border-color:var(--neon-cyan);color:var(--neon-cyan)}
 .archive-banner{
   padding:12px 16px;border:1px solid var(--neon-yellow);background:var(--bg-2);
   color:var(--neon-yellow);margin-bottom:16px;font-size:.95em;
@@ -195,7 +211,7 @@ button.rx-chip:hover{border-color:var(--neon-yellow)}
     getRead, getComments, addComment, deleteComment,
     toggleReaction, togglePin, REACTION_EMOJI,
     addQuote, getQuotes, deleteQuote, MAX_QUOTE_LENGTH,
-    highlightMentions, mentionsUser,
+    highlightMentions, mentionsUser, getBookPrompts, getBookWarnings,
     setProgress, setChapterProgress, getProgressAll,
     isMilestoneLocked, isCommentSpoiler, groupChapters, GENERAL_MILESTONE, MAX_COMMENT_LENGTH,
   } from './club-reads.js';
@@ -220,6 +236,8 @@ button.rx-chip:hover{border-color:var(--neon-yellow)}
 
   let club = null, read = null, comments = [], progressAll = [], members = [];
   let quotes = [];
+  let bookPrompts = null;   // AI starter questions for hosts (toggleable per club)
+  let bookWarnings = null;  // published content warnings with sources
   let view = 'discussions'; // 'discussions' | 'quotes'
   let lastSeenTs = 0;       // seconds; comments newer than this get a NEW dot
   let firstRender = true;
@@ -339,6 +357,26 @@ button.rx-chip:hover{border-color:var(--neon-yellow)}
     return (list || '<div class="empty" style="padding:14px">No comments yet — start the discussion!</div>') + footer;
   }
 
+  // One AI starter question per section for hosts/mods (club-toggleable).
+  function starterQuestionHtml(milestoneId) {
+    if (!bookPrompts || !isMod() || isArchived()) return '';
+    if (club.promptsEnabled === false) return '';
+    if (milestoneId === GENERAL_MILESTONE) return '';
+    const m = read.milestones.find(x => x.id === milestoneId);
+    if (!m) return '';
+    const matches = typeof m.chStart === 'number'
+      ? bookPrompts.filter(p => p.chapter_index >= m.chStart && p.chapter_index <= m.chEnd)
+      : bookPrompts;
+    if (!matches.length) return '';
+    const pick = matches[Math.floor(Math.random() * matches.length)];
+    return `
+      <div class="starter-q">
+        \ud83d\udca1 <em>${escapeHtml(pick.question)}</em>
+        <button data-use-prompt data-ms-target="${escapeHtml(milestoneId)}"
+          data-q="${escapeHtml(pick.question)}" data-ch="${pick.chapter_index}">Post this</button>
+      </div>`;
+  }
+
   function composerHtml(milestoneId, parentId) {
     const tagSelect = hasChapters() ? `
           <select class="ch-tag" title="Optional: tag the chapter you're at — readers who aren't there yet see this comment as a spoiler">
@@ -377,7 +415,7 @@ button.rx-chip:hover{border-color:var(--neon-yellow)}
     return `
       <details class="milestone" data-ms-section="${escapeHtml(id)}" ${open}>
         <summary>${escapeHtml(label)}<span class="ms-count">${newCount ? `<span class="new-count">${newCount} new</span> \u00b7 ` : ''}${count} comment${count !== 1 ? 's' : ''}</span></summary>
-        <div class="ms-body">${commentThreadHtml(id)}</div>
+        <div class="ms-body">${starterQuestionHtml(id)}${commentThreadHtml(id)}</div>
       </details>`;
   }
 
@@ -416,6 +454,12 @@ button.rx-chip:hover{border-color:var(--neon-yellow)}
         </div>
       </div>
 
+      ${bookWarnings ? `
+        <details class="cw-notes">
+          <summary>\u26a0 Content notes (${bookWarnings.length}) \u2014 from published sources</summary>
+          <ul>${bookWarnings.map(w =>
+            `<li>${escapeHtml(w.label)} <a href="${escapeHtml(w.source_url)}" target="_blank" rel="noopener">source</a></li>`).join('')}</ul>
+        </details>` : ''}
       ${isArchived() ? `
         <div class="archive-banner">This read is ${escapeHtml(read.status)} — discussions are archived. All sections are open (no spoiler locks); new comments only in General.</div>` : ''}
       ${session && myRole() && !isArchived() ? `
@@ -474,6 +518,17 @@ button.rx-chip:hover{border-color:var(--neon-yellow)}
   }
 
   function wireEvents() {
+    contentEl.querySelectorAll('[data-use-prompt]').forEach(btn =>
+      btn.addEventListener('click', () => {
+        const section = btn.closest('.ms-body');
+        const box = section && section.querySelector('[data-composer]');
+        if (!box) return;
+        box.querySelector('textarea').value = btn.dataset.q;
+        const tag = box.querySelector('.ch-tag');
+        if (tag) tag.value = btn.dataset.ch;
+        box.querySelector('textarea').focus();
+      }));
+
     contentEl.querySelectorAll('[data-view]').forEach(btn =>
       btn.addEventListener('click', () => { view = btn.dataset.view; render(); }));
 
@@ -590,6 +645,10 @@ button.rx-chip:hover{border-color:var(--neon-yellow)}
       getProgressAll(db, clubId, readId),
       getMembers(db, clubId),
       getQuotes(db, clubId, readId),
+    ]);
+    [bookPrompts, bookWarnings] = await Promise.all([
+      getBookPrompts(read ? read.bookTitle : ''),
+      getBookWarnings(read ? read.bookTitle : ''),
     ]);
     if (!club || !read) {
       contentEl.innerHTML = '<div class="empty">Read not found — it may have been removed.</div>';
