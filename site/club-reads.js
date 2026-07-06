@@ -407,6 +407,21 @@ export async function removeRead(db, clubId, readId) {
     await refreshClubAvatar(db, clubId);
     return { success: true };
   } catch (e) {
+    return { success: false, error: `Remove failed: ${e.message} — try a hard refresh and sign in again if this persists.` };
+  }
+}
+
+/**
+ * Rename a read's label ("Current read" / "Side read" by default) —
+ * free-form, member-editable, becomes the card's header title.
+ */
+export async function updateReadLabel(db, clubId, readId, label) {
+  const trimmed = (label || '').trim();
+  if (trimmed.length > 40) return { success: false, error: 'Labels must be 40 characters or fewer.' };
+  try {
+    await updateDoc(doc(db, col('clubs'), clubId, 'reads', readId), { slotLabel: trimmed });
+    return { success: true };
+  } catch (e) {
     return { success: false, error: e.message };
   }
 }
@@ -444,7 +459,7 @@ export async function finishRead(db, clubId, readId, status) {
     await refreshClubAvatar(db, clubId);
     return { success: true };
   } catch (e) {
-    return { success: false, error: e.message };
+    return { success: false, error: `Finish failed: ${e.message} — try a hard refresh and sign in again if this persists.` };
   }
 }
 

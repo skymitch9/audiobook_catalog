@@ -480,9 +480,9 @@ details.milestone.ch-section summary{padding:10px 14px;font-size:.85em;color:var
       .map(p => {
         let label;
         if (hasChapters()) {
-          label = typeof p.chapterIndex === 'number' && p.chapterIndex >= 0
-            ? `Ch ${p.chapterIndex + 1}/${chapterTitles().length}`
-            : 'Not started';
+          const pi = typeof p.chapterIndex === 'number' && p.chapterIndex >= 0
+            ? partIndexForChapter(Math.min(p.chapterIndex, chapterTitles().length - 1)) : -1;
+          label = pi >= 0 ? parts()[pi].label : 'Not started';
         } else {
           label = p.milestonePosition >= 0
             ? (read.milestones.find(m => m.position === p.milestonePosition) || {}).label || '?'
@@ -491,8 +491,10 @@ details.milestone.ch-section summary{padding:10px 14px;font-size:.85em;color:var
         return `<span class="mp-chip"><strong>${escapeHtml(p.displayName)}</strong> ${escapeHtml(label)}</span>`;
       }).join('');
 
+    const myPart = myChapter() >= 0 ? partIndexForChapter(Math.min(myChapter(), chapterTitles().length - 1)) : -1;
     const options = hasChapters()
-      ? `<option value="-1" ${myChapter() === -1 ? 'selected' : ''}>Not started</option>` + chapterOptionsHtml(myChapter())
+      ? `<option value="-1" ${myChapter() === -1 ? 'selected' : ''}>Not started</option>` + parts().map((g, k) =>
+          `<option value="${g.end}" ${myPart === k ? 'selected' : ''}>${escapeHtml(g.label)}</option>`).join('')
       : [`<option value="-1" ${myProgress() === -1 ? 'selected' : ''}>Not started</option>`]
           .concat(read.milestones.map(m =>
             `<option value="${m.position}" ${myProgress() === m.position ? 'selected' : ''}>${escapeHtml(m.label)}</option>`))
@@ -518,7 +520,7 @@ details.milestone.ch-section summary{padding:10px 14px;font-size:.85em;color:var
         <div class="archive-banner">This read is ${escapeHtml(read.status)} — discussions are archived. All sections are open (no spoiler locks); new comments only in General.</div>` : ''}
       ${session && myRole() && !isArchived() ? `
         <div class="progress-row">
-          <label for="progress-select">${hasChapters() ? "I'm at:" : "I've finished through:"}</label>
+          <label for="progress-select">${hasChapters() ? "I'm in:" : "I've finished through:"}</label>
           <select id="progress-select">${options}</select>
           <div class="member-progress">${progressChips}</div>
         </div>` : `

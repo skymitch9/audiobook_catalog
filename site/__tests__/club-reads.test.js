@@ -78,7 +78,7 @@ const {
   isMilestoneLocked, parseCsv,
   milestonesFromChapters, milestonesFromChapterRanges,
   milestonesFromParts, wholeBookMilestones,
-  startRead, getReads, getRead, finishRead, refreshClubAvatar, groupChapters,
+  startRead, getReads, getRead, finishRead, refreshClubAvatar, groupChapters, updateReadLabel,
   addComment, deleteComment, getComments,
   setProgress, setChapterProgress, getProgressAll, isCommentSpoiler,
   getTbr, addTbrItem, removeTbrItem, toggleTbrVote,
@@ -322,6 +322,15 @@ describe('club avatar (cover of the current book)', () => {
     await finishRead(fakeDb, CLUB, second.readId, 'finished');
     expect(mockStore[CLUB_PATH].avatarCoverHref).toBe('');
     expect(mockStore[CLUB_PATH].avatarReadId).toBeNull();
+  });
+});
+
+describe('updateReadLabel', () => {
+  it('sets a free-form label on a read', async () => {
+    const readId = (await startRead(fakeDb, CLUB, bookInput(), jane)).readId;
+    expect((await updateReadLabel(fakeDb, CLUB, readId, '  Spicy pick  ')).success).toBe(true);
+    expect((await getRead(fakeDb, CLUB, readId)).slotLabel).toBe('Spicy pick');
+    expect((await updateReadLabel(fakeDb, CLUB, readId, 'x'.repeat(41))).success).toBe(false);
   });
 });
 

@@ -11,7 +11,22 @@ import { col } from './fb-env.js';
  * Get the current session. Checks Firebase Auth first, then localStorage fallback.
  * @returns {{ displayName: string, photoURL?: string, uid?: string, method: 'google'|'passphrase' } | null}
  */
+let _authDetached = false;
+
+/** One-time cleanup: drop any persisted Firebase Auth session left over
+ * from before the detach-after-SSO fix. Identity lives in localStorage. */
+function detachStaleFirebaseAuth() {
+  if (_authDetached) return;
+  _authDetached = true;
+  try {
+    const auth = getAuth();
+    if (auth.currentUser) signOut(auth).catch(() => {});
+    else onAuthStateChanged(auth, (user) => { if (user) signOut(auth).catch(() => {}); });
+  } catch (e) { /* no default app yet — harmless */ }
+}
+
 export function getSession() {
+  detachStaleFirebaseAuth();
   // Check localStorage for active session (works for both methods)
   const name = localStorage.getItem('ab_identity_name');
   const session = localStorage.getItem('ab_identity_session');
@@ -55,6 +70,12 @@ export async function signInWithGoogle(app) {
     localStorage.setItem('ab_identity_photo', user.photoURL || '');
 
     await ensureProfile(getFirestore(app), user.displayName || user.email, user.photoURL || '');
+
+    // Google is only used to capture identity — the site's Firestore rules
+    // never check auth. Detach immediately so a persisted auth session can't
+    // later expire and poison Firestore writes with PERMISSION_DENIED
+    // (stale-token refresh failures, esp. mobile Safari).
+    try { await signOut(auth); } catch (e) { /* non-fatal */ }
 
     return { success: true, displayName: user.displayName || user.email };
   } catch (e) {

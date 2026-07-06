@@ -101,6 +101,11 @@ body{
 .read-card:hover{border-color:var(--neon-magenta)}
 .rc-cover{width:60px;height:auto;border:1px solid var(--border);flex-shrink:0}
 .rc-slot{font-size:.7em;color:var(--neon-magenta);text-transform:uppercase;letter-spacing:1px;font-family:'Share Tech Mono',monospace}
+.rc-label-edit{
+  background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.1em;
+  padding:0 2px;vertical-align:middle;
+}
+.rc-label-edit:hover{color:var(--neon-cyan)}
 .rc-title{font-weight:700;font-size:1.1em;color:var(--neon-cyan);text-transform:uppercase;letter-spacing:.5px}
 .rc-author{color:var(--muted);font-size:.9em}
 .rc-meta{font-size:.75em;color:var(--muted);font-family:'Share Tech Mono',monospace;margin-top:4px}
@@ -183,6 +188,10 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
 #picked-book .pb-sub{font-size:.85em;color:var(--muted)}
 #ms-preview{font-size:.85em;color:var(--muted);font-family:'Share Tech Mono',monospace;line-height:1.7;margin-top:6px}
 .form-error{color:var(--neon-magenta);font-size:.9em;min-height:1.2em;margin-bottom:8px}
+.notice{
+  padding:10px 14px;border:1px solid var(--neon-yellow);background:var(--bg);
+  color:var(--neon-yellow);font-size:.9em;
+}
 @media(max-width:600px){
   body{padding:10px}
   .nav-row{flex-direction:column;align-items:stretch}
@@ -303,8 +312,10 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
       <label for="rate-text">Review (optional \u2014 posts to the catalog's reviews)</label>
       <textarea id="rate-text" maxlength="1000"></textarea>
     </div>
+    <div id="rate-existing" class="notice" style="display:none;margin-bottom:12px"></div>
     <div id="rate-error" class="form-error"></div>
     <button id="rate-submit" class="nav-link btn-primary" style="width:100%">Submit Rating</button>
+    <button id="rate-keep" class="nav-link" style="width:100%;margin-top:8px;display:none">Keep Existing Review As Is</button>
   </div>
 </div>
 
@@ -321,7 +332,7 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
     acceptInvite, declineInvite,
   } from './clubs.js';
   import {
-    getReads, startRead, removeRead, finishRead, getComments, splitByDuration, parseManualMilestones,
+    getReads, startRead, removeRead, finishRead, getComments, updateReadLabel, splitByDuration, parseManualMilestones,
     loadCatalogBooks, MAX_ACTIVE_READS, MAX_MILESTONES,
     getBookChapters, milestonesFromChapters, milestonesFromChapterRanges,
     milestonesFromParts, wholeBookMilestones, formatHhmm,
@@ -594,7 +605,7 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
       <a class="read-card" href="club-read.html?club=${encodeURIComponent(clubId)}&read=${encodeURIComponent(r.id)}">
         ${r.coverHref ? `<img class="rc-cover" src="${escapeHtml(r.coverHref)}" alt="" onerror="this.remove()">` : ''}
         <div>
-          <div class="rc-slot">${active.length > 1 ? (r.slot === 1 ? 'Main read' : 'Side read') : 'Current read'}</div>
+          <div class="rc-slot">${escapeHtml(r.slotLabel || (active.length > 1 ? (r.slot === 1 ? 'Main read' : 'Side read') : 'Current read'))}${isMember() ? ` <button class="rc-label-edit" data-edit-label="${r.id}" title="Rename this slot">\u270e</button>` : ''}</div>
           <div class="rc-title">${escapeHtml(r.bookTitle)}</div>
           <div class="rc-author">${escapeHtml(r.bookAuthor)}</div>
           <div class="rc-meta">${(r.milestones || []).length} milestones \u00b7 ${r.commentCount || 0} comments \u00b7 started by ${escapeHtml(r.startedBy || '')}</div>
@@ -738,8 +749,21 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
         if (r.success) reload(); else showError(r.error);
       }));
 
+    contentEl.querySelectorAll('[data-edit-label]').forEach(btn =>
+      btn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const r = reads.find(x => x.id === btn.dataset.editLabel);
+        if (!r) return;
+        const label = prompt('Label this book (e.g. "Spicy pick", "Together read"):',
+          r.slotLabel || '');
+        if (label === null) return;
+        const res = await updateReadLabel(db, clubId, r.id, label);
+        if (res.success) reload(); else showError(res.error);
+      }));
+
     contentEl.querySelectorAll('[data-rate-read]').forEach(btn =>
-      btn.addEventListener('click', (e) => {
+      btn.addEventListener('click', async (e) => {
         e.preventDefault();
         e.stopPropagation();
         ratingRead = reads.find(r => r.id === btn.dataset.rateRead);
@@ -747,6 +771,26 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
         document.getElementById('rate-book-title').textContent = ratingRead.bookTitle;
         document.getElementById('rate-text').value = '';
         document.getElementById('rate-error').textContent = '';
+        // Already reviewed (possibly long before the club read it)? Offer
+        // update-or-keep instead of silently overwriting.
+        await loadReviews();
+        const bookId = bookIdFromTitle(ratingRead.bookTitle);
+        const mine = session ? allReviews.find(r =>
+          r.bookId === bookId && (r.displayName || '').toLowerCase() === session.displayName.toLowerCase()) : null;
+        const banner = document.getElementById('rate-existing');
+        const keepBtn = document.getElementById('rate-keep');
+        if (mine) {
+          banner.style.display = 'block';
+          banner.textContent = `You already reviewed this book (${mine.rating}\u2605). Update it below, or keep it as is.`;
+          document.getElementById('rate-stars').value = String(mine.rating);
+          document.getElementById('rate-text').value = mine.text || '';
+          document.getElementById('rate-submit').textContent = 'Update Review';
+          keepBtn.style.display = 'block';
+        } else {
+          banner.style.display = 'none';
+          document.getElementById('rate-submit').textContent = 'Submit Rating';
+          keepBtn.style.display = 'none';
+        }
         document.getElementById('rate-modal').classList.add('open');
       }));
 
@@ -1119,6 +1163,7 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
 
   // --- Rate modal (static DOM, wired once) ---
   const rateModal = document.getElementById('rate-modal');
+  document.getElementById('rate-keep').addEventListener('click', () => rateModal.classList.remove('open'));
   document.getElementById('rate-close').addEventListener('click', () => rateModal.classList.remove('open'));
   rateModal.addEventListener('click', (e) => { if (e.target === rateModal) rateModal.classList.remove('open'); });
   document.getElementById('rate-submit').addEventListener('click', async () => {
