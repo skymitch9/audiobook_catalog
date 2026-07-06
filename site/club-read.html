@@ -262,7 +262,8 @@ details.milestone.ch-section summary{padding:10px 14px;font-size:.85em;color:var
 <script type="module">
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
   import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
-  import { getSession, slugifyName, renderIdentityBar } from './identity.js';
+  import { getSession, slugifyName} from './identity.js';
+  import { mountAccountModal } from './account-modal.js';
   import { getClub, getMembers } from './clubs.js';
   import {
     getRead, getComments, addComment, deleteComment,
@@ -285,7 +286,7 @@ details.milestone.ch-section summary{padding:10px 14px;font-size:.85em;color:var
   };
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
-  renderIdentityBar(document.getElementById('identity-bar'), db, { app, onAuthChange: () => location.reload() });
+  mountAccountModal(db, app, document.getElementById('identity-bar'));
 
   const session = getSession();
   const mySlug = session ? slugifyName(session.displayName) : null;

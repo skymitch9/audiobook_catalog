@@ -463,8 +463,9 @@ h1{margin:0 0 8px 0; color:var(--neon-yellow); text-transform:uppercase; letter-
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
   import { getFirestore, collection, getDocs } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
   import { col } from './fb-env.js';
-  import { renderIdentityBar } from './identity.js';
+  import {} from './identity.js';
 
+  import { mountAccountModal } from './account-modal.js';
   const app = initializeApp({
     apiKey: "AIzaSyDgAblkxzVxl7nFbd7jXOo6PpuNPsJw11Y",
     authDomain: "audiobook-catalog.firebaseapp.com",
@@ -474,7 +475,7 @@ h1{margin:0 0 8px 0; color:var(--neon-yellow); text-transform:uppercase; letter-
     appId: "1:68492219785:web:7cbe57dda8712377f0bd58"
   });
   const db = getFirestore(app);
-  renderIdentityBar(document.getElementById('identity-bar'), db, { app, onAuthChange: () => location.reload() });
+  mountAccountModal(db, app, document.getElementById('identity-bar'));
 
   async function loadCommunityStats() {
     try {

@@ -468,10 +468,9 @@
         } catch (e) {
             console.warn('[Game] Firebase init failed:', e);
         }
-        import('./identity.js').then(({ renderIdentityBar }) => {
-            renderIdentityBar(document.getElementById('identity-bar'), db,
-                { app: fbApp, onAuthChange: () => location.reload() });
-        }).catch(e => console.warn('[Game] identity bar failed:', e));
+        import('./account-modal.js').then(({ mountAccountModal }) => {
+            mountAccountModal(db, fbApp, document.getElementById('identity-bar'));
+        }).catch(e => console.warn('[Game] account modal failed:', e));
 
         function isLoggedIn() {
             const name = localStorage.getItem('ab_identity_name');

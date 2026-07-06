@@ -188,7 +188,8 @@ h1{
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
   import { getFirestore, collection, getDocs } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
   import { col } from './fb-env.js';
-  import { getSession, slugifyName, renderIdentityBar } from './identity.js';
+  import { getSession, slugifyName} from './identity.js';
+  import { mountAccountModal } from './account-modal.js';
   import { clubActivity } from './club-notify.js';
 
   // "N new" on the Clubs banner: unread club posts for the signed-in user
@@ -215,7 +216,7 @@ h1{
 
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
-  renderIdentityBar(document.getElementById('identity-bar'), db, { app, onAuthChange: () => location.reload() });
+  mountAccountModal(db, app, document.getElementById('identity-bar'));
 
   const grid = document.getElementById('user-grid');
   const searchInput = document.getElementById('search-input');
