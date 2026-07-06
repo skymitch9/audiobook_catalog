@@ -9,24 +9,6 @@ import {
 import { col } from './fb-env.js';
 import { slugifyName } from './identity.js';
 
-// Base32-ish alphabet without lookalike characters (no I/L/O/U/0/1)
-const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTVWXYZ23456789';
-export const CODE_LENGTH = 8;
-
-/**
- * Generate an 8-char invite code from a lookalike-free alphabet.
- * @returns {string}
- */
-export function generateInviteCode() {
-  const bytes = new Uint8Array(CODE_LENGTH);
-  crypto.getRandomValues(bytes);
-  let code = '';
-  for (const b of bytes) {
-    code += CODE_ALPHABET[b % CODE_ALPHABET.length];
-  }
-  return code;
-}
-
 /**
  * Validate a club name. 3-40 chars after trimming.
  * @returns {{ valid: boolean, error?: string }}
@@ -52,7 +34,7 @@ export function validateClubDescription(description) {
 /**
  * Create a club. The creator becomes the host and first member.
  * @param {object} db
- * @param {{name: string, description?: string, emoji?: string, isPublic?: boolean}} input
+ * @param {{name: string, description?: string, emoji?: string}} input
  * @param {{displayName: string}} session
  * @returns {Promise<{success: boolean, clubId?: string, error?: string}>}
  */
@@ -72,8 +54,6 @@ export async function createClub(db, input, session) {
       name: input.name.trim(),
       description: (input.description || '').trim(),
       emoji: input.emoji || '📚',
-      isPublic: input.isPublic !== false,
-      inviteCode: generateInviteCode(),
       hostSlug: slug,
       hostDisplayName: session.displayName,
       memberSlugs: [slug],
@@ -92,15 +72,16 @@ export async function createClub(db, input, session) {
 }
 
 /**
- * Fetch all public clubs, newest first.
+ * Fetch all clubs — every club is visible and joinable (small, trusted
+ * user base; no private clubs or invite codes).
  */
-export async function getPublicClubs(db) {
-  const snap = await getDocs(query(collection(db, col('clubs')), where('isPublic', '==', true)));
+export async function getAllClubs(db) {
+  const snap = await getDocs(collection(db, col('clubs')));
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
 /**
- * Fetch clubs the user belongs to (public or private).
+ * Fetch clubs the user belongs to.
  */
 export async function getMyClubs(db, displayName) {
   const slug = slugifyName(displayName);
@@ -124,18 +105,6 @@ export async function getClub(db, clubId) {
 export async function getMembers(db, clubId) {
   const snap = await getDocs(collection(db, col('clubs'), clubId, 'members'));
   return snap.docs.map(d => ({ slug: d.id, ...d.data() }));
-}
-
-/**
- * Look up a club by invite code (case-insensitive). Returns null if not found.
- */
-export async function findClubByInviteCode(db, code) {
-  const normalized = (code || '').trim().toUpperCase();
-  if (!normalized) return null;
-  const snap = await getDocs(
-    query(collection(db, col('clubs')), where('inviteCode', '==', normalized))
-  );
-  return snap.docs.length > 0 ? { id: snap.docs[0].id, ...snap.docs[0].data() } : null;
 }
 
 /**

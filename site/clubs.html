@@ -57,7 +57,6 @@ h2{
 .club-desc{color:var(--muted);font-size:.92em;margin:8px 0 10px;min-height:1.2em}
 .club-meta{font-size:.8em;color:var(--muted);font-family:'Share Tech Mono',monospace;display:flex;gap:12px}
 .badge{padding:1px 7px;border:1px solid var(--border);font-size:.75em;text-transform:uppercase}
-.badge-private{color:var(--neon-magenta);border-color:var(--neon-magenta)}
 .badge-host{color:var(--neon-yellow);border-color:var(--neon-yellow)}
 .loading,.empty{text-align:center;padding:30px;color:var(--muted);font-family:'Share Tech Mono',monospace}
 .notice{
@@ -66,13 +65,6 @@ h2{
 }
 .notice a{color:var(--neon-cyan)}
 .error-box{border-color:var(--neon-magenta);color:var(--neon-magenta)}
-.join-row{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
-.join-row input{
-  flex:1;min-width:160px;padding:8px 12px;border:1px solid var(--border);
-  background:var(--bg-2);color:var(--text);font-family:'Share Tech Mono',monospace;
-  text-transform:uppercase;
-}
-.join-row input:focus{outline:none;border-color:var(--neon-cyan)}
 /* Create modal */
 #create-modal{
   position:fixed;inset:0;display:none;align-items:center;justify-content:center;
@@ -127,15 +119,9 @@ h2{
   <h2>My Clubs</h2>
   <div id="my-clubs" class="club-grid"><div class="loading">Loading...</div></div>
 
-  <h2>Public Clubs</h2>
-  <div id="public-clubs" class="club-grid"><div class="loading">Loading...</div></div>
+  <h2>All Clubs</h2>
+  <div id="all-clubs" class="club-grid"><div class="loading">Loading...</div></div>
 
-  <h2>Have an invite code?</h2>
-  <div class="join-row">
-    <input id="invite-input" type="text" maxlength="8" placeholder="8-CHARACTER CODE" />
-    <button id="invite-join-btn" class="nav-link btn-primary">Join</button>
-  </div>
-  <div id="invite-error" class="form-error"></div>
 </div>
 
 <!-- Create Club Modal -->
@@ -155,10 +141,6 @@ h2{
       <label for="emoji-input">Emoji</label>
       <input id="emoji-input" type="text" maxlength="4" value="📚" />
     </div>
-    <div class="field field-inline">
-      <input id="public-input" type="checkbox" checked />
-      <label for="public-input" style="margin:0">Public (anyone can find and join)</label>
-    </div>
     <div id="create-error" class="form-error"></div>
     <button id="create-submit" class="nav-link btn-primary" style="width:100%">Create Club</button>
   </div>
@@ -168,7 +150,7 @@ h2{
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
   import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
   import { getSession, slugifyName } from './identity.js';
-  import { createClub, getPublicClubs, getMyClubs, findClubByInviteCode, joinClub } from './clubs.js';
+  import { createClub, getAllClubs, getMyClubs } from './clubs.js';
 
   const firebaseConfig = {
     apiKey: "AIzaSyDgAblkxzVxl7nFbd7jXOo6PpuNPsJw11Y",
@@ -199,7 +181,6 @@ h2{
         <div class="club-desc">${escapeHtml(club.description || '')}</div>
         <div class="club-meta">
           <span>${club.memberCount || 0} member${(club.memberCount || 0) !== 1 ? 's' : ''}</span>
-          ${club.isPublic ? '' : '<span class="badge badge-private">Private</span>'}
           ${isHost ? '<span class="badge badge-host">Host</span>' : ''}
         </div>
       </a>`;
@@ -213,17 +194,17 @@ h2{
 
   async function load() {
     const myEl = document.getElementById('my-clubs');
-    const pubEl = document.getElementById('public-clubs');
+    const allEl = document.getElementById('all-clubs');
     try {
-      const [mine, pub] = await Promise.all([
+      const [mine, all] = await Promise.all([
         session ? getMyClubs(db, session.displayName) : Promise.resolve([]),
-        getPublicClubs(db),
+        getAllClubs(db),
       ]);
       renderInto(myEl, mine, session ? "You haven't joined a club yet." : 'Sign in to see your clubs.');
       const mineIds = new Set(mine.map(c => c.id));
-      renderInto(pubEl, pub.filter(c => !mineIds.has(c.id)), 'No public clubs yet — create the first one!');
+      renderInto(allEl, all.filter(c => !mineIds.has(c.id)), 'No clubs yet — create the first one!');
     } catch (e) {
-      myEl.innerHTML = pubEl.innerHTML = '<div class="empty">Failed to load clubs.</div>';
+      myEl.innerHTML = allEl.innerHTML = '<div class="empty">Failed to load clubs.</div>';
       console.error(e);
     }
   }
@@ -254,7 +235,6 @@ h2{
       name: document.getElementById('name-input').value,
       description: document.getElementById('desc-input').value,
       emoji: document.getElementById('emoji-input').value.trim() || '📚',
-      isPublic: document.getElementById('public-input').checked,
     }, session);
     if (!result.success) {
       errEl.textContent = result.error;
@@ -262,40 +242,6 @@ h2{
     }
     window.location.href = `club.html?id=${encodeURIComponent(result.clubId)}`;
   });
-
-  // --- Join by invite code (input box or ?join=CODE link) ---
-  async function joinByCode(code) {
-    const errEl = document.getElementById('invite-error');
-    errEl.textContent = '';
-    if (!session) {
-      errEl.textContent = 'Sign in on the catalog page first.';
-      return;
-    }
-    const club = await findClubByInviteCode(db, code);
-    if (!club) {
-      errEl.textContent = 'No club found for that code.';
-      return;
-    }
-    const result = await joinClub(db, club.id, session);
-    if (!result.success) {
-      errEl.textContent = result.error;
-      return;
-    }
-    window.location.href = `club.html?id=${encodeURIComponent(club.id)}`;
-  }
-
-  document.getElementById('invite-join-btn').addEventListener('click', () => {
-    joinByCode(document.getElementById('invite-input').value);
-  });
-  document.getElementById('invite-input').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') joinByCode(e.target.value);
-  });
-
-  const params = new URLSearchParams(window.location.search);
-  if (params.get('join')) {
-    document.getElementById('invite-input').value = params.get('join').toUpperCase();
-    joinByCode(params.get('join'));
-  }
 
   load();
 </script>

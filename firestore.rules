@@ -37,8 +37,7 @@ service cloud.firestore {
       return request.resource.data.name is string
              && request.resource.data.name.size() >= 3
              && request.resource.data.name.size() <= 40
-             && request.resource.data.hostDisplayName is string
-             && request.resource.data.inviteCode is string;
+             && request.resource.data.hostDisplayName is string;
     }
 
     function validClubMember() {

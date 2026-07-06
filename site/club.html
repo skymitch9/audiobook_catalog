@@ -51,18 +51,7 @@ body{
   font-size:.85em;color:var(--muted);font-family:'Share Tech Mono',monospace;
 }
 .badge{padding:1px 7px;border:1px solid var(--border);font-size:.85em;text-transform:uppercase}
-.badge-private{color:var(--neon-magenta);border-color:var(--neon-magenta)}
 .badge-role{color:var(--neon-yellow);border-color:var(--neon-yellow)}
-.invite-chip{
-  display:inline-flex;align-items:center;gap:8px;background:var(--bg);
-  border:1px solid var(--border);padding:4px 10px;
-}
-.invite-chip code{font-family:'Share Tech Mono',monospace;color:var(--neon-cyan);letter-spacing:2px}
-.invite-chip button{
-  background:none;border:1px solid var(--border);color:var(--muted);cursor:pointer;
-  font-size:.8em;padding:2px 8px;font-family:inherit;text-transform:uppercase;
-}
-.invite-chip button:hover{border-color:var(--neon-cyan);color:var(--neon-cyan)}
 .tabs{display:flex;gap:4px;margin-bottom:0;flex-wrap:wrap}
 .tab{
   padding:10px 18px;background:var(--bg-2);border:1px solid var(--border);border-bottom:none;
@@ -159,7 +148,6 @@ body{
   const isMod = () => isHost() || myRole() === 'moderator';
 
   function render() {
-    const inviteLink = new URL(`clubs.html?join=${club.inviteCode}`, window.location.href).href;
     const roleBadge = myRole() ? `<span class="badge badge-role">${escapeHtml(myRole())}</span>` : '';
 
     contentEl.innerHTML = `
@@ -167,18 +155,12 @@ body{
         <div class="club-title">
           <span class="club-emoji">${escapeHtml(club.emoji || '📚')}</span>
           <h1 class="club-name">${escapeHtml(club.name)}</h1>
-          ${club.isPublic ? '' : '<span class="badge badge-private">Private</span>'}
           ${roleBadge}
         </div>
         ${club.description ? `<p class="club-desc">${escapeHtml(club.description)}</p>` : ''}
         <div class="club-meta">
           <span>${club.memberCount || 0} member${(club.memberCount || 0) !== 1 ? 's' : ''}</span>
           <span>Host: ${escapeHtml(club.hostDisplayName)}</span>
-          ${myRole() ? `
-            <span class="invite-chip">
-              <span>Invite:</span><code>${escapeHtml(club.inviteCode)}</code>
-              <button id="copy-invite" data-link="${escapeHtml(inviteLink)}">Copy Link</button>
-            </span>` : ''}
         </div>
       </div>
 
@@ -234,9 +216,7 @@ body{
   function renderFooterActions() {
     if (!session) return '';
     if (!myRole()) {
-      return club.isPublic
-        ? '<button id="join-btn" class="nav-link">Join This Club</button>'
-        : '<span class="empty" style="padding:0">This club is private — join with an invite link.</span>';
+      return '<button id="join-btn" class="nav-link btn-primary">Join This Club</button>';
     }
     const actions = [];
     if (isHost()) {
@@ -251,15 +231,10 @@ body{
     contentEl.querySelectorAll('.tab').forEach(t =>
       t.addEventListener('click', () => { activeTab = t.dataset.tab; render(); }));
 
-    const copyBtn = document.getElementById('copy-invite');
-    if (copyBtn) copyBtn.addEventListener('click', async () => {
-      await navigator.clipboard.writeText(copyBtn.dataset.link);
-      copyBtn.textContent = 'Copied!';
-      setTimeout(() => { copyBtn.textContent = 'Copy Link'; }, 1500);
-    });
 
     const joinBtn = document.getElementById('join-btn');
     if (joinBtn) joinBtn.addEventListener('click', async () => {
+      if (!confirm(`Join ${club.name}?`)) return;
       const r = await joinClub(db, clubId, session);
       if (r.success) reload(); else showError(r.error);
     });

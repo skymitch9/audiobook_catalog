@@ -64,10 +64,10 @@ vi.mock('firebase/auth', () => ({
 }));
 
 const {
-  generateInviteCode, validateClubName, validateClubDescription,
-  createClub, getPublicClubs, getMyClubs, getClub, getMembers,
-  findClubByInviteCode, joinClub, leaveClub, removeMemberBySlug,
-  setMemberRole, deleteClub, CODE_LENGTH,
+  validateClubName, validateClubDescription,
+  createClub, getAllClubs, getMyClubs, getClub, getMembers,
+  joinClub, leaveClub, removeMemberBySlug,
+  setMemberRole, deleteClub,
 } = await import('../clubs.js');
 
 const fakeDb = {};
@@ -82,21 +82,6 @@ async function makeClub(overrides = {}) {
 
 beforeEach(() => {
   mockStore = {};
-});
-
-describe('generateInviteCode', () => {
-  it('produces 8-char codes from the lookalike-free alphabet', () => {
-    for (let i = 0; i < 50; i++) {
-      const code = generateInviteCode();
-      expect(code).toHaveLength(CODE_LENGTH);
-      expect(code).toMatch(/^[ABCDEFGHJKMNPQRSTVWXYZ23456789]+$/);
-    }
-  });
-
-  it('produces distinct codes', () => {
-    const codes = new Set(Array.from({ length: 100 }, generateInviteCode));
-    expect(codes.size).toBeGreaterThan(95);
-  });
 });
 
 describe('validation', () => {
@@ -120,14 +105,12 @@ describe('createClub', () => {
   });
 
   it('creates the club with the creator as host and sole member', async () => {
-    const clubId = await makeClub({ description: 'We read LitRPG.', isPublic: false });
+    const clubId = await makeClub({ description: 'We read LitRPG.' });
     const club = await getClub(fakeDb, clubId);
     expect(club.name).toBe('LitRPG Legends');
-    expect(club.isPublic).toBe(false);
     expect(club.hostSlug).toBe('jane doe');
     expect(club.memberCount).toBe(1);
     expect(club.memberSlugs).toEqual(['jane doe']);
-    expect(club.inviteCode).toHaveLength(CODE_LENGTH);
 
     const members = await getMembers(fakeDb, clubId);
     expect(members).toHaveLength(1);
@@ -142,34 +125,19 @@ describe('createClub', () => {
 });
 
 describe('browse queries', () => {
-  it('getPublicClubs returns only public clubs', async () => {
-    await makeClub({ name: 'Public Club' });
-    await makeClub({ name: 'Secret Club', isPublic: false });
-    const pub = await getPublicClubs(fakeDb);
-    expect(pub.map((c) => c.name)).toEqual(['Public Club']);
+  it('getAllClubs returns every club', async () => {
+    await makeClub({ name: 'First Club' });
+    await makeClub({ name: 'Second Club' });
+    const all = await getAllClubs(fakeDb);
+    expect(all.map((c) => c.name).sort()).toEqual(['First Club', 'Second Club']);
   });
 
   it('getMyClubs returns clubs containing the member', async () => {
     const clubId = await makeClub({ name: 'Janes Club' });
-    await makeClub({ name: 'Also Janes', isPublic: false });
+    await makeClub({ name: 'Also Janes' });
     await joinClub(fakeDb, clubId, bob);
     expect((await getMyClubs(fakeDb, 'Jane Doe')).length).toBe(2);
     expect((await getMyClubs(fakeDb, 'Bob Brown')).map((c) => c.name)).toEqual(['Janes Club']);
-  });
-});
-
-describe('findClubByInviteCode', () => {
-  it('finds the club case-insensitively', async () => {
-    const clubId = await makeClub();
-    const club = await getClub(fakeDb, clubId);
-    const found = await findClubByInviteCode(fakeDb, club.inviteCode.toLowerCase());
-    expect(found.id).toBe(clubId);
-  });
-
-  it('returns null for unknown or empty codes', async () => {
-    await makeClub();
-    expect(await findClubByInviteCode(fakeDb, 'WRONGCOD')).toBeNull();
-    expect(await findClubByInviteCode(fakeDb, '')).toBeNull();
   });
 });
 
