@@ -258,6 +258,71 @@ def sort_books(dry_run: bool = False) -> list[Path]:
     return moved
 
 
+def _companion_norm(s: str) -> str:
+    """Normalize a filename stem for companion<->audiobook matching."""
+    import re
+    return re.sub(r"[^a-z0-9]+", " ", (s or "").lower()).strip()
+
+
+def sort_companion_files(dry_run: bool = False) -> list[Path]:
+    """File loose companion files (PDF/EPUB/MOBI...) next to the audiobook
+    they belong to, matched by normalized filename stem.
+
+    OpenAudible drops companion docs loose in the books root; sort_books only
+    moves audio, so these get orphaned — never listed in the catalog's
+    companion_files and never uploaded. This looks at companions sitting loose
+    in a source root (not already inside an author folder) and moves each into
+    its matching book's author folder. Companions already nested in a folder
+    are left alone (standalone ebooks with no audiobook live there on purpose).
+    Idempotent. Returns the destination Paths that were moved.
+    """
+    import shutil
+
+    from app.config import ROOT_DIR
+    from app.metadata import COMPANION_EXTS
+
+    target_root = ROOT_DIR
+    source_dirs = [OPENAUDIBLE_BOOKS_DIR]
+    if CONTAINER_BOOKS_DIR.exists() and CONTAINER_BOOKS_DIR != OPENAUDIBLE_BOOKS_DIR:
+        source_dirs.append(CONTAINER_BOOKS_DIR)
+
+    # Index every audiobook by normalized stem so we can match companions to it.
+    audio_by_stem: dict[str, Path] = {}
+    for p in target_root.rglob("*"):
+        if p.is_file() and p.suffix.lower() in AUDIOBOOK_EXTS:
+            audio_by_stem.setdefault(_companion_norm(p.stem), p)
+
+    moved: list[Path] = []
+    unmatched = 0
+    for src in source_dirs:
+        # Only loose files directly in the source root — that's where orphans land.
+        for f in sorted(src.iterdir()):
+            if not (f.is_file() and f.suffix.lower() in COMPANION_EXTS):
+                continue
+            book = audio_by_stem.get(_companion_norm(f.stem))
+            if not book:
+                unmatched += 1
+                continue
+            dest = book.parent / f.name
+            if dest.exists():
+                continue
+            print(f"  [COMPANION] {f.name} -> {book.parent.name}/{f.name}")
+            if not dry_run:
+                book.parent.mkdir(parents=True, exist_ok=True)
+                try:
+                    shutil.move(str(f), str(dest))
+                    moved.append(dest)
+                except Exception as e:
+                    print(f"  [ERROR] Failed to move {f.name}: {e}")
+            else:
+                moved.append(dest)
+
+    if unmatched:
+        print(f"  [companions] {unmatched} loose file(s) had no matching "
+              "audiobook — left in place (standalone ebooks)")
+    return moved
+
+
 # ---------------------------------------------------------------------------
 # Detect new books (not yet uploaded)
 # ---------------------------------------------------------------------------
@@ -288,10 +353,15 @@ def detect_new_books(manifest: dict) -> list[Path]:
         except OSError:
             return False
 
+    # Audiobooks AND their companion docs (PDF/EPUB/...) so companions reach
+    # Drive too; upload_file_to_drive dedups by name, so already-uploaded
+    # companions are skipped rather than duplicated.
+    from app.metadata import COMPANION_EXTS
+    uploadable = AUDIOBOOK_EXTS | COMPANION_EXTS
     all_files = [
         p
         for p in library_root.rglob("*")
-        if p.is_file() and p.suffix.lower() in AUDIOBOOK_EXTS and _settled(p)
+        if p.is_file() and p.suffix.lower() in uploadable and _settled(p)
     ]
 
     new_files = []
@@ -638,6 +708,9 @@ def run_pipeline(
         print("\n[STEP 1] Sorting books from OpenAudible export...")
         moved = sort_books(dry_run=dry_run)
         print(f"  Sorted {len(moved)} file(s).")
+        filed = sort_companion_files(dry_run=dry_run)
+        if filed:
+            print(f"  Filed {len(filed)} orphaned companion file(s).")
     else:
         print("\n[STEP 1] Skipped (--upload-only)")
 
