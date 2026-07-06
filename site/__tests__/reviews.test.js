@@ -77,6 +77,7 @@ vi.mock('firebase/firestore', () => {
 });
 
 import { bookIdFromTitle, computeAverageRating, submitReview, getReviews, renderStars, renderReviewSection, formatDate } from '../reviews.js';
+import { col } from '../fb-env.js';
 
 const fakeDb = {};
 
@@ -406,8 +407,9 @@ describe('Property 11: Review display contains all required fields', () => {
           const result = await submitReview(fakeDb, bookId, displayName, rating, text);
           expect(result.success).toBe(true);
 
-          // Patch the createdAt timestamp to a known value for date verification
-          const docKey = `reviews/${bookId}_${displayName.toLowerCase()}`;
+          // Patch the createdAt timestamp to a known value for date verification.
+          // col() resolves to reviews_dev under jsdom (localhost = dev lane).
+          const docKey = `${col('reviews')}/${bookId}_${displayName.toLowerCase()}`;
           mockStore[docKey].createdAt = { seconds: tsSeconds };
 
           // Render the review section into a container

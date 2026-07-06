@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<title>Club - Audiobook Catalog</title>
+<style>
+:root{
+  --bg:#0a0a12; --bg-2:#12121f;
+  --text:#e8e6e3; --muted:#8a8f98;
+  --border:#2a2a3a;
+  --neon-yellow:#fcee0a;
+  --neon-cyan:#05d9e8;
+  --neon-magenta:#ff2a6d;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; padding:20px;
+  font-family:'Rajdhani','Segoe UI',system-ui,sans-serif;
+  background:var(--bg); color:var(--text);
+  background-image:
+    radial-gradient(ellipse at 20% 50%, rgba(252,238,10,.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(5,217,232,.03) 0%, transparent 50%);
+  min-height:100vh;
+}
+#wrap{max-width:900px;margin:0 auto}
+.nav-row{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
+.nav-link{
+  display:inline-block;padding:8px 14px;background:var(--bg-2);color:var(--neon-cyan);
+  text-decoration:none;border:1px solid var(--border);font-weight:700;font-size:.85em;
+  text-transform:uppercase;letter-spacing:.5px;transition:all .2s;cursor:pointer;
+  font-family:inherit;
+}
+.nav-link:hover{border-color:var(--neon-cyan);box-shadow:0 0 8px rgba(5,217,232,.2)}
+.btn-danger{color:var(--neon-magenta)}
+.btn-danger:hover{border-color:var(--neon-magenta);box-shadow:0 0 8px rgba(255,42,109,.2)}
+.club-header{
+  background:var(--bg-2);border:1px solid var(--border);padding:22px;margin-bottom:16px;
+  clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,14px 100%,0 calc(100% - 14px));
+}
+.club-title{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.club-emoji{font-size:2.2em}
+.club-cover-lg{width:64px;height:auto;border:1px solid var(--border)}
+.club-name{
+  color:var(--neon-yellow);text-transform:uppercase;letter-spacing:2px;margin:0;
+  text-shadow:0 0 10px rgba(252,238,10,.3);font-size:1.6em;font-weight:700;
+}
+.club-desc{color:var(--muted);margin:10px 0 0}
+.club-meta{
+  display:flex;gap:14px;margin-top:12px;flex-wrap:wrap;align-items:center;
+  font-size:.85em;color:var(--muted);font-family:'Share Tech Mono',monospace;
+}
+.badge{padding:1px 7px;border:1px solid var(--border);font-size:.85em;text-transform:uppercase}
+.badge-role{color:var(--neon-yellow);border-color:var(--neon-yellow)}
+.tabs{display:flex;gap:4px;margin-bottom:0;flex-wrap:wrap}
+.tab{
+  padding:10px 18px;background:var(--bg-2);border:1px solid var(--border);border-bottom:none;
+  color:var(--muted);cursor:pointer;font-weight:700;text-transform:uppercase;
+  letter-spacing:.5px;font-size:.85em;font-family:inherit;
+}
+.tab.active{color:var(--neon-cyan);border-color:var(--neon-cyan);border-bottom:1px solid var(--bg-2)}
+.tab-panel{
+  background:var(--bg-2);border:1px solid var(--border);padding:22px;min-height:180px;
+}
+.member-row{
+  display:flex;align-items:center;gap:12px;padding:10px 0;
+  border-bottom:1px solid var(--border);
+}
+.member-row:last-child{border-bottom:none}
+.member-avatar{
+  width:38px;height:38px;border-radius:50%;border:2px solid var(--neon-cyan);
+  display:flex;align-items:center;justify-content:center;background:var(--border);
+  font-weight:700;flex-shrink:0;
+}
+.member-name{font-weight:700;font-size:1.05em}
+.member-actions{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+.member-actions button{
+  background:none;border:1px solid var(--border);color:var(--muted);cursor:pointer;
+  font-size:.75em;padding:3px 9px;font-family:inherit;text-transform:uppercase;
+}
+.member-actions button:hover{border-color:var(--neon-cyan);color:var(--neon-cyan)}
+.member-actions button.danger:hover{border-color:var(--neon-magenta);color:var(--neon-magenta)}
+.stub{
+  text-align:center;padding:36px 20px;color:var(--muted);
+}
+.stub .stub-title{font-size:1.1em;color:var(--neon-cyan);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+.loading,.empty{text-align:center;padding:30px;color:var(--muted);font-family:'Share Tech Mono',monospace}
+.error-box{
+  padding:12px 16px;border:1px solid var(--neon-magenta);background:var(--bg-2);
+  color:var(--neon-magenta);margin-bottom:16px;
+}
+.footer-actions{margin-top:16px;display:flex;gap:8px;flex-wrap:wrap}
+.btn-primary{background:var(--neon-cyan);color:#04121a;border:none;font-weight:700}
+.btn-primary:hover{box-shadow:0 0 12px rgba(5,217,232,.5)}
+.read-card{
+  display:flex;gap:14px;background:var(--bg);border:1px solid var(--border);
+  padding:14px;margin-bottom:10px;text-decoration:none;color:var(--text);
+  transition:border-color .2s;align-items:center;
+}
+.read-card:hover{border-color:var(--neon-magenta)}
+.rc-cover{width:60px;height:auto;border:1px solid var(--border);flex-shrink:0}
+.rc-slot{font-size:.7em;color:var(--neon-magenta);text-transform:uppercase;letter-spacing:1px;font-family:'Share Tech Mono',monospace}
+.rc-title{font-weight:700;font-size:1.1em;color:var(--neon-cyan);text-transform:uppercase;letter-spacing:.5px}
+.rc-author{color:var(--muted);font-size:.9em}
+.rc-meta{font-size:.75em;color:var(--muted);font-family:'Share Tech Mono',monospace;margin-top:4px}
+.rc-actions{margin-left:auto;display:flex;gap:6px;align-items:center;flex-shrink:0}
+.rc-actions button{
+  background:none;border:1px solid var(--border);color:var(--muted);cursor:pointer;
+  font-size:.72em;padding:4px 9px;font-family:inherit;text-transform:uppercase;
+}
+.rc-actions button:hover{border-color:var(--neon-cyan);color:var(--neon-cyan)}
+.tbr-row{
+  display:flex;gap:14px;background:var(--bg);border:1px solid var(--border);
+  padding:14px;margin-bottom:10px;align-items:center;
+}
+.tbr-info{min-width:0}
+.tbr-actions{margin-left:auto;display:flex;gap:8px;align-items:center;flex-shrink:0}
+.vote-btn{
+  background:none;border:1px solid var(--border);color:var(--muted);cursor:pointer;
+  font-size:.85em;padding:5px 12px;font-family:'Share Tech Mono',monospace;
+}
+button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
+.vote-btn.voted{border-color:var(--neon-yellow);color:var(--neon-yellow)}
+.rc-remove{
+  background:none;border:1px solid var(--border);color:var(--muted);
+  width:28px;height:28px;cursor:pointer;font-weight:bold;flex-shrink:0;
+}
+.rc-remove:hover{border-color:var(--neon-magenta);color:var(--neon-magenta)}
+.rq-h{
+  color:var(--neon-magenta);text-transform:uppercase;letter-spacing:1px;font-size:.9em;
+  margin:18px 0 8px;border-bottom:1px solid var(--border);padding-bottom:5px;
+}
+.rq-h:first-child{margin-top:0}
+.add-row{display:flex;gap:8px;flex-wrap:wrap}
+.add-row input{
+  flex:1;min-width:160px;padding:8px 12px;border:1px solid var(--border);
+  background:var(--bg);color:var(--text);font-family:inherit;
+}
+.add-row input:focus{outline:none;border-color:var(--neon-cyan)}
+/* Start-read modal */
+#read-modal,#edit-modal,#suggest-modal{
+  position:fixed;inset:0;display:none;align-items:center;justify-content:center;
+  background:rgba(0,0,0,.85);z-index:9999;padding:20px;backdrop-filter:blur(4px);
+}
+#read-modal.open,#edit-modal.open,#suggest-modal.open{display:flex}
+.modal-panel{
+  background:var(--bg-2);border:1px solid var(--neon-cyan);
+  width:min(540px,94vw);max-height:90vh;overflow-y:auto;padding:28px;position:relative;
+}
+.modal-close{
+  position:absolute;top:12px;right:12px;background:none;border:1px solid var(--neon-magenta);
+  color:var(--neon-magenta);width:30px;height:30px;cursor:pointer;font-weight:bold;
+}
+.modal-close:hover{background:var(--neon-magenta);color:#fff}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:.8em;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.field input[type=text],.field textarea,.field select{
+  width:100%;padding:9px 12px;border:1px solid var(--border);
+  background:var(--bg);color:var(--text);font-family:inherit;font-size:1em;
+}
+.field input:focus,.field textarea:focus,.field select:focus{outline:none;border-color:var(--neon-cyan)}
+.field textarea{resize:vertical;min-height:80px}
+#book-results,#suggest-results{max-height:180px;overflow-y:auto;border:1px solid var(--border);margin-top:4px}
+#book-results button,#suggest-results button{
+  display:block;width:100%;text-align:left;padding:8px 12px;background:none;border:none;
+  border-bottom:1px solid var(--border);color:var(--text);cursor:pointer;font-family:inherit;font-size:.92em;
+}
+#book-results button:hover,#suggest-results button:hover{background:var(--bg);color:var(--neon-cyan)}
+#picked-book{
+  display:none;gap:12px;align-items:center;padding:10px;border:1px solid var(--neon-cyan);margin-top:6px;
+}
+#picked-book img{width:44px;height:auto;border:1px solid var(--border)}
+#picked-book .pb-title{font-weight:700;color:var(--neon-cyan)}
+#picked-book .pb-sub{font-size:.85em;color:var(--muted)}
+#ms-preview{font-size:.85em;color:var(--muted);font-family:'Share Tech Mono',monospace;line-height:1.7;margin-top:6px}
+.form-error{color:var(--neon-magenta);font-size:.9em;min-height:1.2em;margin-bottom:8px}
+@media(max-width:600px){
+  body{padding:10px}
+  .nav-row{flex-direction:column;align-items:stretch}
+  .nav-link{text-align:center;padding:12px;min-height:44px}
+  .club-header{clip-path:none}
+  .tabs{overflow-x:auto;flex-wrap:nowrap}
+}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div class="nav-row">
+    <a href="clubs.html" class="nav-link">&larr; All Clubs</a>
+    <a href="index.html" class="nav-link">Catalog</a>
+  </div>
+  <div id="content"><div class="loading">Loading club...</div></div>
+</div>
+
+<!-- Start Read Modal -->
+<div id="read-modal">
+  <div class="modal-panel">
+    <button class="modal-close" id="read-close">X</button>
+    <h2 style="margin-top:0;color:var(--neon-yellow);text-transform:uppercase;letter-spacing:1px">Start a Read</h2>
+    <div class="field">
+      <label for="book-search">Pick a book from the catalog</label>
+      <input id="book-search" type="text" placeholder="Search by title or author..." autocomplete="off" />
+      <div id="book-results"></div>
+      <div id="picked-book"></div>
+    </div>
+    <div class="field">
+      <label>Milestones (discussion checkpoints)</label>
+      <select id="ms-mode"></select>
+      <div id="ms-count-row" style="margin-top:8px">
+        <select id="ms-parts">
+          <option value="2">2 milestones</option><option value="3">3 milestones</option>
+          <option value="4" selected>4 milestones</option><option value="5">5 milestones</option>
+          <option value="6">6 milestones</option><option value="8">8 milestones</option>
+          <option value="10">10 milestones</option><option value="12">12 milestones</option>
+        </select>
+      </div>
+      <textarea id="ms-manual" style="display:none;margin-top:8px" placeholder="One milestone per line, e.g.&#10;Chapters 1-5&#10;Chapters 6-10&#10;Chapters 11-end"></textarea>
+      <div id="ms-preview"></div>
+    </div>
+    <div id="read-error" class="form-error"></div>
+    <button id="read-submit" class="nav-link btn-primary" style="width:100%">Start Read</button>
+  </div>
+</div>
+
+<!-- Edit Club Modal -->
+<div id="edit-modal">
+  <div class="modal-panel">
+    <button class="modal-close" id="edit-close">X</button>
+    <h2 style="margin-top:0;color:var(--neon-yellow);text-transform:uppercase;letter-spacing:1px">Edit Club</h2>
+    <div class="field">
+      <label for="edit-name">Club name</label>
+      <input id="edit-name" type="text" maxlength="40" />
+    </div>
+    <div class="field">
+      <label for="edit-desc">Description</label>
+      <textarea id="edit-desc" maxlength="300"></textarea>
+    </div>
+    <div class="field" id="edit-avatar-field" style="display:none">
+      <label for="edit-avatar">Club cover (shown as the club's avatar)</label>
+      <select id="edit-avatar"></select>
+    </div>
+    <div class="field" id="edit-joinmode-field" style="display:none">
+      <label for="edit-joinmode">Join mode (host setting)</label>
+      <select id="edit-joinmode">
+        <option value="open">Open — anyone can join instantly</option>
+        <option value="application">By application — host approves requests</option>
+      </select>
+    </div>
+    <div id="edit-error" class="form-error"></div>
+    <button id="edit-submit" class="nav-link btn-primary" style="width:100%">Save Changes</button>
+  </div>
+</div>
+
+<!-- Suggest Book Modal (TBR) -->
+<div id="suggest-modal">
+  <div class="modal-panel">
+    <button class="modal-close" id="suggest-close">X</button>
+    <h2 style="margin-top:0;color:var(--neon-yellow);text-transform:uppercase;letter-spacing:1px">Suggest a Book</h2>
+    <div class="field">
+      <label for="suggest-search">Search the catalog</label>
+      <input id="suggest-search" type="text" placeholder="Search by title or author..." autocomplete="off" />
+      <div id="suggest-results"></div>
+    </div>
+    <div id="suggest-error" class="form-error"></div>
+  </div>
+</div>
+
+<script type="module">
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+  import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+  import { getSession, slugifyName } from './identity.js';
+  import {
+    getClub, getMembers, joinClub, leaveClub,
+    removeMemberBySlug, setMemberRole, deleteClub,
+    updateClubDetails, requestToJoin, getRequests, acceptRequest, rejectRequest, inviteMember,
+    acceptInvite, declineInvite,
+  } from './clubs.js';
+  import {
+    getReads, startRead, removeRead, finishRead, splitByDuration, parseManualMilestones,
+    loadCatalogBooks, MAX_ACTIVE_READS, MAX_MILESTONES,
+    getBookChapters, milestonesFromChapters, milestonesFromChapterRanges,
+    milestonesFromParts, wholeBookMilestones, formatHhmm,
+    getTbr, addTbrItem, removeTbrItem, toggleTbrVote,
+  } from './club-reads.js';
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyDgAblkxzVxl7nFbd7jXOo6PpuNPsJw11Y",
+    authDomain: "audiobook-catalog.firebaseapp.com",
+    storageBucket: "audiobook-catalog.firebasestorage.app",
+    projectId: "audiobook-catalog",
+    messagingSenderId: "68492219785",
+    appId: "1:68492219785:web:7cbe57dda8712377f0bd58"
+  };
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  const session = getSession();
+  const mySlug = session ? slugifyName(session.displayName) : null;
+  const clubId = new URLSearchParams(window.location.search).get('id');
+  const contentEl = document.getElementById('content');
+
+  let club = null;
+  let members = [];
+  let reads = [];
+  let requests = [];
+  let tbr = [];
+  let promotingTbrId = null; // TBR item being promoted via the Start Read modal
+  let activeTab = 'current';
+  let catalogBooks = null; // lazy-loaded for the book picker
+  let pickedBook = null;
+  let bookChapters = null; // chapters.json entry for the picked book (or null)
+
+  function escapeHtml(s) {
+    return (s || '').replace(/[&<>"']/g, c => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[c]));
+  }
+
+  const myMember = () => members.find(m => m.slug === mySlug) || null;
+  const myRole = () => {
+    const m = myMember();
+    if (!m) return null;
+    return m.status === 'invited' ? 'invited' : m.role;
+  };
+  const isHost = () => myRole() === 'host';
+  const isMod = () => isHost() || myRole() === 'moderator';
+  const isMember = () => myRole() !== null && myRole() !== 'invited';
+  const activeMembers = () => members.filter(m => m.status !== 'invited');
+
+  function render() {
+    const roleBadge = myRole() ? `<span class="badge badge-role">${escapeHtml(myRole())}</span>` : '';
+
+    contentEl.innerHTML = `
+      <div class="club-header">
+        <div class="club-title">
+          ${club.avatarCoverHref
+            ? `<img class="club-cover-lg" src="${escapeHtml(club.avatarCoverHref)}" alt="" onerror="this.remove()">`
+            : `<span class="club-emoji">${escapeHtml(club.emoji || '📚')}</span>`}
+          <h1 class="club-name">${escapeHtml(club.name)}</h1>
+          ${roleBadge}
+        </div>
+        ${club.description ? `<p class="club-desc">${escapeHtml(club.description)}</p>` : ''}
+        <div class="club-meta">
+          <span>${club.memberCount || 0} member${(club.memberCount || 0) !== 1 ? 's' : ''}</span>
+          <span>Host: ${escapeHtml(club.hostDisplayName)}</span>
+          <span>${club.joinMode === 'application' ? 'Join by application' : 'Open join'}</span>
+          ${myRole() && myRole() !== 'invited' ? '<button id="edit-club-btn" class="nav-link" style="padding:4px 10px;font-size:.75em">Edit Club</button>' : ''}
+        </div>
+      </div>
+
+      <div class="tabs">
+        <button class="tab ${activeTab === 'current' ? 'active' : ''}" data-tab="current">Current Read</button>
+        <button class="tab ${activeTab === 'tbr' ? 'active' : ''}" data-tab="tbr">Club TBR</button>
+        <button class="tab ${activeTab === 'history' ? 'active' : ''}" data-tab="history">History</button>
+        <button class="tab ${activeTab === 'members' ? 'active' : ''}" data-tab="members">Members (${activeMembers().length})${isMod() && requests.length ? ` \u00b7 ${requests.length} pending` : ''}</button>
+      </div>
+      <div class="tab-panel" id="tab-panel">${renderTab()}</div>
+
+      <div class="footer-actions" id="footer-actions">${renderFooterActions()}</div>
+    `;
+    wireEvents();
+  }
+
+  function renderTab() {
+    if (activeTab === 'members') return renderMembers();
+    if (activeTab === 'current') return renderCurrent();
+    if (activeTab === 'tbr') return renderTbr();
+    return renderHistory();
+  }
+
+  function fmtDate(ts) {
+    try { return ts && ts.toDate ? ts.toDate().toLocaleDateString() : ''; } catch { return ''; }
+  }
+
+  function renderTbr() {
+    const rows = tbr.map(item => {
+      const votes = (item.voterSlugs || []).length;
+      const iVoted = mySlug && (item.voterSlugs || []).includes(mySlug);
+      return `
+        <div class="tbr-row">
+          ${item.coverHref ? `<img class="rc-cover" src="${escapeHtml(item.coverHref)}" alt="" onerror="this.remove()">` : ''}
+          <div class="tbr-info">
+            <div class="rc-title">${escapeHtml(item.bookTitle)}</div>
+            <div class="rc-author">${escapeHtml(item.bookAuthor)}</div>
+            <div class="rc-meta">suggested by ${escapeHtml(item.suggestedBy)}</div>
+          </div>
+          <div class="tbr-actions">
+            ${session && isMember() ? `<button class="vote-btn ${iVoted ? 'voted' : ''}" data-vote="${item.id}">\u25b2 ${votes}</button>` : `<span class="vote-btn">\u25b2 ${votes}</span>`}
+            ${isMember() ? `<button class="nav-link" style="padding:4px 10px;font-size:.75em" data-promote="${item.id}">Read Next</button>` : ''}
+            ${isMember() ? `<button class="rc-remove" data-tbr-remove="${item.id}" data-title="${escapeHtml(item.bookTitle)}" title="Remove suggestion">X</button>` : ''}
+          </div>
+        </div>`;
+    }).join('');
+    return `
+      ${rows || '<div class="stub"><div class="stub-title">Nothing on the TBR yet</div>Suggest a book the club should read next.</div>'}
+      ${isMember() ? '<div style="margin-top:14px"><button id="suggest-btn" class="nav-link btn-primary">+ Suggest a Book</button></div>' : ''}
+    `;
+  }
+
+  function renderHistory() {
+    const past = reads.filter(r => r.status !== 'active')
+      .sort((a, b) => (b.finishedAt?.seconds || 0) - (a.finishedAt?.seconds || 0));
+    if (!past.length) {
+      return '<div class="stub"><div class="stub-title">No finished reads yet</div>Books the club finishes (or abandons) land here with their archived discussions.</div>';
+    }
+    return past.map(r => `
+      <a class="read-card" href="club-read.html?club=${encodeURIComponent(clubId)}&read=${encodeURIComponent(r.id)}">
+        ${r.coverHref ? `<img class="rc-cover" src="${escapeHtml(r.coverHref)}" alt="" onerror="this.remove()">` : ''}
+        <div>
+          <div class="rc-slot">${r.status === 'finished' ? 'Finished' : 'Abandoned'}${fmtDate(r.finishedAt) ? ` \u00b7 ${fmtDate(r.finishedAt)}` : ''}</div>
+          <div class="rc-title">${escapeHtml(r.bookTitle)}</div>
+          <div class="rc-author">${escapeHtml(r.bookAuthor)}</div>
+          <div class="rc-meta">${r.commentCount || 0} comments \u00b7 discussions archived</div>
+        </div>
+      </a>`).join('');
+  }
+
+  function renderCurrent() {
+    const active = reads.filter(r => r.status === 'active').sort((a, b) => a.slot - b.slot);
+    const canStart = isMember() && active.length < MAX_ACTIVE_READS;
+    const cards = active.map(r => `
+      <a class="read-card" href="club-read.html?club=${encodeURIComponent(clubId)}&read=${encodeURIComponent(r.id)}">
+        ${r.coverHref ? `<img class="rc-cover" src="${escapeHtml(r.coverHref)}" alt="" onerror="this.remove()">` : ''}
+        <div>
+          <div class="rc-slot">${active.length > 1 ? (r.slot === 1 ? 'Main read' : 'Side read') : 'Current read'}</div>
+          <div class="rc-title">${escapeHtml(r.bookTitle)}</div>
+          <div class="rc-author">${escapeHtml(r.bookAuthor)}</div>
+          <div class="rc-meta">${(r.milestones || []).length} milestones \u00b7 ${r.commentCount || 0} comments \u00b7 started by ${escapeHtml(r.startedBy || '')}</div>
+        </div>
+        ${isMember() ? `
+          <div class="rc-actions">
+            <button data-finish-read="${r.id}" data-title="${escapeHtml(r.bookTitle)}">Finish</button>
+            <button data-abandon-read="${r.id}" data-title="${escapeHtml(r.bookTitle)}">Abandon</button>
+            <button class="rc-remove" data-remove-read="${r.id}" data-title="${escapeHtml(r.bookTitle)}" title="Remove entirely (deletes discussions)">X</button>
+          </div>` : ''}
+      </a>`).join('');
+    const emptyState = isMember()
+      ? `<div class="stub"><div class="stub-title">No active read yet</div>Pick the club's first book to open the discussions.</div>`
+      : `<div class="stub"><div class="stub-title">No active read yet</div>The host hasn't picked a book yet.</div>`;
+    return `
+      ${cards || emptyState}
+      ${canStart ? '<div style="margin-top:14px"><button id="start-read-btn" class="nav-link btn-primary">+ Start a Read</button></div>' : ''}
+    `;
+  }
+
+  function memberRows(withActions) {
+    const roleRank = { host: 0, moderator: 1, member: 2 };
+    const sorted = [...members].sort((a, b) =>
+      (a.status === 'invited') - (b.status === 'invited')
+      || (roleRank[a.role] ?? 3) - (roleRank[b.role] ?? 3)
+      || a.displayName.localeCompare(b.displayName));
+    return sorted.map(m => {
+      const actions = [];
+      if (withActions) {
+        if (isHost() && m.slug !== mySlug && m.role !== 'host' && m.status !== 'invited') {
+          actions.push(m.role === 'moderator'
+            ? `<button data-action="demote" data-slug="${escapeHtml(m.slug)}">Remove Mod</button>`
+            : `<button data-action="promote" data-slug="${escapeHtml(m.slug)}">Make Mod</button>`);
+        }
+        if (m.slug !== mySlug && m.role !== 'host') {
+          actions.push(`<button class="danger" data-action="remove" data-slug="${escapeHtml(m.slug)}" data-name="${escapeHtml(m.displayName)}">Remove</button>`);
+        }
+      }
+      return `
+        <div class="member-row">
+          <div class="member-avatar">${escapeHtml(m.displayName.charAt(0).toUpperCase())}</div>
+          <span class="member-name">${escapeHtml(m.displayName)}</span>
+          ${m.role !== 'member' ? `<span class="badge badge-role">${escapeHtml(m.role)}</span>` : ''}
+          ${m.status === 'invited' ? '<span class="badge">Invited</span>' : ''}
+          <div class="member-actions">${actions.join('')}</div>
+        </div>`;
+    }).join('');
+  }
+
+  function renderMembers() {
+    if (!isMod()) {
+      if (!members.length) return '<div class="empty">No members.</div>';
+      return memberRows(false);
+    }
+
+    const reqSection = requests.length ? `
+      <h3 class="rq-h">Join Requests (${requests.length})</h3>
+      ${requests.map(r => `
+        <div class="member-row">
+          <div class="member-avatar">${escapeHtml(r.displayName.charAt(0).toUpperCase())}</div>
+          <span class="member-name">${escapeHtml(r.displayName)}</span>
+          <span class="badge">wants to join</span>
+          <div class="member-actions">
+            <button data-req-accept="${escapeHtml(r.slug)}">Accept</button>
+            <button class="danger" data-req-reject="${escapeHtml(r.slug)}" data-name="${escapeHtml(r.displayName)}">Reject</button>
+          </div>
+        </div>`).join('')}` : '';
+
+    return `
+      ${reqSection}
+      ${reqSection ? '<h3 class="rq-h">Members</h3>' : ''}
+      ${memberRows(true)}
+      <h3 class="rq-h">Add a member manually</h3>
+      <div class="add-row">
+        <input id="invite-name" type="text" maxlength="40" placeholder="Display name" />
+        <button id="invite-btn" class="nav-link btn-primary">Add</button>
+      </div>
+      <div id="invite-error" class="form-error"></div>
+    `;
+  }
+
+  function renderFooterActions() {
+    if (!session) return '';
+    if (myRole() === 'invited') {
+      return `
+        <span style="color:var(--muted);align-self:center">You've been invited to this club:</span>
+        <button id="invite-accept-btn" class="nav-link btn-primary">Accept</button>
+        <button id="invite-decline-btn" class="nav-link btn-danger">Reject</button>`;
+    }
+    if (!myRole()) {
+      if (club.joinMode === 'application') {
+        const pending = requests.some(r => r.slug === mySlug);
+        return pending
+          ? '<span style="color:var(--muted)">Join request pending — the host will review it.</span>'
+          : '<button id="request-btn" class="nav-link btn-primary">Request to Join</button>';
+      }
+      return '<button id="join-btn" class="nav-link btn-primary">Join This Club</button>';
+    }
+    const actions = [];
+    if (isHost()) {
+      actions.push('<button id="delete-btn" class="nav-link btn-danger">Delete Club</button>');
+    } else {
+      actions.push('<button id="leave-btn" class="nav-link btn-danger">Leave Club</button>');
+    }
+    return actions.join('');
+  }
+
+  function wireEvents() {
+    contentEl.querySelectorAll('.tab').forEach(t =>
+      t.addEventListener('click', () => { activeTab = t.dataset.tab; render(); }));
+
+
+    const startBtn = document.getElementById('start-read-btn');
+    if (startBtn) startBtn.addEventListener('click', () => { promotingTbrId = null; openReadModal(); });
+
+    const editBtn = document.getElementById('edit-club-btn');
+    if (editBtn) editBtn.addEventListener('click', openEditModal);
+
+    contentEl.querySelectorAll('[data-remove-read]').forEach(btn =>
+      btn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!confirm(`Remove "${btn.dataset.title}" entirely? Its discussions will be deleted. (Use Finish to keep them in History.)`)) return;
+        const r = await removeRead(db, clubId, btn.dataset.removeRead);
+        if (r.success) reload(); else showError(r.error);
+      }));
+
+    contentEl.querySelectorAll('[data-finish-read]').forEach(btn =>
+      btn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!confirm(`Mark "${btn.dataset.title}" as finished? It moves to History with its discussions.`)) return;
+        const r = await finishRead(db, clubId, btn.dataset.finishRead, 'finished');
+        if (r.success) reload(); else showError(r.error);
+      }));
+
+    contentEl.querySelectorAll('[data-abandon-read]').forEach(btn =>
+      btn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!confirm(`Abandon "${btn.dataset.title}"? It moves to History with its discussions.`)) return;
+        const r = await finishRead(db, clubId, btn.dataset.abandonRead, 'abandoned');
+        if (r.success) reload(); else showError(r.error);
+      }));
+
+    contentEl.querySelectorAll('[data-vote]').forEach(btn =>
+      btn.addEventListener('click', async () => {
+        const r = await toggleTbrVote(db, clubId, btn.dataset.vote, session);
+        if (r.success) reload(); else showError(r.error);
+      }));
+
+    contentEl.querySelectorAll('[data-tbr-remove]').forEach(btn =>
+      btn.addEventListener('click', async () => {
+        if (!confirm(`Remove "${btn.dataset.title}" from the TBR?`)) return;
+        const r = await removeTbrItem(db, clubId, btn.dataset.tbrRemove);
+        if (r.success) reload(); else showError(r.error);
+      }));
+
+    contentEl.querySelectorAll('[data-promote]').forEach(btn =>
+      btn.addEventListener('click', async () => {
+        const item = tbr.find(t => t.id === btn.dataset.promote);
+        if (!item) return;
+        const active = reads.filter(r => r.status === 'active');
+        if (active.length >= MAX_ACTIVE_READS) {
+          showError('This club already has 2 active books. Finish or swap one first.');
+          return;
+        }
+        promotingTbrId = item.id;
+        await openReadModal();
+        await pickBook({
+          title: item.bookTitle,
+          author: item.bookAuthor,
+          coverHref: item.coverHref || '',
+          durationMinutes: item.durationMinutes || 0,
+          durationHhmm: item.durationHhmm || (item.durationMinutes ? formatHhmm(item.durationMinutes) : ''),
+        });
+      }));
+
+    const suggestBtn = document.getElementById('suggest-btn');
+    if (suggestBtn) suggestBtn.addEventListener('click', openSuggestModal);
+
+    const requestBtn = document.getElementById('request-btn');
+    if (requestBtn) requestBtn.addEventListener('click', async () => {
+      if (!confirm(`Request to join ${club.name}?`)) return;
+      const r = await requestToJoin(db, clubId, session);
+      if (r.success) reload(); else showError(r.error);
+    });
+
+    const inviteAcceptBtn = document.getElementById('invite-accept-btn');
+    if (inviteAcceptBtn) inviteAcceptBtn.addEventListener('click', async () => {
+      const r = await acceptInvite(db, clubId, session);
+      if (r.success) reload(); else showError(r.error);
+    });
+    const inviteDeclineBtn = document.getElementById('invite-decline-btn');
+    if (inviteDeclineBtn) inviteDeclineBtn.addEventListener('click', async () => {
+      if (!confirm(`Reject the invitation to ${club.name}?`)) return;
+      const r = await declineInvite(db, clubId, session);
+      if (r.success) window.location.href = 'clubs.html'; else showError(r.error);
+    });
+
+    contentEl.querySelectorAll('[data-req-accept]').forEach(btn =>
+      btn.addEventListener('click', async () => {
+        const r = await acceptRequest(db, clubId, btn.dataset.reqAccept);
+        if (r.success) reload(); else showError(r.error);
+      }));
+    contentEl.querySelectorAll('[data-req-reject]').forEach(btn =>
+      btn.addEventListener('click', async () => {
+        if (!confirm(`Reject ${btn.dataset.name}'s request?`)) return;
+        const r = await rejectRequest(db, clubId, btn.dataset.reqReject);
+        if (r.success) reload(); else showError(r.error);
+      }));
+
+    const inviteBtn = document.getElementById('invite-btn');
+    if (inviteBtn) inviteBtn.addEventListener('click', async () => {
+      const errEl = document.getElementById('invite-error');
+      errEl.textContent = '';
+      const r = await inviteMember(db, clubId, document.getElementById('invite-name').value);
+      if (r.success) reload(); else errEl.textContent = r.error;
+    });
+
+    const joinBtn = document.getElementById('join-btn');
+    if (joinBtn) joinBtn.addEventListener('click', async () => {
+      if (!confirm(`Join ${club.name}?`)) return;
+      const r = await joinClub(db, clubId, session);
+      if (r.success) reload(); else showError(r.error);
+    });
+
+    const leaveBtn = document.getElementById('leave-btn');
+    if (leaveBtn) leaveBtn.addEventListener('click', async () => {
+      if (!confirm(`Leave ${club.name}?`)) return;
+      const r = await leaveClub(db, clubId, session);
+      if (r.success) window.location.href = 'clubs.html'; else showError(r.error);
+    });
+
+    const deleteBtn = document.getElementById('delete-btn');
+    if (deleteBtn) deleteBtn.addEventListener('click', async () => {
+      if (!confirm(`Delete ${club.name}? This removes the club for all ${club.memberCount} members and cannot be undone.`)) return;
+      const r = await deleteClub(db, clubId);
+      if (r.success) window.location.href = 'clubs.html'; else showError(r.error);
+    });
+
+    contentEl.querySelectorAll('[data-action]').forEach(btn =>
+      btn.addEventListener('click', async () => {
+        const { action, slug, name } = btn.dataset;
+        let r;
+        if (action === 'promote') r = await setMemberRole(db, clubId, slug, 'moderator');
+        if (action === 'demote') r = await setMemberRole(db, clubId, slug, 'member');
+        if (action === 'remove') {
+          if (!confirm(`Remove ${name} from the club?`)) return;
+          r = await removeMemberBySlug(db, clubId, slug);
+        }
+        if (r && r.success) reload(); else if (r) showError(r.error);
+      }));
+  }
+
+  function showError(msg) {
+    const box = document.createElement('div');
+    box.className = 'error-box';
+    box.textContent = msg;
+    contentEl.prepend(box);
+    setTimeout(() => box.remove(), 4000);
+  }
+
+  async function reload() {
+    [club, members, reads, requests, tbr] = await Promise.all([
+      getClub(db, clubId), getMembers(db, clubId), getReads(db, clubId),
+      getRequests(db, clubId), getTbr(db, clubId),
+    ]);
+    if (!club) {
+      contentEl.innerHTML = '<div class="empty">Club not found — it may have been deleted.</div>';
+      return;
+    }
+    render();
+  }
+
+  // --- Start Read modal (static DOM, wired once) ---
+  const readModal = document.getElementById('read-modal');
+  const bookSearch = document.getElementById('book-search');
+  const bookResults = document.getElementById('book-results');
+  const pickedBookEl = document.getElementById('picked-book');
+  const msManual = document.getElementById('ms-manual');
+  const msMode = document.getElementById('ms-mode');
+  const msCountRow = document.getElementById('ms-count-row');
+  const msParts = document.getElementById('ms-parts');
+  const msPreview = document.getElementById('ms-preview');
+
+  async function openReadModal() {
+    pickedBook = null;
+    bookChapters = null;
+    pickedBookEl.style.display = 'none';
+    pickedBookEl.innerHTML = '';
+    bookSearch.value = '';
+    msPreview.innerHTML = '';
+    refreshMsUI();
+    document.getElementById('read-error').textContent = '';
+    bookResults.innerHTML = '<button disabled>Loading catalog...</button>';
+    readModal.classList.add('open');
+    if (!catalogBooks) {
+      try {
+        catalogBooks = await loadCatalogBooks();
+      } catch (e) {
+        bookResults.innerHTML = '<button disabled>Failed to load catalog</button>';
+        return;
+      }
+    }
+    renderBookResults('');
+  }
+
+  function renderBookResults(q) {
+    const query = q.toLowerCase().trim();
+    const matches = (catalogBooks || [])
+      .filter(b => !query || b.title.toLowerCase().includes(query) || b.author.toLowerCase().includes(query))
+      .slice(0, 25);
+    bookResults.innerHTML = matches.map((b, i) =>
+      `<button data-pick="${i}">${escapeHtml(b.title)} — ${escapeHtml(b.author)}</button>`).join('')
+      || '<button disabled>No matches</button>';
+    bookResults.querySelectorAll('[data-pick]').forEach(btn =>
+      btn.addEventListener('click', () => pickBook(matches[parseInt(btn.dataset.pick, 10)])));
+  }
+
+  async function pickBook(b) {
+    pickedBook = b;
+    pickedBookEl.style.display = 'flex';
+    pickedBookEl.innerHTML = `
+      ${b.coverHref ? `<img src="${escapeHtml(b.coverHref)}" alt="" onerror="this.remove()">` : ''}
+      <div>
+        <div class="pb-title">${escapeHtml(b.title)}</div>
+        <div class="pb-sub">${escapeHtml(b.author)}${b.durationHhmm ? ` \u00b7 ${escapeHtml(b.durationHhmm)}` : ''}</div>
+      </div>`;
+    bookResults.innerHTML = '';
+    bookSearch.value = b.title;
+    bookChapters = await getBookChapters(b.title);
+    refreshMsUI();
+  }
+
+  // Milestone-split modes, in preference order. Chapter modes appear only
+  // when chapters.json has data for the picked book.
+  function msModeOptions() {
+    const opts = [];
+    if (bookChapters) {
+      const nCh = bookChapters.chapters.length;
+      if ((bookChapters.parts || []).length > 1) {
+        opts.push(['parts', `By parts (${bookChapters.parts.length} parts)`]);
+      }
+      if (nCh <= MAX_MILESTONES) opts.push(['chapters', `By chapter (${nCh} chapters)`]);
+      opts.push(['ranges', 'By chapter ranges']);
+    }
+    opts.push(['duration', 'Auto-split by duration']);
+    opts.push(['whole', 'Whole book (one discussion)']);
+    opts.push(['manual', 'Manual (one per line)']);
+    return opts;
+  }
+
+  function currentMilestones() {
+    const mode = msMode.value;
+    const n = parseInt(msParts.value, 10);
+    if (mode === 'parts') return { milestones: milestonesFromParts(bookChapters.parts) };
+    if (mode === 'chapters') return milestonesFromChapters(bookChapters.chapters);
+    if (mode === 'ranges') return { milestones: milestonesFromChapterRanges(bookChapters.chapters, n) };
+    if (mode === 'whole') return { milestones: wholeBookMilestones() };
+    if (mode === 'manual') return parseManualMilestones(msManual.value);
+    return { milestones: splitByDuration(pickedBook ? pickedBook.durationMinutes : 0, n) };
+  }
+
+  function refreshMsUI() {
+    const prev = msMode.value;
+    const opts = msModeOptions();
+    msMode.innerHTML = opts.map(([v, label]) => `<option value="${v}">${escapeHtml(label)}</option>`).join('');
+    msMode.value = opts.some(([v]) => v === prev) ? prev : opts[0][0];
+    const mode = msMode.value;
+    msCountRow.style.display = (mode === 'ranges' || mode === 'duration') ? 'block' : 'none';
+    msManual.style.display = mode === 'manual' ? 'block' : 'none';
+    renderMsPreview();
+  }
+
+  function renderMsPreview() {
+    if (!pickedBook || msMode.value === 'manual') { msPreview.innerHTML = ''; return; }
+    const result = currentMilestones();
+    if (result.error) { msPreview.innerHTML = escapeHtml(result.error); return; }
+    const shown = result.milestones.slice(0, 20).map(m => escapeHtml(m.label));
+    if (result.milestones.length > 20) {
+      shown.push(`… and ${result.milestones.length - 20} more (${result.milestones.length} total)`);
+    }
+    msPreview.innerHTML = shown.join('<br>');
+  }
+
+  bookSearch.addEventListener('input', () => { if (catalogBooks) renderBookResults(bookSearch.value); });
+  msMode.addEventListener('change', refreshMsUI);
+  msParts.addEventListener('change', renderMsPreview);
+  document.getElementById('read-close').addEventListener('click', () => readModal.classList.remove('open'));
+  readModal.addEventListener('click', (e) => { if (e.target === readModal) readModal.classList.remove('open'); });
+
+  document.getElementById('read-submit').addEventListener('click', async () => {
+    const errEl = document.getElementById('read-error');
+    errEl.textContent = '';
+    if (!pickedBook) { errEl.textContent = 'Pick a book first.'; return; }
+    const parsed = currentMilestones();
+    if (parsed.error) { errEl.textContent = parsed.error; return; }
+    const milestones = parsed.milestones;
+    const r = await startRead(db, clubId, {
+      bookTitle: pickedBook.title,
+      bookAuthor: pickedBook.author,
+      coverHref: pickedBook.coverHref,
+      durationMinutes: pickedBook.durationMinutes,
+      milestones,
+      chapters: bookChapters ? bookChapters.chapters : [],
+    }, session);
+    if (!r.success) { errEl.textContent = r.error; return; }
+    if (promotingTbrId) {
+      await removeTbrItem(db, clubId, promotingTbrId);
+      promotingTbrId = null;
+    }
+    window.location.href = `club-read.html?club=${encodeURIComponent(clubId)}&read=${encodeURIComponent(r.readId)}`;
+  });
+
+  // --- Edit Club modal (static DOM, wired once) ---
+  const editModal = document.getElementById('edit-modal');
+  function openEditModal() {
+    document.getElementById('edit-name').value = club.name || '';
+    document.getElementById('edit-desc').value = club.description || '';
+    document.getElementById('edit-error').textContent = '';
+    const active = reads.filter(r => r.status === 'active').sort((a, b) => a.slot - b.slot);
+    const avatarField = document.getElementById('edit-avatar-field');
+    avatarField.style.display = active.length > 1 ? 'block' : 'none';
+    if (active.length > 1) {
+      const current = active.find(r => r.id === club.avatarReadId) || active[0];
+      document.getElementById('edit-avatar').innerHTML = active.map(r =>
+        `<option value="${r.id}" ${r.id === current.id ? 'selected' : ''}>${escapeHtml(r.bookTitle)}</option>`).join('');
+    }
+    const jmField = document.getElementById('edit-joinmode-field');
+    jmField.style.display = isHost() ? 'block' : 'none';
+    document.getElementById('edit-joinmode').value = club.joinMode === 'application' ? 'application' : 'open';
+    editModal.classList.add('open');
+  }
+  document.getElementById('edit-close').addEventListener('click', () => editModal.classList.remove('open'));
+  editModal.addEventListener('click', (e) => { if (e.target === editModal) editModal.classList.remove('open'); });
+  document.getElementById('edit-submit').addEventListener('click', async () => {
+    const errEl = document.getElementById('edit-error');
+    errEl.textContent = '';
+    const input = {
+      name: document.getElementById('edit-name').value,
+      description: document.getElementById('edit-desc').value,
+    };
+    const avatarField = document.getElementById('edit-avatar-field');
+    if (avatarField.style.display !== 'none') {
+      const readId = document.getElementById('edit-avatar').value;
+      const chosen = reads.find(r => r.id === readId);
+      if (chosen) {
+        input.avatarReadId = chosen.id;
+        input.avatarCoverHref = chosen.coverHref || '';
+      }
+    }
+    if (isHost()) input.joinMode = document.getElementById('edit-joinmode').value;
+    const r = await updateClubDetails(db, clubId, input);
+    if (!r.success) { errEl.textContent = r.error; return; }
+    editModal.classList.remove('open');
+    reload();
+  });
+
+  // --- Suggest Book modal (TBR; static DOM, wired once) ---
+  const suggestModal = document.getElementById('suggest-modal');
+  const suggestSearch = document.getElementById('suggest-search');
+  const suggestResults = document.getElementById('suggest-results');
+
+  async function openSuggestModal() {
+    suggestSearch.value = '';
+    document.getElementById('suggest-error').textContent = '';
+    suggestResults.innerHTML = '<button disabled>Loading catalog...</button>';
+    suggestModal.classList.add('open');
+    if (!catalogBooks) {
+      try {
+        catalogBooks = await loadCatalogBooks();
+      } catch (e) {
+        suggestResults.innerHTML = '<button disabled>Failed to load catalog</button>';
+        return;
+      }
+    }
+    renderSuggestResults('');
+  }
+
+  function renderSuggestResults(q) {
+    const query = q.toLowerCase().trim();
+    const matches = (catalogBooks || [])
+      .filter(b => !query || b.title.toLowerCase().includes(query) || b.author.toLowerCase().includes(query))
+      .slice(0, 25);
+    suggestResults.innerHTML = matches.map((b, i) =>
+      `<button data-suggest-pick="${i}">${escapeHtml(b.title)} — ${escapeHtml(b.author)}</button>`).join('')
+      || '<button disabled>No matches</button>';
+    suggestResults.querySelectorAll('[data-suggest-pick]').forEach(btn =>
+      btn.addEventListener('click', async () => {
+        const b = matches[parseInt(btn.dataset.suggestPick, 10)];
+        const errEl = document.getElementById('suggest-error');
+        errEl.textContent = '';
+        const r = await addTbrItem(db, clubId, b, session);
+        if (!r.success) { errEl.textContent = r.error; return; }
+        suggestModal.classList.remove('open');
+        reload();
+      }));
+  }
+
+  suggestSearch.addEventListener('input', () => { if (catalogBooks) renderSuggestResults(suggestSearch.value); });
+  document.getElementById('suggest-close').addEventListener('click', () => suggestModal.classList.remove('open'));
+  suggestModal.addEventListener('click', (e) => { if (e.target === suggestModal) suggestModal.classList.remove('open'); });
+
+  if (!clubId) {
+    contentEl.innerHTML = '<div class="empty">No club specified.</div>';
+  } else {
+    reload().catch(e => {
+      contentEl.innerHTML = '<div class="empty">Failed to load club.</div>';
+      console.error(e);
+    });
+  }
+</script>
+</body>
+</html>

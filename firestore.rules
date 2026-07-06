@@ -33,6 +33,30 @@ service cloud.firestore {
              && request.resource.data.status is string;
     }
 
+    function validClub() {
+      return request.resource.data.name is string
+             && request.resource.data.name.size() >= 3
+             && request.resource.data.name.size() <= 40
+             && request.resource.data.hostDisplayName is string;
+    }
+
+    function validClubMember() {
+      return request.resource.data.displayName is string
+             && request.resource.data.role in ['host', 'moderator', 'member'];
+    }
+
+    function validClubRead() {
+      return request.resource.data.bookTitle is string
+             && request.resource.data.status in ['active', 'finished', 'abandoned'];
+    }
+
+    function validClubComment() {
+      return request.resource.data.text is string
+             && request.resource.data.text.size() > 0
+             && request.resource.data.text.size() <= 2000
+             && request.resource.data.displayName is string;
+    }
+
     // ---- Prod collections ----
 
     match /leaderboard/{docId} {
@@ -64,6 +88,50 @@ service cloud.firestore {
       allow delete: if true;
     }
 
+    match /clubs/{clubId} {
+      allow read: if true;
+      allow create: if validClub();
+      allow update: if true;
+      allow delete: if true;
+
+      match /members/{memberId} {
+        allow read: if true;
+        allow write: if validClubMember();
+        allow delete: if true;
+      }
+
+      match /requests/{userId} {
+        allow read: if true;
+        allow write: if request.resource.data.displayName is string;
+        allow delete: if true;
+      }
+
+      match /tbr/{itemId} {
+        allow read: if true;
+        allow write: if request.resource.data.bookTitle is string
+                     && request.resource.data.suggestedBy is string;
+        allow delete: if true;
+      }
+
+      match /reads/{readId} {
+        allow read: if true;
+        allow write: if validClubRead();
+        allow delete: if true;
+
+        match /comments/{commentId} {
+          allow read: if true;
+          allow create, update: if validClubComment();
+          allow delete: if true;
+        }
+
+        match /progress/{userId} {
+          allow read: if true;
+          allow write: if request.resource.data.milestonePosition is number
+                       || request.resource.data.chapterIndex is number;
+        }
+      }
+    }
+
     // ---- Dev lane collections (same shapes, separate data) ----
 
     match /leaderboard_dev/{docId} {
@@ -92,6 +160,50 @@ service cloud.firestore {
       allow read: if true;
       allow write: if validReadingList();
       allow delete: if true;
+    }
+
+    match /clubs_dev/{clubId} {
+      allow read: if true;
+      allow create: if validClub();
+      allow update: if true;
+      allow delete: if true;
+
+      match /members/{memberId} {
+        allow read: if true;
+        allow write: if validClubMember();
+        allow delete: if true;
+      }
+
+      match /requests/{userId} {
+        allow read: if true;
+        allow write: if request.resource.data.displayName is string;
+        allow delete: if true;
+      }
+
+      match /tbr/{itemId} {
+        allow read: if true;
+        allow write: if request.resource.data.bookTitle is string
+                     && request.resource.data.suggestedBy is string;
+        allow delete: if true;
+      }
+
+      match /reads/{readId} {
+        allow read: if true;
+        allow write: if validClubRead();
+        allow delete: if true;
+
+        match /comments/{commentId} {
+          allow read: if true;
+          allow create, update: if validClubComment();
+          allow delete: if true;
+        }
+
+        match /progress/{userId} {
+          allow read: if true;
+          allow write: if request.resource.data.milestonePosition is number
+                       || request.resource.data.chapterIndex is number;
+        }
+      }
     }
   }
 }

@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<title>Book Clubs - Audiobook Catalog</title>
+<style>
+:root{
+  --bg:#0a0a12; --bg-2:#12121f;
+  --text:#e8e6e3; --muted:#8a8f98;
+  --border:#2a2a3a;
+  --neon-yellow:#fcee0a;
+  --neon-cyan:#05d9e8;
+  --neon-magenta:#ff2a6d;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; padding:20px;
+  font-family:'Rajdhani','Segoe UI',system-ui,sans-serif;
+  background:var(--bg); color:var(--text);
+  background-image:
+    radial-gradient(ellipse at 20% 50%, rgba(252,238,10,.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(5,217,232,.03) 0%, transparent 50%);
+  min-height:100vh;
+}
+#wrap{max-width:900px;margin:0 auto}
+h1{
+  color:var(--neon-yellow);text-transform:uppercase;letter-spacing:2px;
+  text-shadow:0 0 10px rgba(252,238,10,.3);margin:0 0 8px;
+}
+h2{
+  color:var(--neon-magenta);text-transform:uppercase;letter-spacing:1px;
+  font-size:1.05em;margin:26px 0 10px;border-bottom:1px solid var(--border);padding-bottom:6px;
+}
+.nav-row{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
+.nav-link{
+  display:inline-block;padding:8px 14px;background:var(--bg-2);color:var(--neon-cyan);
+  text-decoration:none;border:1px solid var(--border);font-weight:700;font-size:.85em;
+  text-transform:uppercase;letter-spacing:.5px;transition:all .2s;cursor:pointer;
+  font-family:inherit;
+}
+.nav-link:hover{border-color:var(--neon-cyan);box-shadow:0 0 8px rgba(5,217,232,.2)}
+.btn-primary{
+  background:var(--neon-cyan);color:#04121a;border:none;font-weight:700;
+}
+.btn-primary:hover{box-shadow:0 0 12px rgba(5,217,232,.5)}
+.club-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
+.club-card{
+  background:var(--bg-2);border:1px solid var(--border);padding:18px;cursor:pointer;
+  clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px));
+  transition:border-color .2s;text-decoration:none;color:var(--text);display:block;
+}
+.club-card:hover{border-color:var(--neon-magenta)}
+.club-emoji{font-size:1.8em;margin-right:8px;vertical-align:middle}
+.club-cover{width:42px;height:auto;border:1px solid var(--border);margin-right:10px;vertical-align:middle}
+.club-name{font-weight:700;font-size:1.15em;color:var(--neon-cyan);text-transform:uppercase;letter-spacing:.5px;vertical-align:middle}
+.club-desc{color:var(--muted);font-size:.92em;margin:8px 0 10px;min-height:1.2em}
+.club-meta{font-size:.8em;color:var(--muted);font-family:'Share Tech Mono',monospace;display:flex;gap:12px}
+.badge{padding:1px 7px;border:1px solid var(--border);font-size:.75em;text-transform:uppercase}
+.badge-host{color:var(--neon-yellow);border-color:var(--neon-yellow)}
+.loading,.empty{text-align:center;padding:30px;color:var(--muted);font-family:'Share Tech Mono',monospace}
+.notice{
+  padding:12px 16px;border:1px solid var(--border);background:var(--bg-2);
+  color:var(--muted);margin-bottom:16px;font-size:.95em;
+}
+.notice a{color:var(--neon-cyan)}
+.error-box{border-color:var(--neon-magenta);color:var(--neon-magenta)}
+/* Create modal */
+#create-modal{
+  position:fixed;inset:0;display:none;align-items:center;justify-content:center;
+  background:rgba(0,0,0,.85);z-index:9999;padding:20px;backdrop-filter:blur(4px);
+}
+#create-modal.open{display:flex}
+.modal-panel{
+  background:var(--bg-2);border:1px solid var(--neon-cyan);
+  width:min(480px,92vw);padding:28px;position:relative;
+  clip-path:polygon(0 0,calc(100% - 16px) 0,100% 16px,100% 100%,16px 100%,0 calc(100% - 16px));
+}
+.modal-close{
+  position:absolute;top:12px;right:12px;background:none;border:1px solid var(--neon-magenta);
+  color:var(--neon-magenta);width:30px;height:30px;cursor:pointer;font-weight:bold;
+}
+.modal-close:hover{background:var(--neon-magenta);color:#fff}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:.8em;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.field input[type=text],.field textarea{
+  width:100%;padding:9px 12px;border:1px solid var(--border);
+  background:var(--bg);color:var(--text);font-family:inherit;font-size:1em;
+}
+.field input:focus,.field textarea:focus{outline:none;border-color:var(--neon-cyan)}
+.field textarea{resize:vertical;min-height:64px}
+.field-inline{display:flex;align-items:center;gap:8px}
+.field-inline input[type=checkbox]{width:18px;height:18px}
+#emoji-input{width:70px;text-align:center;font-size:1.3em}
+.form-error{color:var(--neon-magenta);font-size:.9em;min-height:1.2em;margin-bottom:8px}
+@media(max-width:600px){
+  body{padding:10px}
+  .nav-row{flex-direction:column;align-items:stretch}
+  .nav-link{text-align:center;padding:12px;min-height:44px}
+  .club-grid{grid-template-columns:1fr}
+  .club-card{clip-path:none}
+  .modal-panel{width:95vw;clip-path:none;padding:16px}
+}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <h1>Book Clubs</h1>
+  <div class="nav-row">
+    <a href="index.html" class="nav-link">Catalog</a>
+    <a href="community.html" class="nav-link">Community</a>
+    <a href="stats.html" class="nav-link">Statistics</a>
+    <a href="guess-game.html" class="nav-link">Game</a>
+    <button id="create-btn" class="nav-link btn-primary" style="margin-left:auto">+ Create Club</button>
+  </div>
+
+  <div id="session-notice"></div>
+
+  <h2>My Clubs</h2>
+  <div id="my-clubs" class="club-grid"><div class="loading">Loading...</div></div>
+
+  <h2>All Clubs</h2>
+  <div id="all-clubs" class="club-grid"><div class="loading">Loading...</div></div>
+
+</div>
+
+<!-- Create Club Modal -->
+<div id="create-modal">
+  <div class="modal-panel">
+    <button class="modal-close" id="create-close">X</button>
+    <h2 style="margin-top:0">Create a Club</h2>
+    <div class="field">
+      <label for="name-input">Club name</label>
+      <input id="name-input" type="text" maxlength="40" placeholder="e.g. LitRPG Legends" />
+    </div>
+    <div class="field">
+      <label for="desc-input">Description (optional)</label>
+      <textarea id="desc-input" maxlength="300" placeholder="What does this club read?"></textarea>
+    </div>
+    <div id="create-error" class="form-error"></div>
+    <button id="create-submit" class="nav-link btn-primary" style="width:100%">Create Club</button>
+  </div>
+</div>
+
+<script type="module">
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+  import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+  import { getSession, slugifyName } from './identity.js';
+  import { createClub, getAllClubs, getMyClubs } from './clubs.js';
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyDgAblkxzVxl7nFbd7jXOo6PpuNPsJw11Y",
+    authDomain: "audiobook-catalog.firebaseapp.com",
+    projectId: "audiobook-catalog",
+    storageBucket: "audiobook-catalog.firebasestorage.app",
+    messagingSenderId: "68492219785",
+    appId: "1:68492219785:web:7cbe57dda8712377f0bd58"
+  };
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  const session = getSession();
+  const mySlug = session ? slugifyName(session.displayName) : null;
+
+  function escapeHtml(s) {
+    return (s || '').replace(/[&<>"']/g, c => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[c]));
+  }
+
+  function clubCard(club) {
+    const isHost = mySlug && club.hostSlug === mySlug;
+    return `
+      <a class="club-card" href="club.html?id=${encodeURIComponent(club.id)}">
+        ${club.avatarCoverHref
+          ? `<img class="club-cover" src="${escapeHtml(club.avatarCoverHref)}" alt="" onerror="this.remove()">`
+          : `<span class="club-emoji">${escapeHtml(club.emoji || '📚')}</span>`}
+        <span class="club-name">${escapeHtml(club.name)}</span>
+        <div class="club-desc">${escapeHtml(club.description || '')}</div>
+        <div class="club-meta">
+          <span>${club.memberCount || 0} member${(club.memberCount || 0) !== 1 ? 's' : ''}</span>
+          ${isHost ? '<span class="badge badge-host">Host</span>' : ''}
+        </div>
+      </a>`;
+  }
+
+  function renderInto(el, clubs, emptyMsg) {
+    el.innerHTML = clubs.length
+      ? clubs.map(clubCard).join('')
+      : `<div class="empty">${emptyMsg}</div>`;
+  }
+
+  async function load() {
+    const myEl = document.getElementById('my-clubs');
+    const allEl = document.getElementById('all-clubs');
+    try {
+      const [mine, all] = await Promise.all([
+        session ? getMyClubs(db, session.displayName) : Promise.resolve([]),
+        getAllClubs(db),
+      ]);
+      renderInto(myEl, mine, session ? "You haven't joined a club yet." : 'Sign in to see your clubs.');
+      const mineIds = new Set(mine.map(c => c.id));
+      renderInto(allEl, all.filter(c => !mineIds.has(c.id)), 'No clubs yet — create the first one!');
+    } catch (e) {
+      myEl.innerHTML = allEl.innerHTML = '<div class="empty">Failed to load clubs.</div>';
+      console.error(e);
+    }
+  }
+
+  // --- Session notice ---
+  if (!session) {
+    document.getElementById('session-notice').innerHTML =
+      '<div class="notice">Sign in on the <a href="index.html">catalog page</a> to create or join clubs.</div>';
+  }
+
+  // --- Create modal ---
+  const modal = document.getElementById('create-modal');
+  document.getElementById('create-btn').addEventListener('click', () => {
+    if (!session) {
+      document.getElementById('session-notice').innerHTML =
+        '<div class="notice error-box">You need to sign in on the <a href="index.html">catalog page</a> first.</div>';
+      return;
+    }
+    modal.classList.add('open');
+  });
+  document.getElementById('create-close').addEventListener('click', () => modal.classList.remove('open'));
+  modal.addEventListener('click', (e) => { if (e.target === modal) modal.classList.remove('open'); });
+
+  document.getElementById('create-submit').addEventListener('click', async () => {
+    const errEl = document.getElementById('create-error');
+    errEl.textContent = '';
+    const result = await createClub(db, {
+      name: document.getElementById('name-input').value,
+      description: document.getElementById('desc-input').value,
+    }, session);
+    if (!result.success) {
+      errEl.textContent = result.error;
+      return;
+    }
+    window.location.href = `club.html?id=${encodeURIComponent(result.clubId)}`;
+  });
+
+  load();
+</script>
+</body>
+</html>

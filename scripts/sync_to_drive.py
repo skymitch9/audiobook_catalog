@@ -775,6 +775,15 @@ def run_pipeline(
         except Exception as e:
             print(f"  [WARN] Catalog rebuild failed: {e}")
 
+        # Extract chapters for the new books (already-done books are skipped
+        # via the tag cache, so this only touches what just arrived)
+        print("\n[STEP 5.5] Extracting chapters for new books...")
+        try:
+            from app.tools.extract_chapters import run_extraction
+            run_extraction()
+        except Exception as e:
+            print(f"  [WARN] Chapter extraction failed: {e}")
+
         # Auto-commit and push if there are changes
         print("\n[STEP 6] Auto-commit & push...")
         _auto_commit_and_push()
@@ -804,7 +813,7 @@ def _auto_commit_and_push() -> None:
         # Stage site files
         subprocess.run(
             ["git", "add", "site/catalog.csv", "site/index.html", "site/covers/",
-             "site/stats.html", "author_drive_map.json"],
+             "site/stats.html", "site/chapters.json", "author_drive_map.json"],
             cwd=str(PROJECT_ROOT), capture_output=True,
         )
 

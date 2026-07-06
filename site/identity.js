@@ -1,7 +1,7 @@
 // identity.js — Google SSO + passphrase fallback identity system
 // ES module, browser-native (no build step)
 
-import { doc, getDoc, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+import { doc, getDoc, setDoc, getFirestore, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 import { col } from './fb-env.js';
 
@@ -54,6 +54,8 @@ export async function signInWithGoogle(app) {
     localStorage.setItem('ab_identity_method', 'google');
     localStorage.setItem('ab_identity_photo', user.photoURL || '');
 
+    await ensureProfile(getFirestore(app), user.displayName || user.email, user.photoURL || '');
+
     return { success: true, displayName: user.displayName || user.email };
   } catch (e) {
     if (e.code === 'auth/popup-closed-by-user') {
@@ -91,6 +93,20 @@ export function slugifyName(displayName) {
   return displayName.toLowerCase();
 }
 
+/**
+ * Make sure a profile doc exists so the user shows up on the Community
+ * page. Merge-write: never clobbers reading/favorites/game fields.
+ */
+async function ensureProfile(db, displayName, photoURL) {
+  try {
+    const data = { displayName };
+    if (photoURL) data.photoURL = photoURL;
+    await setDoc(doc(db, col('profiles'), slugifyName(displayName)), data, { merge: true });
+  } catch (e) {
+    console.warn('[Identity] profile ensure failed:', e);
+  }
+}
+
 export function validateDisplayName(name) {
   return typeof name === 'string' && name.length >= 2 && name.length <= 20;
 }
@@ -115,6 +131,7 @@ export async function register(displayName, passphrase, db) {
     }
     const passphraseHash = await hashPassphrase(passphrase);
     await setDoc(userRef, { displayName, passphraseHash, createdAt: serverTimestamp() });
+    await ensureProfile(db, displayName);
     localStorage.setItem('ab_identity_name', displayName);
     localStorage.setItem('ab_identity_session', 'active');
     localStorage.setItem('ab_identity_method', 'passphrase');
@@ -141,6 +158,7 @@ export async function login(displayName, passphrase, db) {
     if (inputHash !== userData.passphraseHash) {
       return { success: false, error: 'Invalid display name or passphrase.' };
     }
+    await ensureProfile(db, userData.displayName);
     localStorage.setItem('ab_identity_name', userData.displayName);
     localStorage.setItem('ab_identity_session', 'active');
     localStorage.setItem('ab_identity_method', 'passphrase');
