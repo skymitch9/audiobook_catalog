@@ -105,6 +105,24 @@ button.rx-chip:hover{border-color:var(--neon-yellow)}
 }
 .rx-picker button:hover{border-color:var(--neon-cyan)}
 .pin-badge{font-size:.72em;color:var(--neon-yellow);text-transform:uppercase;letter-spacing:.5px}
+.ch-chip{
+  font-size:.72em;color:var(--neon-magenta);border:1px solid var(--neon-magenta);
+  padding:1px 6px;font-family:'Share Tech Mono',monospace;
+}
+.spoiler-box{
+  display:flex;gap:10px;align-items:center;flex-wrap:wrap;color:var(--muted);
+  background:var(--bg);border:1px dashed var(--border);padding:10px 12px;margin-top:8px;
+}
+.spoiler-box button{
+  background:none;border:1px solid var(--border);color:var(--muted);cursor:pointer;
+  font-size:.75em;padding:3px 9px;font-family:inherit;text-transform:uppercase;
+}
+.spoiler-box button:hover{border-color:var(--neon-magenta);color:var(--neon-magenta)}
+.ch-tag{
+  padding:5px 8px;background:var(--bg);color:var(--text);border:1px solid var(--border);
+  font-family:inherit;font-size:.85em;max-width:260px;
+}
+.ch-tag:focus{outline:none;border-color:var(--neon-cyan)}
 .composer{margin-top:12px;display:flex;flex-direction:column;gap:8px}
 .composer textarea{
   width:100%;min-height:60px;padding:10px;background:var(--bg);color:var(--text);
@@ -158,7 +176,8 @@ button.rx-chip:hover{border-color:var(--neon-yellow)}
   import {
     getRead, getComments, addComment, deleteComment,
     toggleReaction, togglePin, REACTION_EMOJI,
-    setProgress, getProgressAll, isMilestoneLocked, GENERAL_MILESTONE, MAX_COMMENT_LENGTH,
+    setProgress, setChapterProgress, getProgressAll,
+    isMilestoneLocked, isCommentSpoiler, GENERAL_MILESTONE, MAX_COMMENT_LENGTH,
   } from './club-reads.js';
 
   const firebaseConfig = {
@@ -183,6 +202,7 @@ button.rx-chip:hover{border-color:var(--neon-yellow)}
   const openSections = new Set([GENERAL_MILESTONE]);
   let replyTo = null; // comment id an inline reply composer is open for
   let reactingTo = null; // comment id with the emoji picker open
+  const revealedSpoilers = new Set(); // comment ids the viewer chose to reveal
 
   function escapeHtml(s) {
     return (s || '').replace(/[&<>"']/g, c => ({
@@ -197,6 +217,13 @@ button.rx-chip:hover{border-color:var(--neon-yellow)}
     return p ? p.milestonePosition : -1;
   };
   const isArchived = () => read && read.status !== 'active';
+  const chapterTitles = () => (read && read.chapterTitles) || [];
+  const hasChapters = () => chapterTitles().length > 0;
+  const myChapter = () => {
+    const p = progressAll.find(p => p.slug === mySlug);
+    return p && typeof p.chapterIndex === 'number' ? p.chapterIndex : -1;
+  };
+  const chLabel = (i) => `Ch ${i + 1}: ${chapterTitles()[i] || ''}`;
 
   function fmtDate(ts) {
     try { return ts && ts.toDate ? ts.toDate().toLocaleDateString() : ''; } catch { return ''; }
@@ -227,11 +254,23 @@ button.rx-chip:hover{border-color:var(--neon-yellow)}
       return chips || picker ? `<div class="rx-row">${chips}${picker}</div>` : '';
     };
 
-    const one = (c, isReply) => `
+    const one = (c, isReply) => {
+      const tagged = typeof c.chapterIndex === 'number';
+      const spoiler = !isArchived() && hasChapters()
+        && isCommentSpoiler(c.chapterIndex, myChapter()) && !revealedSpoilers.has(c.id);
+      if (spoiler) {
+        return `
+          <div class="comment ${isReply ? 'reply' : ''} spoiler-box">
+            <span>\ud83d\udd12 Spoiler \u2014 tagged ${escapeHtml(chLabel(c.chapterIndex))} by ${escapeHtml(c.displayName)}</span>
+            <button data-reveal="${c.id}">Reveal anyway</button>
+          </div>`;
+      }
+      return `
       <div class="comment ${isReply ? 'reply' : ''}">
         <div class="c-head">
           <span class="c-author">${escapeHtml(c.displayName)}</span>
           <span class="c-date">${fmtDate(c.createdAt)}</span>
+          ${tagged && hasChapters() ? `<span class="ch-chip" title="${escapeHtml(chLabel(c.chapterIndex))}">@ Ch ${c.chapterIndex + 1}</span>` : ''}
           ${c.isPinned ? '<span class="pin-badge">\ud83d\udccc pinned</span>' : ''}
         </div>
         <div class="c-text">${escapeHtml(c.text)}</div>
@@ -244,6 +283,7 @@ button.rx-chip:hover{border-color:var(--neon-yellow)}
         </div>
         ${replyTo === c.id ? composerHtml(milestoneId, c.id) : ''}
       </div>`;
+    };
 
     const list = topLevel.map(c => one(c, false) + repliesFor(c.id).map(r => one(r, true)).join('')).join('');
     const canCompose = session && (!isArchived() || milestoneId === GENERAL_MILESTONE);
@@ -254,11 +294,17 @@ button.rx-chip:hover{border-color:var(--neon-yellow)}
   }
 
   function composerHtml(milestoneId, parentId) {
+    const tagSelect = hasChapters() ? `
+          <select class="ch-tag" title="Optional: tag the chapter you're at — readers who aren't there yet see this comment as a spoiler">
+            <option value="">No chapter tag</option>
+            ${chapterTitles().map((t, i) =>
+              `<option value="${i}" ${!parentId && myChapter() === i ? 'selected' : ''}>@ ${escapeHtml(chLabel(i))}</option>`).join('')}
+          </select>` : '';
     return `
       <div class="composer" data-composer data-ms="${escapeHtml(milestoneId)}" data-parent="${parentId || ''}">
         <textarea maxlength="${MAX_COMMENT_LENGTH}" placeholder="${parentId ? 'Write a reply...' : 'Add to the discussion...'}"></textarea>
         <div class="composer-row">
-          <button data-post>Post</button>
+          <button data-post>Post</button>${tagSelect}
           <span class="char-count">0 / ${MAX_COMMENT_LENGTH}</span>
         </div>
       </div>`;
@@ -266,11 +312,17 @@ button.rx-chip:hover{border-color:var(--neon-yellow)}
 
   function sectionHtml(id, label, position) {
     const count = comments.filter(c => (c.milestoneId || GENERAL_MILESTONE) === id).length;
-    const locked = !isArchived() && isMilestoneLocked(position, myProgress(), id);
+    const milestone = read.milestones.find(m => m.id === id);
+    const chStart = milestone && typeof milestone.chStart === 'number' ? milestone.chStart : null;
+    const locked = !isArchived() && (
+      hasChapters()
+        ? (chStart !== null && id !== GENERAL_MILESTONE && myChapter() < chStart)
+        : isMilestoneLocked(position, myProgress(), id)
+    );
     if (locked) {
       return `
         <div class="locked">
-          <span>🔒 ${escapeHtml(label)} — update your progress to view (spoilers ahead)</span>
+          <span>🔒 ${escapeHtml(label)} — ${hasChapters() ? "you haven't reached this yet" : 'update your progress to view'} (spoilers ahead)</span>
           <span class="ms-count">${count} comment${count !== 1 ? 's' : ''}</span>
         </div>`;
     }
@@ -287,16 +339,28 @@ button.rx-chip:hover{border-color:var(--neon-yellow)}
       ? `<img class="read-cover" src="${escapeHtml(read.coverHref)}" alt="" onerror="this.remove()">` : '';
     const progressChips = progressAll
       .map(p => {
-        const label = p.milestonePosition < 0
-          ? 'Not started'
-          : (read.milestones.find(m => m.position === p.milestonePosition) || {}).label || '?';
+        let label;
+        if (hasChapters()) {
+          label = typeof p.chapterIndex === 'number' && p.chapterIndex >= 0
+            ? `Ch ${p.chapterIndex + 1}/${chapterTitles().length}`
+            : 'Not started';
+        } else {
+          label = p.milestonePosition >= 0
+            ? (read.milestones.find(m => m.position === p.milestonePosition) || {}).label || '?'
+            : 'Not started';
+        }
         return `<span class="mp-chip"><strong>${escapeHtml(p.displayName)}</strong> ${escapeHtml(label)}</span>`;
       }).join('');
 
-    const options = [`<option value="-1" ${myProgress() === -1 ? 'selected' : ''}>Not started</option>`]
-      .concat(read.milestones.map(m =>
-        `<option value="${m.position}" ${myProgress() === m.position ? 'selected' : ''}>${escapeHtml(m.label)}</option>`))
-      .join('');
+    const options = hasChapters()
+      ? [`<option value="-1" ${myChapter() === -1 ? 'selected' : ''}>Not started</option>`]
+          .concat(chapterTitles().map((t, i) =>
+            `<option value="${i}" ${myChapter() === i ? 'selected' : ''}>${escapeHtml(chLabel(i))}</option>`))
+          .join('')
+      : [`<option value="-1" ${myProgress() === -1 ? 'selected' : ''}>Not started</option>`]
+          .concat(read.milestones.map(m =>
+            `<option value="${m.position}" ${myProgress() === m.position ? 'selected' : ''}>${escapeHtml(m.label)}</option>`))
+          .join('');
 
     contentEl.innerHTML = `
       <div class="read-header">
@@ -312,7 +376,7 @@ button.rx-chip:hover{border-color:var(--neon-yellow)}
         <div class="archive-banner">This read is ${escapeHtml(read.status)} — discussions are archived. All sections are open (no spoiler locks); new comments only in General.</div>` : ''}
       ${session && myRole() && !isArchived() ? `
         <div class="progress-row">
-          <label for="progress-select">I've finished through:</label>
+          <label for="progress-select">${hasChapters() ? "I'm at:" : "I've finished through:"}</label>
           <select id="progress-select">${options}</select>
           <div class="member-progress">${progressChips}</div>
         </div>` : `
@@ -327,7 +391,10 @@ button.rx-chip:hover{border-color:var(--neon-yellow)}
   function wireEvents() {
     const sel = document.getElementById('progress-select');
     if (sel) sel.addEventListener('change', async () => {
-      const r = await setProgress(db, clubId, readId, parseInt(sel.value, 10), session);
+      const v = parseInt(sel.value, 10);
+      const r = hasChapters()
+        ? await setChapterProgress(db, clubId, readId, v, session)
+        : await setProgress(db, clubId, readId, v, session);
       if (r.success) reload(); else showError(r.error);
     });
 
@@ -345,10 +412,12 @@ button.rx-chip:hover{border-color:var(--neon-yellow)}
         counter.textContent = `${textarea.value.length} / ${MAX_COMMENT_LENGTH}`;
       });
       box.querySelector('[data-post]').addEventListener('click', async () => {
+        const tagEl = box.querySelector('.ch-tag');
         const r = await addComment(db, clubId, readId, {
           milestoneId: box.dataset.ms,
           parentId: box.dataset.parent || null,
           text: textarea.value,
+          chapterIndex: tagEl && tagEl.value !== '' ? parseInt(tagEl.value, 10) : null,
         }, session);
         if (r.success) { replyTo = null; reload(); } else showError(r.error);
       });
@@ -378,6 +447,12 @@ button.rx-chip:hover{border-color:var(--neon-yellow)}
       btn.addEventListener('click', async () => {
         const r = await toggleReaction(db, clubId, readId, btn.dataset.react, btn.dataset.emoji, session);
         if (r.success) { reactingTo = null; reload(); } else showError(r.error);
+      }));
+
+    contentEl.querySelectorAll('[data-reveal]').forEach(btn =>
+      btn.addEventListener('click', () => {
+        revealedSpoilers.add(btn.dataset.reveal);
+        render();
       }));
 
     contentEl.querySelectorAll('[data-pin]').forEach(btn =>

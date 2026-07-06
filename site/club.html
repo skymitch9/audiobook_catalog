@@ -826,6 +826,7 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
       coverHref: pickedBook.coverHref,
       durationMinutes: pickedBook.durationMinutes,
       milestones,
+      chapters: bookChapters ? bookChapters.chapters : [],
     }, session);
     if (!r.success) { errEl.textContent = r.error; return; }
     if (promotingTbrId) {

@@ -58,6 +58,16 @@ export function parseManualMilestones(text) {
 }
 
 /**
+ * Per-comment spoiler predicate: a comment tagged with a chapter is a
+ * spoiler for viewers whose chapter progress (-1 = not started) hasn't
+ * reached that chapter. Untagged comments are never spoilers.
+ */
+export function isCommentSpoiler(commentChapterIndex, viewerChapterIndex) {
+  if (commentChapterIndex === null || commentChapterIndex === undefined) return false;
+  return commentChapterIndex > (typeof viewerChapterIndex === 'number' ? viewerChapterIndex : -1);
+}
+
+/**
  * Spoiler shield predicate. General is never locked; a milestone is locked
  * while the member's progress (-1 = not started) is behind it.
  */
@@ -99,7 +109,7 @@ export function milestonesFromChapters(chapters) {
     return { error: `${chapters.length} chapters is too many for one-per-chapter (max ${MAX_MILESTONES}) — use chapter ranges.` };
   }
   return {
-    milestones: chapters.map((c, i) => ({ id: `m${i}`, label: c.title, position: i })),
+    milestones: chapters.map((c, i) => ({ id: `m${i}`, label: c.title, position: i, chStart: i, chEnd: i })),
   };
 }
 
@@ -111,14 +121,17 @@ export function milestonesFromChapterRanges(chapters, n) {
     const start = Math.floor((chapters.length * i) / groups);
     const end = Math.floor((chapters.length * (i + 1)) / groups) - 1;
     const label = start === end ? `Ch ${start + 1}: ${chapters[start].title}` : `Ch ${start + 1}–${end + 1}`;
-    milestones.push({ id: `m${i}`, label, position: i });
+    milestones.push({ id: `m${i}`, label, position: i, chStart: start, chEnd: end });
   }
   return milestones;
 }
 
 /** One milestone per detected part ("Part One", "Book 2", ...). */
 export function milestonesFromParts(parts) {
-  return parts.map((p, i) => ({ id: `m${i}`, label: p.label, position: i }));
+  return parts.map((p, i) => ({
+    id: `m${i}`, label: p.label, position: i,
+    chStart: p.start_index, chEnd: p.end_index,
+  }));
 }
 
 /** A single milestone covering the whole book. */
@@ -213,6 +226,7 @@ export async function startRead(db, clubId, input, session) {
         status: 'active',
         slot,
         milestones,
+        chapterTitles: (input.chapters || []).map(c => c.title).slice(0, MAX_MILESTONES),
         startedAt: serverTimestamp(),
         finishedAt: null,
         startedBy: session.displayName,
@@ -395,6 +409,7 @@ export async function addComment(db, clubId, readId, input, session) {
     await setDoc(commentRef, {
       milestoneId: input.milestoneId || GENERAL_MILESTONE,
       parentId: input.parentId || null,
+      chapterIndex: typeof input.chapterIndex === 'number' && input.chapterIndex >= 0 ? input.chapterIndex : null,
       displayName: session.displayName,
       slug: slugifyName(session.displayName),
       text,
@@ -483,6 +498,28 @@ export async function setProgress(db, clubId, readId, position, session) {
     await setDoc(doc(db, col('clubs'), clubId, 'reads', readId, 'progress', slug), {
       displayName: session.displayName,
       milestonePosition: position,
+      updatedAt: serverTimestamp(),
+    });
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * Record chapter-level progress ("I'm at chapter N"). -1 = not started.
+ * Used for reads whose book has chapter data; drives per-comment spoilers
+ * and chapter-mapped section locks.
+ */
+export async function setChapterProgress(db, clubId, readId, chapterIndex, session) {
+  if (!session || !session.displayName) {
+    return { success: false, error: 'Sign in to track progress.' };
+  }
+  try {
+    const slug = slugifyName(session.displayName);
+    await setDoc(doc(db, col('clubs'), clubId, 'reads', readId, 'progress', slug), {
+      displayName: session.displayName,
+      chapterIndex,
       updatedAt: serverTimestamp(),
     });
     return { success: true };

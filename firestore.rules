@@ -126,7 +126,8 @@ service cloud.firestore {
 
         match /progress/{userId} {
           allow read: if true;
-          allow write: if request.resource.data.milestonePosition is number;
+          allow write: if request.resource.data.milestonePosition is number
+                       || request.resource.data.chapterIndex is number;
         }
       }
     }
@@ -199,7 +200,8 @@ service cloud.firestore {
 
         match /progress/{userId} {
           allow read: if true;
-          allow write: if request.resource.data.milestonePosition is number;
+          allow write: if request.resource.data.milestonePosition is number
+                       || request.resource.data.chapterIndex is number;
         }
       }
     }

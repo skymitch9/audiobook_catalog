@@ -80,7 +80,7 @@ const {
   milestonesFromParts, wholeBookMilestones,
   startRead, getReads, getRead, finishRead,
   addComment, deleteComment, getComments,
-  setProgress, getProgressAll,
+  setProgress, setChapterProgress, getProgressAll, isCommentSpoiler,
   getTbr, addTbrItem, removeTbrItem, toggleTbrVote,
   toggleReaction, togglePin, REACTION_EMOJI,
   MAX_MILESTONES, GENERAL_MILESTONE,
@@ -357,6 +357,64 @@ describe('club TBR', () => {
     const r = await addTbrItem(fakeDb, CLUB, book, jane);
     await removeTbrItem(fakeDb, CLUB, r.itemId);
     expect(await getTbr(fakeDb, CLUB)).toHaveLength(0);
+  });
+});
+
+describe('chapter tags and comment spoilers', () => {
+  it('isCommentSpoiler: untagged comments are never spoilers', () => {
+    expect(isCommentSpoiler(null, -1)).toBe(false);
+    expect(isCommentSpoiler(undefined, 5)).toBe(false);
+  });
+
+  it('isCommentSpoiler: tagged comments hide from readers who are behind', () => {
+    expect(isCommentSpoiler(52, -1)).toBe(true);       // not started
+    expect(isCommentSpoiler(52, 30)).toBe(true);       // behind
+    expect(isCommentSpoiler(52, 52)).toBe(false);      // at that chapter
+    expect(isCommentSpoiler(52, 100)).toBe(false);     // past it
+    expect(isCommentSpoiler(0, undefined)).toBe(true); // no progress doc
+  });
+
+  it('startRead snapshots chapter titles onto the read', async () => {
+    const chapters = [{ title: 'Prologue' }, { title: 'Chapter 1' }, { title: 'Chapter 2' }];
+    const r = await startRead(fakeDb, CLUB, bookInput({ chapters }), jane);
+    const read = await getRead(fakeDb, CLUB, r.readId);
+    expect(read.chapterTitles).toEqual(['Prologue', 'Chapter 1', 'Chapter 2']);
+  });
+
+  it('chapter-derived milestones carry chStart/chEnd for section locking', () => {
+    const chapters = Array.from({ length: 10 }, (_, i) => ({ title: `Ch ${i + 1}` }));
+    expect(milestonesFromChapters(chapters).milestones[3]).toMatchObject({ chStart: 3, chEnd: 3 });
+    expect(milestonesFromChapterRanges(chapters, 2)[1]).toMatchObject({ chStart: 5, chEnd: 9 });
+    expect(milestonesFromParts([{ label: 'Part One', start_index: 0, end_index: 4 }])[0])
+      .toMatchObject({ chStart: 0, chEnd: 4 });
+    expect(wholeBookMilestones()[0].chStart).toBeUndefined();
+  });
+
+  it('comments store an optional chapter tag', async () => {
+    const readId = (await startRead(fakeDb, CLUB, bookInput(), jane)).readId;
+    const tagged = await addComment(fakeDb, CLUB, readId,
+      { milestoneId: 'm0', text: 'At the twist!', chapterIndex: 52 }, jane);
+    const plain = await addComment(fakeDb, CLUB, readId,
+      { milestoneId: 'm0', text: 'No spoilers here.' }, bob);
+    const comments = await getComments(fakeDb, CLUB, readId);
+    expect(comments.find(c => c.id === tagged.commentId).chapterIndex).toBe(52);
+    expect(comments.find(c => c.id === plain.commentId).chapterIndex).toBeNull();
+  });
+
+  it('multiple comments per user in the same section are allowed', async () => {
+    const readId = (await startRead(fakeDb, CLUB, bookInput(), jane)).readId;
+    await addComment(fakeDb, CLUB, readId, { milestoneId: 'm0', text: 'First!' }, jane);
+    await addComment(fakeDb, CLUB, readId, { milestoneId: 'm0', text: 'Second thought.' }, jane);
+    await addComment(fakeDb, CLUB, readId, { milestoneId: 'm0', text: 'Third.' }, jane);
+    expect(await getComments(fakeDb, CLUB, readId)).toHaveLength(3);
+  });
+
+  it('setChapterProgress records chapter-level progress', async () => {
+    const readId = (await startRead(fakeDb, CLUB, bookInput(), jane)).readId;
+    await setChapterProgress(fakeDb, CLUB, readId, 51, jane);
+    const all = await getProgressAll(fakeDb, CLUB, readId);
+    expect(all.find(p => p.slug === 'jane doe').chapterIndex).toBe(51);
+    expect((await setChapterProgress(fakeDb, CLUB, readId, 1, null)).success).toBe(false);
   });
 });
 
