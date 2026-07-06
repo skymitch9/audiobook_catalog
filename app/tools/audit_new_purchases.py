@@ -51,7 +51,10 @@ def norm(title):
 
 def newest_purchases(books, top):
     real = [b for b in books if (b.get("author") or "") != "OpenAudible"]
-    key = lambda b: (b.get("purchase_date") or b.get("release_date") or "")
+
+    def key(b):
+        return b.get("purchase_date") or b.get("release_date") or ""
+
     return sorted(real, key=key, reverse=True)[:top]
 
 
