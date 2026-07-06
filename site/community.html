@@ -42,6 +42,17 @@ h1{
   font-family:'Share Tech Mono',monospace;
 }
 #search-input:focus{outline:none;border-color:var(--neon-cyan)}
+.clubs-banner{
+  display:flex;align-items:center;gap:16px;margin-top:16px;padding:20px 24px;
+  background:var(--bg-2);border:1px solid var(--neon-cyan);text-decoration:none;color:var(--text);
+  clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,14px 100%,0 calc(100% - 14px));
+  transition:box-shadow .2s;
+}
+.clubs-banner:hover{box-shadow:0 0 16px rgba(5,217,232,.25)}
+.cb-icon{font-size:2.4em}
+.cb-title{display:block;font-size:1.3em;font-weight:700;color:var(--neon-cyan);text-transform:uppercase;letter-spacing:1.5px}
+.cb-sub{display:block;color:var(--muted);font-size:.92em;margin-top:2px}
+.cb-arrow{margin-left:auto;font-size:1.8em;color:var(--neon-cyan)}
 .user-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;margin-top:16px}
 .user-card{
   background:var(--bg-2);border:1px solid var(--border);padding:20px;
@@ -52,7 +63,7 @@ h1{
 .user-header{display:flex;align-items:center;gap:12px;margin-bottom:12px}
 .user-avatar{width:48px;height:48px;border-radius:50%;border:2px solid var(--neon-cyan);object-fit:cover}
 .user-name{font-weight:700;font-size:1.2em;color:var(--neon-cyan);text-transform:uppercase;letter-spacing:.5px}
-.user-stats{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin:10px 0}
+.user-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin:10px 0}
 .stat-box{background:var(--bg);border:1px solid var(--border);padding:8px;text-align:center}
 .stat-val{font-size:1.3em;font-weight:700;color:var(--neon-yellow);font-family:'Share Tech Mono',monospace}
 .stat-lbl{font-size:.7em;color:var(--muted);text-transform:uppercase}
@@ -93,6 +104,14 @@ h1{
 .um-section{margin-top:16px;padding-top:14px;border-top:1px solid var(--border)}
 .um-section-title{font-size:.85em;color:var(--neon-magenta);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
 .um-favs{display:flex;gap:8px;flex-wrap:wrap}
+.um-clubs{display:flex;flex-direction:column;gap:8px}
+.um-club{
+  display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--bg);
+  border:1px solid var(--border);color:var(--neon-cyan);text-decoration:none;font-weight:700;
+}
+.um-club:hover{border-color:var(--neon-cyan)}
+.um-club img{width:32px;height:auto;border:1px solid var(--border)}
+.um-club-emoji{font-size:1.4em}
 .um-favs img{width:64px;height:auto;border-radius:3px;border:1px solid var(--border)}
 @media(max-width:600px){
   body{padding:10px}
@@ -112,10 +131,18 @@ h1{
     <a href="index.html" class="nav-link">Catalog</a>
     <a href="stats.html" class="nav-link">Statistics</a>
     <a href="guess-game.html" class="nav-link">Game</a>
-    <a href="clubs.html" class="nav-link">Clubs</a>
     <input id="search-input" type="search" placeholder="Search users..." />
     <span id="user-count"></span>
   </div>
+  <a href="clubs.html" class="clubs-banner">
+    <span class="cb-icon">📚</span>
+    <span class="cb-text">
+      <span class="cb-title">Book Clubs</span>
+      <span class="cb-sub" id="clubs-banner-sub">Read together, chapter by chapter — spoiler-safe discussions, votes, and quotes</span>
+    </span>
+    <span class="cb-arrow">→</span>
+  </a>
+
   <div id="user-grid" class="user-grid">
     <div class="loading">Loading community...</div>
   </div>
@@ -155,11 +182,28 @@ h1{
   async function loadCommunity() {
     try {
       // Fetch profiles and reviews in parallel
-      const [profilesSnap, reviewsSnap, readingListsSnap] = await Promise.all([
+      const [profilesSnap, reviewsSnap, readingListsSnap, clubsSnap] = await Promise.all([
         getDocs(collection(db, col('profiles'))),
         getDocs(collection(db, col('reviews'))),
-        getDocs(collection(db, col('readingLists')))
+        getDocs(collection(db, col('readingLists'))),
+        getDocs(collection(db, col('clubs')))
       ]);
+
+      // Clubs per user (memberSlugs are lowercased display names)
+      const clubsByUser = {};
+      let clubCount = 0;
+      clubsSnap.docs.forEach(d => {
+        const data = d.data();
+        clubCount++;
+        (data.memberSlugs || []).forEach(slug => {
+          if (!clubsByUser[slug]) clubsByUser[slug] = [];
+          clubsByUser[slug].push({ id: d.id, name: data.name || d.id, cover: data.avatarCoverHref || '', emoji: data.emoji || '📚' });
+        });
+      });
+      const bannerSub = document.getElementById('clubs-banner-sub');
+      if (clubCount > 0) {
+        bannerSub.textContent = `${clubCount} club${clubCount !== 1 ? 's' : ''} reading right now — spoiler-safe chapter discussions, votes, and quotes`;
+      }
 
       // Build reading list stats per user (TBR only)
       const readingStats = {};
@@ -190,6 +234,7 @@ h1{
         const stats = reviewStats[nameLower] || { count: 0, totalRating: 0 };
         allUsers.push({
           displayName: data.displayName || d.id,
+          clubs: clubsByUser[nameLower] || [],
           photoURL: data.photoURL || '',
           currentlyReading: data.currentlyReading || '',
           currentlyReadingCover: data.currentlyReadingCover || '',
@@ -211,6 +256,7 @@ h1{
           const stats = reviewStats[nameLower] || { count: 0, totalRating: 0 };
           allUsers.push({
             displayName: data.displayName,
+            clubs: clubsByUser[nameLower] || [],
             photoURL: '',
             currentlyReading: '',
             currentlyReadingCover: '',
@@ -273,6 +319,7 @@ h1{
             <div class="stat-box"><div class="stat-val">${u.gameBestStreak}</div><div class="stat-lbl">Best Streak</div></div>
             <div class="stat-box"><div class="stat-val">${u.gameAccuracy}%</div><div class="stat-lbl">Game Acc</div></div>
             <div class="stat-box"><a href="index.html#list=tbr&user=${encodeURIComponent(u.displayName)}" style="text-decoration:none"><div class="stat-val">${u.booksTbr}</div><div class="stat-lbl">TBR</div></a></div>
+            <div class="stat-box"><div class="stat-val">${u.clubs.length}</div><div class="stat-lbl">Clubs</div></div>
           </div>
           ${reading}
           ${favs}
@@ -337,7 +384,17 @@ h1{
         <div class="um-stat"><div class="um-stat-val">${user.gameBestStreak}</div><div class="um-stat-lbl">Best Streak</div></div>
         <div class="um-stat"><div class="um-stat-val">${user.gameAccuracy}%</div><div class="um-stat-lbl">Game Accuracy</div></div>
         <div class="um-stat"><a href="index.html#list=tbr&user=${encodeURIComponent(user.displayName)}" style="text-decoration:none"><div class="um-stat-val">${user.booksTbr}</div><div class="um-stat-lbl">TBR</div></a></div>
+        <div class="um-stat"><div class="um-stat-val">${user.clubs.length}</div><div class="um-stat-lbl">Clubs</div></div>
       </div>
+      ${user.clubs.length ? `
+        <div class="um-section">
+          <div class="um-section-title">Book Clubs</div>
+          <div class="um-clubs">${user.clubs.map(c => `
+            <a class="um-club" href="club.html?id=${encodeURIComponent(c.id)}">
+              ${c.cover ? `<img src="${c.cover}" alt="" onerror="this.remove()">` : `<span class="um-club-emoji">${c.emoji}</span>`}
+              <span>${c.name.replace(/</g, '&lt;')}</span>
+            </a>`).join('')}</div>
+        </div>` : ''}
       ${reading}
       ${favs}
     `;
