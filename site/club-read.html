@@ -92,6 +92,10 @@ details[open].milestone summary::before{transform:rotate(90deg)}
 .comment.reply{margin-left:34px}
 .c-head{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
 .c-author{font-weight:700;color:var(--neon-cyan)}
+.bot-avatar{
+  width:24px;height:24px;border-radius:50%;border:1px solid var(--neon-magenta);
+  vertical-align:middle;object-fit:cover;
+}
 .bot-badge{
   font-size:.7em;padding:1px 6px;border:1px solid var(--neon-magenta);color:var(--neon-magenta);
   font-family:'Share Tech Mono',monospace;text-transform:uppercase;letter-spacing:.5px;
@@ -386,8 +390,9 @@ details.milestone.ch-section summary{padding:10px 14px;font-size:.85em;color:var
       return `
       <div class="comment ${isReply ? 'reply' : ''} ${mentionsMe ? 'mentions-me' : ''}" id="c-${c.id}">
         <div class="c-head">
+          ${c.isBot ? '<img class="bot-avatar" src="static/img/gabi.png" alt="GABI">' : ''}
           <span class="c-author">${escapeHtml(c.displayName)}</span>
-          ${c.isBot ? '<span class="bot-badge" title="AI starter question">🤖 AI</span>' : ''}
+          ${c.isBot ? '<span class="bot-badge" title="AI starter question">AI</span>' : ''}
           <span class="c-date">${fmtDate(c.createdAt)}</span>
           ${isNew ? '<span class="new-dot" title="New since your last visit"></span>' : ''}
           ${tagged && hasChapters() ? `<span class="ch-chip" title="${escapeHtml(chLabel(c.chapterIndex))}">@ Ch ${c.chapterIndex + 1}</span>` : ''}
