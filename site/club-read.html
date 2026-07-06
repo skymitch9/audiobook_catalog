@@ -92,6 +92,10 @@ details[open].milestone summary::before{transform:rotate(90deg)}
 .comment.reply{margin-left:34px}
 .c-head{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
 .c-author{font-weight:700;color:var(--neon-cyan)}
+.bot-badge{
+  font-size:.7em;padding:1px 6px;border:1px solid var(--neon-magenta);color:var(--neon-magenta);
+  font-family:'Share Tech Mono',monospace;text-transform:uppercase;letter-spacing:.5px;
+}
 .c-date{font-size:.75em;color:var(--muted);font-family:'Share Tech Mono',monospace}
 .c-text{margin:4px 0 6px;white-space:pre-wrap;word-break:break-word}
 .c-actions{display:flex;gap:10px}
@@ -383,6 +387,7 @@ details.milestone.ch-section summary{padding:10px 14px;font-size:.85em;color:var
       <div class="comment ${isReply ? 'reply' : ''} ${mentionsMe ? 'mentions-me' : ''}" id="c-${c.id}">
         <div class="c-head">
           <span class="c-author">${escapeHtml(c.displayName)}</span>
+          ${c.isBot ? '<span class="bot-badge" title="AI starter question">🤖 AI</span>' : ''}
           <span class="c-date">${fmtDate(c.createdAt)}</span>
           ${isNew ? '<span class="new-dot" title="New since your last visit"></span>' : ''}
           ${tagged && hasChapters() ? `<span class="ch-chip" title="${escapeHtml(chLabel(c.chapterIndex))}">@ Ch ${c.chapterIndex + 1}</span>` : ''}
@@ -410,7 +415,9 @@ details.milestone.ch-section summary{padding:10px 14px;font-size:.85em;color:var
   }
 
   // One AI starter question per section for hosts/mods (club-toggleable).
-  function starterQuestionHtml(milestoneId, partGroup) {
+  // "Post this" publishes it under the GABI identity, tagged to the whole
+  // part (not an individual chapter).
+  function starterQuestionHtml(milestoneId, partGroup, partIdx) {
     if (!bookPrompts || !isMod() || isArchived()) return '';
     if (club.promptsEnabled === false) return '';
     if (milestoneId === GENERAL_MILESTONE) return '';
@@ -429,8 +436,9 @@ details.milestone.ch-section summary{padding:10px 14px;font-size:.85em;color:var
     return `
       <div class="starter-q">
         \ud83d\udca1 <em>${escapeHtml(pick.question)}</em>
-        <button data-use-prompt data-ms-target="${escapeHtml(milestoneId)}"
-          data-q="${escapeHtml(pick.question)}" data-ch="${pick.chapter_index}">Post this</button>
+        <button data-use-prompt data-ms-target="${escapeHtml(milestoneId || GENERAL_MILESTONE)}"
+          data-part="${typeof partIdx === 'number' ? partIdx : ''}"
+          data-q="${escapeHtml(pick.question)}">Post as GABI</button>
       </div>`;
   }
 
@@ -612,7 +620,7 @@ details.milestone.ch-section summary{padding:10px 14px;font-size:.85em;color:var
 
       const chCommentCount = chapterTops.reduce((s, l) => s + l.length, 0);
       const body = `
-        ${starterQuestionHtml(null, g)}
+        ${starterQuestionHtml(null, g, k)}
         ${commentThreadHtml(GENERAL_MILESTONE, partTop, { part: k })}
         <details class="chapters-wrap" ${openSections.has(`pch${k}`) ? 'open' : ''} data-ms-section="pch${k}">
           <summary>Chapters ${g.start + 1}–${g.end + 1}<span class="ms-count">${chCommentCount} chapter comment${chCommentCount !== 1 ? 's' : ''}</span></summary>
@@ -673,15 +681,16 @@ details.milestone.ch-section summary{padding:10px 14px;font-size:.85em;color:var
 
   function wireEvents() {
     contentEl.querySelectorAll('[data-use-prompt]').forEach(btn =>
-      btn.addEventListener('click', () => {
-        const section = btn.closest('.ms-body');
-        const box = section && section.querySelector('[data-composer]');
-        if (!box) return;
-        box.querySelector('textarea').value = btn.dataset.q;
-        const tag = box.querySelector('.ch-tag');
-        if (tag) tag.value = btn.dataset.ch;
-        else if (box.dataset.part !== undefined) { box.dataset.chapter = btn.dataset.ch; }
-        box.querySelector('textarea').focus();
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        const r = await addComment(db, clubId, readId, {
+          milestoneId: btn.dataset.msTarget || GENERAL_MILESTONE,
+          text: btn.dataset.q,
+          partIndex: btn.dataset.part !== '' ? parseInt(btn.dataset.part, 10) : null,
+          asBot: true,
+        }, session);
+        if (r.success) reload();
+        else { btn.disabled = false; showError(r.error); }
       }));
 
     contentEl.querySelectorAll('[data-view]').forEach(btn =>

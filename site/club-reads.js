@@ -539,8 +539,13 @@ export async function toggleTbrVote(db, clubId, itemId, session) {
 
 // ==================== Comments ====================
 
+/** Display identity for AI-posted starter questions ("Post this"). */
+export const GABI = { displayName: 'GABI', slug: 'gabi' };
+
 /**
  * Add a comment (or a reply when parentId is set) to a milestone discussion.
+ * input.asBot posts under the GABI identity (session still required — it
+ * records who triggered the post in postedBySlug).
  */
 export async function addComment(db, clubId, readId, input, session) {
   if (!session || !session.displayName) {
@@ -558,8 +563,10 @@ export async function addComment(db, clubId, readId, input, session) {
       parentId: input.parentId || null,
       chapterIndex: typeof input.chapterIndex === 'number' && input.chapterIndex >= 0 ? input.chapterIndex : null,
       partIndex: typeof input.partIndex === 'number' && input.partIndex >= 0 ? input.partIndex : null,
-      displayName: session.displayName,
-      slug: slugifyName(session.displayName),
+      displayName: input.asBot ? GABI.displayName : session.displayName,
+      slug: input.asBot ? GABI.slug : slugifyName(session.displayName),
+      isBot: !!input.asBot,
+      postedBySlug: input.asBot ? slugifyName(session.displayName) : null,
       text,
       reactions: {},
       isPinned: false,

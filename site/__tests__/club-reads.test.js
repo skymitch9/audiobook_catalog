@@ -79,7 +79,7 @@ const {
   milestonesFromChapters, milestonesFromChapterRanges,
   milestonesFromParts, wholeBookMilestones,
   startRead, getReads, getRead, finishRead, refreshClubAvatar, groupChapters, updateReadLabel,
-  addComment, deleteComment, getComments,
+  addComment, deleteComment, getComments, GABI,
   setProgress, setChapterProgress, getProgressAll, isCommentSpoiler,
   getTbr, addTbrItem, removeTbrItem, toggleTbrVote,
   toggleReaction, togglePin, REACTION_EMOJI,
@@ -278,6 +278,19 @@ describe('comments', () => {
     expect(reply.success).toBe(true);
     const comments = await getComments(fakeDb, CLUB, readId);
     expect(comments.find((c) => c.id === reply.commentId).parentId).toBe(top.commentId);
+  });
+
+  it('asBot posts under the GABI identity, recording who triggered it', async () => {
+    const r = await addComment(fakeDb, CLUB, readId,
+      { milestoneId: GENERAL_MILESTONE, text: 'What did you think of the twist?', partIndex: 2, asBot: true }, jane);
+    expect(r.success).toBe(true);
+    const c = (await getComments(fakeDb, CLUB, readId)).find(x => x.id === r.commentId);
+    expect(c.displayName).toBe(GABI.displayName);
+    expect(c.slug).toBe(GABI.slug);
+    expect(c.isBot).toBe(true);
+    expect(c.postedBySlug).toBe('jane doe');
+    expect(c.partIndex).toBe(2);
+    expect(c.chapterIndex).toBeNull();
   });
 
   it('rejects empty and over-long comments', async () => {
