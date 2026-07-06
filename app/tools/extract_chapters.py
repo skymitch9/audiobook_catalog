@@ -30,14 +30,18 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 from mutagen.mp4 import MP4
 
-from app.config import EXTS, ROOT_DIR, SITE_DIR
+from app.config import EXTS, OUTPUT_DIR, ROOT_DIR, SITE_DIR
 from app.metadata import walk_library
 
 CHAPTERS_PATH = SITE_DIR / "chapters.json"
+# Cache of file -> tags so reruns skip processed files WITHOUT opening them
+# (opening can re-hydrate OneDrive placeholder files). Local-only, gitignored.
+TAG_CACHE_PATH = OUTPUT_DIR / "chapter_tag_cache.json"
 CLAUDE_API_KEY = os.getenv("Claude-llm") or os.getenv("ANTHROPIC_API_KEY")
 HARDCOVER_API_TOKEN = os.getenv("HARDCOVER_API_TOKEN")
 MAX_REASONABLE_CHAPTERS = 400
@@ -222,6 +226,124 @@ def read_tags(path: Path):
     return tag("\xa9nam") or None, tag("\xa9ART") or ""
 
 
+def load_json(path: Path, default):
+    if path.exists():
+        try:
+            with open(path, encoding="utf-8") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            pass
+    return default
+
+
+def save_json_with_retry(obj, path: Path, retries: int = 5) -> bool:
+    """Write via a temp file then swap it in, retrying — OneDrive's sync can
+    briefly lock the target and would otherwise crash the run."""
+    tmp = path.with_suffix(".tmp")
+    for attempt in range(retries):
+        try:
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(obj, f, indent=1, ensure_ascii=False)
+            if path.exists():
+                path.unlink()
+            tmp.rename(path)
+            return True
+        except (PermissionError, OSError):
+            time.sleep(0.5 * (attempt + 1))
+    print(f"  [WARN] could not write {path.name} after {retries} attempts (file locked?) — retrying on next save")
+    return False
+
+
+def read_tags_cached(path: Path, cache: dict):
+    """read_tags with an mtime/size cache so unchanged, already-seen files
+    are never opened again (fast resume; no OneDrive re-hydration)."""
+    key = str(path)
+    try:
+        st = path.stat()
+    except OSError:
+        return None, ""
+    entry = cache.get(key)
+    if entry and entry.get("mtime") == st.st_mtime and entry.get("size") == st.st_size:
+        return entry.get("title"), entry.get("author") or ""
+    title, author = read_tags(path)
+    cache[key] = {"mtime": st.st_mtime, "size": st.st_size, "title": title, "author": author or ""}
+    return title, author or ""
+
+
+def run_extraction(force=False, retry_missing=False, no_llm=False, limit=0):
+    """Extract chapters for books not yet in chapters.json. Safe to call from
+    the sync pipeline — already-done books are skipped via the tag cache
+    without opening their files. Returns the stats dict (None if no library).
+    """
+    data = load_json(CHAPTERS_PATH, {})
+    tag_cache = load_json(TAG_CACHE_PATH, {})
+
+    files = walk_library(ROOT_DIR, EXTS)
+    if not files:
+        print(f"No audio files found under {ROOT_DIR} — run this on the machine with the library.")
+        return None
+
+    stats = {"m4b": 0, "hardcover": 0, "llm": 0, "none": 0, "skipped": 0, "errors": 0}
+    processed = 0
+    cache_dirty = 0
+    for path in files:
+        if limit and processed >= limit:
+            break
+        try:
+            cache_size_before = len(tag_cache)
+            title, author = read_tags_cached(path, tag_cache)
+            cache_dirty += len(tag_cache) - cache_size_before
+            if not title:
+                continue
+            existing = data.get(title)
+            if existing and not force:
+                if not (retry_missing and existing.get("source") == "none"):
+                    stats["skipped"] += 1
+                    if cache_dirty >= 50:
+                        save_json_with_retry(tag_cache, TAG_CACHE_PATH)
+                        cache_dirty = 0
+                    continue
+            processed += 1
+            print(f"[{processed}] {title}")
+
+            chapters = chapters_from_ffprobe(path) or chapters_from_mutagen(path)
+            source = "m4b" if chapters else None
+            if not chapters:
+                chapters = chapters_from_hardcover(title, author)
+                source = "hardcover" if chapters else None
+            if not chapters and not no_llm:
+                chapters = chapters_from_llm(title, author)
+                source = "llm" if chapters else None
+
+            if chapters:
+                entry = {"source": source, "chapters": chapters, "parts": detect_parts(chapters)}
+                print(f"  -> {len(chapters)} chapters via {source}"
+                      + (f", {len(entry['parts'])} parts" if entry["parts"] else ""))
+                stats[source] += 1
+            else:
+                entry = {"source": "none", "chapters": [], "parts": []}
+                print("  -> no chapter data from any source")
+                stats["none"] += 1
+            data[title] = entry
+
+            # Incremental save so an interrupted run keeps its progress
+            save_json_with_retry(data, CHAPTERS_PATH)
+            if cache_dirty:
+                save_json_with_retry(tag_cache, TAG_CACHE_PATH)
+                cache_dirty = 0
+        except Exception as e:  # one bad file must not kill the run
+            stats["errors"] += 1
+            print(f"  [WARN] failed on {path.name}: {e}")
+
+    if cache_dirty:
+        save_json_with_retry(tag_cache, TAG_CACHE_PATH)
+
+    print(f"\nDone. m4b: {stats['m4b']}, llm: {stats['llm']}, no data: {stats['none']}, "
+          f"already done: {stats['skipped']}, errors: {stats['errors']}")
+    print(f"Wrote {CHAPTERS_PATH}")
+    return stats
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[1])
     parser.add_argument("--force", action="store_true", help="re-extract books already in chapters.json")
@@ -229,61 +351,11 @@ def main():
     parser.add_argument("--no-llm", action="store_true", help="skip the Claude fallback")
     parser.add_argument("--limit", type=int, default=0, help="process at most N books")
     args = parser.parse_args()
-
-    data = {}
-    if CHAPTERS_PATH.exists():
-        with open(CHAPTERS_PATH, encoding="utf-8") as f:
-            data = json.load(f)
-
-    files = walk_library(ROOT_DIR, EXTS)
-    if not files:
-        print(f"No audio files found under {ROOT_DIR} — run this on the machine with the library.")
-        return 1
-
-    stats = {"m4b": 0, "llm": 0, "none": 0, "skipped": 0}
-    processed = 0
-    for path in files:
-        if args.limit and processed >= args.limit:
-            break
-        title, author = read_tags(path)
-        if not title:
-            continue
-        existing = data.get(title)
-        if existing and not args.force:
-            if not (args.retry_missing and existing.get("source") == "none"):
-                stats["skipped"] += 1
-                continue
-        processed += 1
-        print(f"[{processed}] {title}")
-
-        chapters = chapters_from_ffprobe(path) or chapters_from_mutagen(path)
-        source = "m4b" if chapters else None
-        if not chapters:
-            chapters = chapters_from_hardcover(title, author)
-            source = "hardcover" if chapters else None
-        if not chapters and not args.no_llm:
-            chapters = chapters_from_llm(title, author)
-            source = "llm" if chapters else None
-
-        if chapters:
-            entry = {"source": source, "chapters": chapters, "parts": detect_parts(chapters)}
-            print(f"  -> {len(chapters)} chapters via {source}"
-                  + (f", {len(entry['parts'])} parts" if entry["parts"] else ""))
-            stats[source] += 1
-        else:
-            entry = {"source": "none", "chapters": [], "parts": []}
-            print("  -> no chapter data from any source")
-            stats["none"] += 1
-        data[title] = entry
-
-        # Incremental save so an interrupted run keeps its progress
-        with open(CHAPTERS_PATH, "w", encoding="utf-8", newline="\n") as f:
-            json.dump(data, f, indent=1, ensure_ascii=False)
-
-    print(f"\nDone. m4b: {stats['m4b']}, llm: {stats['llm']}, "
-          f"no data: {stats['none']}, already done: {stats['skipped']}")
-    print(f"Wrote {CHAPTERS_PATH}")
-    return 0
+    stats = run_extraction(
+        force=args.force, retry_missing=args.retry_missing,
+        no_llm=args.no_llm, limit=args.limit,
+    )
+    return 0 if stats is not None else 1
 
 
 if __name__ == "__main__":
