@@ -108,6 +108,23 @@ h2{
   .club-card{clip-path:none}
   .modal-panel{width:95vw;clip-path:none;padding:16px}
 }
+
+/* Sign-in / user chip (shared identity bar) */
+#identity-bar{margin-left:auto}
+.identity-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.identity-bar__greeting{font-weight:700;color:var(--neon-cyan,#05d9e8)}
+.identity-bar__google-btn{
+  display:inline-flex;align-items:center;padding:8px 14px;border:1px solid var(--border,#2a2a3a);
+  background:var(--bg-2,#12121f);color:var(--text,#e8e6e3);font-weight:700;font-size:.85em;
+  cursor:pointer;transition:all .2s;font-family:inherit;
+}
+.identity-bar__google-btn:hover{border-color:var(--neon-cyan,#05d9e8)}
+.identity-bar__google-btn:disabled{opacity:.6;cursor:wait}
+.identity-bar__logout-btn{
+  background:none;border:1px solid var(--border,#2a2a3a);color:var(--muted,#8a8f98);cursor:pointer;
+  font-size:.75em;padding:4px 10px;font-family:inherit;text-transform:uppercase;letter-spacing:.5px;
+}
+.identity-bar__logout-btn:hover{border-color:var(--neon-magenta,#ff2a6d);color:var(--neon-magenta,#ff2a6d)}
 </style>
 </head>
 <body>
@@ -119,6 +136,7 @@ h2{
     <a href="stats.html" class="nav-link">Statistics</a>
     <a href="guess-game.html" class="nav-link">Game</a>
     <button id="create-btn" class="nav-link btn-primary" style="margin-left:auto">+ Create Club</button>
+    <div id="identity-bar" style="margin-left:12px"></div>
   </div>
 
   <div id="session-notice"></div>
@@ -152,7 +170,7 @@ h2{
 <script type="module">
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
   import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
-  import { getSession, slugifyName } from './identity.js';
+  import { getSession, slugifyName, renderIdentityBar } from './identity.js';
   import { createClub, getAllClubs, getMyClubs } from './clubs.js';
   import { clubActivity, renderBadge } from './club-notify.js';
 
@@ -166,6 +184,7 @@ h2{
   };
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
+  renderIdentityBar(document.getElementById('identity-bar'), db, { app, onAuthChange: () => location.reload() });
 
   const session = getSession();
   const mySlug = session ? slugifyName(session.displayName) : null;

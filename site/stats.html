@@ -163,15 +163,33 @@ h1{margin:0 0 8px 0; color:var(--neon-yellow); text-transform:uppercase; letter-
     grid-template-columns: 1fr;
   }
 }
+
+/* Sign-in / user chip (shared identity bar) */
+#identity-bar{margin-left:auto}
+.identity-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.identity-bar__greeting{font-weight:700;color:var(--neon-cyan,#05d9e8)}
+.identity-bar__google-btn{
+  display:inline-flex;align-items:center;padding:8px 14px;border:1px solid var(--border,#2a2a3a);
+  background:var(--bg-2,#12121f);color:var(--text,#e8e6e3);font-weight:700;font-size:.85em;
+  cursor:pointer;transition:all .2s;font-family:inherit;
+}
+.identity-bar__google-btn:hover{border-color:var(--neon-cyan,#05d9e8)}
+.identity-bar__google-btn:disabled{opacity:.6;cursor:wait}
+.identity-bar__logout-btn{
+  background:none;border:1px solid var(--border,#2a2a3a);color:var(--muted,#8a8f98);cursor:pointer;
+  font-size:.75em;padding:4px 10px;font-family:inherit;text-transform:uppercase;letter-spacing:.5px;
+}
+.identity-bar__logout-btn:hover{border-color:var(--neon-magenta,#ff2a6d);color:var(--neon-magenta,#ff2a6d)}
 </style>
 </head>
 <body>
 <div id="wrap">
   <h1>📊 Audiobook Statistics</h1>
 
-  <div style="margin-bottom: 20px;">
+  <div style="margin-bottom: 20px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
     <a href="index.html" class="nav-link">← Back to Catalog</a>
     <a href="guess-game.html" class="nav-link">🎮 Play Game</a>
+    <div id="identity-bar"></div>
   </div>
 
   <div class="stats-grid">
@@ -445,6 +463,7 @@ h1{margin:0 0 8px 0; color:var(--neon-yellow); text-transform:uppercase; letter-
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
   import { getFirestore, collection, getDocs } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
   import { col } from './fb-env.js';
+  import { renderIdentityBar } from './identity.js';
 
   const app = initializeApp({
     apiKey: "AIzaSyDgAblkxzVxl7nFbd7jXOo6PpuNPsJw11Y",
@@ -455,6 +474,7 @@ h1{margin:0 0 8px 0; color:var(--neon-yellow); text-transform:uppercase; letter-
     appId: "1:68492219785:web:7cbe57dda8712377f0bd58"
   });
   const db = getFirestore(app);
+  renderIdentityBar(document.getElementById('identity-bar'), db, { app, onAuthChange: () => location.reload() });
 
   async function loadCommunityStats() {
     try {
