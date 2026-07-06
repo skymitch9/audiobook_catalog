@@ -1,0 +1,7 @@
+{
+  "_comment": "Explicit exclusions for app/tools/audit_site.py (the promote-to-prod audit gate). Authors listed under drive_links.authors are allowed to have no entry in the author drive map (the site falls back to a Drive search link for them). Titles listed under author/narrator/covers are allowed to fail that specific check. Prefer fixing the data over excluding; entries here should say why in this comment.",
+  "drive_links": { "authors": [] },
+  "author": { "titles": [] },
+  "narrator": { "titles": [] },
+  "covers": { "titles": [] }
+}

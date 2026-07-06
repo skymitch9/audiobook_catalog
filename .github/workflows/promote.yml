@@ -87,16 +87,16 @@ jobs:
         print("✓ catalog size OK")
         EOF
 
-    - name: 🛡️ Covers are present
+    - name: 🛡️ Core features audit (covers, authors, narrators, drive links)
+      # Every book must have an author, a narrator, and a cover file on disk;
+      # every author must resolve in author_drive_map.json or be explicitly
+      # excluded in scripts/audit_exclusions.json.
       run: |
-        book_count=$(python3 -c "import csv; print(sum(1 for _ in csv.DictReader(open('site/catalog.csv', encoding='utf-8'))))")
-        cover_count=$(find site/covers -type f | wc -l)
-        echo "covers: $cover_count files for $book_count books"
-        if [ "$cover_count" -lt "$((book_count / 2))" ]; then
-          echo "::error::Only $cover_count covers for $book_count books — covers look wiped, refusing to promote"
-          exit 1
+        if [ -f "app/tools/audit_site.py" ]; then
+          python3 -m app.tools.audit_site
+        else
+          echo "::warning::app/tools/audit_site.py not present on this ref (old rollback target?) — skipping core-features audit"
         fi
-        echo "✓ covers OK"
 
   promote:
     needs: guard

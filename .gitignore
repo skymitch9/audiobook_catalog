@@ -12,6 +12,7 @@ docs/
 !scripts/author_aliases.json
 !scripts/priority_authors.json
 !scripts/bookfunnel_books.json
+!scripts/audit_exclusions.json
 !last_catalog_snapshot.json
 !vitest.config.js
 !firebase.json
