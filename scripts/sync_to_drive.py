@@ -613,6 +613,18 @@ def run_pipeline(
     print("=" * 60)
 
     # -----------------------------------------------------------------------
+    # Step 0: Purchase audit — are recent Audible purchases missing locally?
+    # (Book sort breaks OpenAudible's own tracking; this diff is the real
+    # signal. Report-only, never blocks the sync.)
+    # -----------------------------------------------------------------------
+    print("\n[STEP 0] Auditing recent purchases vs catalog...")
+    try:
+        from app.tools.audit_new_purchases import run_audit
+        run_audit()
+    except Exception as e:
+        print(f"  [WARN] Purchase audit failed: {e}")
+
+    # -----------------------------------------------------------------------
     # Step 1: Sort books from OpenAudible into author folders
     # -----------------------------------------------------------------------
     if not upload_only:
