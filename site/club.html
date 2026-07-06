@@ -350,8 +350,7 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
         <button class="tab ${activeTab === 'current' ? 'active' : ''}" data-tab="current">Current Read</button>
         <button class="tab ${activeTab === 'tbr' ? 'active' : ''}" data-tab="tbr">Club TBR</button>
         <button class="tab ${activeTab === 'history' ? 'active' : ''}" data-tab="history">History</button>
-        <button class="tab ${activeTab === 'members' ? 'active' : ''}" data-tab="members">Members (${activeMembers().length})</button>
-        ${isMod() ? `<button class="tab ${activeTab === 'requests' ? 'active' : ''}" data-tab="requests">Requests${requests.length ? ` (${requests.length})` : ''}</button>` : ''}
+        <button class="tab ${activeTab === 'members' ? 'active' : ''}" data-tab="members">Members (${activeMembers().length})${isMod() && requests.length ? ` \u00b7 ${requests.length} pending` : ''}</button>
       </div>
       <div class="tab-panel" id="tab-panel">${renderTab()}</div>
 
@@ -362,7 +361,6 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
 
   function renderTab() {
     if (activeTab === 'members') return renderMembers();
-    if (activeTab === 'requests') return renderRequests();
     if (activeTab === 'current') return renderCurrent();
     if (activeTab === 'tbr') return renderTbr();
     return renderHistory();
@@ -473,35 +471,34 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
   }
 
   function renderMembers() {
-    if (!members.length) return '<div class="empty">No members.</div>';
-    return memberRows(false);
-  }
+    if (!isMod()) {
+      if (!members.length) return '<div class="empty">No members.</div>';
+      return memberRows(false);
+    }
 
-  function renderRequests() {
-    const reqList = requests.length
-      ? requests.map(r => `
-          <div class="member-row">
-            <div class="member-avatar">${escapeHtml(r.displayName.charAt(0).toUpperCase())}</div>
-            <span class="member-name">${escapeHtml(r.displayName)}</span>
-            <span class="badge">wants to join</span>
-            <div class="member-actions">
-              <button data-req-accept="${escapeHtml(r.slug)}">Accept</button>
-              <button class="danger" data-req-reject="${escapeHtml(r.slug)}" data-name="${escapeHtml(r.displayName)}">Reject</button>
-            </div>
-          </div>`).join('')
-      : '<div class="empty" style="padding:14px">No pending requests.</div>';
+    const reqSection = requests.length ? `
+      <h3 class="rq-h">Join Requests (${requests.length})</h3>
+      ${requests.map(r => `
+        <div class="member-row">
+          <div class="member-avatar">${escapeHtml(r.displayName.charAt(0).toUpperCase())}</div>
+          <span class="member-name">${escapeHtml(r.displayName)}</span>
+          <span class="badge">wants to join</span>
+          <div class="member-actions">
+            <button data-req-accept="${escapeHtml(r.slug)}">Accept</button>
+            <button class="danger" data-req-reject="${escapeHtml(r.slug)}" data-name="${escapeHtml(r.displayName)}">Reject</button>
+          </div>
+        </div>`).join('')}` : '';
 
     return `
-      <h3 class="rq-h">Join Requests</h3>
-      ${reqList}
+      ${reqSection}
+      ${reqSection ? '<h3 class="rq-h">Members</h3>' : ''}
+      ${memberRows(true)}
       <h3 class="rq-h">Add a member manually</h3>
       <div class="add-row">
         <input id="invite-name" type="text" maxlength="40" placeholder="Display name" />
         <button id="invite-btn" class="nav-link btn-primary">Add</button>
       </div>
       <div id="invite-error" class="form-error"></div>
-      <h3 class="rq-h">Members</h3>
-      ${memberRows(true)}
     `;
   }
 
