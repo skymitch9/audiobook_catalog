@@ -255,6 +255,7 @@ details.milestone.ch-section summary{padding:10px 14px;font-size:.85em;color:var
     isMilestoneLocked, isCommentSpoiler, groupChapters, GENERAL_MILESTONE, MAX_COMMENT_LENGTH,
   } from './club-reads.js';
   import { addUserWarning, getUserWarnings, deleteUserWarning } from './user-warnings.js';
+  import { markReadSeen } from './club-notify.js';
 
   const firebaseConfig = {
     apiKey: "AIzaSyDgAblkxzVxl7nFbd7jXOo6PpuNPsJw11Y",
@@ -869,6 +870,7 @@ details.milestone.ch-section summary{padding:10px 14px;font-size:.85em;color:var
       contentEl.innerHTML = '<div class="empty">Read not found — it may have been removed.</div>';
       return;
     }
+    markReadSeen(clubId, readId, read.commentCount || comments.length);
     document.getElementById('back-link').href = `club.html?id=${encodeURIComponent(clubId)}`;
     document.title = `${read.bookTitle} - Club Read`;
     if (firstRender) {

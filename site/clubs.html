@@ -60,6 +60,11 @@ h2{
 .club-meta{font-size:.8em;color:var(--muted);font-family:'Share Tech Mono',monospace;display:flex;gap:12px}
 .badge{padding:1px 7px;border:1px solid var(--border);font-size:.75em;text-transform:uppercase}
 .badge-host{color:var(--neon-yellow);border-color:var(--neon-yellow)}
+.new-badge{
+  margin-left:8px;padding:1px 8px;border:1px solid var(--neon-magenta);color:var(--neon-magenta);
+  font-size:.65em;text-transform:uppercase;letter-spacing:.5px;vertical-align:middle;
+  font-family:'Share Tech Mono',monospace;
+}
 .loading,.empty{text-align:center;padding:30px;color:var(--muted);font-family:'Share Tech Mono',monospace}
 .notice{
   padding:12px 16px;border:1px solid var(--border);background:var(--bg-2);
@@ -149,6 +154,7 @@ h2{
   import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
   import { getSession, slugifyName } from './identity.js';
   import { createClub, getAllClubs, getMyClubs } from './clubs.js';
+  import { clubActivity, renderBadge } from './club-notify.js';
 
   const firebaseConfig = {
     apiKey: "AIzaSyDgAblkxzVxl7nFbd7jXOo6PpuNPsJw11Y",
@@ -173,11 +179,12 @@ h2{
   function clubCard(club) {
     const isHost = mySlug && club.hostSlug === mySlug;
     return `
-      <a class="club-card" href="club.html?id=${encodeURIComponent(club.id)}">
+      <a class="club-card" data-club-id="${escapeHtml(club.id)}" href="club.html?id=${encodeURIComponent(club.id)}">
         ${club.avatarCoverHref
           ? `<img class="club-cover" src="${escapeHtml(club.avatarCoverHref)}" alt="" onerror="this.remove()">`
           : `<span class="club-emoji">${escapeHtml(club.emoji || '📚')}</span>`}
         <span class="club-name">${escapeHtml(club.name)}</span>
+        <span class="new-badge" style="display:none"></span>
         <div class="club-desc">${escapeHtml(club.description || '')}</div>
         <div class="club-meta">
           <span>${club.memberCount || 0} member${(club.memberCount || 0) !== 1 ? 's' : ''}</span>
@@ -203,9 +210,24 @@ h2{
       renderInto(myEl, mine, session ? "You haven't joined a club yet." : 'Sign in to see your clubs.');
       const mineIds = new Set(mine.map(c => c.id));
       renderInto(allEl, all.filter(c => !mineIds.has(c.id)), 'No clubs yet — create the first one!');
+      annotateActivity();
     } catch (e) {
       myEl.innerHTML = allEl.innerHTML = '<div class="empty">Failed to load clubs.</div>';
       console.error(e);
+    }
+  }
+
+  // "N new" badges on my clubs — new comments since I last opened each read
+  async function annotateActivity() {
+    if (!mySlug) return;
+    try {
+      const activity = await clubActivity(db, mySlug);
+      for (const a of activity) {
+        const card = document.querySelector(`.club-card[data-club-id="${CSS.escape(a.clubId)}"]`);
+        if (card) renderBadge(card.querySelector('.new-badge'), a.newCount);
+      }
+    } catch (e) {
+      console.warn('[notify] activity check failed:', e);
     }
   }
 

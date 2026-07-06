@@ -51,6 +51,10 @@ h1{
 .clubs-banner:hover{box-shadow:0 0 16px rgba(5,217,232,.25)}
 .cb-icon{font-size:2.4em}
 .cb-title{display:block;font-size:1.3em;font-weight:700;color:var(--neon-cyan);text-transform:uppercase;letter-spacing:1.5px}
+#cb-new-badge{
+  padding:2px 9px;border:1px solid var(--neon-magenta);color:var(--neon-magenta);
+  font-size:.6em;letter-spacing:.5px;vertical-align:middle;font-family:'Share Tech Mono',monospace;
+}
 .cb-sub{display:block;color:var(--muted);font-size:.92em;margin-top:2px}
 .cb-arrow{margin-left:auto;font-size:1.8em;color:var(--neon-cyan)}
 .user-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;margin-top:16px}
@@ -143,7 +147,7 @@ h1{
   <a href="clubs.html" class="clubs-banner">
     <span class="cb-icon">📚</span>
     <span class="cb-text">
-      <span class="cb-title">Book Clubs</span>
+      <span class="cb-title">Book Clubs <span id="cb-new-badge" style="display:none"></span></span>
       <span class="cb-sub" id="clubs-banner-sub">Read together, chapter by chapter — spoiler-safe discussions, votes, and quotes</span>
     </span>
     <span class="cb-arrow">→</span>
@@ -166,6 +170,21 @@ h1{
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
   import { getFirestore, collection, getDocs } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
   import { col } from './fb-env.js';
+  import { getSession, slugifyName } from './identity.js';
+  import { clubActivity } from './club-notify.js';
+
+  // "N new" on the Clubs banner: unread club posts for the signed-in user
+  // setTimeout defers past the module body so initializeApp below has run.
+  setTimeout(async () => {
+    try {
+      const s = getSession();
+      if (!s) return;
+      const activity = await clubActivity(getFirestore(), slugifyName(s.displayName));
+      const total = activity.reduce((sum, a) => sum + a.newCount, 0);
+      const badge = document.getElementById('cb-new-badge');
+      if (badge && total > 0) { badge.textContent = `${total} new`; badge.style.display = 'inline-block'; }
+    } catch (e) { console.warn('[notify] banner badge failed:', e); }
+  }, 0);
 
   const firebaseConfig = {
     apiKey: "AIzaSyDgAblkxzVxl7nFbd7jXOo6PpuNPsJw11Y",

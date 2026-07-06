@@ -109,6 +109,7 @@ body{
 .rc-title{font-weight:700;font-size:1.1em;color:var(--neon-cyan);text-transform:uppercase;letter-spacing:.5px}
 .rc-author{color:var(--muted);font-size:.9em}
 .rc-meta{font-size:.75em;color:var(--muted);font-family:'Share Tech Mono',monospace;margin-top:4px}
+.rc-new{color:var(--neon-magenta);font-weight:700}
 .stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:14px}
 .stat-box{background:var(--bg);border:1px solid var(--border);padding:14px;text-align:center}
 .stat-val{font-size:1.6em;font-weight:700;color:var(--neon-yellow);font-family:'Share Tech Mono',monospace}
@@ -352,6 +353,7 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
     getBookChapters, wholeBookMilestones, formatHhmm,
     getTbr, addTbrItem, removeTbrItem, toggleTbrVote,
   } from './club-reads.js';
+  import { loadSeen } from './club-notify.js';
 
   const firebaseConfig = {
     apiKey: "AIzaSyDgAblkxzVxl7nFbd7jXOo6PpuNPsJw11Y",
@@ -622,7 +624,7 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
           <div class="rc-slot">${escapeHtml(r.slotLabel || (active.length > 1 ? (r.slot === 1 ? 'Main read' : 'Side read') : 'Current read'))}${isMember() ? ` <button class="rc-label-edit" data-edit-label="${r.id}" title="Rename this slot">\u270e</button>` : ''}</div>
           <div class="rc-title">${escapeHtml(r.bookTitle)}</div>
           <div class="rc-author">${escapeHtml(r.bookAuthor)}</div>
-          <div class="rc-meta">${(r.milestones || []).length} milestones · ${r.commentCount || 0} comments · started by ${escapeHtml(r.startedBy || '')}</div>
+          <div class="rc-meta">${(r.milestones || []).length} milestones · ${r.commentCount || 0} comments${newComments(r) ? ` · <span class="rc-new">${newComments(r)} new</span>` : ''} · started by ${escapeHtml(r.startedBy || '')}</div>
         </div>
       </a>`).join('');
     const emptyState = isMember()
@@ -632,6 +634,12 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
       ${cards || emptyState}
       ${canStart ? '<div style="margin-top:14px"><button id="start-read-btn" class="nav-link btn-primary">+ Start a Read</button></div>' : ''}
     `;
+  }
+
+  function newComments(r) {
+    if (!isMember()) return 0;
+    const seen = (loadSeen()[clubId] || {})[r.id] || 0;
+    return Math.max(0, (r.commentCount || 0) - seen);
   }
 
   function memberRows(withActions) {
