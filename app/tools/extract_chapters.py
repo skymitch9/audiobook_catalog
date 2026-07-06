@@ -283,7 +283,8 @@ def run_extraction(force=False, retry_missing=False, no_llm=False, limit=0):
         print(f"No audio files found under {ROOT_DIR} — run this on the machine with the library.")
         return None
 
-    stats = {"m4b": 0, "hardcover": 0, "llm": 0, "none": 0, "skipped": 0, "errors": 0}
+    stats = {"m4b": 0, "hardcover": 0, "llm": 0, "none": 0, "skipped": 0, "errors": 0,
+             "new_books": []}  # (title, author) pairs processed this run — Step 5.6 uses these
     processed = 0
     cache_dirty = 0
     for path in files:
@@ -325,6 +326,7 @@ def run_extraction(force=False, retry_missing=False, no_llm=False, limit=0):
                 print("  -> no chapter data from any source")
                 stats["none"] += 1
             data[title] = entry
+            stats["new_books"].append((title, author))
 
             # Incremental save so an interrupted run keeps its progress
             save_json_with_retry(data, CHAPTERS_PATH)

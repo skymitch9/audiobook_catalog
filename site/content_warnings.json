@@ -200,7 +200,37 @@
   "checked_at": 1783319211
  },
  "Wind and Truth - Book Five of the Stormlight Archive": {
-  "warnings": [],
-  "checked_at": 1783319279
+  "warnings": [
+   {
+    "label": "Medical trauma",
+    "source_url": "https://hardcover.app/books/wind-and-truth"
+   },
+   {
+    "label": "Mental illness",
+    "source_url": "https://hardcover.app/books/wind-and-truth"
+   },
+   {
+    "label": "Physical abuse",
+    "source_url": "https://hardcover.app/books/wind-and-truth"
+   },
+   {
+    "label": "Violence",
+    "source_url": "https://hardcover.app/books/wind-and-truth"
+   },
+   {
+    "label": "War",
+    "source_url": "https://hardcover.app/books/wind-and-truth"
+   },
+   {
+    "label": "suicidal thoughts",
+    "source_url": "https://hardcover.app/books/wind-and-truth"
+   },
+   {
+    "label": "Suicide attempt",
+    "source_url": "https://hardcover.app/books/wind-and-truth"
+   }
+  ],
+  "source": "hardcover",
+  "checked_at": 1783320394
  }
 }

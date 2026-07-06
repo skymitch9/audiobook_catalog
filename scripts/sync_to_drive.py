@@ -778,11 +778,24 @@ def run_pipeline(
         # Extract chapters for the new books (already-done books are skipped
         # via the tag cache, so this only touches what just arrived)
         print("\n[STEP 5.5] Extracting chapters for new books...")
+        chapter_stats = None
         try:
             from app.tools.extract_chapters import run_extraction
-            run_extraction()
+            chapter_stats = run_extraction()
         except Exception as e:
             print(f"  [WARN] Chapter extraction failed: {e}")
+
+        # Content warnings for the books that just arrived (Hardcover ->
+        # DoesTheDogDie free passes, Claude web-search backfill). Never
+        # blocks the sync.
+        new_books = (chapter_stats or {}).get("new_books") or []
+        if new_books:
+            print(f"\n[STEP 5.6] Content warnings for {len(new_books)} new book(s)...")
+            try:
+                from app.tools.fetch_content_warnings import check_new_books
+                check_new_books(new_books)
+            except Exception as e:
+                print(f"  [WARN] Content-warning fetch failed: {e}")
 
         # Auto-commit and push if there are changes
         print("\n[STEP 6] Auto-commit & push...")
@@ -813,7 +826,8 @@ def _auto_commit_and_push() -> None:
         # Stage site files
         subprocess.run(
             ["git", "add", "site/catalog.csv", "site/index.html", "site/covers/",
-             "site/stats.html", "site/chapters.json", "author_drive_map.json"],
+             "site/stats.html", "site/chapters.json", "site/content_warnings.json",
+             "author_drive_map.json"],
             cwd=str(PROJECT_ROOT), capture_output=True,
         )
 
