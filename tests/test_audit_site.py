@@ -5,7 +5,9 @@ These run against synthetic fixtures (no audio library needed), so unlike
 test_catalog_completeness.py they exercise the real logic in CI.
 """
 
+import contextlib
 import csv
+import io
 import json
 import tempfile
 import unittest
@@ -54,7 +56,11 @@ class AuditSiteTestCase(unittest.TestCase):
         self.excl_path.write_text(json.dumps(exclusions), encoding="utf-8")
 
     def run_audit(self):
-        return audit(self.site, self.map_path, self.excl_path)
+        # Swallow the auditor's ::error:: prints — in CI, GitHub Actions turns
+        # any ::error:: in job output into a red annotation, so the deliberate
+        # failure fixtures here would litter passing runs with phantom errors.
+        with contextlib.redirect_stdout(io.StringIO()):
+            return audit(self.site, self.map_path, self.excl_path)
 
     # ---- passing baseline ----
 
