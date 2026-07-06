@@ -104,6 +104,12 @@ body{
 .rc-title{font-weight:700;font-size:1.1em;color:var(--neon-cyan);text-transform:uppercase;letter-spacing:.5px}
 .rc-author{color:var(--muted);font-size:.9em}
 .rc-meta{font-size:.75em;color:var(--muted);font-family:'Share Tech Mono',monospace;margin-top:4px}
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+.stat-box{background:var(--bg);border:1px solid var(--border);padding:14px;text-align:center}
+.stat-val{font-size:1.6em;font-weight:700;color:var(--neon-yellow);font-family:'Share Tech Mono',monospace}
+.stat-lbl{font-size:.72em;color:var(--muted);text-transform:uppercase;margin-top:4px}
+.stat-line{color:var(--muted);margin-top:8px}
+.stat-line strong{color:var(--neon-cyan)}
 .rc-actions{margin-left:auto;display:flex;gap:6px;align-items:center;flex-shrink:0}
 .rc-actions button{
   background:none;border:1px solid var(--border);color:var(--muted);cursor:pointer;
@@ -139,11 +145,11 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
 }
 .add-row input:focus{outline:none;border-color:var(--neon-cyan)}
 /* Start-read modal */
-#read-modal,#edit-modal,#suggest-modal{
+#read-modal,#edit-modal,#suggest-modal,#rate-modal{
   position:fixed;inset:0;display:none;align-items:center;justify-content:center;
   background:rgba(0,0,0,.85);z-index:9999;padding:20px;backdrop-filter:blur(4px);
 }
-#read-modal.open,#edit-modal.open,#suggest-modal.open{display:flex}
+#read-modal.open,#edit-modal.open,#suggest-modal.open,#rate-modal.open{display:flex}
 .modal-panel{
   background:var(--bg-2);border:1px solid var(--neon-cyan);
   width:min(540px,94vw);max-height:90vh;overflow-y:auto;padding:28px;position:relative;
@@ -266,10 +272,42 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
   </div>
 </div>
 
+<!-- Rate Book Modal -->
+<div id="rate-modal">
+  <div class="modal-panel">
+    <button class="modal-close" id="rate-close">X</button>
+    <h2 style="margin-top:0;color:var(--neon-yellow);text-transform:uppercase;letter-spacing:1px">Rate This Book</h2>
+    <div id="rate-book-title" style="color:var(--neon-cyan);font-weight:700;margin-bottom:12px"></div>
+    <div class="field">
+      <label for="rate-stars">Your rating</label>
+      <select id="rate-stars">
+        <option value="5">\u2605\u2605\u2605\u2605\u2605 (5)</option>
+        <option value="4.5">4.5</option>
+        <option value="4" selected>\u2605\u2605\u2605\u2605 (4)</option>
+        <option value="3.5">3.5</option>
+        <option value="3">\u2605\u2605\u2605 (3)</option>
+        <option value="2.5">2.5</option>
+        <option value="2">\u2605\u2605 (2)</option>
+        <option value="1.5">1.5</option>
+        <option value="1">\u2605 (1)</option>
+        <option value="0.5">0.5</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="rate-text">Review (optional \u2014 posts to the catalog's reviews)</label>
+      <textarea id="rate-text" maxlength="1000"></textarea>
+    </div>
+    <div id="rate-error" class="form-error"></div>
+    <button id="rate-submit" class="nav-link btn-primary" style="width:100%">Submit Rating</button>
+  </div>
+</div>
+
 <script type="module">
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
-  import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+  import { getFirestore, collection, getDocs } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+  import { col } from './fb-env.js';
   import { getSession, slugifyName } from './identity.js';
+  import { bookIdFromTitle, submitReview, renderStars } from './reviews.js';
   import {
     getClub, getMembers, joinClub, leaveClub,
     removeMemberBySlug, setMemberRole, deleteClub,
@@ -277,7 +315,7 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
     acceptInvite, declineInvite,
   } from './clubs.js';
   import {
-    getReads, startRead, removeRead, finishRead, splitByDuration, parseManualMilestones,
+    getReads, startRead, removeRead, finishRead, getComments, splitByDuration, parseManualMilestones,
     loadCatalogBooks, MAX_ACTIVE_READS, MAX_MILESTONES,
     getBookChapters, milestonesFromChapters, milestonesFromChapterRanges,
     milestonesFromParts, wholeBookMilestones, formatHhmm,
@@ -306,6 +344,9 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
   let requests = [];
   let tbr = [];
   let promotingTbrId = null; // TBR item being promoted via the Start Read modal
+  let allReviews = null;     // lazy one-shot scan of the reviews collection
+  let clubStats = null;      // computed lazily for the Stats tab
+  let ratingRead = null;     // read being rated via the modal
   let activeTab = 'current';
   let catalogBooks = null; // lazy-loaded for the book picker
   let pickedBook = null;
@@ -353,6 +394,7 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
         <button class="tab ${activeTab === 'current' ? 'active' : ''}" data-tab="current">Current Read</button>
         <button class="tab ${activeTab === 'tbr' ? 'active' : ''}" data-tab="tbr">Club TBR</button>
         <button class="tab ${activeTab === 'history' ? 'active' : ''}" data-tab="history">History</button>
+        <button class="tab ${activeTab === 'stats' ? 'active' : ''}" data-tab="stats">Stats</button>
         <button class="tab ${activeTab === 'members' ? 'active' : ''}" data-tab="members">Members (${activeMembers().length})${isMod() && requests.length ? ` \u00b7 ${requests.length} pending` : ''}</button>
       </div>
       <div class="tab-panel" id="tab-panel">${renderTab()}</div>
@@ -366,11 +408,107 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
     if (activeTab === 'members') return renderMembers();
     if (activeTab === 'current') return renderCurrent();
     if (activeTab === 'tbr') return renderTbr();
+    if (activeTab === 'stats') return renderStats();
     return renderHistory();
+  }
+
+  function renderStats() {
+    if (!clubStats) {
+      computeStats().then(() => { if (activeTab === 'stats') render(); });
+      return '<div class="loading">Crunching the numbers...</div>';
+    }
+    const s = clubStats;
+    const box = (val, label) => `<div class="stat-box"><div class="stat-val">${val}</div><div class="stat-lbl">${label}</div></div>`;
+    return `
+      <div class="stats-grid">
+        ${box(s.finished, 'Books finished')}
+        ${box(s.finishedThisYear, 'Finished in ' + new Date().getFullYear())}
+        ${box(s.hours, 'Hours listened')}
+        ${box(s.activeBooks, 'Active books')}
+        ${box(s.totalComments, 'Comments')}
+        ${box(s.quoteCount, 'Quotes saved')}
+        ${box(s.avgRating !== null ? s.avgRating + '\u2605' : '\u2014', 'Club avg rating')}
+        ${box(activeMembers().length, 'Members')}
+      </div>
+      ${s.topCommenter ? `<div class="stat-line">Most active: <strong>${escapeHtml(s.topCommenter.name)}</strong> with ${s.topCommenter.count} comments</div>` : ''}
+      ${s.disagreement ? `<div class="stat-line">Biggest disagreement: <strong>${escapeHtml(s.disagreement.title)}</strong> (${s.disagreement.low}\u2605 vs ${s.disagreement.high}\u2605)</div>` : ''}
+    `;
+  }
+
+  async function computeStats() {
+    await loadReviews();
+    const finishedReads = reads.filter(r => r.status !== 'active');
+    const year = new Date().getFullYear();
+    const byName = {};
+    let totalComments = 0;
+    let quoteCount = 0;
+    for (const r of reads) {
+      const cs = await getComments(db, clubId, r.id);
+      totalComments += cs.length;
+      cs.forEach(c => { byName[c.displayName] = (byName[c.displayName] || 0) + 1; });
+      const { getQuotes } = await import('./club-reads.js');
+      quoteCount += (await getQuotes(db, clubId, r.id)).length;
+    }
+    const top = Object.entries(byName).sort((a, b) => b[1] - a[1])[0];
+    const ratings = finishedReads.map(r => ({ title: r.bookTitle, rating: clubRating(r.bookTitle), reviews: memberReviews(r.bookTitle) }))
+      .filter(x => x.rating);
+    const avgRating = ratings.length
+      ? Math.round(ratings.reduce((s, x) => s + x.rating.avg, 0) / ratings.length * 10) / 10
+      : null;
+    let disagreement = null;
+    for (const x of ratings) {
+      if (x.reviews.length < 2) continue;
+      const vals = x.reviews.map(r => r.rating || 0);
+      const spread = Math.max(...vals) - Math.min(...vals);
+      if (spread > 0 && (!disagreement || spread > disagreement.spread)) {
+        disagreement = { title: x.title, spread, low: Math.min(...vals), high: Math.max(...vals) };
+      }
+    }
+    clubStats = {
+      finished: finishedReads.length,
+      finishedThisYear: finishedReads.filter(r => {
+        try { return r.finishedAt && r.finishedAt.toDate().getFullYear() === year; } catch { return false; }
+      }).length,
+      hours: Math.round(reads.filter(r => r.status === 'finished')
+        .reduce((s, r) => s + (r.durationMinutes || 0), 0) / 60),
+      activeBooks: reads.filter(r => r.status === 'active').length,
+      totalComments,
+      quoteCount,
+      avgRating,
+      topCommenter: top ? { name: top[0], count: top[1] } : null,
+      disagreement,
+    };
+  }
+
+  function memberReviews(bookTitle) {
+    if (!allReviews) return [];
+    const bookId = bookIdFromTitle(bookTitle);
+    const names = new Set(members.map(m => m.displayName.toLowerCase()));
+    return allReviews.filter(r =>
+      r.bookId === bookId && names.has((r.displayName || '').toLowerCase()));
   }
 
   function fmtDate(ts) {
     try { return ts && ts.toDate ? ts.toDate().toLocaleDateString() : ''; } catch { return ''; }
+  }
+
+  async function loadReviews() {
+    if (allReviews) return allReviews;
+    const snap = await getDocs(collection(db, col('reviews')));
+    allReviews = snap.docs.map(d => d.data());
+    return allReviews;
+  }
+
+  // Club members' reviews for a book title -> { avg, count } (null when none)
+  function clubRating(bookTitle) {
+    if (!allReviews) return null;
+    const bookId = bookIdFromTitle(bookTitle);
+    const names = new Set(members.map(m => m.displayName.toLowerCase()));
+    const mine = allReviews.filter(r =>
+      r.bookId === bookId && names.has((r.displayName || '').toLowerCase()));
+    if (!mine.length) return null;
+    const avg = mine.reduce((s, r) => s + (r.rating || 0), 0) / mine.length;
+    return { avg: Math.round(avg * 10) / 10, count: mine.length };
   }
 
   function renderTbr() {
@@ -404,16 +542,26 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
     if (!past.length) {
       return '<div class="stub"><div class="stub-title">No finished reads yet</div>Books the club finishes (or abandons) land here with their archived discussions.</div>';
     }
-    return past.map(r => `
+    if (!allReviews) {
+      loadReviews().then(() => { if (activeTab === 'history') render(); });
+    }
+    return past.map(r => {
+      const rating = clubRating(r.bookTitle);
+      return `
       <a class="read-card" href="club-read.html?club=${encodeURIComponent(clubId)}&read=${encodeURIComponent(r.id)}">
         ${r.coverHref ? `<img class="rc-cover" src="${escapeHtml(r.coverHref)}" alt="" onerror="this.remove()">` : ''}
         <div>
           <div class="rc-slot">${r.status === 'finished' ? 'Finished' : 'Abandoned'}${fmtDate(r.finishedAt) ? ` \u00b7 ${fmtDate(r.finishedAt)}` : ''}</div>
           <div class="rc-title">${escapeHtml(r.bookTitle)}</div>
           <div class="rc-author">${escapeHtml(r.bookAuthor)}</div>
-          <div class="rc-meta">${r.commentCount || 0} comments \u00b7 discussions archived</div>
+          <div class="rc-meta">${r.commentCount || 0} comments${rating ? ` \u00b7 club verdict ${rating.avg}\u2605 (${rating.count})` : ''}</div>
         </div>
-      </a>`).join('');
+        ${session && isMember() ? `
+          <div class="rc-actions">
+            <button data-rate-read="${r.id}">Rate</button>
+          </div>` : ''}
+      </a>`;
+    }).join('');
   }
 
   function renderCurrent() {
@@ -567,6 +715,18 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
         if (!confirm(`Abandon "${btn.dataset.title}"? It moves to History with its discussions.`)) return;
         const r = await finishRead(db, clubId, btn.dataset.abandonRead, 'abandoned');
         if (r.success) reload(); else showError(r.error);
+      }));
+
+    contentEl.querySelectorAll('[data-rate-read]').forEach(btn =>
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        ratingRead = reads.find(r => r.id === btn.dataset.rateRead);
+        if (!ratingRead) return;
+        document.getElementById('rate-book-title').textContent = ratingRead.bookTitle;
+        document.getElementById('rate-text').value = '';
+        document.getElementById('rate-error').textContent = '';
+        document.getElementById('rate-modal').classList.add('open');
       }));
 
     contentEl.querySelectorAll('[data-vote]').forEach(btn =>
@@ -927,6 +1087,24 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
   suggestSearch.addEventListener('input', () => { if (catalogBooks) renderSuggestResults(suggestSearch.value); });
   document.getElementById('suggest-close').addEventListener('click', () => suggestModal.classList.remove('open'));
   suggestModal.addEventListener('click', (e) => { if (e.target === suggestModal) suggestModal.classList.remove('open'); });
+
+  // --- Rate modal (static DOM, wired once) ---
+  const rateModal = document.getElementById('rate-modal');
+  document.getElementById('rate-close').addEventListener('click', () => rateModal.classList.remove('open'));
+  rateModal.addEventListener('click', (e) => { if (e.target === rateModal) rateModal.classList.remove('open'); });
+  document.getElementById('rate-submit').addEventListener('click', async () => {
+    const errEl = document.getElementById('rate-error');
+    errEl.textContent = '';
+    if (!ratingRead || !session) return;
+    const rating = parseFloat(document.getElementById('rate-stars').value);
+    const result = await submitReview(db, bookIdFromTitle(ratingRead.bookTitle),
+      session.displayName, rating, document.getElementById('rate-text').value.trim());
+    if (!result.success) { errEl.textContent = result.error; return; }
+    rateModal.classList.remove('open');
+    allReviews = null; // refresh aggregates
+    clubStats = null;
+    reload();
+  });
 
   if (!clubId) {
     contentEl.innerHTML = '<div class="empty">No club specified.</div>';

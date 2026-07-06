@@ -136,6 +136,24 @@ button.rx-chip:hover{border-color:var(--neon-yellow)}
 }
 .composer button:disabled{opacity:.4;cursor:default}
 .char-count{font-size:.75em;color:var(--muted);font-family:'Share Tech Mono',monospace}
+.view-switch{display:flex;gap:4px;margin-bottom:10px}
+.view-switch .tab{
+  padding:8px 16px;background:var(--bg-2);border:1px solid var(--border);
+  color:var(--muted);cursor:pointer;font-weight:700;text-transform:uppercase;
+  letter-spacing:.5px;font-size:.8em;font-family:inherit;
+}
+.view-switch .tab.active{color:var(--neon-cyan);border-color:var(--neon-cyan)}
+.quote-card{background:var(--bg-2);border:1px solid var(--border);padding:16px 18px;margin-bottom:10px}
+.quote-card blockquote{margin:0 0 8px;font-size:1.1em;line-height:1.5;font-style:italic}
+.quote-meta{display:flex;gap:10px;align-items:center;font-size:.8em;color:var(--muted);font-family:'Share Tech Mono',monospace}
+.quote-meta button{background:none;border:none;color:var(--muted);cursor:pointer;font-size:1em;text-transform:uppercase;padding:0;font-family:inherit}
+.quote-meta button:hover{color:var(--neon-magenta)}
+.mention{color:var(--neon-cyan);font-weight:700}
+.mention-me{color:var(--neon-yellow)}
+.comment.mentions-me{border-left:2px solid var(--neon-yellow);padding-left:10px}
+.new-dot{width:8px;height:8px;border-radius:50%;background:var(--neon-yellow);display:inline-block}
+.new-count{color:var(--neon-yellow)}
+.comment.linked{background:rgba(5,217,232,.07);outline:1px solid var(--neon-cyan);padding:10px}
 .archive-banner{
   padding:12px 16px;border:1px solid var(--neon-yellow);background:var(--bg-2);
   color:var(--neon-yellow);margin-bottom:16px;font-size:.95em;
@@ -176,6 +194,8 @@ button.rx-chip:hover{border-color:var(--neon-yellow)}
   import {
     getRead, getComments, addComment, deleteComment,
     toggleReaction, togglePin, REACTION_EMOJI,
+    addQuote, getQuotes, deleteQuote, MAX_QUOTE_LENGTH,
+    highlightMentions, mentionsUser,
     setProgress, setChapterProgress, getProgressAll,
     isMilestoneLocked, isCommentSpoiler, groupChapters, GENERAL_MILESTONE, MAX_COMMENT_LENGTH,
   } from './club-reads.js';
@@ -199,6 +219,10 @@ button.rx-chip:hover{border-color:var(--neon-yellow)}
   const contentEl = document.getElementById('content');
 
   let club = null, read = null, comments = [], progressAll = [], members = [];
+  let quotes = [];
+  let view = 'discussions'; // 'discussions' | 'quotes'
+  let lastSeenTs = 0;       // seconds; comments newer than this get a NEW dot
+  let firstRender = true;
   const openSections = new Set([GENERAL_MILESTONE]);
   let replyTo = null; // comment id an inline reply composer is open for
   let reactingTo = null; // comment id with the emoji picker open
@@ -224,6 +248,8 @@ button.rx-chip:hover{border-color:var(--neon-yellow)}
     return p && typeof p.chapterIndex === 'number' ? p.chapterIndex : -1;
   };
   const chLabel = (i) => `Ch ${i + 1}: ${chapterTitles()[i] || ''}`;
+  const memberNames = () => members.map(m => m.displayName);
+  const seenKey = () => `ab_seen_${clubId}_${readId}`;
   // Chapter <option>s grouped into <optgroup>s (real Part/Book headings when
   // the titles have them, otherwise chunks of 25) so long books stay usable.
   function chapterOptionsHtml(selectedIndex) {
@@ -281,17 +307,21 @@ button.rx-chip:hover{border-color:var(--neon-yellow)}
             <button data-reveal="${c.id}">Reveal anyway</button>
           </div>`;
       }
+      const isNew = (c.createdAt?.seconds || 0) > lastSeenTs && c.slug !== mySlug;
+      const mentionsMe = session && mentionsUser(c.text, session.displayName);
       return `
-      <div class="comment ${isReply ? 'reply' : ''}">
+      <div class="comment ${isReply ? 'reply' : ''} ${mentionsMe ? 'mentions-me' : ''}" id="c-${c.id}">
         <div class="c-head">
           <span class="c-author">${escapeHtml(c.displayName)}</span>
           <span class="c-date">${fmtDate(c.createdAt)}</span>
+          ${isNew ? '<span class="new-dot" title="New since your last visit"></span>' : ''}
           ${tagged && hasChapters() ? `<span class="ch-chip" title="${escapeHtml(chLabel(c.chapterIndex))}">@ Ch ${c.chapterIndex + 1}</span>` : ''}
           ${c.isPinned ? '<span class="pin-badge">\ud83d\udccc pinned</span>' : ''}
         </div>
-        <div class="c-text">${escapeHtml(c.text)}</div>
+        <div class="c-text">${highlightMentions(c.text, memberNames(), session ? session.displayName : null)}</div>
         ${reactionChips(c)}
         <div class="c-actions">
+          <button data-link="${c.id}" title="Copy a link to this comment">Link</button>
           ${session ? `<button data-react-open="${c.id}">React</button>` : ''}
           ${!isReply && session ? `<button data-reply="${c.id}" data-ms="${escapeHtml(milestoneId)}">Reply</button>` : ''}
           ${!isReply && isMod() ? `<button data-pin="${c.id}">${c.isPinned ? 'Unpin' : 'Pin'}</button>` : ''}
@@ -326,7 +356,9 @@ button.rx-chip:hover{border-color:var(--neon-yellow)}
   }
 
   function sectionHtml(id, label, position) {
-    const count = comments.filter(c => (c.milestoneId || GENERAL_MILESTONE) === id).length;
+    const inSectionAll = comments.filter(c => (c.milestoneId || GENERAL_MILESTONE) === id);
+    const count = inSectionAll.length;
+    const newCount = inSectionAll.filter(c => (c.createdAt?.seconds || 0) > lastSeenTs && c.slug !== mySlug).length;
     const milestone = read.milestones.find(m => m.id === id);
     const chStart = milestone && typeof milestone.chStart === 'number' ? milestone.chStart : null;
     const locked = !isArchived() && (
@@ -344,7 +376,7 @@ button.rx-chip:hover{border-color:var(--neon-yellow)}
     const open = openSections.has(id) ? 'open' : '';
     return `
       <details class="milestone" data-ms-section="${escapeHtml(id)}" ${open}>
-        <summary>${escapeHtml(label)}<span class="ms-count">${count} comment${count !== 1 ? 's' : ''}</span></summary>
+        <summary>${escapeHtml(label)}<span class="ms-count">${newCount ? `<span class="new-count">${newCount} new</span> \u00b7 ` : ''}${count} comment${count !== 1 ? 's' : ''}</span></summary>
         <div class="ms-body">${commentThreadHtml(id)}</div>
       </details>`;
   }
@@ -394,13 +426,81 @@ button.rx-chip:hover{border-color:var(--neon-yellow)}
         </div>` : `
         <div class="progress-row"><div class="member-progress" style="margin-left:0">${progressChips}</div></div>`}
 
+      <div class="view-switch">
+        <button class="tab ${view === 'discussions' ? 'active' : ''}" data-view="discussions">Discussions</button>
+        <button class="tab ${view === 'quotes' ? 'active' : ''}" data-view="quotes">Quotes (${quotes.length})</button>
+      </div>
+      ${view === 'quotes' ? renderQuotes() : `
       ${sectionHtml(GENERAL_MILESTONE, 'General (no spoilers)', -1)}
-      ${read.milestones.map(m => sectionHtml(m.id, m.label, m.position)).join('')}
+      ${read.milestones.map(m => sectionHtml(m.id, m.label, m.position)).join('')}`}
     `;
     wireEvents();
   }
 
+  function renderQuotes() {
+    const canDeleteQuote = q => session && (q.slug === mySlug || isMod());
+    const cards = quotes.map(q => {
+      const spoiler = !isArchived() && hasChapters()
+        && isCommentSpoiler(q.chapterIndex, myChapter()) && !revealedSpoilers.has(q.id);
+      if (spoiler) {
+        return `
+          <div class="quote-card spoiler-box">
+            <span>\ud83d\udd12 Spoiler quote \u2014 tagged ${escapeHtml(chLabel(q.chapterIndex))}, saved by ${escapeHtml(q.displayName)}</span>
+            <button data-reveal="${q.id}">Reveal anyway</button>
+          </div>`;
+      }
+      return `
+        <div class="quote-card">
+          <blockquote>\u201c${escapeHtml(q.text)}\u201d</blockquote>
+          <div class="quote-meta">
+            ${typeof q.chapterIndex === 'number' ? `<span class="ch-chip">@ Ch ${q.chapterIndex + 1}</span>` : ''}
+            <span>saved by ${escapeHtml(q.displayName)}</span>
+            ${canDeleteQuote(q) ? `<button class="danger" data-quote-del="${q.id}">Delete</button>` : ''}
+          </div>
+        </div>`;
+    }).join('');
+    const composer = session && myRole() && !isArchived() ? `
+      <div class="composer" id="quote-composer">
+        <textarea id="quote-text" maxlength="${MAX_QUOTE_LENGTH}" placeholder="A line worth keeping..."></textarea>
+        <div class="composer-row">
+          <button id="quote-save">Save Quote</button>
+          ${hasChapters() ? `<select class="ch-tag" id="quote-tag"><option value="">No chapter tag</option>${chapterOptionsHtml(myChapter())}</select>` : ''}
+        </div>
+      </div>` : '';
+    return `
+      ${cards || '<div class="empty">No quotes saved yet \u2014 drop the lines that hit.</div>'}
+      ${composer}
+    `;
+  }
+
   function wireEvents() {
+    contentEl.querySelectorAll('[data-view]').forEach(btn =>
+      btn.addEventListener('click', () => { view = btn.dataset.view; render(); }));
+
+    contentEl.querySelectorAll('[data-link]').forEach(btn =>
+      btn.addEventListener('click', async () => {
+        const url = `${location.origin}${location.pathname}?club=${encodeURIComponent(clubId)}&read=${encodeURIComponent(readId)}#c-${btn.dataset.link}`;
+        try { await navigator.clipboard.writeText(url); btn.textContent = 'Copied!'; } catch { prompt('Copy link:', url); }
+        setTimeout(() => { btn.textContent = 'Link'; }, 1500);
+      }));
+
+    const quoteSave = document.getElementById('quote-save');
+    if (quoteSave) quoteSave.addEventListener('click', async () => {
+      const tagEl = document.getElementById('quote-tag');
+      const r = await addQuote(db, clubId, readId, {
+        text: document.getElementById('quote-text').value,
+        chapterIndex: tagEl && tagEl.value !== '' ? parseInt(tagEl.value, 10) : null,
+      }, session);
+      if (r.success) reload(); else showError(r.error);
+    });
+
+    contentEl.querySelectorAll('[data-quote-del]').forEach(btn =>
+      btn.addEventListener('click', async () => {
+        if (!confirm('Delete this quote?')) return;
+        const r = await deleteQuote(db, clubId, readId, btn.dataset.quoteDel);
+        if (r.success) reload(); else showError(r.error);
+      }));
+
     const sel = document.getElementById('progress-select');
     if (sel) sel.addEventListener('change', async () => {
       const v = parseInt(sel.value, 10);
@@ -483,12 +583,13 @@ button.rx-chip:hover{border-color:var(--neon-yellow)}
   }
 
   async function reload() {
-    [club, read, comments, progressAll, members] = await Promise.all([
+    [club, read, comments, progressAll, members, quotes] = await Promise.all([
       getClub(db, clubId),
       getRead(db, clubId, readId),
       getComments(db, clubId, readId),
       getProgressAll(db, clubId, readId),
       getMembers(db, clubId),
+      getQuotes(db, clubId, readId),
     ]);
     if (!club || !read) {
       contentEl.innerHTML = '<div class="empty">Read not found — it may have been removed.</div>';
@@ -496,7 +597,24 @@ button.rx-chip:hover{border-color:var(--neon-yellow)}
     }
     document.getElementById('back-link').href = `club.html?id=${encodeURIComponent(clubId)}`;
     document.title = `${read.bookTitle} - Club Read`;
+    if (firstRender) {
+      lastSeenTs = parseInt(localStorage.getItem(seenKey()) || '0', 10);
+      localStorage.setItem(seenKey(), String(Math.floor(Date.now() / 1000)));
+      const hash = location.hash.match(/^#c-(.+)$/);
+      if (hash) {
+        const target = comments.find(c => c.id === hash[1]);
+        if (target) openSections.add(target.milestoneId || GENERAL_MILESTONE);
+      }
+    }
     render();
+    if (firstRender) {
+      firstRender = false;
+      const el = location.hash.startsWith('#c-') ? document.getElementById(location.hash.slice(1)) : null;
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('linked');
+      }
+    }
   }
 
   if (!clubId || !readId) {

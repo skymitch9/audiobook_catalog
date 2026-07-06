@@ -113,6 +113,15 @@ service cloud.firestore {
         allow delete: if true;
       }
 
+      match /reads/{readId}/quotes/{quoteId} {
+        allow read: if true;
+        allow write: if request.resource.data.text is string
+                     && request.resource.data.text.size() > 0
+                     && request.resource.data.text.size() <= 500
+                     && request.resource.data.displayName is string;
+        allow delete: if true;
+      }
+
       match /reads/{readId} {
         allow read: if true;
         allow write: if validClubRead();
@@ -184,6 +193,15 @@ service cloud.firestore {
         allow read: if true;
         allow write: if request.resource.data.bookTitle is string
                      && request.resource.data.suggestedBy is string;
+        allow delete: if true;
+      }
+
+      match /reads/{readId}/quotes/{quoteId} {
+        allow read: if true;
+        allow write: if request.resource.data.text is string
+                     && request.resource.data.text.size() > 0
+                     && request.resource.data.text.size() <= 500
+                     && request.resource.data.displayName is string;
         allow delete: if true;
       }
 
