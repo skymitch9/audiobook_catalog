@@ -1,7 +1,6 @@
 <!doctype html>
 <html>
 <head>
-<script>if(localStorage.getItem("ab_theme")==="light")document.documentElement.classList.add("light");</script>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Audiobook Catalog - Statistics</title>
@@ -164,61 +163,31 @@ h1{margin:0 0 8px 0; color:var(--neon-yellow); text-transform:uppercase; letter-
     grid-template-columns: 1fr;
   }
 }
-
-/* Sign-in / user chip (shared identity bar) */
-#identity-bar{margin-left:auto}
-.identity-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.identity-bar__greeting{font-weight:700;color:var(--neon-cyan,#05d9e8)}
-.identity-bar__google-btn{
-  display:inline-flex;align-items:center;padding:8px 14px;border:1px solid var(--border,#2a2a3a);
-  background:var(--bg-2,#12121f);color:var(--text,#e8e6e3);font-weight:700;font-size:.85em;
-  cursor:pointer;transition:all .2s;font-family:inherit;
-}
-.identity-bar__google-btn:hover{border-color:var(--neon-cyan,#05d9e8)}
-.identity-bar__google-btn:disabled{opacity:.6;cursor:wait}
-.identity-bar__logout-btn{
-  background:none;border:1px solid var(--border,#2a2a3a);color:var(--muted,#8a8f98);cursor:pointer;
-  font-size:.75em;padding:4px 10px;font-family:inherit;text-transform:uppercase;letter-spacing:.5px;
-}
-.identity-bar__logout-btn:hover{border-color:var(--neon-magenta,#ff2a6d);color:var(--neon-magenta,#ff2a6d)}
-
-.nav-link.active{border-color:var(--neon-cyan,#05d9e8);color:var(--neon-yellow,#fcee0a)}
-
-/* Light theme: html.light overrides the palette vars site-wide */
-html.light{
-  --bg:#eef0f5; --bg-2:#ffffff; --text:#16161e; --muted:#5c6270; --border:#c9cdd9;
-  --neon-yellow:#9a7b00; --neon-cyan:#00798f; --neon-magenta:#c31e58;
-}
-html.light body{background-image:none}
 </style>
 </head>
 <body>
 <div id="wrap">
   <h1>📊 Audiobook Statistics</h1>
 
-  <div class="nav-row" style="margin-bottom: 20px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-    <a href="index.html" class="nav-link">Catalog</a>
-    <a href="community.html" class="nav-link">Community</a>
-    <a href="clubs.html" class="nav-link">Clubs</a>
-    <a href="stats.html" class="nav-link active">Stats</a>
-    <a href="guess-game.html" class="nav-link">Game</a>
-    <div id="identity-bar" style="margin-left:auto"></div>
+  <div style="margin-bottom: 20px;">
+    <a href="index.html" class="nav-link">← Back to Catalog</a>
+    <a href="guess-game.html" class="nav-link">🎮 Play Game</a>
   </div>
 
   <div class="stats-grid">
     <div class="stat-card">
-      <div class="stat-number">989</div>
+      <div class="stat-number">990</div>
       <div class="stat-label">Total Books</div>
     </div>
     
     <div class="stat-card">
-      <div class="stat-number">13,706</div>
+      <div class="stat-number">13,713</div>
       <div class="stat-label">Total Hours</div>
-      <div class="stat-sublabel">571.1 days</div>
+      <div class="stat-sublabel">571.4 days</div>
     </div>
     
     <div class="stat-card">
-      <div class="stat-number">399</div>
+      <div class="stat-number">400</div>
       <div class="stat-label">Unique Authors</div>
     </div>
     
@@ -228,7 +197,7 @@ html.light body{background-image:none}
     </div>
     
     <div class="stat-card">
-      <div class="stat-number">319</div>
+      <div class="stat-number">320</div>
       <div class="stat-label">Unique Series</div>
     </div>
     
@@ -243,7 +212,7 @@ html.light body{background-image:none}
     <h3>📋 Collection Insights</h3>
     <div class="insight-item">
       <div class="insight-label">Listening Marathon</div>
-      <div class="insight-value">It would take 1.56 years (19.0 months) to listen to your entire collection!</div>
+      <div class="insight-value">It would take 1.57 years (19.0 months) to listen to your entire collection!</div>
     </div>
     <div class="insight-item">
       <div class="insight-label">Author Diversity</div>
@@ -451,11 +420,11 @@ html.light body{background-image:none}
     </div>
     <div class="top-item">
       <span class="top-name">Short (5-10h)</span>
-      <span class="top-count">243 books (24.6%)</span>
+      <span class="top-count">244 books (24.6%)</span>
     </div>
     <div class="top-item">
       <span class="top-name">Medium (11-15h)</span>
-      <span class="top-count">345 books (34.9%)</span>
+      <span class="top-count">345 books (34.8%)</span>
     </div>
     <div class="top-item">
       <span class="top-name">Long (16-24h)</span>
@@ -468,7 +437,7 @@ html.light body{background-image:none}
   </div>
 
   <div style="margin-top: 30px; padding: 20px; background: var(--bg-2); border-radius: var(--radius); text-align: center; color: var(--muted);">
-    <small>Generated at: 2026-07-05 21:14:34</small>
+    <small>Generated at: 2026-07-06 14:09:33</small>
   </div>
 </div>
 
@@ -476,9 +445,7 @@ html.light body{background-image:none}
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
   import { getFirestore, collection, getDocs } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
   import { col } from './fb-env.js';
-  import {} from './identity.js';
 
-  import { mountAccountModal } from './account-modal.js';
   const app = initializeApp({
     apiKey: "AIzaSyDgAblkxzVxl7nFbd7jXOo6PpuNPsJw11Y",
     authDomain: "audiobook-catalog.firebaseapp.com",
@@ -488,7 +455,6 @@ html.light body{background-image:none}
     appId: "1:68492219785:web:7cbe57dda8712377f0bd58"
   });
   const db = getFirestore(app);
-  mountAccountModal(db, app, document.getElementById('identity-bar'));
 
   async function loadCommunityStats() {
     try {
