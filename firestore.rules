@@ -100,6 +100,12 @@ service cloud.firestore {
         allow delete: if true;
       }
 
+      match /requests/{userId} {
+        allow read: if true;
+        allow write: if request.resource.data.displayName is string;
+        allow delete: if true;
+      }
+
       match /reads/{readId} {
         allow read: if true;
         allow write: if validClubRead();
@@ -157,6 +163,12 @@ service cloud.firestore {
       match /members/{memberId} {
         allow read: if true;
         allow write: if validClubMember();
+        allow delete: if true;
+      }
+
+      match /requests/{userId} {
+        allow read: if true;
+        allow write: if request.resource.data.displayName is string;
         allow delete: if true;
       }
 

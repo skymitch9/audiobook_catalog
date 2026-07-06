@@ -24,6 +24,7 @@ vi.mock('firebase/firestore', () => {
     },
     getDoc: async (ref) => makeSnap(ref._path),
     setDoc: async (ref, data) => { mockStore[ref._path] = { ...data }; },
+    updateDoc: async (ref, data) => { mockStore[ref._path] = { ...(mockStore[ref._path] || {}), ...data }; },
     deleteDoc: async (ref) => { delete mockStore[ref._path]; },
     query: (colRef, ...filters) => ({ _path: colRef._path, _filters: filters }),
     where: (field, op, value) => ({ field, op, value }),
@@ -67,7 +68,9 @@ const {
   validateClubName, validateClubDescription,
   createClub, getAllClubs, getMyClubs, getClub, getMembers,
   joinClub, leaveClub, removeMemberBySlug,
-  setMemberRole, deleteClub,
+  setMemberRole, deleteClub, updateClubDetails,
+  requestToJoin, getRequests, acceptRequest, rejectRequest,
+  inviteMember, acceptInvite, declineInvite,
 } = await import('../clubs.js');
 
 const fakeDb = {};
@@ -196,6 +199,92 @@ describe('setMemberRole', () => {
     const clubId = await makeClub();
     expect((await setMemberRole(fakeDb, clubId, 'jane doe', 'member')).success).toBe(false);
     expect((await setMemberRole(fakeDb, clubId, 'jane doe', 'admin')).success).toBe(false);
+  });
+});
+
+describe('updateClubDetails', () => {
+  it('updates name, description, emoji, and joinMode', async () => {
+    const clubId = await makeClub();
+    const r = await updateClubDetails(fakeDb, clubId, {
+      name: 'Renamed Club', description: 'New blurb', emoji: '🎧', joinMode: 'application',
+    });
+    expect(r.success).toBe(true);
+    const club = await getClub(fakeDb, clubId);
+    expect(club.name).toBe('Renamed Club');
+    expect(club.joinMode).toBe('application');
+  });
+
+  it('validates fields', async () => {
+    const clubId = await makeClub();
+    expect((await updateClubDetails(fakeDb, clubId, { name: 'xy' })).success).toBe(false);
+    expect((await updateClubDetails(fakeDb, clubId, { joinMode: 'secret' })).success).toBe(false);
+    expect((await getClub(fakeDb, clubId)).name).toBe('LitRPG Legends');
+  });
+});
+
+describe('join requests (application mode)', () => {
+  it('request -> accept makes an active member and clears the request', async () => {
+    const clubId = await makeClub();
+    await updateClubDetails(fakeDb, clubId, { joinMode: 'application' });
+    expect((await requestToJoin(fakeDb, clubId, bob)).success).toBe(true);
+    expect((await getRequests(fakeDb, clubId)).map(r => r.slug)).toEqual(['bob brown']);
+
+    expect((await acceptRequest(fakeDb, clubId, 'bob brown')).success).toBe(true);
+    expect(await getRequests(fakeDb, clubId)).toHaveLength(0);
+    const club = await getClub(fakeDb, clubId);
+    expect(club.memberSlugs).toContain('bob brown');
+    expect(club.memberCount).toBe(2);
+    expect((await getMembers(fakeDb, clubId)).find(m => m.slug === 'bob brown').status).toBe('active');
+  });
+
+  it('reject clears the request without adding a member', async () => {
+    const clubId = await makeClub();
+    await requestToJoin(fakeDb, clubId, bob);
+    await rejectRequest(fakeDb, clubId, 'bob brown');
+    expect(await getRequests(fakeDb, clubId)).toHaveLength(0);
+    expect((await getClub(fakeDb, clubId)).memberCount).toBe(1);
+  });
+});
+
+describe('invitations (manual add)', () => {
+  it('invite pins the club in getMyClubs with invited flag, first in list', async () => {
+    const clubId = await makeClub({ name: 'Inviting Club' });
+    const otherId = await makeClub({ name: 'Other Club' });
+    await joinClub(fakeDb, otherId, bob);
+
+    expect((await inviteMember(fakeDb, clubId, 'Bob Brown')).success).toBe(true);
+    const mine = await getMyClubs(fakeDb, 'Bob Brown');
+    expect(mine[0].name).toBe('Inviting Club');
+    expect(mine[0].invited).toBe(true);
+    expect(mine[1].invited).toBe(false);
+    expect((await getClub(fakeDb, clubId)).memberCount).toBe(1);
+  });
+
+  it('accept converts the invite to active membership', async () => {
+    const clubId = await makeClub();
+    await inviteMember(fakeDb, clubId, 'Bob Brown');
+    expect((await acceptInvite(fakeDb, clubId, bob)).success).toBe(true);
+    const club = await getClub(fakeDb, clubId);
+    expect(club.invitedSlugs).toEqual([]);
+    expect(club.memberSlugs).toContain('bob brown');
+    expect(club.memberCount).toBe(2);
+    expect((await getMembers(fakeDb, clubId)).find(m => m.slug === 'bob brown').status).toBe('active');
+  });
+
+  it('decline removes the invite entirely', async () => {
+    const clubId = await makeClub();
+    await inviteMember(fakeDb, clubId, 'Bob Brown');
+    expect((await declineInvite(fakeDb, clubId, bob)).success).toBe(true);
+    expect((await getClub(fakeDb, clubId)).invitedSlugs).toEqual([]);
+    expect((await getMembers(fakeDb, clubId)).find(m => m.slug === 'bob brown')).toBeUndefined();
+    expect(await getMyClubs(fakeDb, 'Bob Brown')).toHaveLength(0);
+  });
+
+  it('rejects duplicate invites and inviting existing members', async () => {
+    const clubId = await makeClub();
+    await inviteMember(fakeDb, clubId, 'Bob Brown');
+    expect((await inviteMember(fakeDb, clubId, 'Bob Brown')).success).toBe(false);
+    expect((await inviteMember(fakeDb, clubId, 'Jane Doe')).success).toBe(false);
   });
 });
 

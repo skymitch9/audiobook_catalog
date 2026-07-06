@@ -171,6 +171,41 @@ export async function getReads(db, clubId) {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
+/**
+ * Remove a read entirely (any member — "the book we're reading" is
+ * club-editable). Frees its active slot and deletes its comments and
+ * progress docs.
+ */
+export async function removeRead(db, clubId, readId) {
+  const clubRef = doc(db, col('clubs'), clubId);
+  const readRef = doc(db, col('clubs'), clubId, 'reads', readId);
+  try {
+    const readSnap = await getDoc(readRef);
+    if (!readSnap.exists()) return { success: false, error: 'Read not found.' };
+    const { slot, status } = readSnap.data();
+    if (status === 'active') {
+      await runTransaction(db, async (tx) => {
+        const clubSnap = await tx.get(clubRef);
+        if (!clubSnap.exists()) throw new Error('Club not found.');
+        const activeSlots = [...(clubSnap.data().activeSlots || [])];
+        const idx = activeSlots.indexOf(slot);
+        if (idx !== -1) activeSlots.splice(idx, 1);
+        tx.update(clubRef, { activeSlots });
+      });
+    }
+    for (const sub of ['comments', 'progress']) {
+      const snap = await getDocs(collection(db, col('clubs'), clubId, 'reads', readId, sub));
+      for (const d of snap.docs) {
+        await deleteDoc(doc(db, col('clubs'), clubId, 'reads', readId, sub, d.id));
+      }
+    }
+    await deleteDoc(readRef);
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
 /** Fetch a single read. Returns null if missing. */
 export async function getRead(db, clubId, readId) {
   const snap = await getDoc(doc(db, col('clubs'), clubId, 'reads', readId));

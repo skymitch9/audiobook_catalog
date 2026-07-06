@@ -103,12 +103,28 @@ body{
 .rc-title{font-weight:700;font-size:1.1em;color:var(--neon-cyan);text-transform:uppercase;letter-spacing:.5px}
 .rc-author{color:var(--muted);font-size:.9em}
 .rc-meta{font-size:.75em;color:var(--muted);font-family:'Share Tech Mono',monospace;margin-top:4px}
+.rc-remove{
+  margin-left:auto;background:none;border:1px solid var(--border);color:var(--muted);
+  width:28px;height:28px;cursor:pointer;font-weight:bold;flex-shrink:0;
+}
+.rc-remove:hover{border-color:var(--neon-magenta);color:var(--neon-magenta)}
+.rq-h{
+  color:var(--neon-magenta);text-transform:uppercase;letter-spacing:1px;font-size:.9em;
+  margin:18px 0 8px;border-bottom:1px solid var(--border);padding-bottom:5px;
+}
+.rq-h:first-child{margin-top:0}
+.add-row{display:flex;gap:8px;flex-wrap:wrap}
+.add-row input{
+  flex:1;min-width:160px;padding:8px 12px;border:1px solid var(--border);
+  background:var(--bg);color:var(--text);font-family:inherit;
+}
+.add-row input:focus{outline:none;border-color:var(--neon-cyan)}
 /* Start-read modal */
-#read-modal{
+#read-modal,#edit-modal{
   position:fixed;inset:0;display:none;align-items:center;justify-content:center;
   background:rgba(0,0,0,.85);z-index:9999;padding:20px;backdrop-filter:blur(4px);
 }
-#read-modal.open{display:flex}
+#read-modal.open,#edit-modal.open{display:flex}
 .modal-panel{
   background:var(--bg-2);border:1px solid var(--neon-cyan);
   width:min(540px,94vw);max-height:90vh;overflow-y:auto;padding:28px;position:relative;
@@ -193,6 +209,35 @@ body{
   </div>
 </div>
 
+<!-- Edit Club Modal -->
+<div id="edit-modal">
+  <div class="modal-panel">
+    <button class="modal-close" id="edit-close">X</button>
+    <h2 style="margin-top:0;color:var(--neon-yellow);text-transform:uppercase;letter-spacing:1px">Edit Club</h2>
+    <div class="field">
+      <label for="edit-name">Club name</label>
+      <input id="edit-name" type="text" maxlength="40" />
+    </div>
+    <div class="field">
+      <label for="edit-desc">Description</label>
+      <textarea id="edit-desc" maxlength="300"></textarea>
+    </div>
+    <div class="field">
+      <label for="edit-emoji">Emoji</label>
+      <input id="edit-emoji" type="text" maxlength="4" style="width:70px;text-align:center;font-size:1.3em" />
+    </div>
+    <div class="field" id="edit-joinmode-field" style="display:none">
+      <label for="edit-joinmode">Join mode (host setting)</label>
+      <select id="edit-joinmode">
+        <option value="open">Open — anyone can join instantly</option>
+        <option value="application">By application — host approves requests</option>
+      </select>
+    </div>
+    <div id="edit-error" class="form-error"></div>
+    <button id="edit-submit" class="nav-link btn-primary" style="width:100%">Save Changes</button>
+  </div>
+</div>
+
 <script type="module">
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
   import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
@@ -200,9 +245,11 @@ body{
   import {
     getClub, getMembers, joinClub, leaveClub,
     removeMemberBySlug, setMemberRole, deleteClub,
+    updateClubDetails, requestToJoin, getRequests, acceptRequest, rejectRequest, inviteMember,
+    acceptInvite, declineInvite,
   } from './clubs.js';
   import {
-    getReads, startRead, splitByDuration, parseManualMilestones,
+    getReads, startRead, removeRead, splitByDuration, parseManualMilestones,
     loadCatalogBooks, MAX_ACTIVE_READS,
   } from './club-reads.js';
 
@@ -225,6 +272,7 @@ body{
   let club = null;
   let members = [];
   let reads = [];
+  let requests = [];
   let activeTab = 'current';
   let catalogBooks = null; // lazy-loaded for the book picker
   let pickedBook = null;
@@ -235,9 +283,16 @@ body{
     }[c]));
   }
 
-  const myRole = () => (members.find(m => m.slug === mySlug) || {}).role || null;
+  const myMember = () => members.find(m => m.slug === mySlug) || null;
+  const myRole = () => {
+    const m = myMember();
+    if (!m) return null;
+    return m.status === 'invited' ? 'invited' : m.role;
+  };
   const isHost = () => myRole() === 'host';
   const isMod = () => isHost() || myRole() === 'moderator';
+  const isMember = () => myRole() !== null && myRole() !== 'invited';
+  const activeMembers = () => members.filter(m => m.status !== 'invited');
 
   function render() {
     const roleBadge = myRole() ? `<span class="badge badge-role">${escapeHtml(myRole())}</span>` : '';
@@ -253,6 +308,8 @@ body{
         <div class="club-meta">
           <span>${club.memberCount || 0} member${(club.memberCount || 0) !== 1 ? 's' : ''}</span>
           <span>Host: ${escapeHtml(club.hostDisplayName)}</span>
+          <span>${club.joinMode === 'application' ? 'Join by application' : 'Open join'}</span>
+          ${myRole() && myRole() !== 'invited' ? '<button id="edit-club-btn" class="nav-link" style="padding:4px 10px;font-size:.75em">Edit Club</button>' : ''}
         </div>
       </div>
 
@@ -260,7 +317,8 @@ body{
         <button class="tab ${activeTab === 'current' ? 'active' : ''}" data-tab="current">Current Read</button>
         <button class="tab ${activeTab === 'tbr' ? 'active' : ''}" data-tab="tbr">Club TBR</button>
         <button class="tab ${activeTab === 'history' ? 'active' : ''}" data-tab="history">History</button>
-        <button class="tab ${activeTab === 'members' ? 'active' : ''}" data-tab="members">Members (${members.length})</button>
+        <button class="tab ${activeTab === 'members' ? 'active' : ''}" data-tab="members">Members (${activeMembers().length})</button>
+        ${isMod() ? `<button class="tab ${activeTab === 'requests' ? 'active' : ''}" data-tab="requests">Requests${requests.length ? ` (${requests.length})` : ''}</button>` : ''}
       </div>
       <div class="tab-panel" id="tab-panel">${renderTab()}</div>
 
@@ -271,6 +329,7 @@ body{
 
   function renderTab() {
     if (activeTab === 'members') return renderMembers();
+    if (activeTab === 'requests') return renderRequests();
     if (activeTab === 'current') return renderCurrent();
     const stubs = {
       tbr: ['Club TBR coming soon', 'Suggesting and voting on what to read next arrives in Phase 3.'],
@@ -282,7 +341,7 @@ body{
 
   function renderCurrent() {
     const active = reads.filter(r => r.status === 'active').sort((a, b) => a.slot - b.slot);
-    const canStart = isMod() && active.length < MAX_ACTIVE_READS;
+    const canStart = isMember() && active.length < MAX_ACTIVE_READS;
     const cards = active.map(r => `
       <a class="read-card" href="club-read.html?club=${encodeURIComponent(clubId)}&read=${encodeURIComponent(r.id)}">
         ${r.coverHref ? `<img class="rc-cover" src="${escapeHtml(r.coverHref)}" alt="" onerror="this.remove()">` : ''}
@@ -292,8 +351,9 @@ body{
           <div class="rc-author">${escapeHtml(r.bookAuthor)}</div>
           <div class="rc-meta">${(r.milestones || []).length} milestones \u00b7 ${r.commentCount || 0} comments \u00b7 started by ${escapeHtml(r.startedBy || '')}</div>
         </div>
+        ${isMember() ? `<button class="rc-remove" data-remove-read="${r.id}" data-title="${escapeHtml(r.bookTitle)}" title="Remove this book">X</button>` : ''}
       </a>`).join('');
-    const emptyState = isMod()
+    const emptyState = isMember()
       ? `<div class="stub"><div class="stub-title">No active read yet</div>Pick the club's first book to open the discussions.</div>`
       : `<div class="stub"><div class="stub-title">No active read yet</div>The host hasn't picked a book yet.</div>`;
     return `
@@ -302,34 +362,83 @@ body{
     `;
   }
 
-  function renderMembers() {
-    if (!members.length) return '<div class="empty">No members.</div>';
+  function memberRows(withActions) {
     const roleRank = { host: 0, moderator: 1, member: 2 };
     const sorted = [...members].sort((a, b) =>
-      (roleRank[a.role] ?? 3) - (roleRank[b.role] ?? 3) || a.displayName.localeCompare(b.displayName));
+      (a.status === 'invited') - (b.status === 'invited')
+      || (roleRank[a.role] ?? 3) - (roleRank[b.role] ?? 3)
+      || a.displayName.localeCompare(b.displayName));
     return sorted.map(m => {
       const actions = [];
-      if (isHost() && m.slug !== mySlug && m.role !== 'host') {
-        actions.push(m.role === 'moderator'
-          ? `<button data-action="demote" data-slug="${escapeHtml(m.slug)}">Remove Mod</button>`
-          : `<button data-action="promote" data-slug="${escapeHtml(m.slug)}">Make Mod</button>`);
-      }
-      if (isMod() && m.slug !== mySlug && m.role !== 'host') {
-        actions.push(`<button class="danger" data-action="remove" data-slug="${escapeHtml(m.slug)}" data-name="${escapeHtml(m.displayName)}">Remove</button>`);
+      if (withActions) {
+        if (isHost() && m.slug !== mySlug && m.role !== 'host' && m.status !== 'invited') {
+          actions.push(m.role === 'moderator'
+            ? `<button data-action="demote" data-slug="${escapeHtml(m.slug)}">Remove Mod</button>`
+            : `<button data-action="promote" data-slug="${escapeHtml(m.slug)}">Make Mod</button>`);
+        }
+        if (m.slug !== mySlug && m.role !== 'host') {
+          actions.push(`<button class="danger" data-action="remove" data-slug="${escapeHtml(m.slug)}" data-name="${escapeHtml(m.displayName)}">Remove</button>`);
+        }
       }
       return `
         <div class="member-row">
           <div class="member-avatar">${escapeHtml(m.displayName.charAt(0).toUpperCase())}</div>
           <span class="member-name">${escapeHtml(m.displayName)}</span>
           ${m.role !== 'member' ? `<span class="badge badge-role">${escapeHtml(m.role)}</span>` : ''}
+          ${m.status === 'invited' ? '<span class="badge">Invited</span>' : ''}
           <div class="member-actions">${actions.join('')}</div>
         </div>`;
     }).join('');
   }
 
+  function renderMembers() {
+    if (!members.length) return '<div class="empty">No members.</div>';
+    return memberRows(false);
+  }
+
+  function renderRequests() {
+    const reqList = requests.length
+      ? requests.map(r => `
+          <div class="member-row">
+            <div class="member-avatar">${escapeHtml(r.displayName.charAt(0).toUpperCase())}</div>
+            <span class="member-name">${escapeHtml(r.displayName)}</span>
+            <span class="badge">wants to join</span>
+            <div class="member-actions">
+              <button data-req-accept="${escapeHtml(r.slug)}">Accept</button>
+              <button class="danger" data-req-reject="${escapeHtml(r.slug)}" data-name="${escapeHtml(r.displayName)}">Reject</button>
+            </div>
+          </div>`).join('')
+      : '<div class="empty" style="padding:14px">No pending requests.</div>';
+
+    return `
+      <h3 class="rq-h">Join Requests</h3>
+      ${reqList}
+      <h3 class="rq-h">Add a member manually</h3>
+      <div class="add-row">
+        <input id="invite-name" type="text" maxlength="40" placeholder="Display name" />
+        <button id="invite-btn" class="nav-link btn-primary">Add</button>
+      </div>
+      <div id="invite-error" class="form-error"></div>
+      <h3 class="rq-h">Members</h3>
+      ${memberRows(true)}
+    `;
+  }
+
   function renderFooterActions() {
     if (!session) return '';
+    if (myRole() === 'invited') {
+      return `
+        <span style="color:var(--muted);align-self:center">You've been invited to this club:</span>
+        <button id="invite-accept-btn" class="nav-link btn-primary">Accept</button>
+        <button id="invite-decline-btn" class="nav-link btn-danger">Reject</button>`;
+    }
     if (!myRole()) {
+      if (club.joinMode === 'application') {
+        const pending = requests.some(r => r.slug === mySlug);
+        return pending
+          ? '<span style="color:var(--muted)">Join request pending — the host will review it.</span>'
+          : '<button id="request-btn" class="nav-link btn-primary">Request to Join</button>';
+      }
       return '<button id="join-btn" class="nav-link btn-primary">Join This Club</button>';
     }
     const actions = [];
@@ -348,6 +457,57 @@ body{
 
     const startBtn = document.getElementById('start-read-btn');
     if (startBtn) startBtn.addEventListener('click', openReadModal);
+
+    const editBtn = document.getElementById('edit-club-btn');
+    if (editBtn) editBtn.addEventListener('click', openEditModal);
+
+    contentEl.querySelectorAll('[data-remove-read]').forEach(btn =>
+      btn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!confirm(`Remove "${btn.dataset.title}" from the club? Its discussions will be deleted.`)) return;
+        const r = await removeRead(db, clubId, btn.dataset.removeRead);
+        if (r.success) reload(); else showError(r.error);
+      }));
+
+    const requestBtn = document.getElementById('request-btn');
+    if (requestBtn) requestBtn.addEventListener('click', async () => {
+      if (!confirm(`Request to join ${club.name}?`)) return;
+      const r = await requestToJoin(db, clubId, session);
+      if (r.success) reload(); else showError(r.error);
+    });
+
+    const inviteAcceptBtn = document.getElementById('invite-accept-btn');
+    if (inviteAcceptBtn) inviteAcceptBtn.addEventListener('click', async () => {
+      const r = await acceptInvite(db, clubId, session);
+      if (r.success) reload(); else showError(r.error);
+    });
+    const inviteDeclineBtn = document.getElementById('invite-decline-btn');
+    if (inviteDeclineBtn) inviteDeclineBtn.addEventListener('click', async () => {
+      if (!confirm(`Reject the invitation to ${club.name}?`)) return;
+      const r = await declineInvite(db, clubId, session);
+      if (r.success) window.location.href = 'clubs.html'; else showError(r.error);
+    });
+
+    contentEl.querySelectorAll('[data-req-accept]').forEach(btn =>
+      btn.addEventListener('click', async () => {
+        const r = await acceptRequest(db, clubId, btn.dataset.reqAccept);
+        if (r.success) reload(); else showError(r.error);
+      }));
+    contentEl.querySelectorAll('[data-req-reject]').forEach(btn =>
+      btn.addEventListener('click', async () => {
+        if (!confirm(`Reject ${btn.dataset.name}'s request?`)) return;
+        const r = await rejectRequest(db, clubId, btn.dataset.reqReject);
+        if (r.success) reload(); else showError(r.error);
+      }));
+
+    const inviteBtn = document.getElementById('invite-btn');
+    if (inviteBtn) inviteBtn.addEventListener('click', async () => {
+      const errEl = document.getElementById('invite-error');
+      errEl.textContent = '';
+      const r = await inviteMember(db, clubId, document.getElementById('invite-name').value);
+      if (r.success) reload(); else errEl.textContent = r.error;
+    });
 
     const joinBtn = document.getElementById('join-btn');
     if (joinBtn) joinBtn.addEventListener('click', async () => {
@@ -393,8 +553,8 @@ body{
   }
 
   async function reload() {
-    [club, members, reads] = await Promise.all([
-      getClub(db, clubId), getMembers(db, clubId), getReads(db, clubId),
+    [club, members, reads, requests] = await Promise.all([
+      getClub(db, clubId), getMembers(db, clubId), getReads(db, clubId), getRequests(db, clubId),
     ]);
     if (!club) {
       contentEl.innerHTML = '<div class="empty">Club not found — it may have been deleted.</div>';
@@ -497,6 +657,35 @@ body{
     }, session);
     if (!r.success) { errEl.textContent = r.error; return; }
     window.location.href = `club-read.html?club=${encodeURIComponent(clubId)}&read=${encodeURIComponent(r.readId)}`;
+  });
+
+  // --- Edit Club modal (static DOM, wired once) ---
+  const editModal = document.getElementById('edit-modal');
+  function openEditModal() {
+    document.getElementById('edit-name').value = club.name || '';
+    document.getElementById('edit-desc').value = club.description || '';
+    document.getElementById('edit-emoji').value = club.emoji || '📚';
+    document.getElementById('edit-error').textContent = '';
+    const jmField = document.getElementById('edit-joinmode-field');
+    jmField.style.display = isHost() ? 'block' : 'none';
+    document.getElementById('edit-joinmode').value = club.joinMode === 'application' ? 'application' : 'open';
+    editModal.classList.add('open');
+  }
+  document.getElementById('edit-close').addEventListener('click', () => editModal.classList.remove('open'));
+  editModal.addEventListener('click', (e) => { if (e.target === editModal) editModal.classList.remove('open'); });
+  document.getElementById('edit-submit').addEventListener('click', async () => {
+    const errEl = document.getElementById('edit-error');
+    errEl.textContent = '';
+    const input = {
+      name: document.getElementById('edit-name').value,
+      description: document.getElementById('edit-desc').value,
+      emoji: document.getElementById('edit-emoji').value,
+    };
+    if (isHost()) input.joinMode = document.getElementById('edit-joinmode').value;
+    const r = await updateClubDetails(db, clubId, input);
+    if (!r.success) { errEl.textContent = r.error; return; }
+    editModal.classList.remove('open');
+    reload();
   });
 
   if (!clubId) {
