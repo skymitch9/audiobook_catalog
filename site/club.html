@@ -154,8 +154,6 @@ body{
 #picked-book img{width:44px;height:auto;border:1px solid var(--border)}
 #picked-book .pb-title{font-weight:700;color:var(--neon-cyan)}
 #picked-book .pb-sub{font-size:.85em;color:var(--muted)}
-.ms-mode{display:flex;gap:16px;margin-bottom:8px}
-.ms-mode label{display:flex;gap:6px;align-items:center;font-size:.9em;color:var(--text);text-transform:none;margin:0}
 #ms-preview{font-size:.85em;color:var(--muted);font-family:'Share Tech Mono',monospace;line-height:1.7;margin-top:6px}
 .form-error{color:var(--neon-magenta);font-size:.9em;min-height:1.2em;margin-bottom:8px}
 @media(max-width:600px){
@@ -189,20 +187,17 @@ body{
     </div>
     <div class="field">
       <label>Milestones (discussion checkpoints)</label>
-      <div class="ms-mode">
-        <label><input type="radio" name="ms-mode" value="auto" checked /> Auto-split by duration</label>
-        <label><input type="radio" name="ms-mode" value="manual" /> Manual</label>
-      </div>
-      <div id="ms-auto">
+      <select id="ms-mode"></select>
+      <div id="ms-count-row" style="margin-top:8px">
         <select id="ms-parts">
-          <option value="2">2 parts</option><option value="3">3 parts</option>
-          <option value="4" selected>4 parts</option><option value="5">5 parts</option>
-          <option value="6">6 parts</option><option value="8">8 parts</option>
-          <option value="10">10 parts</option><option value="12">12 parts</option>
+          <option value="2">2 milestones</option><option value="3">3 milestones</option>
+          <option value="4" selected>4 milestones</option><option value="5">5 milestones</option>
+          <option value="6">6 milestones</option><option value="8">8 milestones</option>
+          <option value="10">10 milestones</option><option value="12">12 milestones</option>
         </select>
-        <div id="ms-preview"></div>
       </div>
-      <textarea id="ms-manual" style="display:none" placeholder="One milestone per line, e.g.&#10;Chapters 1-5&#10;Chapters 6-10&#10;Chapters 11-end"></textarea>
+      <textarea id="ms-manual" style="display:none;margin-top:8px" placeholder="One milestone per line, e.g.&#10;Chapters 1-5&#10;Chapters 6-10&#10;Chapters 11-end"></textarea>
+      <div id="ms-preview"></div>
     </div>
     <div id="read-error" class="form-error"></div>
     <button id="read-submit" class="nav-link btn-primary" style="width:100%">Start Read</button>
@@ -250,7 +245,9 @@ body{
   } from './clubs.js';
   import {
     getReads, startRead, removeRead, splitByDuration, parseManualMilestones,
-    loadCatalogBooks, MAX_ACTIVE_READS,
+    loadCatalogBooks, MAX_ACTIVE_READS, MAX_MILESTONES,
+    getBookChapters, milestonesFromChapters, milestonesFromChapterRanges,
+    milestonesFromParts, wholeBookMilestones,
   } from './club-reads.js';
 
   const firebaseConfig = {
@@ -276,6 +273,7 @@ body{
   let activeTab = 'current';
   let catalogBooks = null; // lazy-loaded for the book picker
   let pickedBook = null;
+  let bookChapters = null; // chapters.json entry for the picked book (or null)
 
   function escapeHtml(s) {
     return (s || '').replace(/[&<>"']/g, c => ({
@@ -569,16 +567,19 @@ body{
   const bookResults = document.getElementById('book-results');
   const pickedBookEl = document.getElementById('picked-book');
   const msManual = document.getElementById('ms-manual');
-  const msAuto = document.getElementById('ms-auto');
+  const msMode = document.getElementById('ms-mode');
+  const msCountRow = document.getElementById('ms-count-row');
   const msParts = document.getElementById('ms-parts');
   const msPreview = document.getElementById('ms-preview');
 
   async function openReadModal() {
     pickedBook = null;
+    bookChapters = null;
     pickedBookEl.style.display = 'none';
     pickedBookEl.innerHTML = '';
     bookSearch.value = '';
     msPreview.innerHTML = '';
+    refreshMsUI();
     document.getElementById('read-error').textContent = '';
     bookResults.innerHTML = '<button disabled>Loading catalog...</button>';
     readModal.classList.add('open');
@@ -605,7 +606,7 @@ body{
       btn.addEventListener('click', () => pickBook(matches[parseInt(btn.dataset.pick, 10)])));
   }
 
-  function pickBook(b) {
+  async function pickBook(b) {
     pickedBook = b;
     pickedBookEl.style.display = 'flex';
     pickedBookEl.innerHTML = `
@@ -616,23 +617,61 @@ body{
       </div>`;
     bookResults.innerHTML = '';
     bookSearch.value = b.title;
+    bookChapters = await getBookChapters(b.title);
+    refreshMsUI();
+  }
+
+  // Milestone-split modes, in preference order. Chapter modes appear only
+  // when chapters.json has data for the picked book.
+  function msModeOptions() {
+    const opts = [];
+    if (bookChapters) {
+      const nCh = bookChapters.chapters.length;
+      if ((bookChapters.parts || []).length > 1) {
+        opts.push(['parts', `By parts (${bookChapters.parts.length} parts)`]);
+      }
+      if (nCh <= MAX_MILESTONES) opts.push(['chapters', `By chapter (${nCh} chapters)`]);
+      opts.push(['ranges', 'By chapter ranges']);
+    }
+    opts.push(['duration', 'Auto-split by duration']);
+    opts.push(['whole', 'Whole book (one discussion)']);
+    opts.push(['manual', 'Manual (one per line)']);
+    return opts;
+  }
+
+  function currentMilestones() {
+    const mode = msMode.value;
+    const n = parseInt(msParts.value, 10);
+    if (mode === 'parts') return { milestones: milestonesFromParts(bookChapters.parts) };
+    if (mode === 'chapters') return milestonesFromChapters(bookChapters.chapters);
+    if (mode === 'ranges') return { milestones: milestonesFromChapterRanges(bookChapters.chapters, n) };
+    if (mode === 'whole') return { milestones: wholeBookMilestones() };
+    if (mode === 'manual') return parseManualMilestones(msManual.value);
+    return { milestones: splitByDuration(pickedBook ? pickedBook.durationMinutes : 0, n) };
+  }
+
+  function refreshMsUI() {
+    const prev = msMode.value;
+    const opts = msModeOptions();
+    msMode.innerHTML = opts.map(([v, label]) => `<option value="${v}">${escapeHtml(label)}</option>`).join('');
+    msMode.value = opts.some(([v]) => v === prev) ? prev : opts[0][0];
+    const mode = msMode.value;
+    msCountRow.style.display = (mode === 'ranges' || mode === 'duration') ? 'block' : 'none';
+    msManual.style.display = mode === 'manual' ? 'block' : 'none';
     renderMsPreview();
   }
 
   function renderMsPreview() {
-    if (!pickedBook) { msPreview.innerHTML = ''; return; }
-    const ms = splitByDuration(pickedBook.durationMinutes, parseInt(msParts.value, 10));
-    msPreview.innerHTML = ms.map(m => escapeHtml(m.label)).join('<br>');
+    if (!pickedBook || msMode.value === 'manual') { msPreview.innerHTML = ''; return; }
+    const result = currentMilestones();
+    msPreview.innerHTML = result.error
+      ? escapeHtml(result.error)
+      : result.milestones.map(m => escapeHtml(m.label)).join('<br>');
   }
 
   bookSearch.addEventListener('input', () => { if (catalogBooks) renderBookResults(bookSearch.value); });
+  msMode.addEventListener('change', refreshMsUI);
   msParts.addEventListener('change', renderMsPreview);
-  document.querySelectorAll('input[name="ms-mode"]').forEach(r =>
-    r.addEventListener('change', () => {
-      const manual = document.querySelector('input[name="ms-mode"]:checked').value === 'manual';
-      msManual.style.display = manual ? 'block' : 'none';
-      msAuto.style.display = manual ? 'none' : 'block';
-    }));
   document.getElementById('read-close').addEventListener('click', () => readModal.classList.remove('open'));
   readModal.addEventListener('click', (e) => { if (e.target === readModal) readModal.classList.remove('open'); });
 
@@ -640,14 +679,9 @@ body{
     const errEl = document.getElementById('read-error');
     errEl.textContent = '';
     if (!pickedBook) { errEl.textContent = 'Pick a book first.'; return; }
-    let milestones;
-    if (document.querySelector('input[name="ms-mode"]:checked').value === 'manual') {
-      const parsed = parseManualMilestones(msManual.value);
-      if (parsed.error) { errEl.textContent = parsed.error; return; }
-      milestones = parsed.milestones;
-    } else {
-      milestones = splitByDuration(pickedBook.durationMinutes, parseInt(msParts.value, 10));
-    }
+    const parsed = currentMilestones();
+    if (parsed.error) { errEl.textContent = parsed.error; return; }
+    const milestones = parsed.milestones;
     const r = await startRead(db, clubId, {
       bookTitle: pickedBook.title,
       bookAuthor: pickedBook.author,

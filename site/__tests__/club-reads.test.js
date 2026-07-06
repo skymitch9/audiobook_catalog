@@ -76,6 +76,8 @@ vi.mock('firebase/auth', () => ({
 const {
   parseHhmm, formatHhmm, splitByDuration, parseManualMilestones,
   isMilestoneLocked, parseCsv,
+  milestonesFromChapters, milestonesFromChapterRanges,
+  milestonesFromParts, wholeBookMilestones,
   startRead, getReads, getRead,
   addComment, deleteComment, getComments,
   setProgress, getProgressAll,
@@ -141,7 +143,49 @@ describe('parseManualMilestones', () => {
 
   it('rejects empty input and too many lines', () => {
     expect(parseManualMilestones('  \n ').error).toBeDefined();
-    expect(parseManualMilestones(Array(21).fill('x').join('\n')).error).toBeDefined();
+    expect(parseManualMilestones(Array(MAX_MILESTONES + 1).fill('x').join('\n')).error).toBeDefined();
+  });
+});
+
+describe('chapter-based milestones', () => {
+  const chapters = (n) => Array.from({ length: n }, (_, i) => ({ title: `Chapter ${i + 1}`, start_min: i * 10 }));
+
+  it('one milestone per chapter, labeled by chapter title', () => {
+    const { milestones } = milestonesFromChapters(chapters(3));
+    expect(milestones.map((m) => m.label)).toEqual(['Chapter 1', 'Chapter 2', 'Chapter 3']);
+    expect(milestones[2]).toEqual({ id: 'm2', label: 'Chapter 3', position: 2 });
+  });
+
+  it('rejects one-per-chapter beyond MAX_MILESTONES', () => {
+    expect(milestonesFromChapters(chapters(MAX_MILESTONES + 1)).error).toBeDefined();
+    expect(milestonesFromChapters(chapters(MAX_MILESTONES)).milestones).toHaveLength(MAX_MILESTONES);
+  });
+
+  it('groups chapters into contiguous ranges covering all chapters', () => {
+    const ms = milestonesFromChapterRanges(chapters(10), 3);
+    expect(ms.map((m) => m.label)).toEqual(['Ch 1–3', 'Ch 4–6', 'Ch 7–10']);
+    expect(ms.map((m) => m.position)).toEqual([0, 1, 2]);
+  });
+
+  it('labels single-chapter ranges with the chapter title', () => {
+    const ms = milestonesFromChapterRanges(chapters(2), 2);
+    expect(ms[0].label).toBe('Ch 1: Chapter 1');
+  });
+
+  it('clamps range count to the chapter count', () => {
+    expect(milestonesFromChapterRanges(chapters(3), 12)).toHaveLength(3);
+  });
+
+  it('builds milestones from detected parts', () => {
+    const ms = milestonesFromParts([
+      { label: 'Part One', start_index: 0, end_index: 4 },
+      { label: 'Part Two', start_index: 5, end_index: 9 },
+    ]);
+    expect(ms.map((m) => m.label)).toEqual(['Part One', 'Part Two']);
+  });
+
+  it('whole book is a single milestone', () => {
+    expect(wholeBookMilestones()).toEqual([{ id: 'm0', label: 'Whole book', position: 0 }]);
   });
 });
 

@@ -14,6 +14,7 @@ docs/
 !scripts/bookfunnel_books.json
 !scripts/audit_exclusions.json
 !last_catalog_snapshot.json
+!site/chapters.json
 !vitest.config.js
 !firebase.json
 scripts/upload_manifest.json
