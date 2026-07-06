@@ -51,7 +51,7 @@ CATALOG_PATH = SITE_DIR / "catalog.csv"
 CLAUDE_API_KEY = os.getenv("Claude-llm") or os.getenv("ANTHROPIC_API_KEY")
 HARDCOVER_TOKEN = os.getenv("HARDCOVER_TOKEN")
 HARDCOVER_API = "https://api.hardcover.app/v1/graphql"
-DTDD_API_KEY = os.getenv("DTDD_API_KEY")
+DTDD_API_KEY = os.getenv("DTDD_API_KEY") or os.getenv("DOESTHEDOGDIE_API_KEY")
 DTDD_BASE = "https://www.doesthedogdie.com"
 
 
