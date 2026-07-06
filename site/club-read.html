@@ -67,6 +67,10 @@ body{
   font-family:'Share Tech Mono',monospace;
 }
 .mp-chip strong{color:var(--neon-cyan);font-weight:700}
+.mp-chip.done{border-color:var(--neon-yellow);color:var(--neon-yellow)}
+.mp-chip.done strong{color:var(--neon-yellow)}
+.mp-chip.ns{opacity:.55}
+.mp-chip.me{border-color:var(--neon-cyan)}
 details.milestone{
   background:var(--bg-2);border:1px solid var(--border);margin-bottom:10px;
 }
@@ -482,20 +486,31 @@ details.milestone.ch-section summary{padding:10px 14px;font-size:.85em;color:var
   function render() {
     const cover = read.coverHref
       ? `<img class="read-cover" src="${escapeHtml(read.coverHref)}" alt="" onerror="this.remove()">` : '';
-    const progressChips = progressAll
-      .map(p => {
-        let label;
+    // One chip per club member (not just those who set progress), furthest
+    // along first, with an explicit Finished state.
+    const lastPos = hasChapters() ? chapterTitles().length - 1
+      : (read.milestones.length ? Math.max(...read.milestones.map(m => m.position)) : -1);
+    const progressChips = members
+      .map(m => {
+        const p = progressAll.find(x => x.slug === m.slug);
+        let pos = -1, label = 'Not started';
         if (hasChapters()) {
-          const pi = typeof p.chapterIndex === 'number' && p.chapterIndex >= 0
-            ? partIndexForChapter(Math.min(p.chapterIndex, chapterTitles().length - 1)) : -1;
-          label = pi >= 0 ? parts()[pi].label : 'Not started';
-        } else {
-          label = p.milestonePosition >= 0
-            ? (read.milestones.find(m => m.position === p.milestonePosition) || {}).label || '?'
-            : 'Not started';
+          if (p && typeof p.chapterIndex === 'number' && p.chapterIndex >= 0) {
+            pos = Math.min(p.chapterIndex, lastPos);
+            label = parts()[partIndexForChapter(pos)].label;
+          }
+        } else if (p && p.milestonePosition >= 0) {
+          pos = p.milestonePosition;
+          label = (read.milestones.find(ms => ms.position === pos) || {}).label || '?';
         }
-        return `<span class="mp-chip"><strong>${escapeHtml(p.displayName)}</strong> ${escapeHtml(label)}</span>`;
-      }).join('');
+        const done = pos >= 0 && pos >= lastPos;
+        if (done) label = 'Finished ✓';
+        const name = m.displayName || (p && p.displayName) || m.slug;
+        return { name, pos, done, label, me: m.slug === mySlug };
+      })
+      .sort((a, b) => b.pos - a.pos || a.name.localeCompare(b.name))
+      .map(c => `<span class="mp-chip${c.done ? ' done' : c.pos < 0 ? ' ns' : ''}${c.me ? ' me' : ''}"><strong>${escapeHtml(c.name)}</strong> ${escapeHtml(c.label)}</span>`)
+      .join('');
 
     const myPart = myChapter() >= 0 ? partIndexForChapter(Math.min(myChapter(), chapterTitles().length - 1)) : -1;
     const options = hasChapters()
