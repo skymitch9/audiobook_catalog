@@ -1,0 +1,69 @@
+name: Content-warning requests
+
+# Makes the site's "Request AI warning check" button actually work without the
+# local library sync. The button writes a cw_requests doc (both lanes); this
+# job polls those, runs the source chain (Hardcover -> DoesTheDogDie -> Claude
+# web search), writes site/content_warnings.json, and deletes the fulfilled
+# request docs. The commit uses the Auto-update catalog marker and only touches
+# content_warnings.json, so auto-promote.yml ships the result straight to prod.
+#
+# Required repo secrets (Settings -> Secrets and variables -> Actions):
+#   CLAUDE_LLM            -> your Claude-llm value from .env
+#   HARDCOVER_TOKEN       -> HARDCOVER_TOKEN from .env (include the "Bearer " prefix)
+#   DOESTHEDOGDIE_API_KEY -> DOESTHEDOGDIE_API_KEY from .env
+# Firestore reads/deletes use the public web API key baked into the app, so no
+# Firebase secret is needed. Set the schedule looser (or add --no-llm to the
+# run step) if you want to avoid the paid Claude backfill.
+
+on:
+  schedule:
+    - cron: '17 * * * *'   # hourly, at :17
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cw-fulfill
+  cancel-in-progress: false
+
+jobs:
+  fulfill:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v5
+      with:
+        ref: main
+
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Install deps
+      run: pip install anthropic python-dotenv
+
+    - name: Write .env (app.config loads it; the Claude key name has a hyphen)
+      run: |
+        {
+          printf 'Claude-llm=%s\n' "${{ secrets.CLAUDE_LLM }}"
+          printf 'HARDCOVER_TOKEN=%s\n' "${{ secrets.HARDCOVER_TOKEN }}"
+          printf 'HARDCOVER_ENABLED=1\n'
+          printf 'DOESTHEDOGDIE_API_KEY=%s\n' "${{ secrets.DOESTHEDOGDIE_API_KEY }}"
+        } > .env
+
+    - name: Fulfill pending requests
+      run: python -m app.tools.fetch_content_warnings --requests
+
+    - name: Commit fulfilled warnings (auto-promotes via marker + allowlist)
+      run: |
+        rm -f .env
+        if git diff --quiet -- site/content_warnings.json; then
+          echo "No new warnings — nothing to commit."
+          exit 0
+        fi
+        git config user.name "cw-fulfill-bot"
+        git config user.email "noreply@anthropic.com"
+        git add site/content_warnings.json
+        git commit -m "feat(catalog): Auto-update catalog (content warnings)"
+        git push origin main
+        echo "::notice::Fulfilled warnings pushed — auto-promote will ship to prod"
