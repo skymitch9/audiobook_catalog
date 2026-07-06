@@ -8,6 +8,14 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
+        :root{
+            --bg:#0a0a12; --bg-2:#12121f;
+            --text:#e8e6e3; --muted:#8a8f98;
+            --border:#2a2a3a;
+            --neon-yellow:#fcee0a;
+            --neon-cyan:#05d9e8;
+            --neon-magenta:#ff2a6d;
+        }
         body {
             font-family: 'Rajdhani', 'Segoe UI', system-ui, sans-serif;
             background: #0a0a12;
@@ -15,21 +23,19 @@
                 radial-gradient(ellipse at 30% 50%, rgba(255,42,109,.04) 0%, transparent 50%),
                 radial-gradient(ellipse at 70% 20%, rgba(5,217,232,.04) 0%, transparent 50%);
             min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
             padding: 20px;
             color: #e8e6e3;
         }
+        #wrap { max-width: 640px; margin: 0 auto; }
+        .nav-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:16px; }
 
         .game-container {
             background: #12121f;
             border: 1px solid #2a2a3a;
             border-radius: 0;
             box-shadow: 0 0 30px rgba(5,217,232,.1);
-            max-width: 600px;
             width: 100%;
-            padding: 40px;
+            padding: 40px 32px;
             text-align: center;
             clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px));
         }
@@ -209,7 +215,6 @@
 
         .nav-link {
             display: inline-block;
-            margin-top: 20px;
             color: #05d9e8;
             text-decoration: none;
             font-weight: 700;
@@ -328,7 +333,8 @@
 </style>
 </head>
 <body>
-    <div class="nav-row" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;max-width:800px;margin:0 auto 16px;">
+    <div id="wrap">
+    <div class="nav-row">
     <a href="index.html" class="nav-link">Catalog</a>
     <a href="community.html" class="nav-link">Community</a>
     <a href="clubs.html" class="nav-link">Clubs</a>
@@ -451,6 +457,8 @@
 
 
     </div>
+
+    </div><!-- /wrap -->
 
     <script type="module">
         // Firebase integration for logged-in player score persistence
