@@ -797,6 +797,14 @@ def run_pipeline(
             except Exception as e:
                 print(f"  [WARN] Content-warning fetch failed: {e}")
 
+        # Fulfill any flagged books (site's "Request AI check" button or
+        # cw_requests.txt) — full chain including Claude.
+        try:
+            from app.tools.fetch_content_warnings import fulfill_requests
+            fulfill_requests()
+        except Exception as e:
+            print(f"  [WARN] Warning-request fulfillment failed: {e}")
+
         # Auto-commit and push if there are changes
         print("\n[STEP 6] Auto-commit & push...")
         _auto_commit_and_push()

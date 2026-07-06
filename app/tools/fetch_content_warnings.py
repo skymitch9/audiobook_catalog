@@ -19,6 +19,10 @@ Scope:
                --no-llm first for a free Hardcover-only pass)
   new imports  scripts/sync_to_drive.py Step 5.6 calls check_new_books()
                with the titles that just arrived
+  --requests   fulfill flagged books with the FULL chain including Claude:
+               the site's "Request AI check" button (cw_requests docs, both
+               lanes) and lines in cw_requests.txt at the repo root. Sync
+               Step 5.6 also fulfills these automatically.
 
 Books already checked are skipped unless --force; "checked, none found" is
 recorded so we don't re-search every run. With --no-llm, empty results are
@@ -42,11 +46,12 @@ import urllib.parse
 import urllib.request
 
 from app.config import SITE_DIR
-from app.tools.club_books import club_book_titles
+from app.tools.club_books import club_book_titles, fetch as fs_fetch, gv, API_KEY as FS_KEY
 from app.tools.extract_chapters import save_json_with_retry, load_json
 
 WARNINGS_PATH = SITE_DIR / "content_warnings.json"
 CATALOG_PATH = SITE_DIR / "catalog.csv"
+REQUESTS_FILE = SITE_DIR.parent / "cw_requests.txt"  # local flag list, one title per line
 CLAUDE_API_KEY = os.getenv("Claude-llm")
 HARDCOVER_TOKEN = os.getenv("HARDCOVER_TOKEN")
 HARDCOVER_API = "https://api.hardcover.app/v1/graphql"
@@ -310,6 +315,77 @@ def check_new_books(books, use_llm=True):
     return found
 
 
+def _fs_delete(doc_name):
+    req = urllib.request.Request(
+        f"https://firestore.googleapis.com/v1/{doc_name}?key={FS_KEY}", method="DELETE")
+    with urllib.request.urlopen(req, timeout=30):
+        pass
+
+
+def pending_requests():
+    """Flagged books: cw_requests docs from both lanes (the site's 'Request
+    AI check' button) + lines in cw_requests.txt. [(title, docName|None)]."""
+    out = []
+    for coll in ("cw_requests", "cw_requests_dev"):
+        try:
+            for d in fs_fetch(coll):
+                title = gv(d["fields"], "bookTitle")
+                if title:
+                    out.append((title, d["name"]))
+        except Exception as e:
+            print(f"[WARN] listing {coll} failed: {e}")
+    if REQUESTS_FILE.exists():
+        for line in REQUESTS_FILE.read_text(encoding="utf-8").splitlines():
+            t = line.strip()
+            if t and not t.startswith("#"):
+                out.append((t, None))
+    return out
+
+
+def fulfill_requests(use_llm=True):
+    """Run the full chain (incl. the paid Claude backfill) for every flagged
+    book, then clear the fulfilled requests. Books that already have
+    warnings are just cleared; 'checked, none' entries get a fresh look."""
+    reqs = pending_requests()
+    if not reqs:
+        print("no pending warning requests")
+        return 0
+    data = load_json(WARNINGS_PATH, {})
+    authors = dict(catalog_books())
+    done = set()
+    for title, doc_name in reqs:
+        entry = data.get(title)
+        if title in done or (entry and entry.get("warnings")):
+            done.add(title)
+            if doc_name:
+                try:
+                    _fs_delete(doc_name)
+                except Exception as e:
+                    print(f"  [WARN] request cleanup failed: {e}")
+            continue
+        print(f"[request] {title}")
+        warnings, source = check_book(title, authors.get(title, ""), use_llm=use_llm)
+        if warnings is None:
+            print("  -> lookup failed; request kept for next run")
+            continue
+        data[title] = {"warnings": warnings, "source": source, "checked_at": int(time.time())}
+        save_json_with_retry(data, WARNINGS_PATH)
+        done.add(title)
+        print(f"  -> {len(warnings)} warnings via {source}" if warnings
+              else "  -> none published (recorded)")
+        if doc_name:
+            try:
+                _fs_delete(doc_name)
+            except Exception as e:
+                print(f"  [WARN] request cleanup failed: {e}")
+    if REQUESTS_FILE.exists():
+        keep = [line for line in REQUESTS_FILE.read_text(encoding="utf-8").splitlines()
+                if not line.strip() or line.strip().startswith("#")
+                or line.strip() not in done]
+        REQUESTS_FILE.write_text("\n".join(keep) + ("\n" if keep else ""), encoding="utf-8")
+    return len(done)
+
+
 def catalog_books():
     """(title, author) for every catalog row."""
     books = set()
@@ -331,7 +407,14 @@ def main():
     parser.add_argument("--force", action="store_true", help="re-check books already recorded")
     parser.add_argument("--dedup", action="store_true",
                         help="re-filter recorded entries in place (no lookups)")
+    parser.add_argument("--requests", action="store_true",
+                        help="fulfill flagged books (site button + cw_requests.txt), Claude included")
     args = parser.parse_args()
+
+    if args.requests:
+        n = fulfill_requests(use_llm=not args.no_llm)
+        print(f"fulfilled {n} request(s); wrote {WARNINGS_PATH}")
+        return 0
 
     if args.dedup:
         data = load_json(WARNINGS_PATH, {})

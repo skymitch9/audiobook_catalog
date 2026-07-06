@@ -7,7 +7,7 @@
 // sources miss. Stored per book in `user_content_warnings` (dev lane gets
 // the usual `_dev` suffix via col()).
 
-import { doc, setDoc, deleteDoc, collection, getDocs, query, where, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, query, where, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 import { col } from './fb-env.js';
 import { bookIdFromTitle } from './reviews.js';
 
@@ -56,6 +56,33 @@ export async function getUserWarnings(db, bookTitle) {
   return snap.docs
     .map(d => ({ id: d.id, ...d.data() }))
     .sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
+}
+
+/**
+ * Flag a book for the AI content-warning lookup (open to everyone, no
+ * sign-in needed). One request doc per book — repeat clicks just overwrite.
+ * Fulfilled by `python -m app.tools.fetch_content_warnings --requests`
+ * (also runs automatically during library sync).
+ */
+export async function requestWarningCheck(db, bookTitle, session) {
+  const bookId = bookIdFromTitle(bookTitle);
+  if (!bookId) return { success: false, error: 'Bad book title.' };
+  try {
+    await setDoc(doc(db, col('cw_requests'), bookId), {
+      bookTitle,
+      requestedBy: session && session.displayName ? session.displayName : 'anonymous',
+      createdAt: serverTimestamp(),
+    });
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+/** The pending request for a book, or null. */
+export async function getWarningRequest(db, bookTitle) {
+  const snap = await getDoc(doc(db, col('cw_requests'), bookIdFromTitle(bookTitle)));
+  return snap.exists() ? snap.data() : null;
 }
 
 /**

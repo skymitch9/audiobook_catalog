@@ -57,6 +57,13 @@ service cloud.firestore {
              && request.resource.data.displayName is string;
     }
 
+    function validCwRequest() {
+      return request.resource.data.bookTitle is string
+             && request.resource.data.bookTitle.size() > 0
+             && request.resource.data.bookTitle.size() <= 300
+             && request.resource.data.requestedBy is string;
+    }
+
     function validUserWarning() {
       return request.resource.data.label is string
              && request.resource.data.label.size() > 0
@@ -88,6 +95,12 @@ service cloud.firestore {
     match /user_content_warnings/{docId} {
       allow read: if true;
       allow write: if validUserWarning();
+      allow delete: if true;
+    }
+
+    match /cw_requests/{docId} {
+      allow read: if true;
+      allow write: if validCwRequest();
       allow delete: if true;
     }
 
@@ -177,6 +190,12 @@ service cloud.firestore {
     match /user_content_warnings_dev/{docId} {
       allow read: if true;
       allow write: if validUserWarning();
+      allow delete: if true;
+    }
+
+    match /cw_requests_dev/{docId} {
+      allow read: if true;
+      allow write: if validCwRequest();
       allow delete: if true;
     }
 
