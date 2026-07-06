@@ -57,6 +57,47 @@ export function parseManualMilestones(text) {
   return { milestones: labels.map((label, i) => ({ id: `m${i}`, label, position: i })) };
 }
 
+const PART_TITLE_RE = /^\s*(part|book|disc|volume)\s+(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\b/i;
+const SYNTHETIC_GROUP_SIZE = 25;
+
+/**
+ * Group a chapter-title list for friendlier long dropdowns (optgroups).
+ * Uses real "Part N" / "Book N" headings found in the titles; when a book
+ * has no such headings, falls back to fixed chunks of 25 ("Ch 1-25").
+ * @returns {Array<{label: string, start: number, end: number}>}
+ */
+export function groupChapters(chapterTitles) {
+  const n = chapterTitles.length;
+  if (n === 0) return [];
+  const boundaries = [];
+  chapterTitles.forEach((t, i) => {
+    if (PART_TITLE_RE.test(t || '')) boundaries.push(i);
+  });
+  if (boundaries.length >= 2) {
+    const groups = [];
+    if (boundaries[0] > 0) {
+      groups.push({ label: 'Beginning', start: 0, end: boundaries[0] - 1 });
+    }
+    boundaries.forEach((b, k) => {
+      groups.push({
+        label: (chapterTitles[b] || '').trim(),
+        start: b,
+        end: k + 1 < boundaries.length ? boundaries[k + 1] - 1 : n - 1,
+      });
+    });
+    return groups;
+  }
+  if (n <= SYNTHETIC_GROUP_SIZE) {
+    return [{ label: 'Chapters', start: 0, end: n - 1 }];
+  }
+  const groups = [];
+  for (let start = 0; start < n; start += SYNTHETIC_GROUP_SIZE) {
+    const end = Math.min(start + SYNTHETIC_GROUP_SIZE, n) - 1;
+    groups.push({ label: `Ch ${start + 1}–${end + 1}`, start, end });
+  }
+  return groups;
+}
+
 /**
  * Per-comment spoiler predicate: a comment tagged with a chapter is a
  * spoiler for viewers whose chapter progress (-1 = not started) hasn't

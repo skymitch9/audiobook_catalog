@@ -177,7 +177,7 @@ button.rx-chip:hover{border-color:var(--neon-yellow)}
     getRead, getComments, addComment, deleteComment,
     toggleReaction, togglePin, REACTION_EMOJI,
     setProgress, setChapterProgress, getProgressAll,
-    isMilestoneLocked, isCommentSpoiler, GENERAL_MILESTONE, MAX_COMMENT_LENGTH,
+    isMilestoneLocked, isCommentSpoiler, groupChapters, GENERAL_MILESTONE, MAX_COMMENT_LENGTH,
   } from './club-reads.js';
 
   const firebaseConfig = {
@@ -224,6 +224,22 @@ button.rx-chip:hover{border-color:var(--neon-yellow)}
     return p && typeof p.chapterIndex === 'number' ? p.chapterIndex : -1;
   };
   const chLabel = (i) => `Ch ${i + 1}: ${chapterTitles()[i] || ''}`;
+  // Chapter <option>s grouped into <optgroup>s (real Part/Book headings when
+  // the titles have them, otherwise chunks of 25) so long books stay usable.
+  function chapterOptionsHtml(selectedIndex) {
+    const titles = chapterTitles();
+    const groups = groupChapters(titles);
+    const opt = (i) =>
+      `<option value="${i}" ${selectedIndex === i ? 'selected' : ''}>${escapeHtml(chLabel(i))}</option>`;
+    if (groups.length <= 1) {
+      return titles.map((t, i) => opt(i)).join('');
+    }
+    return groups.map(g => {
+      const opts = [];
+      for (let i = g.start; i <= g.end; i++) opts.push(opt(i));
+      return `<optgroup label="${escapeHtml(g.label)}">${opts.join('')}</optgroup>`;
+    }).join('');
+  }
 
   function fmtDate(ts) {
     try { return ts && ts.toDate ? ts.toDate().toLocaleDateString() : ''; } catch { return ''; }
@@ -297,8 +313,7 @@ button.rx-chip:hover{border-color:var(--neon-yellow)}
     const tagSelect = hasChapters() ? `
           <select class="ch-tag" title="Optional: tag the chapter you're at — readers who aren't there yet see this comment as a spoiler">
             <option value="">No chapter tag</option>
-            ${chapterTitles().map((t, i) =>
-              `<option value="${i}" ${!parentId && myChapter() === i ? 'selected' : ''}>@ ${escapeHtml(chLabel(i))}</option>`).join('')}
+            ${chapterOptionsHtml(!parentId ? myChapter() : -2)}
           </select>` : '';
     return `
       <div class="composer" data-composer data-ms="${escapeHtml(milestoneId)}" data-parent="${parentId || ''}">
@@ -353,10 +368,7 @@ button.rx-chip:hover{border-color:var(--neon-yellow)}
       }).join('');
 
     const options = hasChapters()
-      ? [`<option value="-1" ${myChapter() === -1 ? 'selected' : ''}>Not started</option>`]
-          .concat(chapterTitles().map((t, i) =>
-            `<option value="${i}" ${myChapter() === i ? 'selected' : ''}>${escapeHtml(chLabel(i))}</option>`))
-          .join('')
+      ? `<option value="-1" ${myChapter() === -1 ? 'selected' : ''}>Not started</option>` + chapterOptionsHtml(myChapter())
       : [`<option value="-1" ${myProgress() === -1 ? 'selected' : ''}>Not started</option>`]
           .concat(read.milestones.map(m =>
             `<option value="${m.position}" ${myProgress() === m.position ? 'selected' : ''}>${escapeHtml(m.label)}</option>`))

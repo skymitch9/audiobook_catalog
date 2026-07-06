@@ -78,7 +78,7 @@ const {
   isMilestoneLocked, parseCsv,
   milestonesFromChapters, milestonesFromChapterRanges,
   milestonesFromParts, wholeBookMilestones,
-  startRead, getReads, getRead, finishRead, refreshClubAvatar,
+  startRead, getReads, getRead, finishRead, refreshClubAvatar, groupChapters,
   addComment, deleteComment, getComments,
   setProgress, setChapterProgress, getProgressAll, isCommentSpoiler,
   getTbr, addTbrItem, removeTbrItem, toggleTbrVote,
@@ -388,6 +388,43 @@ describe('club TBR', () => {
     const r = await addTbrItem(fakeDb, CLUB, book, jane);
     await removeTbrItem(fakeDb, CLUB, r.itemId);
     expect(await getTbr(fakeDb, CLUB)).toHaveLength(0);
+  });
+});
+
+describe('groupChapters (dropdown grouping)', () => {
+  it('groups by real Part headings, with a Beginning group for leading chapters', () => {
+    const titles = ['Prologue', 'Part One', 'Ch 1', 'Ch 2', 'Part Two', 'Ch 3'];
+    expect(groupChapters(titles)).toEqual([
+      { label: 'Beginning', start: 0, end: 0 },
+      { label: 'Part One', start: 1, end: 3 },
+      { label: 'Part Two', start: 4, end: 5 },
+    ]);
+  });
+
+  it('recognizes Book N headings too', () => {
+    const groups = groupChapters(['Book 1', 'a', 'Book 2', 'b']);
+    expect(groups.map(g => g.label)).toEqual(['Book 1', 'Book 2']);
+  });
+
+  it('synthesizes chunks of 25 when no headings exist', () => {
+    const titles = Array.from({ length: 60 }, (_, i) => `Chapter ${i + 1}`);
+    const groups = groupChapters(titles);
+    expect(groups).toEqual([
+      { label: 'Ch 1–25', start: 0, end: 24 },
+      { label: 'Ch 26–50', start: 25, end: 49 },
+      { label: 'Ch 51–60', start: 50, end: 59 },
+    ]);
+  });
+
+  it('short books get a single group; a lone heading is not a split', () => {
+    expect(groupChapters(['a', 'b', 'c'])).toEqual([{ label: 'Chapters', start: 0, end: 2 }]);
+    expect(groupChapters(['Part One', 'a', 'b']).length).toBe(1);
+    expect(groupChapters([])).toEqual([]);
+  });
+
+  it('does not treat mid-word matches as headings', () => {
+    const titles = Array.from({ length: 30 }, () => 'The Party Continues');
+    expect(groupChapters(titles)[0].label).toBe('Ch 1–25');
   });
 });
 
