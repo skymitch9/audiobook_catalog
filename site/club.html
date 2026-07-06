@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<script>if(localStorage.getItem("ab_theme")==="light")document.documentElement.classList.add("light");</script>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
@@ -229,6 +230,13 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
 .identity-bar__logout-btn:hover{border-color:var(--neon-magenta,#ff2a6d);color:var(--neon-magenta,#ff2a6d)}
 
 .nav-link.active{border-color:var(--neon-cyan,#05d9e8);color:var(--neon-yellow,#fcee0a)}
+
+/* Light theme: html.light overrides the palette vars site-wide */
+html.light{
+  --bg:#eef0f5; --bg-2:#ffffff; --text:#16161e; --muted:#5c6270; --border:#c9cdd9;
+  --neon-yellow:#9a7b00; --neon-cyan:#00798f; --neon-magenta:#c31e58;
+}
+html.light body{background-image:none}
 </style>
 </head>
 <body>

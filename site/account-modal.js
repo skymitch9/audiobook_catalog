@@ -66,7 +66,8 @@ function darkPref() {
 }
 function setDarkPref(on) {
   localStorage.setItem('ab_theme', on ? 'dark' : 'light');
-  document.body.classList.toggle('dark', on);
+  document.documentElement.classList.toggle('light', !on);
+  document.body.classList.toggle('dark', on); // index.html compatibility
 }
 
 export function mountAccountModal(db, app, containerEl) {
@@ -166,7 +167,7 @@ export function mountAccountModal(db, app, containerEl) {
         <div class="am-stat"><div class="v" style="color:var(--neon-magenta,#ff2a6d)">${gameAccuracy}%</div><div class="l">Game Accuracy</div></div>
       </div>
       <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-top:1px solid var(--border,#2a2a3a);margin-top:8px">
-        <span style="font-size:.85em;color:var(--muted,#8a8f98)">Dark Mode (catalog page)</span>
+        <span style="font-size:.85em;color:var(--muted,#8a8f98)">Dark Mode</span>
         <label class="am-switch" style="margin:0">
           <input id="am-dark-toggle" type="checkbox" ${darkPref() ? 'checked' : ''} />
           <span class="track"><span class="thumb"></span></span>
