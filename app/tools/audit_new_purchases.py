@@ -60,6 +60,7 @@ def audible_cli_books():
                             "title_short": row.get("title") or "",
                             "title": row.get("title") or "",
                             "author": row.get("authors") or "",
+                            "narrator": row.get("narrators") or "",
                             "purchase_date": row.get("purchase_date") or "",
                             "release_date": row.get("release_date") or "",
                             "asin": row.get("asin") or "",

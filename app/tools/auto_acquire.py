@@ -37,7 +37,6 @@ import os
 import subprocess
 import sys
 import time
-from pathlib import Path
 
 from app.config import SITE_DIR
 from app.tools.audit_new_purchases import run_audit
@@ -105,26 +104,27 @@ def download_missing(missing, books=None):
     sync to ingest. Returns (downloaded_titles, [(title, error)])."""
     from app.tools.audible_download import download_and_convert, profile_for
     lookup = {}
-    for b in books or []:  # audible-cli export rows carry asin + profile
+    for b in books or []:  # audible-cli export rows carry asin + profile + narrator
         title = b.get("title_short") or b.get("title") or ""
-        lookup[title] = (b.get("asin"), b.get("profile"))
+        lookup[title] = (b.get("asin"), b.get("profile"), b.get("narrator") or "")
     if not lookup:  # container books.json fallback (user_id -> profile)
         try:
             raw = json.loads((RUNTIME / "books.json").read_text(encoding="utf-8"))
             for b in raw:
                 title = b.get("title_short") or b.get("title") or ""
-                lookup[title] = (b.get("asin"), profile_for(b.get("user_id")))
+                lookup[title] = (b.get("asin"), profile_for(b.get("user_id")),
+                                 b.get("narrator") or "")
         except (OSError, json.JSONDecodeError):
             pass
 
     downloaded, failed = [], []
     for _date, title in missing:
-        asin, profile = lookup.get(title, (None, None))
+        asin, profile, narrator = lookup.get(title, (None, None, ""))
         if not asin:
             failed.append((title, "no ASIN in library list"))
             continue
         try:
-            dest = download_and_convert(asin, title, profile)
+            dest = download_and_convert(asin, title, profile, narrator=narrator)
             downloaded.append(title)
             print(f"DOWNLOADED: {title} -> {dest.name}")
         except Exception as e:

@@ -67,9 +67,15 @@ def activation_bytes(profile):
     raise RuntimeError(f"activation bytes not found for {profile}: {r.stdout} {r.stderr}")
 
 
-def download_and_convert(asin, title, profile=None, out_dir=DEFAULT_OUT):
+def download_and_convert(asin, title, profile=None, out_dir=DEFAULT_OUT, narrator=None):
     """Download one book and place <safe title>.m4b in out_dir.
-    Returns the m4b Path. Raises on failure."""
+    Returns the m4b Path. Raises on failure.
+
+    Audible AAX/AAXC files don't tag the narrator, but the catalog reads it
+    from the m4b's composer (\\xa9wrt) tag — so when we know the narrator (from
+    the audible-cli library export) we write it in during the remux. Without
+    this the promote guard's core-features audit rejects the book for a
+    missing narrator."""
     ffmpeg = find_ffmpeg()
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -98,14 +104,16 @@ def download_and_convert(asin, title, profile=None, out_dir=DEFAULT_OUT):
     safe_title = re.sub(r'[<>:"/\\|?*]', "-", title).strip() or asin
     dest = out_dir / f"{safe_title}.m4b"
 
+    meta = ["-metadata", f"composer={narrator}"] if narrator else []
     if src.suffix == ".aax":
         ab = activation_bytes(profile)
-        cmd = [ffmpeg, "-y", "-activation_bytes", ab, "-i", str(src), "-c", "copy", str(dest)]
+        cmd = [ffmpeg, "-y", "-activation_bytes", ab, "-i", str(src),
+               "-c", "copy", *meta, str(dest)]
     else:  # .aaxc — voucher json sits next to it
         voucher = json.loads(src.with_suffix(".voucher").read_text(encoding="utf-8"))
         lic = voucher["content_license"]["license_response"]
         cmd = [ffmpeg, "-y", "-audible_key", lic["key"], "-audible_iv", lic["iv"],
-               "-i", str(src), "-c", "copy", str(dest)]
+               "-i", str(src), "-c", "copy", *meta, str(dest)]
     r = _run(cmd, timeout=3600)
     if r.returncode != 0 or not dest.exists():
         raise RuntimeError(f"ffmpeg convert failed: {(r.stderr or '')[-400:]}")
@@ -119,9 +127,11 @@ def main():
     parser.add_argument("--asin", required=True)
     parser.add_argument("--title", required=True)
     parser.add_argument("--profile", choices=ALL_PROFILES)
+    parser.add_argument("--narrator", default=None, help="write as composer/narrator tag")
     parser.add_argument("--out-dir", default=str(DEFAULT_OUT))
     args = parser.parse_args()
-    dest = download_and_convert(args.asin, args.title, args.profile, Path(args.out_dir))
+    dest = download_and_convert(args.asin, args.title, args.profile,
+                                Path(args.out_dir), narrator=args.narrator)
     print(f"OK: {dest} ({dest.stat().st_size/1e6:.0f} MB)")
     return 0
 
