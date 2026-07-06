@@ -138,6 +138,16 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
   width:28px;height:28px;cursor:pointer;font-weight:bold;flex-shrink:0;
 }
 .rc-remove:hover{border-color:var(--neon-magenta);color:var(--neon-magenta)}
+.er-row{display:flex;gap:6px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)}
+.er-row:last-child{border-bottom:none}
+.er-title{flex:1;min-width:0;font-weight:700;color:var(--neon-cyan);font-size:.95em}
+.er-row button{
+  background:none;border:1px solid var(--border);color:var(--muted);cursor:pointer;
+  font-size:.72em;padding:4px 9px;font-family:inherit;text-transform:uppercase;
+}
+.er-row button:hover{border-color:var(--neon-cyan);color:var(--neon-cyan)}
+.er-row button.er-danger:hover{border-color:var(--neon-magenta);color:var(--neon-magenta)}
+.er-hint{color:var(--muted);font-size:.8em;margin-top:8px}
 .rq-h{
   color:var(--neon-magenta);text-transform:uppercase;letter-spacing:1px;font-size:.9em;
   margin:18px 0 8px;border-bottom:1px solid var(--border);padding-bottom:5px;
@@ -267,6 +277,11 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
         <option value="open">Open — anyone can join instantly</option>
         <option value="application">By application — host approves requests</option>
       </select>
+    </div>
+    <div class="field" id="edit-reads-field" style="display:none">
+      <label>Active reads — CLUB-level actions (affects every member)</label>
+      <div id="edit-reads-list"></div>
+      <div class="er-hint">Finished the book yourself? Use "I'm finished" on the book's discussion page instead — these buttons end the read for the whole club.</div>
     </div>
     <div id="edit-error" class="form-error"></div>
     <button id="edit-submit" class="nav-link btn-primary" style="width:100%">Save Changes</button>
@@ -609,13 +624,6 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
           <div class="rc-author">${escapeHtml(r.bookAuthor)}</div>
           <div class="rc-meta">${(r.milestones || []).length} milestones · ${r.commentCount || 0} comments · started by ${escapeHtml(r.startedBy || '')}</div>
         </div>
-        ${isMember() ? `
-          <div class="rc-actions">
-            ${isMod() ? `
-              <button data-finish-read="${r.id}" data-title="${escapeHtml(r.bookTitle)}" title="Finish for the whole club (hosts/mods)">Finish</button>
-              <button data-abandon-read="${r.id}" data-title="${escapeHtml(r.bookTitle)}" title="Abandon for the whole club (hosts/mods)">Abandon</button>
-              <button class="rc-remove" data-remove-read="${r.id}" data-title="${escapeHtml(r.bookTitle)}" title="Remove entirely (deletes discussions)">X</button>` : ''}
-          </div>` : ''}
       </a>`).join('');
     const emptyState = isMember()
       ? `<div class="stub"><div class="stub-title">No active read yet</div>Pick the club's first book to open the discussions.</div>`
@@ -1098,7 +1106,49 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
     const jmField = document.getElementById('edit-joinmode-field');
     jmField.style.display = isHost() ? 'block' : 'none';
     document.getElementById('edit-joinmode').value = club.joinMode === 'application' ? 'application' : 'open';
+
+    // Club-level read management (hosts/mods): Finish/Abandon/Remove live
+    // here, off the read cards, so nobody ends a club read by accident.
+    const readsField = document.getElementById('edit-reads-field');
+    if (isMod() && active.length) {
+      readsField.style.display = 'block';
+      document.getElementById('edit-reads-list').innerHTML = active.map(r => `
+        <div class="er-row">
+          <span class="er-title">${escapeHtml(r.bookTitle)}</span>
+          <button data-er-finish="${r.id}" data-title="${escapeHtml(r.bookTitle)}">Finish</button>
+          <button data-er-abandon="${r.id}" data-title="${escapeHtml(r.bookTitle)}">Abandon</button>
+          <button data-er-remove="${r.id}" data-title="${escapeHtml(r.bookTitle)}" class="er-danger" title="Remove entirely (deletes discussions)">Remove</button>
+        </div>`).join('');
+      wireEditReadActions();
+    } else {
+      readsField.style.display = 'none';
+    }
     editModal.classList.add('open');
+  }
+
+  function wireEditReadActions() {
+    const list = document.getElementById('edit-reads-list');
+    list.querySelectorAll('[data-er-finish]').forEach(btn =>
+      btn.addEventListener('click', async () => {
+        if (!confirm(`Finish "${btn.dataset.title}" for the WHOLE CLUB?\n\nThis is a club-level action: the book moves to History for everyone and stops being an active read.\n\nIf YOU finished the book but the club is still reading it, don't use this — open the book and hit "I'm finished" there instead.`)) return;
+        const r = await finishRead(db, clubId, btn.dataset.erFinish, 'finished');
+        if (r.success) { editModal.classList.remove('open'); reload(); }
+        else document.getElementById('edit-error').textContent = r.error;
+      }));
+    list.querySelectorAll('[data-er-abandon]').forEach(btn =>
+      btn.addEventListener('click', async () => {
+        if (!confirm(`Abandon "${btn.dataset.title}" for the WHOLE CLUB?\n\nThis is a club-level action: the book moves to History for everyone and stops being an active read.\n\nIf you personally want to stop reading, just do — no button needed. This ends it for the club.`)) return;
+        const r = await finishRead(db, clubId, btn.dataset.erAbandon, 'abandoned');
+        if (r.success) { editModal.classList.remove('open'); reload(); }
+        else document.getElementById('edit-error').textContent = r.error;
+      }));
+    list.querySelectorAll('[data-er-remove]').forEach(btn =>
+      btn.addEventListener('click', async () => {
+        if (!confirm(`Remove "${btn.dataset.title}" entirely? Its discussions will be DELETED for the whole club. (Use Finish to keep them in History.)`)) return;
+        const r = await removeRead(db, clubId, btn.dataset.erRemove);
+        if (r.success) { editModal.classList.remove('open'); reload(); }
+        else document.getElementById('edit-error').textContent = r.error;
+      }));
   }
   document.getElementById('edit-close').addEventListener('click', () => editModal.classList.remove('open'));
   editModal.addEventListener('click', (e) => { if (e.target === editModal) editModal.classList.remove('open'); });
