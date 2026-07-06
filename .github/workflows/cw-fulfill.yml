@@ -42,6 +42,17 @@ jobs:
     - name: Install deps
       run: pip install anthropic python-dotenv
 
+    - name: Require source secrets (don't falsely record 'none' without them)
+      env:
+        HAVE_CLAUDE: ${{ secrets.CLAUDE_LLM != '' }}
+        HAVE_HARDCOVER: ${{ secrets.HARDCOVER_TOKEN != '' }}
+        HAVE_DTDD: ${{ secrets.DOESTHEDOGDIE_API_KEY != '' }}
+      run: |
+        if [ "$HAVE_CLAUDE" != "true" ] && [ "$HAVE_HARDCOVER" != "true" ] && [ "$HAVE_DTDD" != "true" ]; then
+          echo "::error::No content-warning source secrets set (CLAUDE_LLM / HARDCOVER_TOKEN / DOESTHEDOGDIE_API_KEY). Refusing to run so pending requests aren't falsely cleared as 'none published'. Add the secrets, then re-run."
+          exit 1
+        fi
+
     - name: Write .env (app.config loads it; the Claude key name has a hyphen)
       run: |
         {
