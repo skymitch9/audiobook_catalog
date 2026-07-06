@@ -182576,5 +182576,47 @@
    }
   ],
   "parts": []
+ },
+ "In Another World with My Smartphone: Volume 1: In Another World with My Smartphone, Book 1 (Unabridged)": {
+  "source": "m4b",
+  "chapters": [
+   {
+    "title": "Opening Credits",
+    "start_min": 0.0
+   },
+   {
+    "title": "Prologue",
+    "start_min": 0.4
+   },
+   {
+    "title": "Chapter I: In Another World",
+    "start_min": 10.1
+   },
+   {
+    "title": "Chapter II: The More the Merrier! Double the Joy, Half the Sorrow",
+    "start_min": 89.1
+   },
+   {
+    "title": "Chapter III: The Crystal Creature",
+    "start_min": 187.1
+   },
+   {
+    "title": "Chapter IV: The Royal Family",
+    "start_min": 238.8
+   },
+   {
+    "title": "Interlude I: The Adventurers",
+    "start_min": 359.2
+   },
+   {
+    "title": "Interlude II: A Day in the Capital",
+    "start_min": 390.3
+   },
+   {
+    "title": "End Credits",
+    "start_min": 427.6
+   }
+  ],
+  "parts": []
  }
 }
