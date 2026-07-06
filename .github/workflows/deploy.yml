@@ -1,9 +1,20 @@
 name: Deploy to GitHub Pages
 
+# Two-lane deploy:
+#   - Site root (prod) is ALWAYS built from the `prod` branch. Humans never push
+#     to `prod`; it only moves via the "Promote to Prod" workflow (promote.yml),
+#     which runs guard checks first.
+#   - /dev/ is built from `main` on every push, so main can break freely without
+#     affecting prod.
 on:
   push:
     branches: [ main, master ]
-  workflow_dispatch:  # Allow manual trigger
+  workflow_dispatch:  # Manual trigger; promote.yml dispatches this after moving `prod`
+    inputs:
+      notify:
+        description: 'Run new-book detection + Discord notification (set by promote.yml)'
+        type: boolean
+        default: false
 
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
@@ -20,105 +31,101 @@ jobs:
   # Run tests first
   test:
     uses: ./.github/workflows/tests.yml
-  
+
   # Run linting
   lint:
     uses: ./.github/workflows/lint.yml
-  
+
   # Build only if tests and lint pass
   build:
     needs: [test, lint]
     runs-on: ubuntu-latest
-    
+
     steps:
-    - name: 📥 Checkout code
+    - name: 📥 Checkout prod branch (site root)
       uses: actions/checkout@v5
-    
+      with:
+        ref: prod
+        path: prod-src
+
+    - name: 📥 Checkout main branch (dev lane)
+      uses: actions/checkout@v5
+      with:
+        ref: main
+        path: main-src
+
     - name: 🐍 Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.12'
-    
+
     - name: 📦 Install dependencies
       run: |
         echo "::group::Installing Python packages"
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
+        pip install -r main-src/requirements.txt
         echo "::endgroup::"
-    
-    - name: 📊 Generate catalog
+
+    - name: 📊 Generate catalog (dev lane)
+      working-directory: main-src
       run: |
         echo "::group::Generating audiobook catalog"
         python -m app.main
         echo "::endgroup::"
       continue-on-error: true
-      # Continue even if catalog generation fails (no library in CI)
-    
-    - name: 📋 Verify site files
+      # Continue even if catalog generation fails (no library in CI);
+      # the committed site/ contents are what ship.
+
+    - name: 🛡️ Guard prod content
+      # Hard fail — never deploy a missing or placeholder prod site.
+      # (Promote.yml runs the full guard suite; this is defense in depth.)
       run: |
-        echo "::group::Checking generated files"
-        if [ -f "site/index.html" ]; then
-          echo "✓ index.html found"
-          echo "  Size: $(du -h site/index.html | cut -f1)"
-        else
-          echo "⚠ index.html not found - creating placeholder"
-          mkdir -p site
-          cat > site/index.html << 'EOF'
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <title>Audiobook Catalog</title>
-          <style>
-            body { font-family: system-ui; max-width: 800px; margin: 50px auto; padding: 20px; }
-            h1 { color: #333; }
-            .info { background: #f0f0f0; padding: 20px; border-radius: 8px; }
-          </style>
-        </head>
-        <body>
-          <h1>Audiobook Catalog</h1>
-          <div class="info">
-            <p>This is a placeholder page. The catalog will be generated when the repository contains audiobook files.</p>
-            <p>To generate your catalog:</p>
-            <ol>
-              <li>Clone this repository</li>
-              <li>Add your audiobook files to the library folder</li>
-              <li>Run: <code>python -m app.main</code></li>
-              <li>Push changes to deploy</li>
-            </ol>
-          </div>
-        </body>
-        </html>
-        EOF
+        if [ ! -f "prod-src/site/index.html" ]; then
+          echo "::error::prod branch has no site/index.html — refusing to deploy"
+          exit 1
         fi
-        
-        if [ -f "site/catalog.csv" ]; then
-          echo "✓ catalog.csv found"
-          echo "  Size: $(du -h site/catalog.csv | cut -f1)"
+        if grep -q "This is a placeholder page" prod-src/site/index.html; then
+          echo "::error::prod site/index.html is a placeholder — refusing to deploy"
+          exit 1
         fi
-        
-        if [ -d "site/covers" ]; then
-          cover_count=$(find site/covers -type f | wc -l)
-          echo "✓ Covers directory found"
-          echo "  Files: $cover_count"
+        if [ ! -f "prod-src/site/catalog.csv" ]; then
+          echo "::error::prod branch has no site/catalog.csv — refusing to deploy"
+          exit 1
         fi
-        
-        if [ -d "site/static" ]; then
-          echo "✓ Static files found"
+        echo "✓ prod content looks sane"
+
+    - name: 🛡️ Guard dev content
+      run: |
+        if [ ! -f "main-src/site/index.html" ]; then
+          echo "::error::main branch has no site/index.html — dev lane is broken (check .gitignore?)"
+          exit 1
         fi
+        echo "✓ dev content present"
+
+    - name: 🧩 Assemble two-lane artifact
+      run: |
+        echo "::group::Assembling site (root=prod, /dev=main)"
+        mkdir -p _site
+        cp -r prod-src/site/. _site/
+        rm -rf _site/dev
+        mkdir -p _site/dev
+        cp -r main-src/site/. _site/dev/
+        echo "Root files:  $(find _site -maxdepth 1 -type f | wc -l)"
+        echo "Dev files:   $(find _site/dev -maxdepth 1 -type f | wc -l)"
+        echo "Total size:  $(du -sh _site | cut -f1)"
         echo "::endgroup::"
-    
+
     - name: 📄 Setup Pages
       uses: actions/configure-pages@v5
-    
+
     - name: 📦 Upload artifact
       uses: actions/upload-pages-artifact@v4
       with:
-        path: './site'
-    
+        path: './_site'
+
     - name: ✅ Build summary
       run: |
-        echo "::notice::Site built successfully and ready for deployment"
+        echo "::notice::Two-lane site built (root=prod branch, /dev/=main branch)"
 
   deploy:
     environment:
@@ -126,40 +133,47 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     needs: build
-    
+
     steps:
-    - name: � Checkout  code
+    - name: 🚀 Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v5
+
+    - name: ✅ Deployment summary
+      run: |
+        echo "::notice::Deployment completed successfully"
+        echo "::notice::Prod URL: ${{ steps.deployment.outputs.page_url }}"
+        echo "::notice::Dev URL:  ${{ steps.deployment.outputs.page_url }}dev/"
+
+    # ---- New-book notification: only when promote.yml dispatched us ----
+
+    - name: 📥 Checkout code
+      if: github.event_name == 'workflow_dispatch' && inputs.notify
       uses: actions/checkout@v5
       with:
         fetch-depth: 2  # Fetch last 2 commits to compare
-    
+
     - name: 🐍 Set up Python
+      if: github.event_name == 'workflow_dispatch' && inputs.notify
       uses: actions/setup-python@v5
       with:
         python-version: '3.12'
-    
+
     - name: 📦 Install dependencies
+      if: github.event_name == 'workflow_dispatch' && inputs.notify
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-    
+
     - name: 🔍 Detect new books
+      if: github.event_name == 'workflow_dispatch' && inputs.notify
       id: detect_books
       run: |
         python -m app.tools.detect_new_books
       continue-on-error: true
-    
-    - name: 🚀 Deploy to GitHub Pages
-      id: deployment
-      uses: actions/deploy-pages@v5
-    
-    - name: ✅ Deployment summary
-      run: |
-        echo "::notice::Deployment completed successfully"
-        echo "::notice::Site URL: ${{ steps.deployment.outputs.page_url }}"
-    
+
     - name: 📢 Notify Discord
-      if: success() && steps.detect_books.outputs.has_new_books == 'true'
+      if: github.event_name == 'workflow_dispatch' && inputs.notify && steps.detect_books.outputs.has_new_books == 'true'
       env:
         DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         SITE_URL: ${{ steps.deployment.outputs.page_url }}
@@ -167,7 +181,7 @@ jobs:
         python -m app.tools.send_discord_notification
 
     - name: 💾 Save catalog snapshot
-      if: success() && steps.detect_books.outputs.has_new_books == 'true'
+      if: github.event_name == 'workflow_dispatch' && inputs.notify && steps.detect_books.outputs.has_new_books == 'true'
       run: |
         python -m app.tools.detect_new_books --update-snapshot
         if [ -f "last_catalog_snapshot.json" ]; then

@@ -1,0 +1,131 @@
+name: Promote to Prod
+
+# The ONLY way `prod` (the site root) moves.
+#
+#   Promote:  Run this workflow with ref = main (the default).
+#   Rollback: Run it with ref = any previous prod-* tag (or commit SHA).
+#
+# Guard checks run first — a gitignored site/, a placeholder index, or a
+# shrunken catalog fails the promotion and prod keeps serving the last good
+# deploy.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branch, tag, or SHA to promote (use a prod-* tag to roll back)'
+        default: 'main'
+      force:
+        description: 'Skip the catalog-shrink check (only for intentional bulk removals)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write  # push prod branch + tags
+  actions: write   # dispatch deploy.yml
+
+concurrency:
+  group: "promote"
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+    - name: 📥 Checkout ${{ inputs.ref }}
+      uses: actions/checkout@v5
+      with:
+        ref: ${{ inputs.ref }}
+        fetch-depth: 0
+
+    - name: 🛡️ Critical paths are tracked, not gitignored
+      run: |
+        fail=0
+        for p in site/index.html site/catalog.csv site/covers site/static; do
+          if git check-ignore -q "$p"; then
+            echo "::error::$p is matched by .gitignore — this is the outage bug, refusing to promote"
+            fail=1
+          fi
+        done
+        for p in site/index.html site/catalog.csv; do
+          if ! git ls-files --error-unmatch "$p" > /dev/null 2>&1; then
+            echo "::error::$p is not tracked in git — refusing to promote"
+            fail=1
+          fi
+        done
+        exit $fail
+
+    - name: 🛡️ Site content is real (not placeholder)
+      run: |
+        if [ ! -f "site/index.html" ]; then
+          echo "::error::site/index.html missing"
+          exit 1
+        fi
+        if grep -q "This is a placeholder page" site/index.html; then
+          echo "::error::site/index.html is the CI placeholder — refusing to promote"
+          exit 1
+        fi
+        echo "✓ index.html is real ($(du -h site/index.html | cut -f1))"
+
+    - name: 🛡️ Catalog must not shrink
+      if: ${{ !inputs.force }}
+      run: |
+        python3 - << 'EOF'
+        import csv, json, sys
+
+        with open("last_catalog_snapshot.json", encoding="utf-8") as f:
+            snapshot_count = len(json.load(f)["book_ids"])
+        with open("site/catalog.csv", encoding="utf-8") as f:
+            csv_count = sum(1 for _ in csv.DictReader(f))
+
+        TOLERANCE = 3
+        print(f"catalog.csv: {csv_count} books, snapshot: {snapshot_count} books")
+        if csv_count < snapshot_count - TOLERANCE:
+            print(f"::error::Catalog shrank by {snapshot_count - csv_count} books "
+                  f"(tolerance {TOLERANCE}). If intentional, re-run with force=true.")
+            sys.exit(1)
+        print("✓ catalog size OK")
+        EOF
+
+    - name: 🛡️ Covers are present
+      run: |
+        book_count=$(python3 -c "import csv; print(sum(1 for _ in csv.DictReader(open('site/catalog.csv', encoding='utf-8'))))")
+        cover_count=$(find site/covers -type f | wc -l)
+        echo "covers: $cover_count files for $book_count books"
+        if [ "$cover_count" -lt "$((book_count / 2))" ]; then
+          echo "::error::Only $cover_count covers for $book_count books — covers look wiped, refusing to promote"
+          exit 1
+        fi
+        echo "✓ covers OK"
+
+  promote:
+    needs: guard
+    runs-on: ubuntu-latest
+    steps:
+    - name: 📥 Checkout ${{ inputs.ref }}
+      uses: actions/checkout@v5
+      with:
+        ref: ${{ inputs.ref }}
+        fetch-depth: 0
+
+    - name: 🚀 Move prod branch
+      run: |
+        sha=$(git rev-parse HEAD)
+        echo "Promoting $sha (${{ inputs.ref }}) to prod"
+        # Force push is safe: this workflow is the only writer of prod,
+        # and rollbacks legitimately move it backward.
+        git push origin "+${sha}:refs/heads/prod"
+
+    - name: 🏷️ Tag promotion
+      run: |
+        tag="prod-$(date -u +%Y%m%d-%H%M%S)"
+        git tag "$tag" HEAD
+        git push origin "$tag"
+        echo "::notice::Tagged $tag — roll back later by promoting this tag"
+
+    - name: 🚀 Trigger deploy
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        gh workflow run deploy.yml --ref main -f notify=true
+        echo "::notice::Deploy dispatched — prod goes live when it finishes"
