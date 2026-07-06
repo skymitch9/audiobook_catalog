@@ -104,6 +104,10 @@ details[open].milestone summary::before{transform:rotate(90deg)}
 }
 .composer button:disabled{opacity:.4;cursor:default}
 .char-count{font-size:.75em;color:var(--muted);font-family:'Share Tech Mono',monospace}
+.archive-banner{
+  padding:12px 16px;border:1px solid var(--neon-yellow);background:var(--bg-2);
+  color:var(--neon-yellow);margin-bottom:16px;font-size:.95em;
+}
 .loading,.empty{text-align:center;padding:30px;color:var(--muted);font-family:'Share Tech Mono',monospace}
 .error-box{
   padding:12px 16px;border:1px solid var(--neon-magenta);background:var(--bg-2);
@@ -176,6 +180,7 @@ details[open].milestone summary::before{transform:rotate(90deg)}
     const p = progressAll.find(p => p.slug === mySlug);
     return p ? p.milestonePosition : -1;
   };
+  const isArchived = () => read && read.status !== 'active';
 
   function fmtDate(ts) {
     try { return ts && ts.toDate ? ts.toDate().toLocaleDateString() : ''; } catch { return ''; }
@@ -205,8 +210,11 @@ details[open].milestone summary::before{transform:rotate(90deg)}
       </div>`;
 
     const list = topLevel.map(c => one(c, false) + repliesFor(c.id).map(r => one(r, true)).join('')).join('');
-    return (list || '<div class="empty" style="padding:14px">No comments yet — start the discussion!</div>')
-      + (session ? composerHtml(milestoneId, null) : '<div class="notice">Sign in on the <a href="index.html">catalog page</a> to join the discussion.</div>');
+    const canCompose = session && (!isArchived() || milestoneId === GENERAL_MILESTONE);
+    const footer = canCompose
+      ? composerHtml(milestoneId, null)
+      : (session ? '' : '<div class="notice">Sign in on the <a href="index.html">catalog page</a> to join the discussion.</div>');
+    return (list || '<div class="empty" style="padding:14px">No comments yet — start the discussion!</div>') + footer;
   }
 
   function composerHtml(milestoneId, parentId) {
@@ -222,7 +230,7 @@ details[open].milestone summary::before{transform:rotate(90deg)}
 
   function sectionHtml(id, label, position) {
     const count = comments.filter(c => (c.milestoneId || GENERAL_MILESTONE) === id).length;
-    const locked = isMilestoneLocked(position, myProgress(), id);
+    const locked = !isArchived() && isMilestoneLocked(position, myProgress(), id);
     if (locked) {
       return `
         <div class="locked">
@@ -264,7 +272,9 @@ details[open].milestone summary::before{transform:rotate(90deg)}
         </div>
       </div>
 
-      ${session && myRole() ? `
+      ${isArchived() ? `
+        <div class="archive-banner">This read is ${escapeHtml(read.status)} — discussions are archived. All sections are open (no spoiler locks); new comments only in General.</div>` : ''}
+      ${session && myRole() && !isArchived() ? `
         <div class="progress-row">
           <label for="progress-select">I've finished through:</label>
           <select id="progress-select">${options}</select>

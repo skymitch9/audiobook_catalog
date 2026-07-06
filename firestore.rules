@@ -106,6 +106,13 @@ service cloud.firestore {
         allow delete: if true;
       }
 
+      match /tbr/{itemId} {
+        allow read: if true;
+        allow write: if request.resource.data.bookTitle is string
+                     && request.resource.data.suggestedBy is string;
+        allow delete: if true;
+      }
+
       match /reads/{readId} {
         allow read: if true;
         allow write: if validClubRead();
@@ -169,6 +176,13 @@ service cloud.firestore {
       match /requests/{userId} {
         allow read: if true;
         allow write: if request.resource.data.displayName is string;
+        allow delete: if true;
+      }
+
+      match /tbr/{itemId} {
+        allow read: if true;
+        allow write: if request.resource.data.bookTitle is string
+                     && request.resource.data.suggestedBy is string;
         allow delete: if true;
       }
 

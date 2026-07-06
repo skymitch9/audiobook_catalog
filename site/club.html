@@ -103,8 +103,26 @@ body{
 .rc-title{font-weight:700;font-size:1.1em;color:var(--neon-cyan);text-transform:uppercase;letter-spacing:.5px}
 .rc-author{color:var(--muted);font-size:.9em}
 .rc-meta{font-size:.75em;color:var(--muted);font-family:'Share Tech Mono',monospace;margin-top:4px}
+.rc-actions{margin-left:auto;display:flex;gap:6px;align-items:center;flex-shrink:0}
+.rc-actions button{
+  background:none;border:1px solid var(--border);color:var(--muted);cursor:pointer;
+  font-size:.72em;padding:4px 9px;font-family:inherit;text-transform:uppercase;
+}
+.rc-actions button:hover{border-color:var(--neon-cyan);color:var(--neon-cyan)}
+.tbr-row{
+  display:flex;gap:14px;background:var(--bg);border:1px solid var(--border);
+  padding:14px;margin-bottom:10px;align-items:center;
+}
+.tbr-info{min-width:0}
+.tbr-actions{margin-left:auto;display:flex;gap:8px;align-items:center;flex-shrink:0}
+.vote-btn{
+  background:none;border:1px solid var(--border);color:var(--muted);cursor:pointer;
+  font-size:.85em;padding:5px 12px;font-family:'Share Tech Mono',monospace;
+}
+button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
+.vote-btn.voted{border-color:var(--neon-yellow);color:var(--neon-yellow)}
 .rc-remove{
-  margin-left:auto;background:none;border:1px solid var(--border);color:var(--muted);
+  background:none;border:1px solid var(--border);color:var(--muted);
   width:28px;height:28px;cursor:pointer;font-weight:bold;flex-shrink:0;
 }
 .rc-remove:hover{border-color:var(--neon-magenta);color:var(--neon-magenta)}
@@ -120,11 +138,11 @@ body{
 }
 .add-row input:focus{outline:none;border-color:var(--neon-cyan)}
 /* Start-read modal */
-#read-modal,#edit-modal{
+#read-modal,#edit-modal,#suggest-modal{
   position:fixed;inset:0;display:none;align-items:center;justify-content:center;
   background:rgba(0,0,0,.85);z-index:9999;padding:20px;backdrop-filter:blur(4px);
 }
-#read-modal.open,#edit-modal.open{display:flex}
+#read-modal.open,#edit-modal.open,#suggest-modal.open{display:flex}
 .modal-panel{
   background:var(--bg-2);border:1px solid var(--neon-cyan);
   width:min(540px,94vw);max-height:90vh;overflow-y:auto;padding:28px;position:relative;
@@ -142,12 +160,12 @@ body{
 }
 .field input:focus,.field textarea:focus,.field select:focus{outline:none;border-color:var(--neon-cyan)}
 .field textarea{resize:vertical;min-height:80px}
-#book-results{max-height:180px;overflow-y:auto;border:1px solid var(--border);margin-top:4px}
-#book-results button{
+#book-results,#suggest-results{max-height:180px;overflow-y:auto;border:1px solid var(--border);margin-top:4px}
+#book-results button,#suggest-results button{
   display:block;width:100%;text-align:left;padding:8px 12px;background:none;border:none;
   border-bottom:1px solid var(--border);color:var(--text);cursor:pointer;font-family:inherit;font-size:.92em;
 }
-#book-results button:hover{background:var(--bg);color:var(--neon-cyan)}
+#book-results button:hover,#suggest-results button:hover{background:var(--bg);color:var(--neon-cyan)}
 #picked-book{
   display:none;gap:12px;align-items:center;padding:10px;border:1px solid var(--neon-cyan);margin-top:6px;
 }
@@ -233,6 +251,20 @@ body{
   </div>
 </div>
 
+<!-- Suggest Book Modal (TBR) -->
+<div id="suggest-modal">
+  <div class="modal-panel">
+    <button class="modal-close" id="suggest-close">X</button>
+    <h2 style="margin-top:0;color:var(--neon-yellow);text-transform:uppercase;letter-spacing:1px">Suggest a Book</h2>
+    <div class="field">
+      <label for="suggest-search">Search the catalog</label>
+      <input id="suggest-search" type="text" placeholder="Search by title or author..." autocomplete="off" />
+      <div id="suggest-results"></div>
+    </div>
+    <div id="suggest-error" class="form-error"></div>
+  </div>
+</div>
+
 <script type="module">
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
   import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
@@ -244,10 +276,11 @@ body{
     acceptInvite, declineInvite,
   } from './clubs.js';
   import {
-    getReads, startRead, removeRead, splitByDuration, parseManualMilestones,
+    getReads, startRead, removeRead, finishRead, splitByDuration, parseManualMilestones,
     loadCatalogBooks, MAX_ACTIVE_READS, MAX_MILESTONES,
     getBookChapters, milestonesFromChapters, milestonesFromChapterRanges,
-    milestonesFromParts, wholeBookMilestones,
+    milestonesFromParts, wholeBookMilestones, formatHhmm,
+    getTbr, addTbrItem, removeTbrItem, toggleTbrVote,
   } from './club-reads.js';
 
   const firebaseConfig = {
@@ -270,6 +303,8 @@ body{
   let members = [];
   let reads = [];
   let requests = [];
+  let tbr = [];
+  let promotingTbrId = null; // TBR item being promoted via the Start Read modal
   let activeTab = 'current';
   let catalogBooks = null; // lazy-loaded for the book picker
   let pickedBook = null;
@@ -329,12 +364,55 @@ body{
     if (activeTab === 'members') return renderMembers();
     if (activeTab === 'requests') return renderRequests();
     if (activeTab === 'current') return renderCurrent();
-    const stubs = {
-      tbr: ['Club TBR coming soon', 'Suggesting and voting on what to read next arrives in Phase 3.'],
-      history: ['No finished reads yet', 'Finished books and their archived discussions will appear here (Phase 3).'],
-    };
-    const [title, text] = stubs[activeTab];
-    return `<div class="stub"><div class="stub-title">${title}</div>${text}</div>`;
+    if (activeTab === 'tbr') return renderTbr();
+    return renderHistory();
+  }
+
+  function fmtDate(ts) {
+    try { return ts && ts.toDate ? ts.toDate().toLocaleDateString() : ''; } catch { return ''; }
+  }
+
+  function renderTbr() {
+    const rows = tbr.map(item => {
+      const votes = (item.voterSlugs || []).length;
+      const iVoted = mySlug && (item.voterSlugs || []).includes(mySlug);
+      return `
+        <div class="tbr-row">
+          ${item.coverHref ? `<img class="rc-cover" src="${escapeHtml(item.coverHref)}" alt="" onerror="this.remove()">` : ''}
+          <div class="tbr-info">
+            <div class="rc-title">${escapeHtml(item.bookTitle)}</div>
+            <div class="rc-author">${escapeHtml(item.bookAuthor)}</div>
+            <div class="rc-meta">suggested by ${escapeHtml(item.suggestedBy)}</div>
+          </div>
+          <div class="tbr-actions">
+            ${session && isMember() ? `<button class="vote-btn ${iVoted ? 'voted' : ''}" data-vote="${item.id}">\u25b2 ${votes}</button>` : `<span class="vote-btn">\u25b2 ${votes}</span>`}
+            ${isMember() ? `<button class="nav-link" style="padding:4px 10px;font-size:.75em" data-promote="${item.id}">Read Next</button>` : ''}
+            ${isMember() ? `<button class="rc-remove" data-tbr-remove="${item.id}" data-title="${escapeHtml(item.bookTitle)}" title="Remove suggestion">X</button>` : ''}
+          </div>
+        </div>`;
+    }).join('');
+    return `
+      ${rows || '<div class="stub"><div class="stub-title">Nothing on the TBR yet</div>Suggest a book the club should read next.</div>'}
+      ${isMember() ? '<div style="margin-top:14px"><button id="suggest-btn" class="nav-link btn-primary">+ Suggest a Book</button></div>' : ''}
+    `;
+  }
+
+  function renderHistory() {
+    const past = reads.filter(r => r.status !== 'active')
+      .sort((a, b) => (b.finishedAt?.seconds || 0) - (a.finishedAt?.seconds || 0));
+    if (!past.length) {
+      return '<div class="stub"><div class="stub-title">No finished reads yet</div>Books the club finishes (or abandons) land here with their archived discussions.</div>';
+    }
+    return past.map(r => `
+      <a class="read-card" href="club-read.html?club=${encodeURIComponent(clubId)}&read=${encodeURIComponent(r.id)}">
+        ${r.coverHref ? `<img class="rc-cover" src="${escapeHtml(r.coverHref)}" alt="" onerror="this.remove()">` : ''}
+        <div>
+          <div class="rc-slot">${r.status === 'finished' ? 'Finished' : 'Abandoned'}${fmtDate(r.finishedAt) ? ` \u00b7 ${fmtDate(r.finishedAt)}` : ''}</div>
+          <div class="rc-title">${escapeHtml(r.bookTitle)}</div>
+          <div class="rc-author">${escapeHtml(r.bookAuthor)}</div>
+          <div class="rc-meta">${r.commentCount || 0} comments \u00b7 discussions archived</div>
+        </div>
+      </a>`).join('');
   }
 
   function renderCurrent() {
@@ -349,7 +427,12 @@ body{
           <div class="rc-author">${escapeHtml(r.bookAuthor)}</div>
           <div class="rc-meta">${(r.milestones || []).length} milestones \u00b7 ${r.commentCount || 0} comments \u00b7 started by ${escapeHtml(r.startedBy || '')}</div>
         </div>
-        ${isMember() ? `<button class="rc-remove" data-remove-read="${r.id}" data-title="${escapeHtml(r.bookTitle)}" title="Remove this book">X</button>` : ''}
+        ${isMember() ? `
+          <div class="rc-actions">
+            <button data-finish-read="${r.id}" data-title="${escapeHtml(r.bookTitle)}">Finish</button>
+            <button data-abandon-read="${r.id}" data-title="${escapeHtml(r.bookTitle)}">Abandon</button>
+            <button class="rc-remove" data-remove-read="${r.id}" data-title="${escapeHtml(r.bookTitle)}" title="Remove entirely (deletes discussions)">X</button>
+          </div>` : ''}
       </a>`).join('');
     const emptyState = isMember()
       ? `<div class="stub"><div class="stub-title">No active read yet</div>Pick the club's first book to open the discussions.</div>`
@@ -454,7 +537,7 @@ body{
 
 
     const startBtn = document.getElementById('start-read-btn');
-    if (startBtn) startBtn.addEventListener('click', openReadModal);
+    if (startBtn) startBtn.addEventListener('click', () => { promotingTbrId = null; openReadModal(); });
 
     const editBtn = document.getElementById('edit-club-btn');
     if (editBtn) editBtn.addEventListener('click', openEditModal);
@@ -463,10 +546,64 @@ body{
       btn.addEventListener('click', async (e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (!confirm(`Remove "${btn.dataset.title}" from the club? Its discussions will be deleted.`)) return;
+        if (!confirm(`Remove "${btn.dataset.title}" entirely? Its discussions will be deleted. (Use Finish to keep them in History.)`)) return;
         const r = await removeRead(db, clubId, btn.dataset.removeRead);
         if (r.success) reload(); else showError(r.error);
       }));
+
+    contentEl.querySelectorAll('[data-finish-read]').forEach(btn =>
+      btn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!confirm(`Mark "${btn.dataset.title}" as finished? It moves to History with its discussions.`)) return;
+        const r = await finishRead(db, clubId, btn.dataset.finishRead, 'finished');
+        if (r.success) reload(); else showError(r.error);
+      }));
+
+    contentEl.querySelectorAll('[data-abandon-read]').forEach(btn =>
+      btn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!confirm(`Abandon "${btn.dataset.title}"? It moves to History with its discussions.`)) return;
+        const r = await finishRead(db, clubId, btn.dataset.abandonRead, 'abandoned');
+        if (r.success) reload(); else showError(r.error);
+      }));
+
+    contentEl.querySelectorAll('[data-vote]').forEach(btn =>
+      btn.addEventListener('click', async () => {
+        const r = await toggleTbrVote(db, clubId, btn.dataset.vote, session);
+        if (r.success) reload(); else showError(r.error);
+      }));
+
+    contentEl.querySelectorAll('[data-tbr-remove]').forEach(btn =>
+      btn.addEventListener('click', async () => {
+        if (!confirm(`Remove "${btn.dataset.title}" from the TBR?`)) return;
+        const r = await removeTbrItem(db, clubId, btn.dataset.tbrRemove);
+        if (r.success) reload(); else showError(r.error);
+      }));
+
+    contentEl.querySelectorAll('[data-promote]').forEach(btn =>
+      btn.addEventListener('click', async () => {
+        const item = tbr.find(t => t.id === btn.dataset.promote);
+        if (!item) return;
+        const active = reads.filter(r => r.status === 'active');
+        if (active.length >= MAX_ACTIVE_READS) {
+          showError('This club already has 2 active books. Finish or swap one first.');
+          return;
+        }
+        promotingTbrId = item.id;
+        await openReadModal();
+        await pickBook({
+          title: item.bookTitle,
+          author: item.bookAuthor,
+          coverHref: item.coverHref || '',
+          durationMinutes: item.durationMinutes || 0,
+          durationHhmm: item.durationHhmm || (item.durationMinutes ? formatHhmm(item.durationMinutes) : ''),
+        });
+      }));
+
+    const suggestBtn = document.getElementById('suggest-btn');
+    if (suggestBtn) suggestBtn.addEventListener('click', openSuggestModal);
 
     const requestBtn = document.getElementById('request-btn');
     if (requestBtn) requestBtn.addEventListener('click', async () => {
@@ -551,8 +688,9 @@ body{
   }
 
   async function reload() {
-    [club, members, reads, requests] = await Promise.all([
-      getClub(db, clubId), getMembers(db, clubId), getReads(db, clubId), getRequests(db, clubId),
+    [club, members, reads, requests, tbr] = await Promise.all([
+      getClub(db, clubId), getMembers(db, clubId), getReads(db, clubId),
+      getRequests(db, clubId), getTbr(db, clubId),
     ]);
     if (!club) {
       contentEl.innerHTML = '<div class="empty">Club not found — it may have been deleted.</div>';
@@ -690,6 +828,10 @@ body{
       milestones,
     }, session);
     if (!r.success) { errEl.textContent = r.error; return; }
+    if (promotingTbrId) {
+      await removeTbrItem(db, clubId, promotingTbrId);
+      promotingTbrId = null;
+    }
     window.location.href = `club-read.html?club=${encodeURIComponent(clubId)}&read=${encodeURIComponent(r.readId)}`;
   });
 
@@ -721,6 +863,51 @@ body{
     editModal.classList.remove('open');
     reload();
   });
+
+  // --- Suggest Book modal (TBR; static DOM, wired once) ---
+  const suggestModal = document.getElementById('suggest-modal');
+  const suggestSearch = document.getElementById('suggest-search');
+  const suggestResults = document.getElementById('suggest-results');
+
+  async function openSuggestModal() {
+    suggestSearch.value = '';
+    document.getElementById('suggest-error').textContent = '';
+    suggestResults.innerHTML = '<button disabled>Loading catalog...</button>';
+    suggestModal.classList.add('open');
+    if (!catalogBooks) {
+      try {
+        catalogBooks = await loadCatalogBooks();
+      } catch (e) {
+        suggestResults.innerHTML = '<button disabled>Failed to load catalog</button>';
+        return;
+      }
+    }
+    renderSuggestResults('');
+  }
+
+  function renderSuggestResults(q) {
+    const query = q.toLowerCase().trim();
+    const matches = (catalogBooks || [])
+      .filter(b => !query || b.title.toLowerCase().includes(query) || b.author.toLowerCase().includes(query))
+      .slice(0, 25);
+    suggestResults.innerHTML = matches.map((b, i) =>
+      `<button data-suggest-pick="${i}">${escapeHtml(b.title)} — ${escapeHtml(b.author)}</button>`).join('')
+      || '<button disabled>No matches</button>';
+    suggestResults.querySelectorAll('[data-suggest-pick]').forEach(btn =>
+      btn.addEventListener('click', async () => {
+        const b = matches[parseInt(btn.dataset.suggestPick, 10)];
+        const errEl = document.getElementById('suggest-error');
+        errEl.textContent = '';
+        const r = await addTbrItem(db, clubId, b, session);
+        if (!r.success) { errEl.textContent = r.error; return; }
+        suggestModal.classList.remove('open');
+        reload();
+      }));
+  }
+
+  suggestSearch.addEventListener('input', () => { if (catalogBooks) renderSuggestResults(suggestSearch.value); });
+  document.getElementById('suggest-close').addEventListener('click', () => suggestModal.classList.remove('open'));
+  suggestModal.addEventListener('click', (e) => { if (e.target === suggestModal) suggestModal.classList.remove('open'); });
 
   if (!clubId) {
     contentEl.innerHTML = '<div class="empty">No club specified.</div>';

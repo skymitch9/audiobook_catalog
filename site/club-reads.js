@@ -4,7 +4,7 @@
 
 import {
   collection, doc, getDoc, getDocs, setDoc, deleteDoc, updateDoc,
-  serverTimestamp, runTransaction, increment,
+  query, where, serverTimestamp, runTransaction, increment,
 } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 import { col } from './fb-env.js';
 import { slugifyName } from './identity.js';
@@ -270,6 +270,110 @@ export async function removeRead(db, clubId, readId) {
 export async function getRead(db, clubId, readId) {
   const snap = await getDoc(doc(db, col('clubs'), clubId, 'reads', readId));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+/**
+ * Finish or abandon an active read: frees its slot and moves it to History.
+ * @param {'finished'|'abandoned'} status
+ */
+export async function finishRead(db, clubId, readId, status) {
+  if (status !== 'finished' && status !== 'abandoned') {
+    return { success: false, error: 'Invalid status.' };
+  }
+  const clubRef = doc(db, col('clubs'), clubId);
+  const readRef = doc(db, col('clubs'), clubId, 'reads', readId);
+  try {
+    await runTransaction(db, async (tx) => {
+      const readSnap = await tx.get(readRef);
+      if (!readSnap.exists()) throw new Error('Read not found.');
+      const read = readSnap.data();
+      if (read.status !== 'active') throw new Error('This read is already archived.');
+      const clubSnap = await tx.get(clubRef);
+      if (!clubSnap.exists()) throw new Error('Club not found.');
+      const activeSlots = [...(clubSnap.data().activeSlots || [])];
+      const idx = activeSlots.indexOf(read.slot);
+      if (idx !== -1) activeSlots.splice(idx, 1);
+      tx.update(clubRef, { activeSlots });
+      tx.update(readRef, { status, finishedAt: serverTimestamp() });
+    });
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+// ==================== Club TBR ====================
+
+/** Fetch the club's TBR list, most-voted first. */
+export async function getTbr(db, clubId) {
+  const snap = await getDocs(collection(db, col('clubs'), clubId, 'tbr'));
+  return snap.docs
+    .map(d => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => (b.voterSlugs || []).length - (a.voterSlugs || []).length);
+}
+
+/** Suggest a book for the club TBR. Duplicate titles are rejected. */
+export async function addTbrItem(db, clubId, book, session) {
+  if (!session || !session.displayName) {
+    return { success: false, error: 'Sign in to suggest a book.' };
+  }
+  if (!(book.title || '').trim()) return { success: false, error: 'Pick a book first.' };
+  try {
+    const existing = await getDocs(query(
+      collection(db, col('clubs'), clubId, 'tbr'),
+      where('bookTitle', '==', book.title)
+    ));
+    if (existing.docs.length > 0) {
+      return { success: false, error: 'That book is already on the club TBR.' };
+    }
+    const slug = slugifyName(session.displayName);
+    const itemRef = doc(collection(db, col('clubs'), clubId, 'tbr'));
+    await setDoc(itemRef, {
+      bookTitle: book.title,
+      bookAuthor: book.author || '',
+      coverHref: book.coverHref || '',
+      durationMinutes: book.durationMinutes || 0,
+      durationHhmm: book.durationHhmm || '',
+      suggestedBy: session.displayName,
+      voterSlugs: [slug],
+      createdAt: serverTimestamp(),
+    });
+    return { success: true, itemId: itemRef.id };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+/** Remove a TBR suggestion. */
+export async function removeTbrItem(db, clubId, itemId) {
+  try {
+    await deleteDoc(doc(db, col('clubs'), clubId, 'tbr', itemId));
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+/** Toggle the caller's vote on a TBR suggestion. */
+export async function toggleTbrVote(db, clubId, itemId, session) {
+  if (!session || !session.displayName) {
+    return { success: false, error: 'Sign in to vote.' };
+  }
+  const slug = slugifyName(session.displayName);
+  const itemRef = doc(db, col('clubs'), clubId, 'tbr', itemId);
+  try {
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(itemRef);
+      if (!snap.exists()) throw new Error('Suggestion not found.');
+      const voters = snap.data().voterSlugs || [];
+      tx.update(itemRef, {
+        voterSlugs: voters.includes(slug) ? voters.filter(s => s !== slug) : [...voters, slug],
+      });
+    });
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
 }
 
 // ==================== Comments ====================

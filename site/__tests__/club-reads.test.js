@@ -78,9 +78,10 @@ const {
   isMilestoneLocked, parseCsv,
   milestonesFromChapters, milestonesFromChapterRanges,
   milestonesFromParts, wholeBookMilestones,
-  startRead, getReads, getRead,
+  startRead, getReads, getRead, finishRead,
   addComment, deleteComment, getComments,
   setProgress, getProgressAll,
+  getTbr, addTbrItem, removeTbrItem, toggleTbrVote,
   MAX_MILESTONES, GENERAL_MILESTONE,
 } = await import('../club-reads.js');
 
@@ -287,6 +288,74 @@ describe('comments', () => {
     await deleteComment(fakeDb, CLUB, readId, r.commentId);
     expect((await getRead(fakeDb, CLUB, readId)).commentCount).toBe(0);
     expect(await getComments(fakeDb, CLUB, readId)).toHaveLength(0);
+  });
+});
+
+describe('finishRead', () => {
+  it('archives the read and frees its slot', async () => {
+    const readId = (await startRead(fakeDb, CLUB, bookInput(), jane)).readId;
+    const r = await finishRead(fakeDb, CLUB, readId, 'finished');
+    expect(r.success).toBe(true);
+    const read = await getRead(fakeDb, CLUB, readId);
+    expect(read.status).toBe('finished');
+    expect(read.finishedAt).toBeTruthy();
+    expect(mockStore[CLUB_PATH].activeSlots).toEqual([]);
+    // the freed slot is reusable
+    const again = await startRead(fakeDb, CLUB, bookInput({ bookTitle: 'Next Book' }), jane);
+    expect(again.success).toBe(true);
+    expect((await getRead(fakeDb, CLUB, again.readId)).slot).toBe(1);
+  });
+
+  it('abandon works and archived reads cannot be re-finished', async () => {
+    const readId = (await startRead(fakeDb, CLUB, bookInput(), jane)).readId;
+    expect((await finishRead(fakeDb, CLUB, readId, 'abandoned')).success).toBe(true);
+    expect((await finishRead(fakeDb, CLUB, readId, 'finished')).success).toBe(false);
+  });
+
+  it('rejects invalid statuses', async () => {
+    const readId = (await startRead(fakeDb, CLUB, bookInput(), jane)).readId;
+    expect((await finishRead(fakeDb, CLUB, readId, 'paused')).success).toBe(false);
+  });
+});
+
+describe('club TBR', () => {
+  const book = { title: 'Dungeon Crawler Carl', author: 'Matt Dinniman', coverHref: 'covers/x.jpg', durationMinutes: 800, durationHhmm: '13:20' };
+
+  it('suggesting adds an item with the suggester as first voter', async () => {
+    const r = await addTbrItem(fakeDb, CLUB, book, jane);
+    expect(r.success).toBe(true);
+    const items = await getTbr(fakeDb, CLUB);
+    expect(items).toHaveLength(1);
+    expect(items[0].bookTitle).toBe('Dungeon Crawler Carl');
+    expect(items[0].suggestedBy).toBe('Jane Doe');
+    expect(items[0].voterSlugs).toEqual(['jane doe']);
+  });
+
+  it('rejects duplicate titles and missing session', async () => {
+    await addTbrItem(fakeDb, CLUB, book, jane);
+    expect((await addTbrItem(fakeDb, CLUB, book, bob)).success).toBe(false);
+    expect((await addTbrItem(fakeDb, CLUB, book, null)).success).toBe(false);
+    expect(await getTbr(fakeDb, CLUB)).toHaveLength(1);
+  });
+
+  it('vote toggles on and off, and the list sorts by votes', async () => {
+    const a = await addTbrItem(fakeDb, CLUB, book, jane);
+    const b = await addTbrItem(fakeDb, CLUB, { ...book, title: 'Other Book' }, jane);
+    await toggleTbrVote(fakeDb, CLUB, b.itemId, bob); // Other Book: 2 votes
+    let items = await getTbr(fakeDb, CLUB);
+    expect(items[0].bookTitle).toBe('Other Book');
+    expect(items[0].voterSlugs).toContain('bob brown');
+
+    await toggleTbrVote(fakeDb, CLUB, b.itemId, bob); // un-vote
+    items = await getTbr(fakeDb, CLUB);
+    expect(items.find(i => i.id === b.itemId).voterSlugs).toEqual(['jane doe']);
+    expect((await toggleTbrVote(fakeDb, CLUB, 'nope', bob)).success).toBe(false);
+  });
+
+  it('remove deletes the suggestion', async () => {
+    const r = await addTbrItem(fakeDb, CLUB, book, jane);
+    await removeTbrItem(fakeDb, CLUB, r.itemId);
+    expect(await getTbr(fakeDb, CLUB)).toHaveLength(0);
   });
 });
 
