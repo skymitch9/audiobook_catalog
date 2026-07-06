@@ -180,16 +180,21 @@ h1{margin:0 0 8px 0; color:var(--neon-yellow); text-transform:uppercase; letter-
   font-size:.75em;padding:4px 10px;font-family:inherit;text-transform:uppercase;letter-spacing:.5px;
 }
 .identity-bar__logout-btn:hover{border-color:var(--neon-magenta,#ff2a6d);color:var(--neon-magenta,#ff2a6d)}
+
+.nav-link.active{border-color:var(--neon-cyan,#05d9e8);color:var(--neon-yellow,#fcee0a)}
 </style>
 </head>
 <body>
 <div id="wrap">
   <h1>📊 Audiobook Statistics</h1>
 
-  <div style="margin-bottom: 20px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-    <a href="index.html" class="nav-link">← Back to Catalog</a>
-    <a href="guess-game.html" class="nav-link">🎮 Play Game</a>
-    <div id="identity-bar"></div>
+  <div class="nav-row" style="margin-bottom: 20px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+    <a href="index.html" class="nav-link">Catalog</a>
+    <a href="community.html" class="nav-link">Community</a>
+    <a href="clubs.html" class="nav-link">Clubs</a>
+    <a href="stats.html" class="nav-link active">Stats</a>
+    <a href="guess-game.html" class="nav-link">Game</a>
+    <div id="identity-bar" style="margin-left:auto"></div>
   </div>
 
   <div class="stats-grid">
