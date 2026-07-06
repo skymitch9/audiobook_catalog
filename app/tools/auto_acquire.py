@@ -99,28 +99,32 @@ def wait_idle(timeout_s=900, settle_s=15):
     return False
 
 
-def download_missing(missing):
+def download_missing(missing, books=None):
     """Auto-download each missing purchase with the owning account's
     profile; converted m4bs land in runtime/openaudible/books for the
     sync to ingest. Returns (downloaded_titles, [(title, error)])."""
     from app.tools.audible_download import download_and_convert, profile_for
-    books = {}
-    try:
-        raw = json.loads((RUNTIME / "books.json").read_text(encoding="utf-8"))
-        for b in raw:
-            t = b.get("title_short") or b.get("title") or ""
-            books[t] = (b.get("asin"), b.get("user_id"))
-    except (OSError, json.JSONDecodeError):
-        pass
+    lookup = {}
+    for b in books or []:  # audible-cli export rows carry asin + profile
+        title = b.get("title_short") or b.get("title") or ""
+        lookup[title] = (b.get("asin"), b.get("profile"))
+    if not lookup:  # container books.json fallback (user_id -> profile)
+        try:
+            raw = json.loads((RUNTIME / "books.json").read_text(encoding="utf-8"))
+            for b in raw:
+                title = b.get("title_short") or b.get("title") or ""
+                lookup[title] = (b.get("asin"), profile_for(b.get("user_id")))
+        except (OSError, json.JSONDecodeError):
+            pass
 
     downloaded, failed = [], []
     for _date, title in missing:
-        asin, user_id = books.get(title, (None, None))
+        asin, profile = lookup.get(title, (None, None))
         if not asin:
             failed.append((title, "no ASIN in library list"))
             continue
         try:
-            dest = download_and_convert(asin, title, profile_for(user_id))
+            dest = download_and_convert(asin, title, profile)
             downloaded.append(title)
             print(f"DOWNLOADED: {title} -> {dest.name}")
         except Exception as e:
@@ -160,34 +164,36 @@ def main():
     parser.add_argument("--no-download", action="store_true", help="report only; don't auto-download")
     args = parser.parse_args()
 
-    started_here = False
-    if not container_running():
-        print("[1/3] starting openaudible container...")
-        r = compose("up", "-d", "openaudible")
-        if r.returncode != 0:
-            print(r.stderr.strip() or "docker compose up failed")
+    # Preferred source: fresh audible-cli exports — no container involved.
+    from app.tools.audit_new_purchases import audible_cli_books
+    print("[1/3] fetching fresh library lists via audible-cli...")
+    books = audible_cli_books()
+    used_container = False
+    if books:
+        print(f"  {len(books)} items across profiles — container not needed")
+    else:
+        # Fallback: the container's books.json (may lag until OpenAudible flushes)
+        used_container = True
+        if not container_running():
+            print("[1/3] audible-cli unavailable — starting openaudible container...")
+            r = compose("up", "-d", "openaudible")
+            if r.returncode != 0:
+                print(r.stderr.strip() or "docker compose up failed")
+                return 2
+        if not wait_connected():
+            print("container never reached Connected — check http://127.0.0.1:3000")
             return 2
-        started_here = True
-    else:
-        print("[1/3] container already running")
-
-    if not wait_connected():
-        print("container never reached Connected — check http://127.0.0.1:3000")
-        return 2
-
-    if not args.no_sync:
-        print("[2/3] refreshing library list (Sync_Quick, all connected accounts)...")
-        queue_command("Sync_Quick")
-        time.sleep(10)
-        if not wait_idle():
-            print("library sync did not settle — continuing with last known list")
-    else:
-        print("[2/3] skipped library refresh (--no-sync)")
+        if not args.no_sync:
+            print("[2/3] refreshing library list (Sync_Quick, all connected accounts)...")
+            queue_command("Sync_Quick")
+            time.sleep(10)
+            if not wait_idle():
+                print("library sync did not settle — continuing with last known list")
 
     print("[3/3] auditing purchases vs catalog...")
-    missing = run_audit(args.top)
+    missing = run_audit(args.top, books=books or None)
 
-    if args.stop_after and (started_here or True):
+    if args.stop_after and used_container:
         compose("stop", "openaudible")
         print("container stopped (auth persists in runtime/)")
 
@@ -203,7 +209,7 @@ def main():
             notify_discord(missing)
         return 1
 
-    downloaded, failed = download_missing(missing)
+    downloaded, failed = download_missing(missing, books)
     print(f"\nRESULT: {len(downloaded)} downloaded, {len(failed)} failed — "
           "the sync step ingests downloads into the library.")
     if args.notify:

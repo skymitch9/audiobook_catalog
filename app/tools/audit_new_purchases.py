@@ -23,13 +23,51 @@ import csv
 import json
 import os
 import re
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 from app.config import SITE_DIR
 
 CATALOG_PATH = SITE_DIR / "catalog.csv"
 PROJECT_ROOT = SITE_DIR.parent
+
+
+AUDIBLE_PROFILES = ("skylar", "samantha")
+
+
+def audible_cli_books():
+    """FRESH library rows straight from Audible via audible-cli exports for
+    every registered profile. Returns [] when no profile works (fall back to
+    the container's books.json then). Each row carries the owning profile,
+    which the auto-downloader uses directly."""
+    books = []
+    for prof in AUDIBLE_PROFILES:
+        try:
+            with tempfile.TemporaryDirectory() as td:
+                out = Path(td) / "lib.tsv"
+                r = subprocess.run(
+                    [sys.executable, "-m", "audible_cli", "-P", prof,
+                     "library", "export", "--output", str(out)],
+                    capture_output=True, text=True, encoding="utf-8", timeout=600)
+                if r.returncode != 0 or not out.exists():
+                    print(f"  [audible-cli] export failed for {prof}: {(r.stderr or '')[:150]}")
+                    continue
+                with open(out, encoding="utf-8", newline="") as f:
+                    for row in csv.DictReader(f, delimiter="	"):
+                        books.append({
+                            "title_short": row.get("title") or "",
+                            "title": row.get("title") or "",
+                            "author": row.get("authors") or "",
+                            "purchase_date": row.get("purchase_date") or "",
+                            "release_date": row.get("release_date") or "",
+                            "asin": row.get("asin") or "",
+                            "profile": prof,
+                        })
+        except Exception as e:
+            print(f"  [audible-cli] export error for {prof}: {e}")
+    return books
 
 
 def books_json_path():
@@ -81,14 +119,20 @@ def load_catalog_titles():
     return titles
 
 
-def run_audit(top=50):
-    """Report missing recent purchases. Returns the missing list, or None
-    when no books.json is available (desktop app closed and no container)."""
-    src = books_json_path()
-    if src is None:
-        print("no OpenAudible books.json found — skipping purchase audit")
-        return None
-    books = json.loads(src.read_text(encoding="utf-8"))
+def run_audit(top=50, books=None):
+    """Report missing recent purchases. Prefers FRESH audible-cli exports;
+    falls back to the container/desktop books.json. Returns the missing
+    list, or None when no source is available."""
+    src = "audible-cli exports"
+    if books is None:
+        books = audible_cli_books()
+    if not books:
+        path = books_json_path()
+        if path is None:
+            print("no audible-cli profiles and no books.json — skipping purchase audit")
+            return None
+        books = json.loads(path.read_text(encoding="utf-8"))
+        src = str(path)
     missing = missing_purchases(books, load_catalog_titles(), top)
     print(f"newest {top} purchases in {src} vs catalog: {len(missing)} missing")
     for date, title in missing:

@@ -44,7 +44,7 @@ def find_ffmpeg():
 
 
 def _run(args, timeout=7200):
-    return subprocess.run(args, capture_output=True, text=True, timeout=timeout)
+    return subprocess.run(args, capture_output=True, text=True, encoding="utf-8", timeout=timeout)
 
 
 def _audible(profile, *args, timeout=7200):
