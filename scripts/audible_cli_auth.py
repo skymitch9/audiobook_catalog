@@ -30,7 +30,7 @@ from audible.login import build_oauth_url, create_code_verifier
 from audible.register import register as register_device
 
 PENDING = Path(__file__).resolve().parent.parent / "output_files" / "audible_auth_pending.json"
-AUDIBLE_DIR = Path.home() / ".audible"
+AUDIBLE_DIR = Path.home() / "AppData" / "Local" / "Audible"  # audible-cli app dir on Windows
 
 
 def cmd_start(name):
@@ -57,8 +57,8 @@ def cmd_start(name):
 def cmd_complete(name, response_url):
     state = json.loads(PENDING.read_text())[name]
     verifier = state["verifier"].encode()
-    from audible.login import extract_code_from_url
-    authorization_code = extract_code_from_url(response_url)
+    from urllib.parse import urlparse, parse_qs
+    authorization_code = parse_qs(urlparse(response_url).query)["openid.oa2.authorization_code"][0]
     registration = register_device(
         authorization_code=authorization_code, code_verifier=verifier,
         domain="com", serial=state["serial"],

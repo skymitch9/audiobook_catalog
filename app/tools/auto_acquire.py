@@ -12,9 +12,11 @@ lost). So bulk commands can never be dupe-safe. This orchestrator instead:
      every connected Audible account (Sync_Quick via commands.json)
   2. runs the top-N purchase audit (audit_new_purchases) against the
      merged list — the ONLY trustworthy gap signal
-  3. reports exactly which books need downloading; with --notify it pings
-     the Discord webhook so a human (or Claude driving the container UI)
-     downloads those specific books — a few clicks, a few times a month
+  3. DOWNLOADS the missing books automatically via audible-cli
+     (app/tools/audible_download.py, one registered profile per account),
+     converting each to a tagged m4b in runtime/openaudible/books where the
+     sync's sort step ingests it. --no-download falls back to report-only;
+     --notify pings Discord with what was downloaded (or what failed)
   4. anything downloaded lands in runtime/openaudible/books and is
      ingested automatically by the next sync run's sort step (dupes are
      skipped by filename, so a stray download can't corrupt the library)
@@ -97,15 +99,43 @@ def wait_idle(timeout_s=900, settle_s=15):
     return False
 
 
-def notify_discord(missing):
+def download_missing(missing):
+    """Auto-download each missing purchase with the owning account's
+    profile; converted m4bs land in runtime/openaudible/books for the
+    sync to ingest. Returns (downloaded_titles, [(title, error)])."""
+    from app.tools.audible_download import download_and_convert, profile_for
+    books = {}
+    try:
+        raw = json.loads((RUNTIME / "books.json").read_text(encoding="utf-8"))
+        for b in raw:
+            t = b.get("title_short") or b.get("title") or ""
+            books[t] = (b.get("asin"), b.get("user_id"))
+    except (OSError, json.JSONDecodeError):
+        pass
+
+    downloaded, failed = [], []
+    for _date, title in missing:
+        asin, user_id = books.get(title, (None, None))
+        if not asin:
+            failed.append((title, "no ASIN in library list"))
+            continue
+        try:
+            dest = download_and_convert(asin, title, profile_for(user_id))
+            downloaded.append(title)
+            print(f"DOWNLOADED: {title} -> {dest.name}")
+        except Exception as e:
+            failed.append((title, str(e)[:200]))
+            print(f"FAILED: {title}: {e}")
+    return downloaded, failed
+
+
+def notify_discord_lines(header, lines):
     webhook = os.getenv("DISCORD_WEBHOOK")
     if not webhook:
         print("[notify] DISCORD_WEBHOOK not set — skipping")
         return
     import urllib.request
-    lines = "\n".join(f"- {d} | {t}" for d, t in missing)
-    body = {"content": f"📚 **{len(missing)} new Audible purchase(s) need downloading** "
-                       f"(container: http://127.0.0.1:3000)\n{lines}"}
+    body = {"content": f"**{header}**\n" + "\n".join(lines)}
     req = urllib.request.Request(webhook, data=json.dumps(body).encode(),
                                  headers={"Content-Type": "application/json"})
     try:
@@ -115,12 +145,19 @@ def notify_discord(missing):
         print(f"[notify] failed: {e}")
 
 
+def notify_discord(missing):
+    notify_discord_lines(
+        f"📚 {len(missing)} new Audible purchase(s) need downloading",
+        [f"- {d} | {t}" for d, t in missing])
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[1])
     parser.add_argument("--top", type=int, default=50, help="recent purchases to audit")
     parser.add_argument("--stop-after", action="store_true", help="stop the container when done")
     parser.add_argument("--notify", action="store_true", help="Discord ping when downloads are needed")
     parser.add_argument("--no-sync", action="store_true", help="skip the library refresh (audit only)")
+    parser.add_argument("--no-download", action="store_true", help="report only; don't auto-download")
     args = parser.parse_args()
 
     started_here = False
@@ -159,12 +196,21 @@ def main():
     if not missing:
         print("\nRESULT: library is current — nothing to download.")
         return 0
-    print(f"\nRESULT: {len(missing)} book(s) to download — open http://127.0.0.1:3000,")
-    print("search each title, select it, Actions > Download (autoConvert makes the")
-    print("m4b). The next sync run ingests them into the library automatically.")
+
+    if args.no_download:
+        print(f"\nRESULT: {len(missing)} book(s) need downloading (auto-download disabled).")
+        if args.notify:
+            notify_discord(missing)
+        return 1
+
+    downloaded, failed = download_missing(missing)
+    print(f"\nRESULT: {len(downloaded)} downloaded, {len(failed)} failed — "
+          "the sync step ingests downloads into the library.")
     if args.notify:
-        notify_discord(missing)
-    return 1
+        lines = ([f"- ⬇️ downloaded: {t}" for t in downloaded]
+                 + [f"- ⚠️ FAILED {t}: {err}" for t, err in failed])
+        notify_discord_lines(f"📚 Auto-acquire: {len(downloaded)} downloaded, {len(failed)} failed", lines)
+    return 0 if not failed else 1
 
 
 if __name__ == "__main__":
