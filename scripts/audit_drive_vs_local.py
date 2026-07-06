@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -166,6 +167,13 @@ def main():
     on_local_not_drive = []  # (folder_name, filename)
     synced = 0
 
+    # Author-folder names drift over time ("E. C. Krueger" vs "E.C. Krueger",
+    # series credited to a different co-author) — a file whose normalized
+    # basename exists ANYWHERE on the other side is backed up, not missing.
+    _norm = lambda s: re.sub(r"[^a-z0-9]+", "", s.lower())
+    drive_all_names = {_norm(fi["name"]) for fl in drive_files.values() for fi in fl}
+    local_all_names = {_norm(f) for fl in local_files.values() for f in fl}
+
     # Check Drive -> Local
     for folder_name, files in drive_files.items():
         local_folder_files = set()
@@ -186,6 +194,8 @@ def main():
         for file_info in files:
             if file_info["name"].lower() in local_folder_files:
                 synced += 1
+            elif _norm(file_info["name"]) in local_all_names:
+                synced += 1  # present locally under a renamed author folder
             else:
                 on_drive_not_local.append((folder_name, file_info))
 
@@ -205,8 +215,11 @@ def main():
                 break
 
         for filename in files:
-            if filename.lower() not in drive_folder_files:
-                on_local_not_drive.append((local_folder, filename))
+            if filename.lower() in drive_folder_files:
+                continue
+            if _norm(filename) in drive_all_names:
+                continue  # on Drive under a renamed author folder
+            on_local_not_drive.append((local_folder, filename))
 
     # --- Report ---
     print(f"\n{'='*60}")
