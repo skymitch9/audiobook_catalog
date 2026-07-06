@@ -57,6 +57,14 @@ service cloud.firestore {
              && request.resource.data.displayName is string;
     }
 
+    function validUserWarning() {
+      return request.resource.data.label is string
+             && request.resource.data.label.size() > 0
+             && request.resource.data.label.size() <= 80
+             && request.resource.data.bookId is string
+             && request.resource.data.displayName is string;
+    }
+
     // ---- Prod collections ----
 
     match /leaderboard/{docId} {
@@ -74,6 +82,12 @@ service cloud.firestore {
     match /reviews/{reviewId} {
       allow read: if true;
       allow write: if validReview();
+      allow delete: if true;
+    }
+
+    match /user_content_warnings/{docId} {
+      allow read: if true;
+      allow write: if validUserWarning();
       allow delete: if true;
     }
 
@@ -157,6 +171,12 @@ service cloud.firestore {
     match /reviews_dev/{reviewId} {
       allow read: if true;
       allow write: if validReview();
+      allow delete: if true;
+    }
+
+    match /user_content_warnings_dev/{docId} {
+      allow read: if true;
+      allow write: if validUserWarning();
       allow delete: if true;
     }
 

@@ -42,9 +42,9 @@ class FilterWarningsTestCase(unittest.TestCase):
         ])
         self.assertEqual(out, [w("War")])
 
-    def test_caps_at_twenty_topics(self):
-        out = filter_warnings([w(f"Topic {i}") for i in range(30)])
-        self.assertEqual(len(out), 20)
+    def test_caps_at_forty_topics(self):
+        out = filter_warnings([w(f"Topic {i}") for i in range(50)])
+        self.assertEqual(len(out), 40)
 
 
 if __name__ == "__main__":

@@ -76,7 +76,7 @@ def filter_warnings(raw):
             order.append(topic)
         if topic not in by_topic or rank > by_topic[topic][0]:
             by_topic[topic] = (rank, {"label": label, "source_url": url})
-    return [by_topic[t][1] for t in order][:20]
+    return [by_topic[t][1] for t in order][:40]
 
 
 def extract_json(text):

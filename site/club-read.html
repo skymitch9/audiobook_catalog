@@ -179,6 +179,15 @@ button.rx-chip:hover{border-color:var(--neon-yellow)}
 .cw-notes summary{cursor:pointer;color:var(--neon-yellow)}
 .cw-notes ul{margin:8px 0 2px;padding-left:20px}
 .cw-notes a{color:var(--neon-cyan);font-size:.85em}
+.cw-by{color:var(--muted);font-size:.85em}
+.cw-add-btn{
+  margin:8px 0 2px;padding:4px 10px;background:none;border:1px solid var(--border);
+  color:var(--muted);cursor:pointer;font-family:inherit;font-size:.8em;
+}
+.cw-add-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
+.cw-del{
+  background:none;border:none;color:var(--neon-magenta);cursor:pointer;font-size:.85em;padding:0 3px;
+}
 .starter-q{
   background:var(--bg);border:1px dashed var(--border);padding:10px 12px;margin:10px 0 4px;
   color:var(--muted);display:flex;gap:10px;align-items:center;flex-wrap:wrap;
@@ -245,6 +254,7 @@ details.milestone.ch-section summary{padding:10px 14px;font-size:.85em;color:var
     setProgress, setChapterProgress, getProgressAll,
     isMilestoneLocked, isCommentSpoiler, groupChapters, GENERAL_MILESTONE, MAX_COMMENT_LENGTH,
   } from './club-reads.js';
+  import { addUserWarning, getUserWarnings, deleteUserWarning } from './user-warnings.js';
 
   const firebaseConfig = {
     apiKey: "AIzaSyDgAblkxzVxl7nFbd7jXOo6PpuNPsJw11Y",
@@ -268,6 +278,7 @@ details.milestone.ch-section summary{padding:10px 14px;font-size:.85em;color:var
   let quotes = [];
   let bookPrompts = null;   // AI starter questions for hosts (toggleable per club)
   let bookWarnings = null;  // published content warnings with sources
+  let userWarnings = [];    // reader-added warnings from this site
   let view = 'discussions'; // 'discussions' | 'quotes'
   let lastSeenTs = 0;       // seconds; comments newer than this get a NEW dot
   let firstRender = true;
@@ -544,11 +555,13 @@ details.milestone.ch-section summary{padding:10px 14px;font-size:.85em;color:var
         </div>
       </div>
 
-      ${bookWarnings ? `
+      ${(bookWarnings || userWarnings.length || session) ? `
         <details class="cw-notes">
-          <summary>\u26a0 Content notes (${bookWarnings.length}) — from published sources</summary>
-          <ul>${bookWarnings.map(w =>
-            `<li>${escapeHtml(w.label)} <a href="${escapeHtml(w.source_url)}" target="_blank" rel="noopener">source</a></li>`).join('')}</ul>
+          <summary>\u26a0 Content notes (${(bookWarnings || []).length + userWarnings.length})</summary>
+          <ul>${(bookWarnings || []).map(w =>
+            `<li>${escapeHtml(w.label)} <a href="${escapeHtml(w.source_url)}" target="_blank" rel="noopener">source</a></li>`).join('')}${userWarnings.map(w =>
+            `<li>${escapeHtml(w.label)} <span class="cw-by">— added by ${escapeHtml(w.displayName)}</span>${session && (w.displayName || '').toLowerCase() === session.displayName.toLowerCase() ? ` <button class="cw-del" data-cw-del="${escapeHtml(w.id)}" title="Remove your warning">✕</button>` : ''}</li>`).join('')}</ul>
+          ${session && !isArchived() ? '<button id="cw-add" class="cw-add-btn">+ Add a warning</button>' : ''}
         </details>` : ''}
       ${isArchived() ? `
         <div class="archive-banner">This read is ${escapeHtml(read.status)} — discussions are archived. All sections are open (no spoiler locks); new comments only in General.</div>` : ''}
@@ -685,6 +698,22 @@ details.milestone.ch-section summary{padding:10px 14px;font-size:.85em;color:var
   }
 
   function wireEvents() {
+    const cwAdd = document.getElementById('cw-add');
+    if (cwAdd) cwAdd.addEventListener('click', async () => {
+      const label = prompt('What should readers know going in? (e.g. "Animal death", "Gore")');
+      if (label === null) return;
+      const r = await addUserWarning(db, read.bookTitle, label, session);
+      if (r.success) reload(); else showError(r.error);
+    });
+
+    contentEl.querySelectorAll('[data-cw-del]').forEach(btn =>
+      btn.addEventListener('click', async () => {
+        const w = userWarnings.find(x => x.id === btn.dataset.cwDel);
+        if (!w) return;
+        const r = await deleteUserWarning(db, w, session);
+        if (r.success) reload(); else showError(r.error);
+      }));
+
     contentEl.querySelectorAll('[data-use-prompt]').forEach(btn =>
       btn.addEventListener('click', async () => {
         btn.disabled = true;
@@ -831,9 +860,10 @@ details.milestone.ch-section summary{padding:10px 14px;font-size:.85em;color:var
       getMembers(db, clubId),
       getQuotes(db, clubId, readId),
     ]);
-    [bookPrompts, bookWarnings] = await Promise.all([
+    [bookPrompts, bookWarnings, userWarnings] = await Promise.all([
       getBookPrompts(read ? read.bookTitle : ''),
       getBookWarnings(read ? read.bookTitle : ''),
+      read ? getUserWarnings(db, read.bookTitle).catch(() => []) : [],
     ]);
     if (!club || !read) {
       contentEl.innerHTML = '<div class="empty">Read not found — it may have been removed.</div>';
