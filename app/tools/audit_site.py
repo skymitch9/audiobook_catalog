@@ -85,31 +85,13 @@ def resolve_author_link(author: str, author_map: dict) -> bool:
     return False
 
 
-def audit(site_dir: Path, author_map_path: Path, exclusions_path: Path) -> int:
-    catalog_path = site_dir / "catalog.csv"
-    if not catalog_path.exists():
-        print(f"::error::{catalog_path} not found — cannot audit")
-        return 1
+def _summarize(items: list, limit: int = 10) -> str:
+    return "; ".join(items[:limit]) + ("; ..." if len(items) > limit else "")
 
-    with open(catalog_path, encoding="utf-8") as f:
-        rows = list(csv.DictReader(f))
-    if not rows:
-        print(f"::error::{catalog_path} has no book rows")
-        return 1
 
-    author_map = {}
-    if author_map_path.exists():
-        with open(author_map_path, encoding="utf-8") as f:
-            author_map = json.load(f)
-    else:
-        print(f"::error::{author_map_path} not found — drive links cannot be audited")
-        return 1
-
-    exclusions = load_exclusions(exclusions_path)
+def _check_required_fields(rows: list, exclusions: dict) -> list:
+    """Every row must have an author and a narrator (title-level exclusions apply)."""
     failures = []
-    warnings = []
-
-    # --- Check 1 & 2: author and narrator present on every row ---
     for check, field in (("author", "author"), ("narrator", "narrator")):
         skip_titles = _excluded_titles(exclusions, check)
         missing = [
@@ -119,15 +101,14 @@ def audit(site_dir: Path, author_map_path: Path, exclusions_path: Path) -> int:
             and r["title"].strip().lower() not in skip_titles
         ]
         if missing:
-            failures.append(
-                f"{len(missing)} books missing {field}: "
-                + "; ".join(missing[:10])
-                + ("; ..." if len(missing) > 10 else "")
-            )
+            failures.append(f"{len(missing)} books missing {field}: " + _summarize(missing))
         else:
             print(f"[OK] {field}: all {len(rows)} books have one")
+    return failures
 
-    # --- Check 3: cover_href present and file exists under site/ ---
+
+def _check_covers(rows: list, site_dir: Path, exclusions: dict) -> list:
+    """Every row must have a cover_href pointing at a file that exists under site/."""
     skip_titles = _excluded_titles(exclusions, "covers")
     no_href = []
     missing_file = []
@@ -139,24 +120,28 @@ def audit(site_dir: Path, author_map_path: Path, exclusions_path: Path) -> int:
             no_href.append(r["title"])
         elif not (site_dir / href).exists():
             missing_file.append(f"{r['title']} -> {href}")
+
+    failures = []
     if no_href:
-        failures.append(
-            f"{len(no_href)} books have no cover_href: "
-            + "; ".join(no_href[:10])
-            + ("; ..." if len(no_href) > 10 else "")
-        )
+        failures.append(f"{len(no_href)} books have no cover_href: " + _summarize(no_href))
     if missing_file:
         failures.append(
-            f"{len(missing_file)} cover files missing from {site_dir}: "
-            + "; ".join(missing_file[:10])
-            + ("; ..." if len(missing_file) > 10 else "")
+            f"{len(missing_file)} cover files missing from {site_dir}: " + _summarize(missing_file)
         )
-    if not no_href and not missing_file:
+    if not failures:
         print(f"[OK] covers: all {len(rows)} books have a cover file on disk")
+    return failures
 
-    # --- Check 4: every author resolves in the drive map or is excluded ---
-    # The embedded map in site/index.html is what ships; author_drive_map.json
-    # only takes effect on the next site rebuild.
+
+def _check_drive_links(
+    authors: list, site_dir: Path, author_map: dict, author_map_path: Path, exclusions: dict
+) -> tuple:
+    """Every author must resolve in the SHIPPED map (embedded in
+    site/index.html) or be excluded. Authors mapped only in
+    author_drive_map.json warn as pending rebuild instead of failing."""
+    failures = []
+    warnings = []
+
     embedded_map = load_embedded_author_map(site_dir / "index.html")
     shipped_map = embedded_map if embedded_map is not None else author_map
     if embedded_map is None:
@@ -165,7 +150,6 @@ def audit(site_dir: Path, author_map_path: Path, exclusions_path: Path) -> int:
         )
 
     excluded_authors = _excluded_authors(exclusions)
-    authors = sorted({(r.get("author") or "").strip() for r in rows if (r.get("author") or "").strip()})
     unmapped = [
         a
         for a in authors
@@ -182,8 +166,7 @@ def audit(site_dir: Path, author_map_path: Path, exclusions_path: Path) -> int:
     if hard_unmapped:
         failures.append(
             f"{len(hard_unmapped)} authors have no drive link and are not excluded: "
-            + "; ".join(hard_unmapped[:10])
-            + ("; ..." if len(hard_unmapped) > 10 else "")
+            + _summarize(hard_unmapped)
             + " — add them to author_drive_map.json or to "
             + f"{EXCLUSIONS_REL_PATH} under drive_links.authors"
         )
@@ -193,15 +176,50 @@ def audit(site_dir: Path, author_map_path: Path, exclusions_path: Path) -> int:
             f"[OK] drive links: {len(authors) - n_excluded - len(pending_rebuild)} authors mapped, "
             f"{n_excluded} explicitly excluded, {len(pending_rebuild)} pending rebuild"
         )
+    return failures, warnings
 
-    # --- Stale exclusions (warn only): entries that no longer match anything ---
+
+def _stale_exclusion_warnings(rows: list, authors: list, exclusions: dict) -> list:
+    """Warn about exclusion entries that no longer match anything in the catalog."""
+    warnings = []
     live_authors = {a.lower() for a in authors}
-    for a in sorted(excluded_authors - live_authors):
+    for a in sorted(_excluded_authors(exclusions) - live_authors):
         warnings.append(f"stale exclusion (author no longer in catalog): {a}")
     live_titles = {r["title"].strip().lower() for r in rows}
     for check in ("author", "narrator", "covers"):
         for t in sorted(_excluded_titles(exclusions, check) - live_titles):
             warnings.append(f"stale exclusion ({check} title no longer in catalog): {t}")
+    return warnings
+
+
+def audit(site_dir: Path, author_map_path: Path, exclusions_path: Path) -> int:
+    catalog_path = site_dir / "catalog.csv"
+    if not catalog_path.exists():
+        print(f"::error::{catalog_path} not found — cannot audit")
+        return 1
+
+    with open(catalog_path, encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+    if not rows:
+        print(f"::error::{catalog_path} has no book rows")
+        return 1
+
+    if not author_map_path.exists():
+        print(f"::error::{author_map_path} not found — drive links cannot be audited")
+        return 1
+    with open(author_map_path, encoding="utf-8") as f:
+        author_map = json.load(f)
+
+    exclusions = load_exclusions(exclusions_path)
+    authors = sorted({(r.get("author") or "").strip() for r in rows if (r.get("author") or "").strip()})
+
+    failures = _check_required_fields(rows, exclusions)
+    failures += _check_covers(rows, site_dir, exclusions)
+    link_failures, warnings = _check_drive_links(
+        authors, site_dir, author_map, author_map_path, exclusions
+    )
+    failures += link_failures
+    warnings += _stale_exclusion_warnings(rows, authors, exclusions)
 
     for w in warnings:
         print(f"::warning::{w}")
