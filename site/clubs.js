@@ -1,6 +1,6 @@
 // clubs.js — book club system, Phase 1: create/browse/join/leave clubs + members
 // ES module, browser-native (no build step)
-// Design: audiobook-react/docs/BOOK_CLUBS_DESIGN.md (ported to the catalog site)
+// Design: docs/BOOK_CLUBS_DESIGN.md (gitignored; lives on the dev machine)
 
 import {
   collection, doc, getDoc, getDocs, setDoc, deleteDoc,
