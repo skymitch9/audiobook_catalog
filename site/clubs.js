@@ -54,6 +54,8 @@ export async function createClub(db, input, session) {
       name: input.name.trim(),
       description: (input.description || '').trim(),
       emoji: input.emoji || '📚',
+      avatarReadId: null,
+      avatarCoverHref: '',
       joinMode: 'open',
       hostSlug: slug,
       hostDisplayName: session.displayName,
@@ -123,6 +125,8 @@ export async function updateClubDetails(db, clubId, input) {
     updates.description = input.description.trim();
   }
   if (input.emoji !== undefined) updates.emoji = input.emoji.trim() || '📚';
+  if (input.avatarReadId !== undefined) updates.avatarReadId = input.avatarReadId;
+  if (input.avatarCoverHref !== undefined) updates.avatarCoverHref = input.avatarCoverHref;
   if (input.joinMode !== undefined) {
     if (!['open', 'application'].includes(input.joinMode)) {
       return { success: false, error: 'Invalid join mode.' };

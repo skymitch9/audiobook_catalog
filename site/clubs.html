@@ -53,6 +53,7 @@ h2{
 }
 .club-card:hover{border-color:var(--neon-magenta)}
 .club-emoji{font-size:1.8em;margin-right:8px;vertical-align:middle}
+.club-cover{width:42px;height:auto;border:1px solid var(--border);margin-right:10px;vertical-align:middle}
 .club-name{font-weight:700;font-size:1.15em;color:var(--neon-cyan);text-transform:uppercase;letter-spacing:.5px;vertical-align:middle}
 .club-desc{color:var(--muted);font-size:.92em;margin:8px 0 10px;min-height:1.2em}
 .club-meta{font-size:.8em;color:var(--muted);font-family:'Share Tech Mono',monospace;display:flex;gap:12px}
@@ -137,10 +138,6 @@ h2{
       <label for="desc-input">Description (optional)</label>
       <textarea id="desc-input" maxlength="300" placeholder="What does this club read?"></textarea>
     </div>
-    <div class="field">
-      <label for="emoji-input">Emoji</label>
-      <input id="emoji-input" type="text" maxlength="4" value="📚" />
-    </div>
     <div id="create-error" class="form-error"></div>
     <button id="create-submit" class="nav-link btn-primary" style="width:100%">Create Club</button>
   </div>
@@ -176,7 +173,9 @@ h2{
     const isHost = mySlug && club.hostSlug === mySlug;
     return `
       <a class="club-card" href="club.html?id=${encodeURIComponent(club.id)}">
-        <span class="club-emoji">${escapeHtml(club.emoji || '📚')}</span>
+        ${club.avatarCoverHref
+          ? `<img class="club-cover" src="${escapeHtml(club.avatarCoverHref)}" alt="" onerror="this.remove()">`
+          : `<span class="club-emoji">${escapeHtml(club.emoji || '📚')}</span>`}
         <span class="club-name">${escapeHtml(club.name)}</span>
         <div class="club-desc">${escapeHtml(club.description || '')}</div>
         <div class="club-meta">
@@ -234,7 +233,6 @@ h2{
     const result = await createClub(db, {
       name: document.getElementById('name-input').value,
       description: document.getElementById('desc-input').value,
-      emoji: document.getElementById('emoji-input').value.trim() || '📚',
     }, session);
     if (!result.success) {
       errEl.textContent = result.error;

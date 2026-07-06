@@ -233,10 +233,31 @@ export async function startRead(db, clubId, input, session) {
         commentCount: 0,
       });
     });
+    await refreshClubAvatar(db, clubId);
     return { success: true, readId: readRef.id };
   } catch (e) {
     return { success: false, error: e.message };
   }
+}
+
+/**
+ * Recompute the club's avatar — the cover of the current book. Defaults to
+ * the lowest-slot active read; a specific book can be chosen via
+ * avatarReadId (honored while that read stays active). Cleared when no
+ * book is active (UI falls back to the club emoji). Best-effort.
+ */
+export async function refreshClubAvatar(db, clubId) {
+  try {
+    const clubRef = doc(db, col('clubs'), clubId);
+    const [clubSnap, reads] = await Promise.all([getDoc(clubRef), getReads(db, clubId)]);
+    if (!clubSnap.exists()) return;
+    const active = reads.filter(r => r.status === 'active').sort((a, b) => a.slot - b.slot);
+    const chosen = active.find(r => r.id === clubSnap.data().avatarReadId) || active[0] || null;
+    await updateDoc(clubRef, {
+      avatarReadId: chosen ? chosen.id : null,
+      avatarCoverHref: chosen ? (chosen.coverHref || '') : '',
+    });
+  } catch { /* avatar refresh must never break the main action */ }
 }
 
 /** Fetch all reads for a club (active and archived). */
@@ -274,6 +295,7 @@ export async function removeRead(db, clubId, readId) {
       }
     }
     await deleteDoc(readRef);
+    await refreshClubAvatar(db, clubId);
     return { success: true };
   } catch (e) {
     return { success: false, error: e.message };
@@ -310,6 +332,7 @@ export async function finishRead(db, clubId, readId, status) {
       tx.update(clubRef, { activeSlots });
       tx.update(readRef, { status, finishedAt: serverTimestamp() });
     });
+    await refreshClubAvatar(db, clubId);
     return { success: true };
   } catch (e) {
     return { success: false, error: e.message };

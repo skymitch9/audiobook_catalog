@@ -78,7 +78,7 @@ const {
   isMilestoneLocked, parseCsv,
   milestonesFromChapters, milestonesFromChapterRanges,
   milestonesFromParts, wholeBookMilestones,
-  startRead, getReads, getRead, finishRead,
+  startRead, getReads, getRead, finishRead, refreshClubAvatar,
   addComment, deleteComment, getComments,
   setProgress, setChapterProgress, getProgressAll, isCommentSpoiler,
   getTbr, addTbrItem, removeTbrItem, toggleTbrVote,
@@ -289,6 +289,37 @@ describe('comments', () => {
     await deleteComment(fakeDb, CLUB, readId, r.commentId);
     expect((await getRead(fakeDb, CLUB, readId)).commentCount).toBe(0);
     expect(await getComments(fakeDb, CLUB, readId)).toHaveLength(0);
+  });
+});
+
+describe('club avatar (cover of the current book)', () => {
+  it('starting a read sets the club avatar to its cover', async () => {
+    await startRead(fakeDb, CLUB, bookInput(), jane);
+    expect(mockStore[CLUB_PATH].avatarCoverHref).toBe('covers/Matt Dinniman/Dungeon Crawler Carl.jpg');
+  });
+
+  it('first book (slot 1) stays the default avatar when a second starts', async () => {
+    await startRead(fakeDb, CLUB, bookInput(), jane);
+    await startRead(fakeDb, CLUB, bookInput({ bookTitle: 'Side Book', coverHref: 'covers/side.jpg' }), jane);
+    expect(mockStore[CLUB_PATH].avatarCoverHref).toBe('covers/Matt Dinniman/Dungeon Crawler Carl.jpg');
+  });
+
+  it('an explicit avatarReadId choice is honored', async () => {
+    await startRead(fakeDb, CLUB, bookInput(), jane);
+    const second = await startRead(fakeDb, CLUB, bookInput({ bookTitle: 'Side Book', coverHref: 'covers/side.jpg' }), jane);
+    mockStore[CLUB_PATH].avatarReadId = second.readId;
+    await refreshClubAvatar(fakeDb, CLUB);
+    expect(mockStore[CLUB_PATH].avatarCoverHref).toBe('covers/side.jpg');
+  });
+
+  it('finishing the avatar book falls back to the next active one, then clears', async () => {
+    const first = await startRead(fakeDb, CLUB, bookInput(), jane);
+    const second = await startRead(fakeDb, CLUB, bookInput({ bookTitle: 'Side Book', coverHref: 'covers/side.jpg' }), jane);
+    await finishRead(fakeDb, CLUB, first.readId, 'finished');
+    expect(mockStore[CLUB_PATH].avatarCoverHref).toBe('covers/side.jpg');
+    await finishRead(fakeDb, CLUB, second.readId, 'finished');
+    expect(mockStore[CLUB_PATH].avatarCoverHref).toBe('');
+    expect(mockStore[CLUB_PATH].avatarReadId).toBeNull();
   });
 });
 

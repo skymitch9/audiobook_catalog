@@ -41,6 +41,7 @@ body{
 }
 .club-title{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .club-emoji{font-size:2.2em}
+.club-cover-lg{width:64px;height:auto;border:1px solid var(--border)}
 .club-name{
   color:var(--neon-yellow);text-transform:uppercase;letter-spacing:2px;margin:0;
   text-shadow:0 0 10px rgba(252,238,10,.3);font-size:1.6em;font-weight:700;
@@ -235,9 +236,9 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
       <label for="edit-desc">Description</label>
       <textarea id="edit-desc" maxlength="300"></textarea>
     </div>
-    <div class="field">
-      <label for="edit-emoji">Emoji</label>
-      <input id="edit-emoji" type="text" maxlength="4" style="width:70px;text-align:center;font-size:1.3em" />
+    <div class="field" id="edit-avatar-field" style="display:none">
+      <label for="edit-avatar">Club cover (shown as the club's avatar)</label>
+      <select id="edit-avatar"></select>
     </div>
     <div class="field" id="edit-joinmode-field" style="display:none">
       <label for="edit-joinmode">Join mode (host setting)</label>
@@ -333,7 +334,9 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
     contentEl.innerHTML = `
       <div class="club-header">
         <div class="club-title">
-          <span class="club-emoji">${escapeHtml(club.emoji || '📚')}</span>
+          ${club.avatarCoverHref
+            ? `<img class="club-cover-lg" src="${escapeHtml(club.avatarCoverHref)}" alt="" onerror="this.remove()">`
+            : `<span class="club-emoji">${escapeHtml(club.emoji || '📚')}</span>`}
           <h1 class="club-name">${escapeHtml(club.name)}</h1>
           ${roleBadge}
         </div>
@@ -841,8 +844,15 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
   function openEditModal() {
     document.getElementById('edit-name').value = club.name || '';
     document.getElementById('edit-desc').value = club.description || '';
-    document.getElementById('edit-emoji').value = club.emoji || '📚';
     document.getElementById('edit-error').textContent = '';
+    const active = reads.filter(r => r.status === 'active').sort((a, b) => a.slot - b.slot);
+    const avatarField = document.getElementById('edit-avatar-field');
+    avatarField.style.display = active.length > 1 ? 'block' : 'none';
+    if (active.length > 1) {
+      const current = active.find(r => r.id === club.avatarReadId) || active[0];
+      document.getElementById('edit-avatar').innerHTML = active.map(r =>
+        `<option value="${r.id}" ${r.id === current.id ? 'selected' : ''}>${escapeHtml(r.bookTitle)}</option>`).join('');
+    }
     const jmField = document.getElementById('edit-joinmode-field');
     jmField.style.display = isHost() ? 'block' : 'none';
     document.getElementById('edit-joinmode').value = club.joinMode === 'application' ? 'application' : 'open';
@@ -856,8 +866,16 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
     const input = {
       name: document.getElementById('edit-name').value,
       description: document.getElementById('edit-desc').value,
-      emoji: document.getElementById('edit-emoji').value,
     };
+    const avatarField = document.getElementById('edit-avatar-field');
+    if (avatarField.style.display !== 'none') {
+      const readId = document.getElementById('edit-avatar').value;
+      const chosen = reads.find(r => r.id === readId);
+      if (chosen) {
+        input.avatarReadId = chosen.id;
+        input.avatarCoverHref = chosen.coverHref || '';
+      }
+    }
     if (isHost()) input.joinMode = document.getElementById('edit-joinmode').value;
     const r = await updateClubDetails(db, clubId, input);
     if (!r.success) { errEl.textContent = r.error; return; }
