@@ -131,6 +131,7 @@ h1{
 <script type="module">
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
   import { getFirestore, collection, getDocs } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+  import { col } from './fb-env.js';
 
   const firebaseConfig = {
     apiKey: "AIzaSyDgAblkxzVxl7nFbd7jXOo6PpuNPsJw11Y",
@@ -154,9 +155,9 @@ h1{
     try {
       // Fetch profiles and reviews in parallel
       const [profilesSnap, reviewsSnap, readingListsSnap] = await Promise.all([
-        getDocs(collection(db, 'profiles')),
-        getDocs(collection(db, 'reviews')),
-        getDocs(collection(db, 'readingLists'))
+        getDocs(collection(db, col('profiles'))),
+        getDocs(collection(db, col('reviews'))),
+        getDocs(collection(db, col('readingLists')))
       ]);
 
       // Build reading list stats per user (TBR only)

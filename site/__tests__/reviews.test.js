@@ -239,15 +239,13 @@ describe('Property 7: Review input validation', () => {
     );
   });
 
-  it('rejects text outside 1-1000 chars', async () => {
-    const emptyText = fc.constant('');
+  it('rejects text over 1000 chars (empty text is allowed — rating-only reviews)', async () => {
     const tooLongText = fc
       .array(fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz'.split('')), { minLength: 1001, maxLength: 1050 })
       .map((arr) => arr.join(''));
-    const invalidText = fc.oneof(emptyText, tooLongText);
 
     await fc.assert(
-      fc.asyncProperty(validBookId, validDisplayName, validRating, invalidText, async (bookId, name, rating, text) => {
+      fc.asyncProperty(validBookId, validDisplayName, validRating, tooLongText, async (bookId, name, rating, text) => {
         const result = await submitReview(fakeDb, bookId, name, rating, text);
         expect(result.success).toBe(false);
         expect(result.error).toBeDefined();

@@ -3,6 +3,7 @@
 
 import { doc, getDoc, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+import { col } from './fb-env.js';
 
 // ==================== Session Management ====================
 
@@ -107,7 +108,7 @@ export async function register(displayName, passphrase, db) {
   }
   try {
     const slug = slugifyName(displayName);
-    const userRef = doc(db, 'users', slug);
+    const userRef = doc(db, col('users'), slug);
     const existing = await getDoc(userRef);
     if (existing.exists()) {
       return { success: false, error: 'That display name is already taken.' };
@@ -127,7 +128,7 @@ export async function register(displayName, passphrase, db) {
 export async function login(displayName, passphrase, db) {
   try {
     const slug = slugifyName(displayName);
-    const userRef = doc(db, 'users', slug);
+    const userRef = doc(db, col('users'), slug);
     const snapshot = await getDoc(userRef);
     if (!snapshot.exists()) {
       return { success: false, error: 'Invalid display name or passphrase.' };
@@ -156,7 +157,7 @@ export async function setNewPassphrase(displayName, newPassphrase, db) {
   }
   try {
     const slug = slugifyName(displayName);
-    const userRef = doc(db, 'users', slug);
+    const userRef = doc(db, col('users'), slug);
     const newHash = await hashPassphrase(newPassphrase);
     await setDoc(userRef, { passphraseHash: newHash, passwordReset: false }, { merge: true });
     localStorage.setItem('ab_identity_name', displayName);
@@ -171,7 +172,7 @@ export async function setNewPassphrase(displayName, newPassphrase, db) {
 export async function adminResetPassword(displayName, db) {
   try {
     const slug = slugifyName(displayName);
-    const userRef = doc(db, 'users', slug);
+    const userRef = doc(db, col('users'), slug);
     const snapshot = await getDoc(userRef);
     if (!snapshot.exists()) {
       return { success: false, error: 'User not found.' };

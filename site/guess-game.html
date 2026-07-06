@@ -431,6 +431,7 @@
         // Firebase integration for logged-in player score persistence
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
         import { getFirestore, doc, getDoc, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+        import { col } from './fb-env.js';
 
         const firebaseConfig = {
             apiKey: "AIzaSyDgAblkxzVxl7nFbd7jXOo6PpuNPsJw11Y",
@@ -466,7 +467,7 @@
             const profileId = getProfileId();
             if (!profileId) return null;
             try {
-                const profileRef = doc(db, 'profiles', profileId);
+                const profileRef = doc(db, col('profiles'), profileId);
                 const snap = await getDoc(profileRef);
                 if (snap.exists()) {
                     const data = snap.data();
@@ -494,7 +495,7 @@
             const profileId = getProfileId();
             if (!profileId) return;
             try {
-                const profileRef = doc(db, 'profiles', profileId);
+                const profileRef = doc(db, col('profiles'), profileId);
                 await setDoc(profileRef, {
                     displayName: localStorage.getItem('ab_identity_name'),
                     gameCorrect: stats.correct,
@@ -523,7 +524,7 @@
             if (!weekId) return;
             try {
                 const docId = `${weekId}_${profileId}`;
-                const leaderRef = doc(db, 'leaderboard', docId);
+                const leaderRef = doc(db, col('leaderboard'), docId);
                 await setDoc(leaderRef, {
                     playerName: name,
                     weekId: weekId,

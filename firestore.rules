@@ -1,59 +1,96 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // ---- Validation helpers (shared by prod and _dev lane collections) ----
+    // The /dev/ Pages lane reads/writes *_dev collections (see site/fb-env.js)
+    // so dev experiments never touch prod data. Rules are identical.
+
+    function validLeaderboard() {
+      return request.resource.data.playerName is string
+             && request.resource.data.weekId is string;
+    }
+
+    function validUserCreate() {
+      return request.resource.data.displayName is string
+             && request.resource.data.passphraseHash is string;
+    }
+
+    function validReview() {
+      return request.resource.data.displayName is string
+             && request.resource.data.rating is number
+             && request.resource.data.rating >= 0.5
+             && request.resource.data.rating <= 5;
+    }
+
+    function validProfile() {
+      return request.resource.data.displayName is string;
+    }
+
+    function validReadingList() {
+      return request.resource.data.displayName is string
+             && request.resource.data.bookId is string
+             && request.resource.data.status is string;
+    }
+
+    // ---- Prod collections ----
+
     match /leaderboard/{docId} {
-      // Allow read access to all leaderboard entries
       allow read: if true;
-      
-      // Allow write if document has a valid playerName and weekId
-      allow write: if request.resource.data.playerName is string
-                   && request.resource.data.weekId is string;
+      allow write: if validLeaderboard();
     }
 
     match /users/{userId} {
-      // Allow read access to all user documents
       allow read: if true;
-
-      // Allow create only when document contains required fields
-      allow create: if request.resource.data.displayName is string
-                    && request.resource.data.passphraseHash is string;
-
+      allow create: if validUserCreate();
       // Allow update for password reset flag or setting new passphrase
       allow update: if true;
     }
 
     match /reviews/{reviewId} {
-      // Allow read access to all reviews
       allow read: if true;
-
-      // Allow write when document has valid displayName and rating (0.5-5). Text is optional.
-      allow write: if request.resource.data.displayName is string
-                   && request.resource.data.rating is number
-                   && request.resource.data.rating >= 0.5
-                   && request.resource.data.rating <= 5;
-
-      // Allow delete
+      allow write: if validReview();
       allow delete: if true;
     }
 
     match /profiles/{userId} {
-      // Allow read access to all profiles (for community page)
       allow read: if true;
-
-      // Allow write when document has valid displayName
-      allow write: if request.resource.data.displayName is string;
+      allow write: if validProfile();
     }
 
     match /readingLists/{docId} {
-      // Allow read access to all reading list entries
       allow read: if true;
+      allow write: if validReadingList();
+      allow delete: if true;
+    }
 
-      // Allow write when document has valid fields
-      allow write: if request.resource.data.displayName is string
-                   && request.resource.data.bookId is string
-                   && request.resource.data.status is string;
+    // ---- Dev lane collections (same shapes, separate data) ----
 
-      // Allow delete
+    match /leaderboard_dev/{docId} {
+      allow read: if true;
+      allow write: if validLeaderboard();
+    }
+
+    match /users_dev/{userId} {
+      allow read: if true;
+      allow create: if validUserCreate();
+      allow update: if true;
+    }
+
+    match /reviews_dev/{reviewId} {
+      allow read: if true;
+      allow write: if validReview();
+      allow delete: if true;
+    }
+
+    match /profiles_dev/{userId} {
+      allow read: if true;
+      allow write: if validProfile();
+    }
+
+    match /readingLists_dev/{docId} {
+      allow read: if true;
+      allow write: if validReadingList();
       allow delete: if true;
     }
   }

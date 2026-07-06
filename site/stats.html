@@ -444,6 +444,7 @@ h1{margin:0 0 8px 0; color:var(--neon-yellow); text-transform:uppercase; letter-
 <script type="module">
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
   import { getFirestore, collection, getDocs } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+  import { col } from './fb-env.js';
 
   const app = initializeApp({
     apiKey: "AIzaSyDgAblkxzVxl7nFbd7jXOo6PpuNPsJw11Y",
@@ -458,8 +459,8 @@ h1{margin:0 0 8px 0; color:var(--neon-yellow); text-transform:uppercase; letter-
   async function loadCommunityStats() {
     try {
       const [profilesSnap, reviewsSnap] = await Promise.all([
-        getDocs(collection(db, 'profiles')),
-        getDocs(collection(db, 'reviews'))
+        getDocs(collection(db, col('profiles'))),
+        getDocs(collection(db, col('reviews')))
       ]);
 
       const totalMembers = profilesSnap.size;

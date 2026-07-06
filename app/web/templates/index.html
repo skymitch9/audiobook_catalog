@@ -956,12 +956,13 @@ function toggleDarkMode(isDark){
       try {
         var { collection, getDocs } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
         var { getFirestore } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
+        var fbEnv = await import('./fb-env.js');
 
         var firestore = getFirestore();
         var myBooks = new Set();
 
         // Reading lists — TBR only
-        var rlSnap = await getDocs(collection(firestore, 'readingLists'));
+        var rlSnap = await getDocs(collection(firestore, fbEnv.col('readingLists')));
         rlSnap.docs.forEach(function(d) {
           var data = d.data();
           if (data.displayName && data.displayName.toLowerCase() === targetUser.toLowerCase() && data.status === 'tbr') {
@@ -1176,6 +1177,7 @@ function toggleDarkMode(isDark){
   import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
   import { getSession, signInWithGoogle, signOutGoogle, register, login, logout, validateDisplayName, validatePassphrase } from './identity.js';
   import { submitReview, getReviews, renderStars, bookIdFromTitle, computeAverageRating, formatDate } from './reviews.js';
+  import { col } from './fb-env.js';
 
   // Production Firebase config
   const firebaseConfig = {
@@ -1339,7 +1341,7 @@ function toggleDarkMode(isDark){
     (async () => {
       try {
         const { collection, getDocs } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
-        const snapshot = await getDocs(collection(db, 'reviews'));
+        const snapshot = await getDocs(collection(db, col('reviews')));
         let count = 0, totalRating = 0;
         snapshot.docs.forEach(d => {
           const data = d.data();
@@ -1362,7 +1364,7 @@ function toggleDarkMode(isDark){
     (async () => {
       const { doc, getDoc, setDoc, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
       const profileId = session.displayName.toLowerCase();
-      const profileRef = doc(db, 'profiles', profileId);
+      const profileRef = doc(db, col('profiles'), profileId);
       let profile = {};
       try {
         const snap = await getDoc(profileRef);
@@ -1565,7 +1567,7 @@ function toggleDarkMode(isDark){
     if (!db) return;
     try {
       const { collection, getDocs } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
-      const snapshot = await getDocs(collection(db, 'reviews'));
+      const snapshot = await getDocs(collection(db, col('reviews')));
 
       // Group reviews by bookId, compute averages
       const reviewsByBook = {};
@@ -1640,7 +1642,7 @@ function toggleDarkMode(isDark){
 
     const { doc, getDoc, setDoc, deleteDoc, serverTimestamp, collection } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
     const docId = `${session.displayName.toLowerCase()}_${bookId}`;
-    const listRef = doc(db, 'readingLists', docId);
+    const listRef = doc(db, col('readingLists'), docId);
 
     let currentStatus = null;
     try {

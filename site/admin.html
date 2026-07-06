@@ -63,6 +63,7 @@
 <script type="module">
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
   import { getFirestore, collection, getDocs } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+  import { col } from './fb-env.js';
   import { renderIdentityBar, getSession, adminResetPassword } from './identity.js';
 
   const firebaseConfig = {
@@ -101,7 +102,7 @@
     content.innerHTML = '<div class="loading">Loading users…</div>';
 
     try {
-      const snapshot = await getDocs(collection(db, 'users'));
+      const snapshot = await getDocs(collection(db, col('users')));
       const users = [];
       snapshot.forEach(d => users.push({ id: d.id, ...d.data() }));
 

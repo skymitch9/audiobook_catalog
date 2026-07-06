@@ -2,6 +2,7 @@
 // ES module, browser-native (no build step)
 
 import { doc, setDoc, getDoc, serverTimestamp, collection, getDocs } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+import { col } from './fb-env.js';
 
 /**
  * Derive a book identifier by slugifying the title.
@@ -51,7 +52,7 @@ export async function submitReview(db, bookId, displayName, rating, text) {
   }
 
   const docId = `${bookId}_${displayName.toLowerCase()}`;
-  const reviewRef = doc(db, 'reviews', docId);
+  const reviewRef = doc(db, col('reviews'), docId);
 
   try {
     const existingDoc = await getDoc(reviewRef);
@@ -103,7 +104,7 @@ export function renderStars(rating) {
 export async function getReviews(db, bookId) {
   try {
     // Fetch all reviews and filter client-side to avoid Firestore index requirements
-    const snapshot = await getDocs(collection(db, 'reviews'));
+    const snapshot = await getDocs(collection(db, col('reviews')));
     const reviews = [];
     snapshot.docs.forEach(d => {
       const data = d.data();
