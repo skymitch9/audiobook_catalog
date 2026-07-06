@@ -611,9 +611,10 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
         </div>
         ${isMember() ? `
           <div class="rc-actions">
-            <button data-finish-read="${r.id}" data-title="${escapeHtml(r.bookTitle)}">Finish</button>
-            <button data-abandon-read="${r.id}" data-title="${escapeHtml(r.bookTitle)}">Abandon</button>
-            <button class="rc-remove" data-remove-read="${r.id}" data-title="${escapeHtml(r.bookTitle)}" title="Remove entirely (deletes discussions)">X</button>
+            ${isMod() ? `
+              <button data-finish-read="${r.id}" data-title="${escapeHtml(r.bookTitle)}" title="Finish for the whole club (hosts/mods)">Finish</button>
+              <button data-abandon-read="${r.id}" data-title="${escapeHtml(r.bookTitle)}" title="Abandon for the whole club (hosts/mods)">Abandon</button>
+              <button class="rc-remove" data-remove-read="${r.id}" data-title="${escapeHtml(r.bookTitle)}" title="Remove entirely (deletes discussions)">X</button>` : ''}
           </div>` : ''}
       </a>`).join('');
     const emptyState = isMember()
@@ -734,7 +735,7 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
       btn.addEventListener('click', async (e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (!confirm(`Mark "${btn.dataset.title}" as finished? It moves to History with its discussions.`)) return;
+        if (!confirm(`Finish "${btn.dataset.title}" for the WHOLE CLUB?\n\nThis is a club-level action: the book moves to History for everyone and stops being an active read.\n\nIf YOU finished the book but the club is still reading it, don't use this — open the book and hit "I'm finished" there instead.`)) return;
         const r = await finishRead(db, clubId, btn.dataset.finishRead, 'finished');
         if (r.success) reload(); else showError(r.error);
       }));
@@ -743,7 +744,7 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
       btn.addEventListener('click', async (e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (!confirm(`Abandon "${btn.dataset.title}"? It moves to History with its discussions.`)) return;
+        if (!confirm(`Abandon "${btn.dataset.title}" for the WHOLE CLUB?\n\nThis is a club-level action: the book moves to History for everyone and stops being an active read.\n\nIf you personally want to stop reading, just do — no button needed. This ends it for the club.`)) return;
         const r = await finishRead(db, clubId, btn.dataset.abandonRead, 'abandoned');
         if (r.success) reload(); else showError(r.error);
       }));
