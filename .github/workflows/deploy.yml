@@ -138,12 +138,18 @@ jobs:
     - name: 🚀 Deploy to GitHub Pages
       id: deployment
       uses: actions/deploy-pages@v5
+      continue-on-error: true
+
+    - name: 🔁 Retry deploy (Pages transient "try again later" errors)
+      id: deployment_retry
+      if: steps.deployment.outcome == 'failure'
+      uses: actions/deploy-pages@v5
 
     - name: ✅ Deployment summary
       run: |
         echo "::notice::Deployment completed successfully"
-        echo "::notice::Prod URL: ${{ steps.deployment.outputs.page_url }}"
-        echo "::notice::Dev URL:  ${{ steps.deployment.outputs.page_url }}dev/"
+        echo "::notice::Prod URL: ${{ steps.deployment.outputs.page_url || steps.deployment_retry.outputs.page_url }}"
+        echo "::notice::Dev URL:  ${{ steps.deployment.outputs.page_url || steps.deployment_retry.outputs.page_url }}dev/"
 
     # ---- New-book notification: only when promote.yml dispatched us ----
 
