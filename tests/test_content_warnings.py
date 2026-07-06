@@ -33,8 +33,21 @@ class FilterWarningsTestCase(unittest.TestCase):
         self.assertEqual(out, [w("graphic: death")])
 
     def test_distinct_topics_survive(self):
-        out = filter_warnings([w("Is a child abused"), w("Is there domestic violence")])
+        out = filter_warnings([w("Child abuse"), w("Domestic violence")])
         self.assertEqual(len(out), 2)
+
+    def test_question_labels_dropped(self):
+        # DoesTheDogDie topics phrased as questions are not warnings.
+        out = filter_warnings([
+            w("Is a child abused"), w("Does the dog die"),
+            w("Are there jump scares?"), w("Graphic: Is there gore"),
+        ])
+        self.assertEqual(out, [])
+
+    def test_statement_labels_and_ambiguous_kept(self):
+        # Clear statements pass; a label that isn't obviously a question stays.
+        out = filter_warnings([w("Animal death"), w("Self-harm")])
+        self.assertEqual([x["label"] for x in out], ["Animal death", "Self-harm"])
 
     def test_missing_or_bad_source_urls_dropped(self):
         out = filter_warnings([

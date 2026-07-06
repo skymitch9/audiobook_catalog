@@ -525,11 +525,17 @@ body:not(.cards) #ab-table{display:table}
         <div class="label">Genre</div><div id="m-genre"></div>
         <div class="label">Duration</div><div id="m-duration"></div>
       </div>
-      <div id="m-companions" style="display:none; margin-top:8px; padding:6px 10px; background:var(--surface); border:1px solid var(--border); border-radius:4px;">
-        <span class="label" style="display:block; margin-bottom:4px; color:var(--neon-cyan); text-transform:uppercase; font-size:.75em; letter-spacing:.5px">Companion Files</span>
-        <span id="m-companions-list" style="font-size:.85em"></span>
-      </div>
+      <details id="m-companions" style="display:none; margin-top:8px; padding:6px 10px; background:var(--surface); border:1px solid var(--border); border-radius:4px;">
+        <summary style="cursor:pointer; color:var(--neon-cyan); text-transform:uppercase; font-size:.75em; letter-spacing:.5px;">📎 Companion Files</summary>
+        <ul id="m-companions-list" style="margin:8px 0 2px 18px; font-size:.85em; line-height:1.5;"></ul>
+      </details>
       <div class="desc" id="m-desc"></div>
+      <!-- Content warnings (only for books already checked via the club pipeline) -->
+      <details id="m-warnings" style="display:none; margin-top:10px; padding:6px 10px; background:var(--surface); border:1px solid var(--border); border-radius:4px;">
+        <summary style="cursor:pointer; color:var(--neon-cyan); text-transform:uppercase; font-size:.78em; letter-spacing:.5px;">⚠ Content notes</summary>
+        <ul id="m-warnings-list" style="margin:8px 0 2px 18px; font-size:.9em; line-height:1.5;"></ul>
+        <div id="m-cw-actions"></div>
+      </details>
       <!-- Reading list buttons -->
       <div id="m-reading-list" style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap;"></div>
       <!-- Reviews section -->
@@ -745,6 +751,20 @@ function toggleDarkMode(isDark){
   var mDesc=document.getElementById("m-desc");
   var mCompanions=document.getElementById("m-companions");
   var mCompanionsList=document.getElementById("m-companions-list");
+  var mWarnings=document.getElementById("m-warnings");
+  var mWarningsList=document.getElementById("m-warnings-list");
+
+  // Published content warnings (checked once via the club pipeline);
+  // keyed by lowercased title. Missing file = feature silently off.
+  var _cwMap=null;
+  fetch("content_warnings.json")
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(d){
+      if(!d) return;
+      _cwMap={};
+      Object.keys(d).forEach(function(k){ _cwMap[k.toLowerCase()]=d[k]; });
+    })
+    .catch(function(){});
 
   var mAuthorDrive=document.getElementById("m-author-drive");
   var mAuthorFolder=document.getElementById("m-author-folder");
@@ -764,13 +784,20 @@ function toggleDarkMode(isDark){
     mDuration.textContent=payload.duration||"";
     mDesc.textContent=payload.desc ? payload.desc : "No description available.";
 
-    // Companion files
+    // Companion files — collapsible, starts minimized (matches Content notes)
+    mCompanionsList.innerHTML="";
     if(payload.companions){
-      mCompanionsList.textContent=payload.companions;
+      var comps=payload.companions.split("|").map(function(s){return s.trim();}).filter(Boolean);
+      comps.forEach(function(name){
+        var li=document.createElement("li");
+        li.textContent=name;
+        mCompanionsList.appendChild(li);
+      });
+      mCompanions.querySelector("summary").textContent="📎 Companion Files ("+comps.length+")";
+      mCompanions.open=false;
       mCompanions.style.display="block";
     } else {
       mCompanions.style.display="none";
-      mCompanionsList.textContent="";
     }
 
     var author=payload.author||"";
@@ -801,6 +828,38 @@ function toggleDarkMode(isDark){
       mBookDrive.removeAttribute("href");
       mBookDrive.style.display="none";
     }
+
+    // Content warnings for checked books (published sources)
+    mWarnings.style.display="none";
+    mWarningsList.innerHTML="";
+    var cwActions=document.getElementById("m-cw-actions");
+    if(cwActions) cwActions.innerHTML="";
+    var cwEntry=_cwMap && _cwMap[(payload.title||"").toLowerCase()];
+    var cwSummary=mWarnings.querySelector("summary");
+    var cwCount=cwEntry ? (cwEntry.warnings||[]).length : 0;
+    mWarnings.dataset.hasWarnings=cwCount ? "1" : "0";
+    if(cwEntry){
+      if(cwCount){
+        cwSummary.textContent="⚠ Content notes ("+cwCount+") — from published sources";
+        (cwEntry.warnings||[]).forEach(function(w){
+          var li=document.createElement("li");
+          li.appendChild(document.createTextNode(w.label+" "));
+          if(w.source_url){
+            var a=document.createElement("a");
+            a.href=w.source_url; a.target="_blank"; a.rel="noopener"; a.textContent="source";
+            li.appendChild(a);
+          }
+          mWarningsList.appendChild(li);
+        });
+      } else {
+        cwSummary.textContent="⚠ Content notes — checked, none published";
+      }
+      mWarnings.open=false;
+      mWarnings.style.display="block";
+    } else {
+      cwSummary.textContent="⚠ Content notes";
+    }
+    if(window.renderUserWarnings) window.renderUserWarnings(payload.title||"");
 
     modal.classList.add("open");
     modal.setAttribute("aria-hidden","false");
@@ -1177,6 +1236,7 @@ function toggleDarkMode(isDark){
   import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
   import { getSession, signInWithGoogle, signOutGoogle, register, login, logout, validateDisplayName, validatePassphrase } from './identity.js';
   import { submitReview, getReviews, renderStars, bookIdFromTitle, computeAverageRating, formatDate } from './reviews.js';
+  import { addUserWarning, getUserWarnings, deleteUserWarning, requestWarningCheck, getWarningRequest } from './user-warnings.js';
   import { col } from './fb-env.js';
 
   // Production Firebase config
@@ -1673,6 +1733,90 @@ function toggleDarkMode(isDark){
     }
     renderBtns();
   }
+
+  // --- Reader content warnings in modal ---
+  // Rendered under the published notes in the "Content notes" section.
+  // Called ONCE per open from showModal (window bridge). Idempotent: clears
+  // its own list items + actions container each call, so it can never
+  // double-post regardless of how many times it runs.
+  async function renderUserWarnings(bookTitle) {
+    const box = document.getElementById('m-warnings');
+    const list = document.getElementById('m-warnings-list');
+    const actions = document.getElementById('m-cw-actions');
+    if (!box || !list || !actions || !db) return;
+
+    let warnings = [];
+    try { warnings = await getUserWarnings(db, bookTitle); } catch (e) { /* offline etc. */ }
+    // The user may have opened a different book while we fetched
+    if (document.getElementById('modal-title').textContent !== bookTitle) return;
+
+    // Clear anything from a previous render (immune to double-calls)
+    list.querySelectorAll('li[data-user-cw]').forEach(li => li.remove());
+    actions.innerHTML = '';
+
+    const session = getSession();
+    warnings.forEach(w => {
+      const li = document.createElement('li');
+      li.dataset.userCw = '1';
+      li.appendChild(document.createTextNode(w.label + ' '));
+      const em = document.createElement('em');
+      em.style.cssText = 'color:var(--muted,#888);font-size:.85em;';
+      em.textContent = '— added by ' + w.displayName;
+      li.appendChild(em);
+      if (session && (w.displayName || '').toLowerCase() === session.displayName.toLowerCase()) {
+        const del = document.createElement('button');
+        del.textContent = '✕';
+        del.title = 'Remove your warning';
+        del.style.cssText = 'background:none;border:none;color:var(--neon-magenta,#c00);cursor:pointer;padding:0 4px;';
+        del.addEventListener('click', async () => {
+          await deleteUserWarning(db, w, session);
+          renderUserWarnings(bookTitle);
+        });
+        li.appendChild(del);
+      }
+      list.appendChild(li);
+    });
+
+    // Add-a-note button (signed-in only)
+    if (session) {
+      const btn = document.createElement('button');
+      btn.id = 'm-cw-add';
+      btn.textContent = '+ Add a content note';
+      btn.style.cssText = 'margin:8px 6px 2px 0;padding:4px 10px;background:none;border:1px solid var(--border,#555);color:var(--muted,#888);cursor:pointer;font-family:inherit;font-size:.8em;';
+      btn.addEventListener('click', async () => {
+        const label = prompt('What should readers know going in? (e.g. "Animal death", "Gore")');
+        if (label === null) return;
+        const r = await addUserWarning(db, bookTitle, label, session);
+        if (!r.success) { alert(r.error); return; }
+        renderUserWarnings(bookTitle);
+      });
+      actions.appendChild(btn);
+    }
+
+    // AI-check request (anyone) — only when nothing is known yet
+    if (box.dataset.hasWarnings !== '1' && !warnings.length) {
+      const reqBtn = document.createElement('button');
+      reqBtn.id = 'm-cw-request';
+      reqBtn.style.cssText = 'margin:8px 0 2px;padding:4px 10px;background:none;border:1px solid var(--border,#555);color:var(--muted,#888);cursor:pointer;font-family:inherit;font-size:.8em;';
+      const markRequested = () => {
+        reqBtn.textContent = 'AI check requested ✓ — lands after the next library sync';
+        reqBtn.disabled = true;
+        reqBtn.style.cursor = 'default';
+      };
+      reqBtn.textContent = '🔎 Request AI warning check';
+      reqBtn.addEventListener('click', async () => {
+        reqBtn.disabled = true;
+        const r = await requestWarningCheck(db, bookTitle, getSession());
+        if (r.success) markRequested();
+        else { reqBtn.disabled = false; alert(r.error); }
+      });
+      actions.appendChild(reqBtn);
+      getWarningRequest(db, bookTitle).then(existing => { if (existing) markRequested(); }).catch(() => {});
+    }
+
+    if (warnings.length || session || box.dataset.hasWarnings !== '1') box.style.display = 'block';
+  }
+  window.renderUserWarnings = renderUserWarnings;
 
   // --- Reviews in modal ---
   const reviewsContainer = document.getElementById('m-reviews');

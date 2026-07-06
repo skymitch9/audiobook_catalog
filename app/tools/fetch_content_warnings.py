@@ -62,6 +62,22 @@ DTDD_BASE = "https://www.doesthedogdie.com"
 SEVERITY_RE = re.compile(r"^(graphic|moderate|minor)\s*:\s*", re.IGNORECASE)
 SEVERITY_RANK = {"graphic": 3, "moderate": 2, "minor": 1}
 
+# DoesTheDogDie topics are phrased as questions ("Does the dog die",
+# "Is there sexual content"); those read as prompts, not warnings. Drop
+# clearly-interrogative labels but keep statement-form ones ("Animal death",
+# "Gore"). Ambiguous labels are left in.
+QUESTION_RE = re.compile(
+    r"^(does|do|did|is|are|was|were|will|would|can|could|should|has|have|had|"
+    r"how|what|why|when|who|which|whom|whose)\b",
+    re.IGNORECASE,
+)
+
+
+def looks_like_question(label):
+    """True when a warning label reads as a question rather than a statement."""
+    t = (label or "").strip()
+    return t.endswith("?") or bool(QUESTION_RE.match(t))
+
 
 def filter_warnings(raw):
     """Keep only warnings with a label and an http(s) source URL, deduped by
@@ -73,6 +89,8 @@ def filter_warnings(raw):
         label = (w.get("label") or "").strip()
         url = (w.get("source_url") or "").strip()
         if not label or not url.lower().startswith(("http://", "https://")):
+            continue
+        if looks_like_question(SEVERITY_RE.sub("", label).strip()):
             continue
         m = SEVERITY_RE.match(label)
         rank = SEVERITY_RANK[m.group(1).lower()] if m else 0
