@@ -10,7 +10,7 @@ import { col } from './fb-env.js';
 import { slugifyName } from './identity.js';
 
 export const MAX_ACTIVE_READS = 2;
-export const MAX_MILESTONES = 60;
+export const MAX_MILESTONES = 400;
 export const MAX_COMMENT_LENGTH = 2000;
 export const GENERAL_MILESTONE = 'general';
 

@@ -799,9 +799,12 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
   function renderMsPreview() {
     if (!pickedBook || msMode.value === 'manual') { msPreview.innerHTML = ''; return; }
     const result = currentMilestones();
-    msPreview.innerHTML = result.error
-      ? escapeHtml(result.error)
-      : result.milestones.map(m => escapeHtml(m.label)).join('<br>');
+    if (result.error) { msPreview.innerHTML = escapeHtml(result.error); return; }
+    const shown = result.milestones.slice(0, 20).map(m => escapeHtml(m.label));
+    if (result.milestones.length > 20) {
+      shown.push(`… and ${result.milestones.length - 20} more (${result.milestones.length} total)`);
+    }
+    msPreview.innerHTML = shown.join('<br>');
   }
 
   bookSearch.addEventListener('input', () => { if (catalogBooks) renderBookResults(bookSearch.value); });

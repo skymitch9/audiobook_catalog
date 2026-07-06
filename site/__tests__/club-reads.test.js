@@ -128,7 +128,7 @@ describe('splitByDuration', () => {
 
   it('clamps n to sane bounds', () => {
     expect(splitByDuration(600, 0)).toHaveLength(1);
-    expect(splitByDuration(600, 99)).toHaveLength(MAX_MILESTONES);
+    expect(splitByDuration(600, MAX_MILESTONES + 1)).toHaveLength(MAX_MILESTONES);
   });
 
   it('omits time ranges when duration is unknown', () => {
