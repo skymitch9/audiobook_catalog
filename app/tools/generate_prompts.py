@@ -11,7 +11,7 @@ milestone section with an automatic spoiler tag.
 Clubs can turn the feature off per-club ('Starter questions' toggle in
 Edit Club); this tool just supplies the data.
 
-Needs: the 'anthropic' package and the 'Claude-llm' (or ANTHROPIC_API_KEY)
+Needs: the 'anthropic' package and the 'Claude-llm'
 env var. Run on any machine; no library access required.
 
 Usage:
@@ -31,7 +31,7 @@ from app.tools.extract_chapters import save_json_with_retry, load_json
 
 PROMPTS_PATH = SITE_DIR / "discussion_prompts.json"
 CHAPTERS_PATH = SITE_DIR / "chapters.json"
-CLAUDE_API_KEY = os.getenv("Claude-llm") or os.getenv("ANTHROPIC_API_KEY")
+CLAUDE_API_KEY = os.getenv("Claude-llm")
 
 PROMPTS_SCHEMA = {
     "type": "object",
@@ -122,7 +122,7 @@ def main():
     args = parser.parse_args()
 
     if not CLAUDE_API_KEY:
-        print("Claude-llm / ANTHROPIC_API_KEY not set — cannot generate prompts.")
+        print("Claude-llm not set — cannot generate prompts.")
         return 1
 
     chapters_data = load_json(CHAPTERS_PATH, {})

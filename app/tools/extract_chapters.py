@@ -6,10 +6,10 @@ Source chain per book (first hit wins, recorded in the entry's "source"):
   1. m4b metadata  — ffprobe (if installed) or mutagen's chapter atom
   2. Hardcover     — scaffold only: their public GraphQL API does not expose
                      chapter lists today; hook kept so a working query is a
-                     small edit (needs HARDCOVER_API_TOKEN)
+                     small edit (needs HARDCOVER_TOKEN)
   3. Claude LLM    — asks claude-opus-4-8 for the chapter list; entries are
                      marked source "llm" and carry no timestamps
-                     (needs the 'Claude-llm' or ANTHROPIC_API_KEY env var and
+                     (needs the 'Claude-llm' env var and
                      the 'anthropic' package)
 
 Runs on the machine that has the audio library (not CI). Incremental: books
@@ -42,8 +42,8 @@ CHAPTERS_PATH = SITE_DIR / "chapters.json"
 # Cache of file -> tags so reruns skip processed files WITHOUT opening them
 # (opening can re-hydrate OneDrive placeholder files). Local-only, gitignored.
 TAG_CACHE_PATH = OUTPUT_DIR / "chapter_tag_cache.json"
-CLAUDE_API_KEY = os.getenv("Claude-llm") or os.getenv("ANTHROPIC_API_KEY")
-HARDCOVER_API_TOKEN = os.getenv("HARDCOVER_API_TOKEN")
+CLAUDE_API_KEY = os.getenv("Claude-llm")
+HARDCOVER_API_TOKEN = os.getenv("HARDCOVER_TOKEN")
 MAX_REASONABLE_CHAPTERS = 400
 
 PART_TITLE_RE = re.compile(

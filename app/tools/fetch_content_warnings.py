@@ -6,8 +6,7 @@ Source chain per book (first source with results wins, recorded in "source"):
   1. Hardcover   — community content-warning tags via their GraphQL API
                    (free; needs HARDCOVER_TOKEN)
   2. DoesTheDogDie — community yes/no topic votes via their REST API (free;
-                   needs DTDD_API_KEY — grab one at doesthedogdie.com/api,
-                   it's on your profile page after signing up)
+                   needs DOESTHEDOGDIE_API_KEY from your profile page)
   3. Claude web  — searches StoryGraph, trigger-warning databases, reviews;
                    may only report warnings actually found in a source, every
                    warning carries its URL (needs 'Claude-llm' key + the
@@ -48,10 +47,10 @@ from app.tools.extract_chapters import save_json_with_retry, load_json
 
 WARNINGS_PATH = SITE_DIR / "content_warnings.json"
 CATALOG_PATH = SITE_DIR / "catalog.csv"
-CLAUDE_API_KEY = os.getenv("Claude-llm") or os.getenv("ANTHROPIC_API_KEY")
+CLAUDE_API_KEY = os.getenv("Claude-llm")
 HARDCOVER_TOKEN = os.getenv("HARDCOVER_TOKEN")
 HARDCOVER_API = "https://api.hardcover.app/v1/graphql"
-DTDD_API_KEY = os.getenv("DTDD_API_KEY") or os.getenv("DOESTHEDOGDIE_API_KEY")
+DTDD_API_KEY = os.getenv("DOESTHEDOGDIE_API_KEY")
 DTDD_BASE = "https://www.doesthedogdie.com"
 
 
@@ -177,7 +176,7 @@ def warnings_from_dtdd(title, author):
     """Topics the DoesTheDogDie community voted YES on for this book.
 
     Returns a warnings list ([] = no match / no yes-votes) or None on
-    request failure or missing DTDD_API_KEY.
+    request failure or missing DOESTHEDOGDIE_API_KEY.
     """
     if not DTDD_API_KEY:
         return None
@@ -214,7 +213,7 @@ def warnings_from_dtdd(title, author):
 def warnings_from_web(title, author):
     """Ask Claude with web search. Returns a list (possibly empty) or None on failure."""
     if not CLAUDE_API_KEY:
-        print("  [LLM] Claude-llm / ANTHROPIC_API_KEY not set — skipping")
+        print("  [LLM] Claude-llm not set — skipping")
         return None
     try:
         import anthropic
