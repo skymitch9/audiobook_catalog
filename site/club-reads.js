@@ -542,6 +542,7 @@ export async function addComment(db, clubId, readId, input, session) {
       milestoneId: input.milestoneId || GENERAL_MILESTONE,
       parentId: input.parentId || null,
       chapterIndex: typeof input.chapterIndex === 'number' && input.chapterIndex >= 0 ? input.chapterIndex : null,
+      partIndex: typeof input.partIndex === 'number' && input.partIndex >= 0 ? input.partIndex : null,
       displayName: session.displayName,
       slug: slugifyName(session.displayName),
       text,

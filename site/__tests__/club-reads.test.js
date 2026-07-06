@@ -460,6 +460,16 @@ describe('chapter tags and comment spoilers', () => {
     expect(wholeBookMilestones()[0].chStart).toBeUndefined();
   });
 
+  it('comments store an optional part tag (audiobook-style coarse tagging)', async () => {
+    const readId = (await startRead(fakeDb, CLUB, bookInput(), jane)).readId;
+    const r = await addComment(fakeDb, CLUB, readId,
+      { milestoneId: 'general', text: 'Somewhere in part two...', partIndex: 1 }, jane);
+    expect(r.success).toBe(true);
+    const c = (await getComments(fakeDb, CLUB, readId)).find(x => x.id === r.commentId);
+    expect(c.partIndex).toBe(1);
+    expect(c.chapterIndex).toBeNull();
+  });
+
   it('comments store an optional chapter tag', async () => {
     const readId = (await startRead(fakeDb, CLUB, bookInput(), jane)).readId;
     const tagged = await addComment(fakeDb, CLUB, readId,
