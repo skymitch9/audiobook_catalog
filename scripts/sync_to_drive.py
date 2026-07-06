@@ -51,6 +51,9 @@ except ImportError:
 
 # OpenAudible export location
 OPENAUDIBLE_BOOKS_DIR = Path(os.getenv("ROOT_DIR", r"C:\Users\nbasl\OpenAudible\books"))
+# Books downloaded by the Dockerized OpenAudible (scratch runtime dir) get
+# ingested into the library by the same sort step.
+CONTAINER_BOOKS_DIR = Path(__file__).resolve().parent.parent / "runtime" / "openaudible" / "books"
 
 # Extensions to process
 AUDIOBOOK_EXTS: set[str] = {".m4b", ".m4a", ".mp4"}
@@ -205,17 +208,21 @@ def sort_books(dry_run: bool = False) -> list[Path]:
     from app.tools.book_sort import get_author_name
     from app.config import ROOT_DIR
 
-    source_dir = OPENAUDIBLE_BOOKS_DIR
-    if not source_dir.exists():
-        print(f"[ERROR] OpenAudible books directory not found: {source_dir}")
+    source_dirs = [OPENAUDIBLE_BOOKS_DIR]
+    if CONTAINER_BOOKS_DIR.exists() and CONTAINER_BOOKS_DIR != OPENAUDIBLE_BOOKS_DIR:
+        source_dirs.append(CONTAINER_BOOKS_DIR)
+    if not OPENAUDIBLE_BOOKS_DIR.exists():
+        print(f"[ERROR] OpenAudible books directory not found: {OPENAUDIBLE_BOOKS_DIR}")
         return []
 
     target_root = ROOT_DIR
 
     files = [
         p
-        for p in source_dir.rglob("*")
+        for src in source_dirs
+        for p in src.rglob("*")
         if p.is_file() and p.suffix.lower() in AUDIOBOOK_EXTS
+        and "welcome to openaudible" not in p.name.lower()  # container sample book
     ]
 
     if not files:
