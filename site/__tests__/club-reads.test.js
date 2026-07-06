@@ -155,7 +155,7 @@ describe('chapter-based milestones', () => {
   it('one milestone per chapter, labeled by chapter title', () => {
     const { milestones } = milestonesFromChapters(chapters(3));
     expect(milestones.map((m) => m.label)).toEqual(['Chapter 1', 'Chapter 2', 'Chapter 3']);
-    expect(milestones[2]).toEqual({ id: 'm2', label: 'Chapter 3', position: 2 });
+    expect(milestones[2]).toEqual({ id: 'm2', label: 'Chapter 3', position: 2, chStart: 2, chEnd: 2 });
   });
 
   it('rejects one-per-chapter beyond MAX_MILESTONES', () => {
