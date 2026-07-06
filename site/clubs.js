@@ -127,6 +127,7 @@ export async function updateClubDetails(db, clubId, input) {
   if (input.emoji !== undefined) updates.emoji = input.emoji.trim() || '📚';
   if (input.avatarReadId !== undefined) updates.avatarReadId = input.avatarReadId;
   if (input.avatarCoverHref !== undefined) updates.avatarCoverHref = input.avatarCoverHref;
+  if (input.promptsEnabled !== undefined) updates.promptsEnabled = !!input.promptsEnabled;
   if (input.joinMode !== undefined) {
     if (!['open', 'application'].includes(input.joinMode)) {
       return { success: false, error: 'Invalid join mode.' };
