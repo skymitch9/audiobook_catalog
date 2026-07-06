@@ -33,6 +33,19 @@ service cloud.firestore {
              && request.resource.data.status is string;
     }
 
+    function validClub() {
+      return request.resource.data.name is string
+             && request.resource.data.name.size() >= 3
+             && request.resource.data.name.size() <= 40
+             && request.resource.data.hostDisplayName is string
+             && request.resource.data.inviteCode is string;
+    }
+
+    function validClubMember() {
+      return request.resource.data.displayName is string
+             && request.resource.data.role in ['host', 'moderator', 'member'];
+    }
+
     // ---- Prod collections ----
 
     match /leaderboard/{docId} {
@@ -64,6 +77,19 @@ service cloud.firestore {
       allow delete: if true;
     }
 
+    match /clubs/{clubId} {
+      allow read: if true;
+      allow create: if validClub();
+      allow update: if true;
+      allow delete: if true;
+
+      match /members/{memberId} {
+        allow read: if true;
+        allow write: if validClubMember();
+        allow delete: if true;
+      }
+    }
+
     // ---- Dev lane collections (same shapes, separate data) ----
 
     match /leaderboard_dev/{docId} {
@@ -92,6 +118,19 @@ service cloud.firestore {
       allow read: if true;
       allow write: if validReadingList();
       allow delete: if true;
+    }
+
+    match /clubs_dev/{clubId} {
+      allow read: if true;
+      allow create: if validClub();
+      allow update: if true;
+      allow delete: if true;
+
+      match /members/{memberId} {
+        allow read: if true;
+        allow write: if validClubMember();
+        allow delete: if true;
+      }
     }
   }
 }

@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<title>Club - Audiobook Catalog</title>
+<style>
+:root{
+  --bg:#0a0a12; --bg-2:#12121f;
+  --text:#e8e6e3; --muted:#8a8f98;
+  --border:#2a2a3a;
+  --neon-yellow:#fcee0a;
+  --neon-cyan:#05d9e8;
+  --neon-magenta:#ff2a6d;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; padding:20px;
+  font-family:'Rajdhani','Segoe UI',system-ui,sans-serif;
+  background:var(--bg); color:var(--text);
+  background-image:
+    radial-gradient(ellipse at 20% 50%, rgba(252,238,10,.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(5,217,232,.03) 0%, transparent 50%);
+  min-height:100vh;
+}
+#wrap{max-width:900px;margin:0 auto}
+.nav-row{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
+.nav-link{
+  display:inline-block;padding:8px 14px;background:var(--bg-2);color:var(--neon-cyan);
+  text-decoration:none;border:1px solid var(--border);font-weight:700;font-size:.85em;
+  text-transform:uppercase;letter-spacing:.5px;transition:all .2s;cursor:pointer;
+  font-family:inherit;
+}
+.nav-link:hover{border-color:var(--neon-cyan);box-shadow:0 0 8px rgba(5,217,232,.2)}
+.btn-danger{color:var(--neon-magenta)}
+.btn-danger:hover{border-color:var(--neon-magenta);box-shadow:0 0 8px rgba(255,42,109,.2)}
+.club-header{
+  background:var(--bg-2);border:1px solid var(--border);padding:22px;margin-bottom:16px;
+  clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,14px 100%,0 calc(100% - 14px));
+}
+.club-title{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.club-emoji{font-size:2.2em}
+.club-name{
+  color:var(--neon-yellow);text-transform:uppercase;letter-spacing:2px;margin:0;
+  text-shadow:0 0 10px rgba(252,238,10,.3);font-size:1.6em;font-weight:700;
+}
+.club-desc{color:var(--muted);margin:10px 0 0}
+.club-meta{
+  display:flex;gap:14px;margin-top:12px;flex-wrap:wrap;align-items:center;
+  font-size:.85em;color:var(--muted);font-family:'Share Tech Mono',monospace;
+}
+.badge{padding:1px 7px;border:1px solid var(--border);font-size:.85em;text-transform:uppercase}
+.badge-private{color:var(--neon-magenta);border-color:var(--neon-magenta)}
+.badge-role{color:var(--neon-yellow);border-color:var(--neon-yellow)}
+.invite-chip{
+  display:inline-flex;align-items:center;gap:8px;background:var(--bg);
+  border:1px solid var(--border);padding:4px 10px;
+}
+.invite-chip code{font-family:'Share Tech Mono',monospace;color:var(--neon-cyan);letter-spacing:2px}
+.invite-chip button{
+  background:none;border:1px solid var(--border);color:var(--muted);cursor:pointer;
+  font-size:.8em;padding:2px 8px;font-family:inherit;text-transform:uppercase;
+}
+.invite-chip button:hover{border-color:var(--neon-cyan);color:var(--neon-cyan)}
+.tabs{display:flex;gap:4px;margin-bottom:0;flex-wrap:wrap}
+.tab{
+  padding:10px 18px;background:var(--bg-2);border:1px solid var(--border);border-bottom:none;
+  color:var(--muted);cursor:pointer;font-weight:700;text-transform:uppercase;
+  letter-spacing:.5px;font-size:.85em;font-family:inherit;
+}
+.tab.active{color:var(--neon-cyan);border-color:var(--neon-cyan);border-bottom:1px solid var(--bg-2)}
+.tab-panel{
+  background:var(--bg-2);border:1px solid var(--border);padding:22px;min-height:180px;
+}
+.member-row{
+  display:flex;align-items:center;gap:12px;padding:10px 0;
+  border-bottom:1px solid var(--border);
+}
+.member-row:last-child{border-bottom:none}
+.member-avatar{
+  width:38px;height:38px;border-radius:50%;border:2px solid var(--neon-cyan);
+  display:flex;align-items:center;justify-content:center;background:var(--border);
+  font-weight:700;flex-shrink:0;
+}
+.member-name{font-weight:700;font-size:1.05em}
+.member-actions{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+.member-actions button{
+  background:none;border:1px solid var(--border);color:var(--muted);cursor:pointer;
+  font-size:.75em;padding:3px 9px;font-family:inherit;text-transform:uppercase;
+}
+.member-actions button:hover{border-color:var(--neon-cyan);color:var(--neon-cyan)}
+.member-actions button.danger:hover{border-color:var(--neon-magenta);color:var(--neon-magenta)}
+.stub{
+  text-align:center;padding:36px 20px;color:var(--muted);
+}
+.stub .stub-title{font-size:1.1em;color:var(--neon-cyan);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+.loading,.empty{text-align:center;padding:30px;color:var(--muted);font-family:'Share Tech Mono',monospace}
+.error-box{
+  padding:12px 16px;border:1px solid var(--neon-magenta);background:var(--bg-2);
+  color:var(--neon-magenta);margin-bottom:16px;
+}
+.footer-actions{margin-top:16px;display:flex;gap:8px;flex-wrap:wrap}
+@media(max-width:600px){
+  body{padding:10px}
+  .nav-row{flex-direction:column;align-items:stretch}
+  .nav-link{text-align:center;padding:12px;min-height:44px}
+  .club-header{clip-path:none}
+  .tabs{overflow-x:auto;flex-wrap:nowrap}
+}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div class="nav-row">
+    <a href="clubs.html" class="nav-link">&larr; All Clubs</a>
+    <a href="index.html" class="nav-link">Catalog</a>
+  </div>
+  <div id="content"><div class="loading">Loading club...</div></div>
+</div>
+
+<script type="module">
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+  import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+  import { getSession, slugifyName } from './identity.js';
+  import {
+    getClub, getMembers, joinClub, leaveClub,
+    removeMemberBySlug, setMemberRole, deleteClub,
+  } from './clubs.js';
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyDgAblkxzVxl7nFbd7jXOo6PpuNPsJw11Y",
+    authDomain: "audiobook-catalog.firebaseapp.com",
+    storageBucket: "audiobook-catalog.firebasestorage.app",
+    projectId: "audiobook-catalog",
+    messagingSenderId: "68492219785",
+    appId: "1:68492219785:web:7cbe57dda8712377f0bd58"
+  };
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  const session = getSession();
+  const mySlug = session ? slugifyName(session.displayName) : null;
+  const clubId = new URLSearchParams(window.location.search).get('id');
+  const contentEl = document.getElementById('content');
+
+  let club = null;
+  let members = [];
+  let activeTab = 'current';
+
+  function escapeHtml(s) {
+    return (s || '').replace(/[&<>"']/g, c => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[c]));
+  }
+
+  const myRole = () => (members.find(m => m.slug === mySlug) || {}).role || null;
+  const isHost = () => myRole() === 'host';
+  const isMod = () => isHost() || myRole() === 'moderator';
+
+  function render() {
+    const inviteLink = new URL(`clubs.html?join=${club.inviteCode}`, window.location.href).href;
+    const roleBadge = myRole() ? `<span class="badge badge-role">${escapeHtml(myRole())}</span>` : '';
+
+    contentEl.innerHTML = `
+      <div class="club-header">
+        <div class="club-title">
+          <span class="club-emoji">${escapeHtml(club.emoji || '📚')}</span>
+          <h1 class="club-name">${escapeHtml(club.name)}</h1>
+          ${club.isPublic ? '' : '<span class="badge badge-private">Private</span>'}
+          ${roleBadge}
+        </div>
+        ${club.description ? `<p class="club-desc">${escapeHtml(club.description)}</p>` : ''}
+        <div class="club-meta">
+          <span>${club.memberCount || 0} member${(club.memberCount || 0) !== 1 ? 's' : ''}</span>
+          <span>Host: ${escapeHtml(club.hostDisplayName)}</span>
+          ${myRole() ? `
+            <span class="invite-chip">
+              <span>Invite:</span><code>${escapeHtml(club.inviteCode)}</code>
+              <button id="copy-invite" data-link="${escapeHtml(inviteLink)}">Copy Link</button>
+            </span>` : ''}
+        </div>
+      </div>
+
+      <div class="tabs">
+        <button class="tab ${activeTab === 'current' ? 'active' : ''}" data-tab="current">Current Read</button>
+        <button class="tab ${activeTab === 'tbr' ? 'active' : ''}" data-tab="tbr">Club TBR</button>
+        <button class="tab ${activeTab === 'history' ? 'active' : ''}" data-tab="history">History</button>
+        <button class="tab ${activeTab === 'members' ? 'active' : ''}" data-tab="members">Members (${members.length})</button>
+      </div>
+      <div class="tab-panel" id="tab-panel">${renderTab()}</div>
+
+      <div class="footer-actions" id="footer-actions">${renderFooterActions()}</div>
+    `;
+    wireEvents();
+  }
+
+  function renderTab() {
+    if (activeTab === 'members') return renderMembers();
+    const stubs = {
+      current: ['No active read yet', 'Setting the club book, milestones, and chapter discussions arrive in Phase 2.'],
+      tbr: ['Club TBR coming soon', 'Suggesting and voting on what to read next arrives in Phase 3.'],
+      history: ['No finished reads yet', 'Finished books and their archived discussions will appear here (Phase 3).'],
+    };
+    const [title, text] = stubs[activeTab];
+    return `<div class="stub"><div class="stub-title">${title}</div>${text}</div>`;
+  }
+
+  function renderMembers() {
+    if (!members.length) return '<div class="empty">No members.</div>';
+    const roleRank = { host: 0, moderator: 1, member: 2 };
+    const sorted = [...members].sort((a, b) =>
+      (roleRank[a.role] ?? 3) - (roleRank[b.role] ?? 3) || a.displayName.localeCompare(b.displayName));
+    return sorted.map(m => {
+      const actions = [];
+      if (isHost() && m.slug !== mySlug && m.role !== 'host') {
+        actions.push(m.role === 'moderator'
+          ? `<button data-action="demote" data-slug="${escapeHtml(m.slug)}">Remove Mod</button>`
+          : `<button data-action="promote" data-slug="${escapeHtml(m.slug)}">Make Mod</button>`);
+      }
+      if (isMod() && m.slug !== mySlug && m.role !== 'host') {
+        actions.push(`<button class="danger" data-action="remove" data-slug="${escapeHtml(m.slug)}" data-name="${escapeHtml(m.displayName)}">Remove</button>`);
+      }
+      return `
+        <div class="member-row">
+          <div class="member-avatar">${escapeHtml(m.displayName.charAt(0).toUpperCase())}</div>
+          <span class="member-name">${escapeHtml(m.displayName)}</span>
+          ${m.role !== 'member' ? `<span class="badge badge-role">${escapeHtml(m.role)}</span>` : ''}
+          <div class="member-actions">${actions.join('')}</div>
+        </div>`;
+    }).join('');
+  }
+
+  function renderFooterActions() {
+    if (!session) return '';
+    if (!myRole()) {
+      return club.isPublic
+        ? '<button id="join-btn" class="nav-link">Join This Club</button>'
+        : '<span class="empty" style="padding:0">This club is private — join with an invite link.</span>';
+    }
+    const actions = [];
+    if (isHost()) {
+      actions.push('<button id="delete-btn" class="nav-link btn-danger">Delete Club</button>');
+    } else {
+      actions.push('<button id="leave-btn" class="nav-link btn-danger">Leave Club</button>');
+    }
+    return actions.join('');
+  }
+
+  function wireEvents() {
+    contentEl.querySelectorAll('.tab').forEach(t =>
+      t.addEventListener('click', () => { activeTab = t.dataset.tab; render(); }));
+
+    const copyBtn = document.getElementById('copy-invite');
+    if (copyBtn) copyBtn.addEventListener('click', async () => {
+      await navigator.clipboard.writeText(copyBtn.dataset.link);
+      copyBtn.textContent = 'Copied!';
+      setTimeout(() => { copyBtn.textContent = 'Copy Link'; }, 1500);
+    });
+
+    const joinBtn = document.getElementById('join-btn');
+    if (joinBtn) joinBtn.addEventListener('click', async () => {
+      const r = await joinClub(db, clubId, session);
+      if (r.success) reload(); else showError(r.error);
+    });
+
+    const leaveBtn = document.getElementById('leave-btn');
+    if (leaveBtn) leaveBtn.addEventListener('click', async () => {
+      if (!confirm(`Leave ${club.name}?`)) return;
+      const r = await leaveClub(db, clubId, session);
+      if (r.success) window.location.href = 'clubs.html'; else showError(r.error);
+    });
+
+    const deleteBtn = document.getElementById('delete-btn');
+    if (deleteBtn) deleteBtn.addEventListener('click', async () => {
+      if (!confirm(`Delete ${club.name}? This removes the club for all ${club.memberCount} members and cannot be undone.`)) return;
+      const r = await deleteClub(db, clubId);
+      if (r.success) window.location.href = 'clubs.html'; else showError(r.error);
+    });
+
+    contentEl.querySelectorAll('[data-action]').forEach(btn =>
+      btn.addEventListener('click', async () => {
+        const { action, slug, name } = btn.dataset;
+        let r;
+        if (action === 'promote') r = await setMemberRole(db, clubId, slug, 'moderator');
+        if (action === 'demote') r = await setMemberRole(db, clubId, slug, 'member');
+        if (action === 'remove') {
+          if (!confirm(`Remove ${name} from the club?`)) return;
+          r = await removeMemberBySlug(db, clubId, slug);
+        }
+        if (r && r.success) reload(); else if (r) showError(r.error);
+      }));
+  }
+
+  function showError(msg) {
+    const box = document.createElement('div');
+    box.className = 'error-box';
+    box.textContent = msg;
+    contentEl.prepend(box);
+    setTimeout(() => box.remove(), 4000);
+  }
+
+  async function reload() {
+    [club, members] = await Promise.all([getClub(db, clubId), getMembers(db, clubId)]);
+    if (!club) {
+      contentEl.innerHTML = '<div class="empty">Club not found — it may have been deleted.</div>';
+      return;
+    }
+    render();
+  }
+
+  if (!clubId) {
+    contentEl.innerHTML = '<div class="empty">No club specified.</div>';
+  } else {
+    reload().catch(e => {
+      contentEl.innerHTML = '<div class="empty">Failed to load club.</div>';
+      console.error(e);
+    });
+  }
+</script>
+</body>
+</html>
