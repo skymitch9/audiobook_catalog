@@ -90,6 +90,58 @@ body{
   color:var(--neon-magenta);margin-bottom:16px;
 }
 .footer-actions{margin-top:16px;display:flex;gap:8px;flex-wrap:wrap}
+.btn-primary{background:var(--neon-cyan);color:#04121a;border:none;font-weight:700}
+.btn-primary:hover{box-shadow:0 0 12px rgba(5,217,232,.5)}
+.read-card{
+  display:flex;gap:14px;background:var(--bg);border:1px solid var(--border);
+  padding:14px;margin-bottom:10px;text-decoration:none;color:var(--text);
+  transition:border-color .2s;align-items:center;
+}
+.read-card:hover{border-color:var(--neon-magenta)}
+.rc-cover{width:60px;height:auto;border:1px solid var(--border);flex-shrink:0}
+.rc-slot{font-size:.7em;color:var(--neon-magenta);text-transform:uppercase;letter-spacing:1px;font-family:'Share Tech Mono',monospace}
+.rc-title{font-weight:700;font-size:1.1em;color:var(--neon-cyan);text-transform:uppercase;letter-spacing:.5px}
+.rc-author{color:var(--muted);font-size:.9em}
+.rc-meta{font-size:.75em;color:var(--muted);font-family:'Share Tech Mono',monospace;margin-top:4px}
+/* Start-read modal */
+#read-modal{
+  position:fixed;inset:0;display:none;align-items:center;justify-content:center;
+  background:rgba(0,0,0,.85);z-index:9999;padding:20px;backdrop-filter:blur(4px);
+}
+#read-modal.open{display:flex}
+.modal-panel{
+  background:var(--bg-2);border:1px solid var(--neon-cyan);
+  width:min(540px,94vw);max-height:90vh;overflow-y:auto;padding:28px;position:relative;
+}
+.modal-close{
+  position:absolute;top:12px;right:12px;background:none;border:1px solid var(--neon-magenta);
+  color:var(--neon-magenta);width:30px;height:30px;cursor:pointer;font-weight:bold;
+}
+.modal-close:hover{background:var(--neon-magenta);color:#fff}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:.8em;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.field input[type=text],.field textarea,.field select{
+  width:100%;padding:9px 12px;border:1px solid var(--border);
+  background:var(--bg);color:var(--text);font-family:inherit;font-size:1em;
+}
+.field input:focus,.field textarea:focus,.field select:focus{outline:none;border-color:var(--neon-cyan)}
+.field textarea{resize:vertical;min-height:80px}
+#book-results{max-height:180px;overflow-y:auto;border:1px solid var(--border);margin-top:4px}
+#book-results button{
+  display:block;width:100%;text-align:left;padding:8px 12px;background:none;border:none;
+  border-bottom:1px solid var(--border);color:var(--text);cursor:pointer;font-family:inherit;font-size:.92em;
+}
+#book-results button:hover{background:var(--bg);color:var(--neon-cyan)}
+#picked-book{
+  display:none;gap:12px;align-items:center;padding:10px;border:1px solid var(--neon-cyan);margin-top:6px;
+}
+#picked-book img{width:44px;height:auto;border:1px solid var(--border)}
+#picked-book .pb-title{font-weight:700;color:var(--neon-cyan)}
+#picked-book .pb-sub{font-size:.85em;color:var(--muted)}
+.ms-mode{display:flex;gap:16px;margin-bottom:8px}
+.ms-mode label{display:flex;gap:6px;align-items:center;font-size:.9em;color:var(--text);text-transform:none;margin:0}
+#ms-preview{font-size:.85em;color:var(--muted);font-family:'Share Tech Mono',monospace;line-height:1.7;margin-top:6px}
+.form-error{color:var(--neon-magenta);font-size:.9em;min-height:1.2em;margin-bottom:8px}
 @media(max-width:600px){
   body{padding:10px}
   .nav-row{flex-direction:column;align-items:stretch}
@@ -108,6 +160,39 @@ body{
   <div id="content"><div class="loading">Loading club...</div></div>
 </div>
 
+<!-- Start Read Modal -->
+<div id="read-modal">
+  <div class="modal-panel">
+    <button class="modal-close" id="read-close">X</button>
+    <h2 style="margin-top:0;color:var(--neon-yellow);text-transform:uppercase;letter-spacing:1px">Start a Read</h2>
+    <div class="field">
+      <label for="book-search">Pick a book from the catalog</label>
+      <input id="book-search" type="text" placeholder="Search by title or author..." autocomplete="off" />
+      <div id="book-results"></div>
+      <div id="picked-book"></div>
+    </div>
+    <div class="field">
+      <label>Milestones (discussion checkpoints)</label>
+      <div class="ms-mode">
+        <label><input type="radio" name="ms-mode" value="auto" checked /> Auto-split by duration</label>
+        <label><input type="radio" name="ms-mode" value="manual" /> Manual</label>
+      </div>
+      <div id="ms-auto">
+        <select id="ms-parts">
+          <option value="2">2 parts</option><option value="3">3 parts</option>
+          <option value="4" selected>4 parts</option><option value="5">5 parts</option>
+          <option value="6">6 parts</option><option value="8">8 parts</option>
+          <option value="10">10 parts</option><option value="12">12 parts</option>
+        </select>
+        <div id="ms-preview"></div>
+      </div>
+      <textarea id="ms-manual" style="display:none" placeholder="One milestone per line, e.g.&#10;Chapters 1-5&#10;Chapters 6-10&#10;Chapters 11-end"></textarea>
+    </div>
+    <div id="read-error" class="form-error"></div>
+    <button id="read-submit" class="nav-link btn-primary" style="width:100%">Start Read</button>
+  </div>
+</div>
+
 <script type="module">
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
   import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
@@ -116,6 +201,10 @@ body{
     getClub, getMembers, joinClub, leaveClub,
     removeMemberBySlug, setMemberRole, deleteClub,
   } from './clubs.js';
+  import {
+    getReads, startRead, splitByDuration, parseManualMilestones,
+    loadCatalogBooks, MAX_ACTIVE_READS,
+  } from './club-reads.js';
 
   const firebaseConfig = {
     apiKey: "AIzaSyDgAblkxzVxl7nFbd7jXOo6PpuNPsJw11Y",
@@ -135,7 +224,10 @@ body{
 
   let club = null;
   let members = [];
+  let reads = [];
   let activeTab = 'current';
+  let catalogBooks = null; // lazy-loaded for the book picker
+  let pickedBook = null;
 
   function escapeHtml(s) {
     return (s || '').replace(/[&<>"']/g, c => ({
@@ -179,13 +271,35 @@ body{
 
   function renderTab() {
     if (activeTab === 'members') return renderMembers();
+    if (activeTab === 'current') return renderCurrent();
     const stubs = {
-      current: ['No active read yet', 'Setting the club book, milestones, and chapter discussions arrive in Phase 2.'],
       tbr: ['Club TBR coming soon', 'Suggesting and voting on what to read next arrives in Phase 3.'],
       history: ['No finished reads yet', 'Finished books and their archived discussions will appear here (Phase 3).'],
     };
     const [title, text] = stubs[activeTab];
     return `<div class="stub"><div class="stub-title">${title}</div>${text}</div>`;
+  }
+
+  function renderCurrent() {
+    const active = reads.filter(r => r.status === 'active').sort((a, b) => a.slot - b.slot);
+    const canStart = isMod() && active.length < MAX_ACTIVE_READS;
+    const cards = active.map(r => `
+      <a class="read-card" href="club-read.html?club=${encodeURIComponent(clubId)}&read=${encodeURIComponent(r.id)}">
+        ${r.coverHref ? `<img class="rc-cover" src="${escapeHtml(r.coverHref)}" alt="" onerror="this.remove()">` : ''}
+        <div>
+          <div class="rc-slot">${active.length > 1 ? (r.slot === 1 ? 'Main read' : 'Side read') : 'Current read'}</div>
+          <div class="rc-title">${escapeHtml(r.bookTitle)}</div>
+          <div class="rc-author">${escapeHtml(r.bookAuthor)}</div>
+          <div class="rc-meta">${(r.milestones || []).length} milestones \u00b7 ${r.commentCount || 0} comments \u00b7 started by ${escapeHtml(r.startedBy || '')}</div>
+        </div>
+      </a>`).join('');
+    const emptyState = isMod()
+      ? `<div class="stub"><div class="stub-title">No active read yet</div>Pick the club's first book to open the discussions.</div>`
+      : `<div class="stub"><div class="stub-title">No active read yet</div>The host hasn't picked a book yet.</div>`;
+    return `
+      ${cards || emptyState}
+      ${canStart ? '<div style="margin-top:14px"><button id="start-read-btn" class="nav-link btn-primary">+ Start a Read</button></div>' : ''}
+    `;
   }
 
   function renderMembers() {
@@ -232,6 +346,9 @@ body{
       t.addEventListener('click', () => { activeTab = t.dataset.tab; render(); }));
 
 
+    const startBtn = document.getElementById('start-read-btn');
+    if (startBtn) startBtn.addEventListener('click', openReadModal);
+
     const joinBtn = document.getElementById('join-btn');
     if (joinBtn) joinBtn.addEventListener('click', async () => {
       if (!confirm(`Join ${club.name}?`)) return;
@@ -276,13 +393,111 @@ body{
   }
 
   async function reload() {
-    [club, members] = await Promise.all([getClub(db, clubId), getMembers(db, clubId)]);
+    [club, members, reads] = await Promise.all([
+      getClub(db, clubId), getMembers(db, clubId), getReads(db, clubId),
+    ]);
     if (!club) {
       contentEl.innerHTML = '<div class="empty">Club not found — it may have been deleted.</div>';
       return;
     }
     render();
   }
+
+  // --- Start Read modal (static DOM, wired once) ---
+  const readModal = document.getElementById('read-modal');
+  const bookSearch = document.getElementById('book-search');
+  const bookResults = document.getElementById('book-results');
+  const pickedBookEl = document.getElementById('picked-book');
+  const msManual = document.getElementById('ms-manual');
+  const msAuto = document.getElementById('ms-auto');
+  const msParts = document.getElementById('ms-parts');
+  const msPreview = document.getElementById('ms-preview');
+
+  async function openReadModal() {
+    pickedBook = null;
+    pickedBookEl.style.display = 'none';
+    pickedBookEl.innerHTML = '';
+    bookSearch.value = '';
+    msPreview.innerHTML = '';
+    document.getElementById('read-error').textContent = '';
+    bookResults.innerHTML = '<button disabled>Loading catalog...</button>';
+    readModal.classList.add('open');
+    if (!catalogBooks) {
+      try {
+        catalogBooks = await loadCatalogBooks();
+      } catch (e) {
+        bookResults.innerHTML = '<button disabled>Failed to load catalog</button>';
+        return;
+      }
+    }
+    renderBookResults('');
+  }
+
+  function renderBookResults(q) {
+    const query = q.toLowerCase().trim();
+    const matches = (catalogBooks || [])
+      .filter(b => !query || b.title.toLowerCase().includes(query) || b.author.toLowerCase().includes(query))
+      .slice(0, 25);
+    bookResults.innerHTML = matches.map((b, i) =>
+      `<button data-pick="${i}">${escapeHtml(b.title)} — ${escapeHtml(b.author)}</button>`).join('')
+      || '<button disabled>No matches</button>';
+    bookResults.querySelectorAll('[data-pick]').forEach(btn =>
+      btn.addEventListener('click', () => pickBook(matches[parseInt(btn.dataset.pick, 10)])));
+  }
+
+  function pickBook(b) {
+    pickedBook = b;
+    pickedBookEl.style.display = 'flex';
+    pickedBookEl.innerHTML = `
+      ${b.coverHref ? `<img src="${escapeHtml(b.coverHref)}" alt="" onerror="this.remove()">` : ''}
+      <div>
+        <div class="pb-title">${escapeHtml(b.title)}</div>
+        <div class="pb-sub">${escapeHtml(b.author)}${b.durationHhmm ? ` \u00b7 ${escapeHtml(b.durationHhmm)}` : ''}</div>
+      </div>`;
+    bookResults.innerHTML = '';
+    bookSearch.value = b.title;
+    renderMsPreview();
+  }
+
+  function renderMsPreview() {
+    if (!pickedBook) { msPreview.innerHTML = ''; return; }
+    const ms = splitByDuration(pickedBook.durationMinutes, parseInt(msParts.value, 10));
+    msPreview.innerHTML = ms.map(m => escapeHtml(m.label)).join('<br>');
+  }
+
+  bookSearch.addEventListener('input', () => { if (catalogBooks) renderBookResults(bookSearch.value); });
+  msParts.addEventListener('change', renderMsPreview);
+  document.querySelectorAll('input[name="ms-mode"]').forEach(r =>
+    r.addEventListener('change', () => {
+      const manual = document.querySelector('input[name="ms-mode"]:checked').value === 'manual';
+      msManual.style.display = manual ? 'block' : 'none';
+      msAuto.style.display = manual ? 'none' : 'block';
+    }));
+  document.getElementById('read-close').addEventListener('click', () => readModal.classList.remove('open'));
+  readModal.addEventListener('click', (e) => { if (e.target === readModal) readModal.classList.remove('open'); });
+
+  document.getElementById('read-submit').addEventListener('click', async () => {
+    const errEl = document.getElementById('read-error');
+    errEl.textContent = '';
+    if (!pickedBook) { errEl.textContent = 'Pick a book first.'; return; }
+    let milestones;
+    if (document.querySelector('input[name="ms-mode"]:checked').value === 'manual') {
+      const parsed = parseManualMilestones(msManual.value);
+      if (parsed.error) { errEl.textContent = parsed.error; return; }
+      milestones = parsed.milestones;
+    } else {
+      milestones = splitByDuration(pickedBook.durationMinutes, parseInt(msParts.value, 10));
+    }
+    const r = await startRead(db, clubId, {
+      bookTitle: pickedBook.title,
+      bookAuthor: pickedBook.author,
+      coverHref: pickedBook.coverHref,
+      durationMinutes: pickedBook.durationMinutes,
+      milestones,
+    }, session);
+    if (!r.success) { errEl.textContent = r.error; return; }
+    window.location.href = `club-read.html?club=${encodeURIComponent(clubId)}&read=${encodeURIComponent(r.readId)}`;
+  });
 
   if (!clubId) {
     contentEl.innerHTML = '<div class="empty">No club specified.</div>';
