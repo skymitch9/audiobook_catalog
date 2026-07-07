@@ -4,7 +4,7 @@
 
 import {
   collection, doc, getDoc, getDocs, setDoc, deleteDoc, updateDoc,
-  query, where, serverTimestamp, runTransaction,
+  query, where, serverTimestamp, runTransaction, arrayUnion,
 } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 import { col } from './fb-env.js';
 import { slugifyName } from './identity.js';
@@ -156,6 +156,22 @@ export async function getClub(db, clubId) {
 export async function getMembers(db, clubId) {
   const snap = await getDocs(collection(db, col('clubs'), clubId, 'members'));
   return snap.docs.map(d => ({ slug: d.id, ...d.data() }));
+}
+
+/**
+ * Record that a member dismissed the "rate this book" nudge for a finished
+ * read, so it stays dismissed across devices. Stored on the member doc; the
+ * validClubMember rule allows extra fields (only displayName + role are
+ * validated), so no rules change is needed.
+ */
+export async function dismissRateNudge(db, clubId, slug, readId) {
+  try {
+    const ref = doc(db, col('clubs'), clubId, 'members', slug);
+    await updateDoc(ref, { dismissedRateNudges: arrayUnion(readId) });
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
 }
 
 /**

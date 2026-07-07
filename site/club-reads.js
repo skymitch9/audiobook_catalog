@@ -689,7 +689,7 @@ export async function getComments(db, clubId, readId) {
  * Record how far a member has gotten. position -1 = not started;
  * otherwise the highest milestone position they have finished.
  */
-export async function setProgress(db, clubId, readId, position, session) {
+export async function setProgress(db, clubId, readId, position, session, finished = false) {
   if (!session || !session.displayName) {
     return { success: false, error: 'Sign in to track progress.' };
   }
@@ -698,6 +698,7 @@ export async function setProgress(db, clubId, readId, position, session) {
     await setDoc(doc(db, col('clubs'), clubId, 'reads', readId, 'progress', slug), {
       displayName: session.displayName,
       milestonePosition: position,
+      finished,
       updatedAt: serverTimestamp(),
     });
     return { success: true };
@@ -711,7 +712,7 @@ export async function setProgress(db, clubId, readId, position, session) {
  * Used for reads whose book has chapter data; drives per-comment spoilers
  * and chapter-mapped section locks.
  */
-export async function setChapterProgress(db, clubId, readId, chapterIndex, session) {
+export async function setChapterProgress(db, clubId, readId, chapterIndex, session, finished = false) {
   if (!session || !session.displayName) {
     return { success: false, error: 'Sign in to track progress.' };
   }
@@ -720,6 +721,7 @@ export async function setChapterProgress(db, clubId, readId, chapterIndex, sessi
     await setDoc(doc(db, col('clubs'), clubId, 'reads', readId, 'progress', slug), {
       displayName: session.displayName,
       chapterIndex,
+      finished,
       updatedAt: serverTimestamp(),
     });
     return { success: true };
@@ -732,4 +734,12 @@ export async function setChapterProgress(db, clubId, readId, chapterIndex, sessi
 export async function getProgressAll(db, clubId, readId) {
   const snap = await getDocs(collection(db, col('clubs'), clubId, 'reads', readId, 'progress'));
   return snap.docs.map(d => ({ slug: d.id, ...d.data() }));
+}
+
+/** Fetch one member's progress doc for a read (null if none). */
+export async function getMyProgress(db, clubId, readId, slug) {
+  try {
+    const snap = await getDoc(doc(db, col('clubs'), clubId, 'reads', readId, 'progress', slug));
+    return snap.exists() ? { slug, ...snap.data() } : null;
+  } catch { return null; }
 }
