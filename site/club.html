@@ -396,7 +396,7 @@ html.light body{background-image:none}
     getClub, getMembers, joinClub, leaveClub,
     removeMemberBySlug, setMemberRole, deleteClub,
     updateClubDetails, requestToJoin, getRequests, acceptRequest, rejectRequest, inviteMember,
-    acceptInvite, declineInvite,
+    acceptInvite, declineInvite, dismissRateNudge,
   } from './clubs.js';
   import {
     getReads, startRead, removeRead, finishRead, getComments, updateReadLabel, splitByDuration, parseManualMilestones,
@@ -585,25 +585,22 @@ html.light body{background-image:none}
 
   // --- "Rate this book" nudge (Current tab, under the active reads) ---------
   // When a club read is finished, members who haven't rated it yet get a
-  // dismissible nudge box. Dismissal is per user+club, kept in localStorage.
+  // dismissible nudge box. Dismissal persists per-account on the member doc
+  // (dismissedRateNudges), so it stays dismissed across devices.
   const RATE_NUDGE_WINDOW_MS = 30 * 24 * 60 * 60 * 1000; // only recent finishes
-  function _rateDismissKey() { return `clubRateDismissed:${clubId}:${mySlug || 'anon'}`; }
-  function loadRateDismissed() {
-    try { return JSON.parse(localStorage.getItem(_rateDismissKey()) || '{}'); } catch { return {}; }
-  }
-  function saveRateDismissed(d) {
-    try { localStorage.setItem(_rateDismissKey(), JSON.stringify(d)); } catch {}
+  function dismissedReadIds() {
+    return (myMember() && myMember().dismissedRateNudges) || [];
   }
   // Finished reads the current member should be nudged to rate: recently
   // finished, not dismissed, and not already rated by them.
   function rateNudges() {
     if (!isMember() || !session || !allReviews) return [];
-    const dismissed = loadRateDismissed();
+    const dismissed = dismissedReadIds();
     const myName = session.displayName.toLowerCase();
     const now = Date.now();
     return reads.filter(r => {
       if (r.status !== 'finished') return false;
-      if (dismissed[r.id]) return false;
+      if (dismissed.includes(r.id)) return false;
       let fin = 0;
       try { fin = r.finishedAt ? r.finishedAt.toDate().getTime() : 0; } catch { fin = 0; }
       if (fin && now - fin > RATE_NUDGE_WINDOW_MS) return false;
@@ -855,13 +852,19 @@ html.light body{background-image:none}
       }));
 
     contentEl.querySelectorAll('[data-dismiss-rate]').forEach(btn =>
-      btn.addEventListener('click', (e) => {
+      btn.addEventListener('click', async (e) => {
         e.preventDefault();
         e.stopPropagation();
-        const d = loadRateDismissed();
-        d[btn.dataset.dismissRate] = true;
-        saveRateDismissed(d);
+        const readId = btn.dataset.dismissRate;
+        // Optimistic: hide immediately, persist to the member doc in the
+        // background. On failure we just re-render (nudge reappears).
+        const mm = myMember();
+        if (mm) mm.dismissedRateNudges = [...dismissedReadIds(), readId];
         if (activeTab === 'current') render();
+        if (mySlug) {
+          const res = await dismissRateNudge(db, clubId, mySlug, readId);
+          if (!res.success) { if (mm) mm.dismissedRateNudges = dismissedReadIds().filter(id => id !== readId); render(); showError(res.error); }
+        }
       }));
 
     contentEl.querySelectorAll('[data-rate-read]').forEach(btn =>
