@@ -908,7 +908,9 @@ html.light body{background-image:none}
       return;
     }
     markReadSeen(db, mySlug, clubId, readId, read.commentCount || comments.length);
-    document.getElementById('back-link').href = `club.html?id=${encodeURIComponent(clubId)}`;
+    const backLink = document.getElementById('back-link');
+    backLink.href = `club.html?id=${encodeURIComponent(clubId)}`;
+    backLink.textContent = `← ${club.name}`;
     document.title = `${read.bookTitle} - Club Read`;
     if (firstRender) {
       lastSeenTs = parseInt(localStorage.getItem(seenKey()) || '0', 10);
