@@ -137,13 +137,29 @@
       if (parsed && typeof parsed === "object") { AUTHOR_MAP = parsed; }
     } catch (e) { /* ignore parse errors */ }
   }
-  function _resolveAuthorFolder(author) {
+  function _lookupAuthor(author) {
     if (!author) return null;
     if (AUTHOR_MAP[author]) return AUTHOR_MAP[author];
     var aNorm = author.toLowerCase().trim();
     for (var k in AUTHOR_MAP) {
       if (!Object.prototype.hasOwnProperty.call(AUTHOR_MAP, k)) continue;
       if (k.toLowerCase().trim() === aNorm) return AUTHOR_MAP[k];
+    }
+    return null;
+  }
+  function _resolveAuthorFolder(author) {
+    if (!author) return null;
+    var hit = _lookupAuthor(author);
+    if (hit) return hit;
+    // Multi-author string: try each individual author (the primary author's
+    // folder covers co-authors / translators). Mirrors resolve_author_link
+    // in app/tools/audit_site.py.
+    var parts = author.split(/[;,\/&]|\sand\s/i);
+    for (var i = 0; i < parts.length; i++) {
+      var name = parts[i].split(" - ")[0].trim();
+      if (!name) continue;
+      var h = _lookupAuthor(name);
+      if (h) return h;
     }
     return null;
   }

@@ -70,19 +70,50 @@ def load_embedded_author_map(index_html: Path):
     return parsed if isinstance(parsed, dict) else None
 
 
-def resolve_author_link(author: str, author_map: dict) -> bool:
-    """Mirror the site's _resolveAuthorFolder: exact match, then
-    case-insensitive match on the full author string."""
+def _author_candidates(author: str) -> list:
+    """Individual author names embedded in a (possibly multi-author) string.
+
+    The catalog author field can be a full multi-author string
+    (e.g. "Broccoli Lion, Matthew Jackson - Translator") while the Drive
+    folder / map key is only the primary author ("Broccoli Lion"). Splitting
+    on the same separators book_sort uses to pick a primary — and dropping
+    trailing role suffixes like " - Translator" — lets any one of the string's
+    authors resolve the folder. Mirrors _resolveAuthorFolder in index.html.
+    """
     if not author:
+        return []
+    out = []
+    for part in re.split(r"[;,/&]| and ", author, flags=re.IGNORECASE):
+        name = part.split(" - ")[0].strip()
+        if name:
+            out.append(name)
+    return out
+
+
+def _map_has(name: str, author_map: dict) -> bool:
+    """Exact then case-insensitive lookup of a single author name in the map."""
+    if not name:
         return False
-    link = author_map.get(author)
+    link = author_map.get(name)
     if link and str(link).strip():
         return True
-    norm = author.lower().strip()
+    norm = name.lower().strip()
     for key, value in author_map.items():
         if key.lower().strip() == norm and value and str(value).strip():
             return True
     return False
+
+
+def resolve_author_link(author: str, author_map: dict) -> bool:
+    """Mirror the site's _resolveAuthorFolder: exact/case-insensitive match on
+    the full author string, then on any individual author parsed from a
+    multi-author string (so co-author/translator books resolve via the
+    primary author's folder)."""
+    if not author:
+        return False
+    if _map_has(author, author_map):
+        return True
+    return any(_map_has(cand, author_map) for cand in _author_candidates(author))
 
 
 def _summarize(items: list, limit: int = 10) -> str:
