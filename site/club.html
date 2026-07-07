@@ -34,6 +34,10 @@ body{
   font-family:inherit;
 }
 .nav-link:hover{border-color:var(--neon-cyan);box-shadow:0 0 8px rgba(5,217,232,.2)}
+.club-back{display:inline-flex;align-items:center;gap:6px;margin-bottom:14px;padding:7px 13px;
+  background:var(--bg-2);color:var(--neon-cyan);text-decoration:none;border:1px solid var(--border);
+  font-weight:700;font-size:.8em;text-transform:uppercase;letter-spacing:.5px;transition:all .2s}
+.club-back:hover{border-color:var(--neon-cyan);box-shadow:0 0 8px rgba(5,217,232,.2)}
 .btn-danger{color:var(--neon-magenta)}
 .btn-danger:hover{border-color:var(--neon-magenta);box-shadow:0 0 8px rgba(255,42,109,.2)}
 .club-header{
@@ -439,6 +443,7 @@ html.light body{background-image:none}
     const roleBadge = myRole() ? `<span class="badge badge-role">${escapeHtml(myRole())}</span>` : '';
 
     contentEl.innerHTML = `
+      <a href="clubs.html" class="club-back">&larr; All Clubs</a>
       <div class="club-header">
         <div class="club-title">
           ${club.avatarCoverHref
@@ -947,7 +952,7 @@ html.light body{background-image:none}
       getRequests(db, clubId), getTbr(db, clubId),
     ]);
     if (!club) {
-      contentEl.innerHTML = '<div class="empty">Club not found — it may have been deleted.</div>';
+      contentEl.innerHTML = '<a href="clubs.html" class="club-back">&larr; All Clubs</a><div class="empty">Club not found — it may have been deleted.</div>';
       return;
     }
     render();
@@ -1256,10 +1261,10 @@ html.light body{background-image:none}
   });
 
   if (!clubId) {
-    contentEl.innerHTML = '<div class="empty">No club specified.</div>';
+    contentEl.innerHTML = '<a href="clubs.html" class="club-back">&larr; All Clubs</a><div class="empty">No club specified.</div>';
   } else {
     reload().catch(e => {
-      contentEl.innerHTML = '<div class="empty">Failed to load club.</div>';
+      contentEl.innerHTML = '<a href="clubs.html" class="club-back">&larr; All Clubs</a><div class="empty">Failed to load club.</div>';
       console.error(e);
     });
   }
