@@ -387,7 +387,7 @@ html.light body{background-image:none}
             <span class="user-name">${u.displayName}</span>
           </div>
           <div class="user-stats">
-            <div class="stat-box"><div class="stat-val">${u.reviewCount}</div><div class="stat-lbl">Reviews</div></div>
+            <div class="stat-box"><a href="index.html#list=reviews&user=${encodeURIComponent(u.displayName)}" style="text-decoration:none"><div class="stat-val">${u.reviewCount}</div><div class="stat-lbl">Reviews</div></a></div>
             <div class="stat-box"><div class="stat-val">${u.avgRating}</div><div class="stat-lbl">Avg Rating</div></div>
             <div class="stat-box"><div class="stat-val">${u.gameBestStreak}</div><div class="stat-lbl">Best Streak</div></div>
             <div class="stat-box"><div class="stat-val">${u.gameAccuracy}%</div><div class="stat-lbl">Game Acc</div></div>
@@ -453,7 +453,7 @@ html.light body{background-image:none}
         <div class="um-name" style="margin-top:8px">${user.displayName}</div>
       </div>
       <div class="um-stats">
-        <div class="um-stat"><div class="um-stat-val">${user.reviewCount}</div><div class="um-stat-lbl">Reviews</div></div>
+        <div class="um-stat"><a href="index.html#list=reviews&user=${encodeURIComponent(user.displayName)}" style="text-decoration:none"><div class="um-stat-val">${user.reviewCount}</div><div class="um-stat-lbl">Reviews</div></a></div>
         <div class="um-stat"><div class="um-stat-val">${user.avgRating}</div><div class="um-stat-lbl">Avg Rating</div></div>
         <div class="um-stat"><div class="um-stat-val">${user.gameBestStreak}</div><div class="um-stat-lbl">Best Streak</div></div>
         <div class="um-stat"><div class="um-stat-val">${user.gameAccuracy}%</div><div class="um-stat-lbl">Game Accuracy</div></div>

@@ -435,6 +435,7 @@ body:not(.cards) #ab-table{display:table}
         <option value="duration_hhmm|txt">Sort by Duration</option>
         <option value="rating|num">Sort by Rating</option>
         <option value="_mytbr|filter">My TBR List</option>
+        <option value="_myreviews|filter">My Reviews</option>
       </select>
       <div style="display:flex;gap:4px;flex-wrap:wrap">
         <button id="ab-search-btn" class="btn">Search</button>
@@ -1012,7 +1013,8 @@ function toggleDarkMode(isDark){
       var session = null;
       try { var identityMod = await import('./identity.js'); session = identityMod.getSession(); } catch(e) {}
       var targetUser = forUser || (session ? session.displayName : null);
-      if (!targetUser) { alert('Sign in to see reading lists.'); return; }
+      var isReviews = (filterKey === '_myreviews');
+      if (!targetUser) { alert(isReviews ? 'Sign in to see reviews.' : 'Sign in to see reading lists.'); return; }
 
       try {
         var { collection, getDocs } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
@@ -1020,32 +1022,51 @@ function toggleDarkMode(isDark){
         var fbEnv = await import('./fb-env.js');
 
         var firestore = getFirestore();
-        var myBooks = new Set();
+        var matchTitles = new Set();   // TBR: match rows by title
+        var matchIds = new Set();      // Reviews: match rows by bookId
+        var bookIdFromTitle = null;
 
-        // Reading lists — TBR only
-        var rlSnap = await getDocs(collection(firestore, fbEnv.col('readingLists')));
-        rlSnap.docs.forEach(function(d) {
-          var data = d.data();
-          if (data.displayName && data.displayName.toLowerCase() === targetUser.toLowerCase() && data.status === 'tbr') {
-            myBooks.add(data.bookTitle);
-          }
-        });
+        if (isReviews) {
+          // Reviews — books this user has reviewed (keyed by bookId)
+          var revMod = await import('./reviews.js');
+          bookIdFromTitle = revMod.bookIdFromTitle;
+          var revSnap = await getDocs(collection(firestore, fbEnv.col('reviews')));
+          revSnap.docs.forEach(function(d) {
+            var data = d.data();
+            if (data.displayName && data.displayName.toLowerCase() === targetUser.toLowerCase() && data.bookId) {
+              matchIds.add(data.bookId);
+            }
+          });
+        } else {
+          // Reading lists — TBR only
+          var rlSnap = await getDocs(collection(firestore, fbEnv.col('readingLists')));
+          rlSnap.docs.forEach(function(d) {
+            var data = d.data();
+            if (data.displayName && data.displayName.toLowerCase() === targetUser.toLowerCase() && data.status === 'tbr') {
+              matchTitles.add(data.bookTitle);
+            }
+          });
+        }
+
+        function _matches(title) {
+          return isReviews ? matchIds.has(bookIdFromTitle(title)) : matchTitles.has(title);
+        }
 
         // Filter table rows
         document.querySelectorAll("#ab-table tbody tr").forEach(function(r) {
           var titleCell = r.cells[1];
           var title = titleCell ? titleCell.textContent.trim() : '';
-          r.dataset.searchMatch = myBooks.has(title) ? "1" : "0";
+          r.dataset.searchMatch = _matches(title) ? "1" : "0";
         });
         document.querySelectorAll("#ab-cards .ab-card").forEach(function(c) {
           var title = c.getAttribute('data-title') || '';
-          c.dataset.searchMatch = myBooks.has(title) ? "1" : "0";
+          c.dataset.searchMatch = _matches(title) ? "1" : "0";
         });
 
         currentPage = 1;
         renderPage();
       } catch(e) {
-        console.warn('[ReadingList] Filter failed:', e);
+        console.warn(isReviews ? '[Reviews] Filter failed:' : '[ReadingList] Filter failed:', e);
       }
     }
 
@@ -1056,18 +1077,20 @@ function toggleDarkMode(isDark){
 
     var hashState=_parseHash();
 
-    // Check for list filter from URL hash (e.g. #list=tbr&user=Skylar)
+    // Check for list filter from URL hash (e.g. #list=tbr&user=Skylar or
+    // #list=reviews&user=Skylar)
     var _listFilterActive = false;
     (function() {
       var h = (location.hash || '').replace(/^#/, '');
       var sp = new URLSearchParams(h);
       var listType = sp.get('list');
       var listUser = sp.get('user');
-      if (listType === 'tbr' && listUser) {
+      if ((listType === 'tbr' || listType === 'reviews') && listUser) {
         _listFilterActive = true;
-        var label = decodeURIComponent(listUser) + "'s TBR list";
+        var isReviews = (listType === 'reviews');
+        var label = decodeURIComponent(listUser) + (isReviews ? "'s reviews" : "'s TBR list");
         if (search) search.value = label;
-        filterByReadingList('_mytbr', decodeURIComponent(listUser));
+        filterByReadingList(isReviews ? '_myreviews' : '_mytbr', decodeURIComponent(listUser));
       }
     })();
 
