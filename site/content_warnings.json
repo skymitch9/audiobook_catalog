@@ -6999,5 +6999,69 @@
   "warnings": [],
   "source": "none",
   "checked_at": 1783382215
+ },
+ "Demonic Devourer: Book 2: Demonic Devourer Series": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1783409294
+ },
+ "Demonic Devourer: Book 3: Demonic Devourer Series": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1783409333
+ },
+ "New Life as a Max Level Archmage": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1783409372
+ },
+ "The Great Cleric: Volume 1": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1783409409
+ },
+ "Dungeon Diving 101": {
+  "warnings": [
+   {
+    "label": "Sexual content",
+    "source_url": "https://hardcover.app/books/dungeon-diving-101"
+   },
+   {
+    "label": "Death",
+    "source_url": "https://hardcover.app/books/dungeon-diving-101"
+   }
+  ],
+  "source": "hardcover",
+  "checked_at": 1783409409
+ },
+ "Magic's Mantle - Ard's Oath, Book 1": {
+  "warnings": [
+   {
+    "label": "Moderate content warnings concerning adult situations and the dynamics of harem relationships",
+    "source_url": "https://www.meetnewbooks.com/book/1026825/Magic-s-Mantle-Bruce-Sentar"
+   }
+  ],
+  "source": "web",
+  "checked_at": 1783409577
+ },
+ "Returner's Defiance": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1783409751
+ },
+ "Mother of Learning Arc 1: Mother of Learning, Book 1 (Unabridged)": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1783409793
+ },
+ "The Alchemist: The Alchemist, Book 1 (Unabridged)": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1783409833
+ },
+ "Reincarnated into a Game as the Hero's Friend: Running the Kingdom Behind the Scenes, Vol. 1: Light Novel (Unabridged)": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1783409927
  }
 }
