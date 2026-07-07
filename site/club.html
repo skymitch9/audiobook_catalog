@@ -402,7 +402,7 @@ html.light body{background-image:none}
     getReads, startRead, removeRead, finishRead, getComments, updateReadLabel, splitByDuration, parseManualMilestones,
     loadCatalogBooks, MAX_ACTIVE_READS, groupChapters,
     getBookChapters, wholeBookMilestones, formatHhmm,
-    getTbr, addTbrItem, removeTbrItem, toggleTbrVote,
+    getTbr, addTbrItem, removeTbrItem, toggleTbrVote, getMyProgress,
   } from './club-reads.js';
   import { loadSeen, syncSeen } from './club-notify.js';
 
@@ -432,6 +432,7 @@ html.light body{background-image:none}
   let allReviews = null;     // lazy one-shot scan of the reviews collection
   let clubStats = null;      // computed lazily for the Stats tab
   let ratingRead = null;     // read being rated via the modal
+  let myFinished = {};        // readId -> true when I personally marked finished
   let activeTab = 'current';
   let catalogBooks = null; // lazy-loaded for the book picker
   let pickedBook = null;
@@ -591,19 +592,24 @@ html.light body{background-image:none}
   function dismissedReadIds() {
     return (myMember() && myMember().dismissedRateNudges) || [];
   }
-  // Finished reads the current member should be nudged to rate: recently
-  // finished, not dismissed, and not already rated by them.
+  // Reads the current member should be nudged to rate: either they personally
+  // finished it (even if the club is still reading) or the club finished it —
+  // and they haven't dismissed or already rated it. The 30-day recency window
+  // only guards club-finished books so old history doesn't nag.
   function rateNudges() {
     if (!isMember() || !session || !allReviews) return [];
     const dismissed = dismissedReadIds();
     const myName = session.displayName.toLowerCase();
     const now = Date.now();
     return reads.filter(r => {
-      if (r.status !== 'finished') return false;
+      const clubFinished = r.status === 'finished';
+      if (!clubFinished && !myFinished[r.id]) return false;
       if (dismissed.includes(r.id)) return false;
-      let fin = 0;
-      try { fin = r.finishedAt ? r.finishedAt.toDate().getTime() : 0; } catch { fin = 0; }
-      if (fin && now - fin > RATE_NUDGE_WINDOW_MS) return false;
+      if (clubFinished && !myFinished[r.id]) {
+        let fin = 0;
+        try { fin = r.finishedAt ? r.finishedAt.toDate().getTime() : 0; } catch { fin = 0; }
+        if (fin && now - fin > RATE_NUDGE_WINDOW_MS) return false;
+      }
       const bookId = bookIdFromTitle(r.bookTitle);
       const rated = allReviews.some(rv =>
         rv.bookId === bookId && (rv.displayName || '').toLowerCase() === myName);
@@ -1032,6 +1038,13 @@ html.light body{background-image:none}
     if (!club) {
       contentEl.innerHTML = '<a href="clubs.html" class="club-back">&larr; All Clubs</a><div class="empty">Club not found — it may have been deleted.</div>';
       return;
+    }
+    // Which reads have I personally marked finished? Drives the rate nudge for
+    // books the club is still actively reading.
+    myFinished = {};
+    if (session && mySlug) {
+      const progs = await Promise.all(reads.map(r => getMyProgress(db, clubId, r.id, mySlug)));
+      reads.forEach((r, i) => { myFinished[r.id] = !!(progs[i] && progs[i].finished); });
     }
     render();
   }

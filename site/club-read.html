@@ -276,6 +276,34 @@ html.light body{background-image:none}
   <div id="content"><div class="loading">Loading discussions...</div></div>
 </div>
 
+<!-- Rate-this-book modal, shown after a member marks themselves finished -->
+<div id="cr-rate-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;align-items:center;justify-content:center;padding:16px">
+  <div style="background:var(--bg-2);border:1px solid var(--neon-yellow);max-width:440px;width:100%;padding:20px;position:relative;box-sizing:border-box">
+    <button id="cr-rate-close" style="position:absolute;top:8px;right:10px;background:none;border:none;color:var(--muted);font-size:1.4em;line-height:1;cursor:pointer">×</button>
+    <h2 style="margin:0 0 4px;color:var(--neon-yellow);text-transform:uppercase;letter-spacing:1px;font-size:1.1em">You finished it! Rate this book</h2>
+    <div id="cr-rate-title" style="color:var(--neon-cyan);font-weight:700;margin-bottom:14px"></div>
+    <label for="cr-rate-stars" style="display:block;font-size:.8em;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Your rating</label>
+    <select id="cr-rate-stars" style="width:100%;padding:8px;background:var(--bg);color:var(--text);border:1px solid var(--border);margin-bottom:14px;box-sizing:border-box">
+      <option value="5">★★★★★ (5)</option>
+      <option value="4.5">4.5</option>
+      <option value="4" selected>★★★★ (4)</option>
+      <option value="3.5">3.5</option>
+      <option value="3">★★★ (3)</option>
+      <option value="2.5">2.5</option>
+      <option value="2">★★ (2)</option>
+      <option value="1.5">1.5</option>
+      <option value="1">★ (1)</option>
+      <option value="0.5">0.5</option>
+    </select>
+    <label for="cr-rate-text" style="display:block;font-size:.8em;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Review (optional — posts to the catalog's reviews)</label>
+    <textarea id="cr-rate-text" maxlength="1000" rows="3" style="width:100%;padding:8px;background:var(--bg);color:var(--text);border:1px solid var(--border);margin-bottom:12px;box-sizing:border-box;font-family:inherit"></textarea>
+    <div id="cr-rate-existing" style="display:none;color:var(--muted);font-size:.85em;margin-bottom:8px"></div>
+    <div id="cr-rate-error" style="color:var(--neon-magenta);font-size:.85em;margin-bottom:8px"></div>
+    <button id="cr-rate-submit" class="nav-link" style="width:100%;background:var(--neon-cyan);color:#04121a;border:none;font-weight:700">Submit Rating</button>
+    <button id="cr-rate-later" class="nav-link" style="width:100%;margin-top:8px">Maybe later</button>
+  </div>
+</div>
+
 <script type="module">
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
   import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
@@ -292,6 +320,7 @@ html.light body{background-image:none}
   } from './club-reads.js';
   import { addUserWarning, getUserWarnings, deleteUserWarning } from './user-warnings.js';
   import { markReadSeen } from './club-notify.js';
+  import { submitReview, bookIdFromTitle, getReviews } from './reviews.js';
 
   const firebaseConfig = {
     apiKey: "AIzaSyDgAblkxzVxl7nFbd7jXOo6PpuNPsJw11Y",
@@ -797,10 +826,11 @@ html.light body{background-image:none}
       if (!confirm(`Mark yourself FINISHED with "${read.bookTitle}"?\n\nThis unlocks every chapter section and every spoiler-tagged comment — only click Yes if you've really finished the book.`)) return;
       const last = hasChapters() ? chapterTitles().length - 1
         : Math.max(...read.milestones.map(m => m.position));
+      // Pass finished:true so the club page can nudge me (and others) to rate.
       const r = hasChapters()
-        ? await setChapterProgress(db, clubId, readId, last, session)
-        : await setProgress(db, clubId, readId, last, session);
-      if (r.success) reload(); else showError(r.error);
+        ? await setChapterProgress(db, clubId, readId, last, session, true)
+        : await setProgress(db, clubId, readId, last, session, true);
+      if (r.success) { await openRateModal(); reload(); } else showError(r.error);
     });
 
     const sel = document.getElementById('progress-select');
@@ -944,6 +974,52 @@ html.light body{background-image:none}
       }
     }
   }
+
+  // --- Rate-this-book modal (opens after "I'm finished") ------------------
+  async function openRateModal() {
+    const modal = document.getElementById('cr-rate-modal');
+    if (!modal || !read || !session) return;
+    document.getElementById('cr-rate-title').textContent = read.bookTitle;
+    document.getElementById('cr-rate-error').textContent = '';
+    const bookId = bookIdFromTitle(read.bookTitle);
+    let mine = null;
+    try {
+      const revs = await getReviews(db, bookId);
+      mine = revs.find(r => (r.displayName || '').toLowerCase() === session.displayName.toLowerCase());
+    } catch {}
+    const existing = document.getElementById('cr-rate-existing');
+    if (mine) {
+      existing.style.display = 'block';
+      existing.textContent = `You already rated this ${mine.rating}★ — update it below or keep it.`;
+      document.getElementById('cr-rate-stars').value = String(mine.rating);
+      document.getElementById('cr-rate-text').value = mine.text || '';
+      document.getElementById('cr-rate-submit').textContent = 'Update Review';
+    } else {
+      existing.style.display = 'none';
+      document.getElementById('cr-rate-stars').value = '4';
+      document.getElementById('cr-rate-text').value = '';
+      document.getElementById('cr-rate-submit').textContent = 'Submit Rating';
+    }
+    modal.style.display = 'flex';
+  }
+
+  (function wireRateModal() {
+    const modal = document.getElementById('cr-rate-modal');
+    if (!modal) return;
+    const close = () => { modal.style.display = 'none'; };
+    document.getElementById('cr-rate-close').addEventListener('click', close);
+    document.getElementById('cr-rate-later').addEventListener('click', close);
+    modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+    document.getElementById('cr-rate-submit').addEventListener('click', async () => {
+      if (!read || !session) return;
+      const errEl = document.getElementById('cr-rate-error');
+      errEl.textContent = '';
+      const rating = parseFloat(document.getElementById('cr-rate-stars').value);
+      const text = document.getElementById('cr-rate-text').value.trim();
+      const res = await submitReview(db, bookIdFromTitle(read.bookTitle), session.displayName, rating, text);
+      if (res.success) close(); else errEl.textContent = res.error || 'Could not save review.';
+    });
+  })();
 
   if (!clubId || !readId) {
     contentEl.innerHTML = '<div class="empty">No read specified.</div>';
