@@ -114,6 +114,21 @@ body{
 .rc-title{font-weight:700;font-size:1.1em;color:var(--neon-cyan);text-transform:uppercase;letter-spacing:.5px}
 .rc-author{color:var(--muted);font-size:.9em}
 .rc-meta{font-size:.75em;color:var(--muted);font-family:'Share Tech Mono',monospace;margin-top:4px}
+.rate-nudge{
+  display:flex;gap:14px;align-items:center;position:relative;
+  background:var(--bg-2);border:1px solid var(--neon-yellow);
+  padding:14px 40px 14px 14px;margin-bottom:10px;box-shadow:0 0 10px rgba(252,238,10,.12);
+}
+.rate-nudge .rc-cover{width:48px}
+.rate-nudge-body{flex:1;min-width:0}
+.rate-nudge-title{font-weight:700;color:var(--neon-yellow);font-size:1em}
+.rate-nudge-sub{color:var(--muted);font-size:.85em;margin-top:2px}
+.rate-nudge-btn{padding:8px 14px;font-size:.8em;white-space:nowrap;cursor:pointer}
+.rate-nudge-x{
+  position:absolute;top:6px;right:8px;background:none;border:none;
+  color:var(--muted);font-size:1.25em;line-height:1;cursor:pointer;padding:2px 6px;
+}
+.rate-nudge-x:hover{color:var(--neon-magenta)}
 .rc-new{color:var(--neon-magenta);font-weight:700}
 .stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:14px}
 .stat-box{background:var(--bg);border:1px solid var(--border);padding:14px;text-align:center}
@@ -568,6 +583,49 @@ html.light body{background-image:none}
     };
   }
 
+  // --- "Rate this book" nudge (Current tab, under the active reads) ---------
+  // When a club read is finished, members who haven't rated it yet get a
+  // dismissible nudge box. Dismissal is per user+club, kept in localStorage.
+  const RATE_NUDGE_WINDOW_MS = 30 * 24 * 60 * 60 * 1000; // only recent finishes
+  function _rateDismissKey() { return `clubRateDismissed:${clubId}:${mySlug || 'anon'}`; }
+  function loadRateDismissed() {
+    try { return JSON.parse(localStorage.getItem(_rateDismissKey()) || '{}'); } catch { return {}; }
+  }
+  function saveRateDismissed(d) {
+    try { localStorage.setItem(_rateDismissKey(), JSON.stringify(d)); } catch {}
+  }
+  // Finished reads the current member should be nudged to rate: recently
+  // finished, not dismissed, and not already rated by them.
+  function rateNudges() {
+    if (!isMember() || !session || !allReviews) return [];
+    const dismissed = loadRateDismissed();
+    const myName = session.displayName.toLowerCase();
+    const now = Date.now();
+    return reads.filter(r => {
+      if (r.status !== 'finished') return false;
+      if (dismissed[r.id]) return false;
+      let fin = 0;
+      try { fin = r.finishedAt ? r.finishedAt.toDate().getTime() : 0; } catch { fin = 0; }
+      if (fin && now - fin > RATE_NUDGE_WINDOW_MS) return false;
+      const bookId = bookIdFromTitle(r.bookTitle);
+      const rated = allReviews.some(rv =>
+        rv.bookId === bookId && (rv.displayName || '').toLowerCase() === myName);
+      return !rated;
+    });
+  }
+  function rateNudgeBox(r) {
+    return `
+      <div class="rate-nudge">
+        <button class="rate-nudge-x" data-dismiss-rate="${r.id}" title="Dismiss" aria-label="Dismiss">×</button>
+        ${r.coverHref ? `<img class="rc-cover" src="${escapeHtml(r.coverHref)}" alt="" onerror="this.remove()">` : ''}
+        <div class="rate-nudge-body">
+          <div class="rate-nudge-title">You finished “${escapeHtml(r.bookTitle)}”</div>
+          <div class="rate-nudge-sub">How was it? Leave the club your rating.</div>
+        </div>
+        <button class="nav-link btn-primary rate-nudge-btn" data-rate-read="${r.id}">Rate the book</button>
+      </div>`;
+  }
+
   function memberReviews(bookTitle) {
     if (!allReviews) return [];
     const bookId = bookIdFromTitle(bookTitle);
@@ -668,8 +726,15 @@ html.light body{background-image:none}
     const emptyState = isMember()
       ? `<div class="stub"><div class="stub-title">No active read yet</div>Pick the club's first book to open the discussions.</div>`
       : `<div class="stub"><div class="stub-title">No active read yet</div>The host hasn't picked a book yet.</div>`;
+    // Rate-this-book nudges sit right beneath the active reads. Reviews load
+    // lazily; kick off the one-shot scan and re-render once it's ready.
+    if (isMember() && session && !allReviews) {
+      loadReviews().then(() => { if (activeTab === 'current') render(); });
+    }
+    const nudgeHtml = allReviews ? rateNudges().map(rateNudgeBox).join('') : '';
     return `
       ${cards || emptyState}
+      ${nudgeHtml}
       ${canStart ? '<div style="margin-top:14px"><button id="start-read-btn" class="nav-link btn-primary">+ Start a Read</button></div>' : ''}
     `;
   }
@@ -787,6 +852,16 @@ html.light body{background-image:none}
         if (label === null) return;
         const res = await updateReadLabel(db, clubId, r.id, label);
         if (res.success) reload(); else showError(res.error);
+      }));
+
+    contentEl.querySelectorAll('[data-dismiss-rate]').forEach(btn =>
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const d = loadRateDismissed();
+        d[btn.dataset.dismissRate] = true;
+        saveRateDismissed(d);
+        if (activeTab === 'current') render();
       }));
 
     contentEl.querySelectorAll('[data-rate-read]').forEach(btn =>
