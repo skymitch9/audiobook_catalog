@@ -33,6 +33,10 @@ body{
   text-transform:uppercase;letter-spacing:.5px;transition:all .2s;cursor:pointer;font-family:inherit;
 }
 .nav-link:hover{border-color:var(--neon-cyan);box-shadow:0 0 8px rgba(5,217,232,.2)}
+.club-back{display:inline-flex;align-items:center;gap:6px;margin-bottom:14px;padding:7px 13px;
+  background:var(--bg-2);color:var(--neon-cyan);text-decoration:none;border:1px solid var(--border);
+  font-weight:700;font-size:.8em;text-transform:uppercase;letter-spacing:.5px;transition:all .2s}
+.club-back:hover{border-color:var(--neon-cyan);box-shadow:0 0 8px rgba(5,217,232,.2)}
 .read-header{
   background:var(--bg-2);border:1px solid var(--border);padding:20px;margin-bottom:16px;
   display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;
@@ -261,7 +265,6 @@ html.light body{background-image:none}
 <body>
 <div id="wrap">
   <div class="nav-row">
-    <a id="back-link" href="clubs.html" class="nav-link">&larr; Club</a>
     <a href="index.html" class="nav-link">Catalog</a>
     <a href="community.html" class="nav-link">Community</a>
     <a href="clubs.html" class="nav-link active">Clubs</a>
@@ -269,6 +272,7 @@ html.light body{background-image:none}
     <a href="guess-game.html" class="nav-link">Game</a>
     <div id="identity-bar"></div>
   </div>
+  <a id="back-link" href="clubs.html" class="club-back">&larr; Club</a>
   <div id="content"><div class="loading">Loading discussions...</div></div>
 </div>
 
