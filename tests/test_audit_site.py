@@ -135,10 +135,21 @@ class AuditSiteTestCase(unittest.TestCase):
     def test_resolve_case_insensitive_full_string(self):
         self.assertTrue(resolve_author_link("jane doe", {"Jane Doe ": "abc"}))
 
-    def test_resolve_does_not_split_coauthors(self):
-        # The site matches on the FULL author string only — "Jane Doe, Bob Co"
-        # is NOT resolved by a "Jane Doe" entry.
-        self.assertFalse(resolve_author_link("Jane Doe, Bob Co", {"Jane Doe": "abc"}))
+    def test_resolve_splits_multi_author_via_any_author(self):
+        # A multi-author string resolves if ANY of its authors is mapped, so a
+        # co-author/translator book resolves via the primary author's folder.
+        m = {"Jane Doe": "abc"}
+        self.assertTrue(resolve_author_link("Jane Doe, Bob Co", m))
+        # Works when the mapped author is not first, and past a role suffix.
+        self.assertTrue(resolve_author_link("Bob Co, Jane Doe - Translator", m))
+        # Alternate separators (& / ; / " and ") also split.
+        self.assertTrue(resolve_author_link("Bob Co & Jane Doe", m))
+
+    def test_resolve_multi_author_all_unmapped_fails(self):
+        # If none of the parsed authors is mapped, it still fails (gate intact).
+        self.assertFalse(
+            resolve_author_link("Bob Co, Sam Roe - Translator", {"Jane Doe": "abc"})
+        )
 
     def test_resolve_empty_link_is_unresolved(self):
         self.assertFalse(resolve_author_link("Jane Doe", {"Jane Doe": "  "}))
