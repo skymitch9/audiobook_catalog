@@ -40,7 +40,9 @@ jobs:
         python-version: '3.12'
 
     - name: Install deps
-      run: pip install anthropic python-dotenv
+      # mutagen is pulled in transitively: fetch_content_warnings imports
+      # extract_chapters, which imports mutagen.mp4 at module load.
+      run: pip install anthropic python-dotenv mutagen
 
     - name: Require source secrets (don't falsely record 'none' without them)
       env:

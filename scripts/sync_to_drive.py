@@ -567,6 +567,47 @@ def create_drive_folder(
         return None
 
 
+AUTHOR_MAP_PATH = PROJECT_ROOT / "author_drive_map.json"
+
+
+def persist_author_links(resolved_links: dict[str, str]) -> int:
+    """Write resolved author -> Drive folder links into author_drive_map.json.
+
+    Every author whose file we uploaded gets its folder link recorded here so a
+    brand-new author (new Drive folder created this run) resolves in the next
+    catalog rebuild and passes the prod promote audit — without this the map
+    only ever grew by hand and new authors broke auto-promote.
+
+    Returns the number of entries added or changed.
+    """
+    try:
+        existing = json.loads(AUTHOR_MAP_PATH.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        existing = {}
+    except Exception as e:
+        print(f"  [WARN] Could not read {AUTHOR_MAP_PATH.name}: {e}")
+        return 0
+
+    changed = 0
+    for author, folder_id in resolved_links.items():
+        if not author or not folder_id or str(folder_id).startswith("dry-run"):
+            continue
+        url = f"https://drive.google.com/drive/folders/{folder_id}"
+        if existing.get(author) != url:
+            existing[author] = url
+            changed += 1
+
+    if changed:
+        # Keep the file sorted so diffs stay readable in git.
+        ordered = {k: existing[k] for k in sorted(existing, key=str.lower)}
+        AUTHOR_MAP_PATH.write_text(
+            json.dumps(ordered, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        print(f"  [MAP] Recorded {changed} author drive link(s) in {AUTHOR_MAP_PATH.name}")
+    return changed
+
+
 # ---------------------------------------------------------------------------
 # Google Drive upload with duplicate check
 # ---------------------------------------------------------------------------
@@ -768,6 +809,7 @@ def run_pipeline(
     skipped_count = 0
     failed_count = 0
     new_folders_created = []
+    resolved_links: dict[str, str] = {}
     aliases = load_author_aliases()
     start_time = time.time()
 
@@ -807,6 +849,11 @@ def run_pipeline(
                     failed_count += 1
                     continue
 
+        # Record the author -> Drive folder link so the next rebuild embeds it
+        # and the prod audit can resolve this author (esp. brand-new folders).
+        if folder_id and not str(folder_id).startswith("dry-run"):
+            resolved_links[canonical_author] = folder_id
+
         # Upload the file
         drive_file_id = upload_file_to_drive(
             service, file_path, folder_id, dry_run=dry_run
@@ -835,6 +882,9 @@ def run_pipeline(
         save_manifest(manifest)
         # Also update the Drive folders cache
         save_drive_folders_cache(drive_folders)
+        # Persist author -> Drive folder links so new authors resolve in the
+        # next rebuild and don't break the prod promote audit.
+        persist_author_links(resolved_links)
 
     # Summary
     elapsed = time.time() - start_time
