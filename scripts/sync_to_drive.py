@@ -328,10 +328,18 @@ def sort_companion_files(dry_run: bool = False) -> list[Path]:
 # ---------------------------------------------------------------------------
 
 
-def detect_new_books(manifest: dict) -> list[Path]:
+def detect_new_books(
+    manifest: dict, just_moved: frozenset[Path] = frozenset()
+) -> list[Path]:
     """
     Walk the library and find audiobook files not yet in the upload manifest.
     Returns list of Paths to upload.
+
+    just_moved: files this run's sort step moved into the library. They are
+    exempt from the age guard — a Windows rename fails while a writer still
+    has the file open, so a successful move means the download is complete,
+    and holding them MIN_FILE_AGE_SECONDS would push books auto_acquire just
+    downloaded to the next scheduled run.
     """
     from app.config import ROOT_DIR
 
@@ -348,6 +356,8 @@ def detect_new_books(manifest: dict) -> list[Path]:
         Files can vanish mid-scan (OpenAudible replaces them during
         conversion); treat those as not settled instead of crashing the run.
         """
+        if p in just_moved:
+            return True
         try:
             return now - p.stat().st_mtime >= MIN_FILE_AGE_SECONDS
         except OSError:
@@ -745,6 +755,7 @@ def run_pipeline(
     # -----------------------------------------------------------------------
     # Step 1: Sort books from OpenAudible into author folders
     # -----------------------------------------------------------------------
+    just_moved: frozenset[Path] = frozenset()
     if not upload_only:
         print("\n[STEP 1] Sorting books from OpenAudible export...")
         moved = sort_books(dry_run=dry_run)
@@ -752,6 +763,7 @@ def run_pipeline(
         filed = sort_companion_files(dry_run=dry_run)
         if filed:
             print(f"  Filed {len(filed)} orphaned companion file(s).")
+        just_moved = frozenset(moved) | frozenset(filed)
     else:
         print("\n[STEP 1] Skipped (--upload-only)")
 
@@ -760,7 +772,7 @@ def run_pipeline(
     # -----------------------------------------------------------------------
     print("\n[STEP 2] Detecting new books to upload...")
     manifest = load_manifest()
-    new_files = detect_new_books(manifest)
+    new_files = detect_new_books(manifest, just_moved=just_moved)
     print(f"  Found {len(new_files)} new file(s) to upload.")
 
     if not new_files:
