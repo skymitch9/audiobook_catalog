@@ -7068,5 +7068,94 @@
   "warnings": [],
   "source": "none",
   "checked_at": 1783494171
+ },
+ "Empire of the Vampire: Book One": {
+  "warnings": [
+   {
+    "label": "Sexism",
+    "source_url": "https://app.thestorygraph.com/book_reviews/f8bf15c2-3d1d-4b59-8029-9e6a29373304/content_warning/43"
+   },
+   {
+    "label": "Violence",
+    "source_url": "https://app.thestorygraph.com/book_reviews/69e03ed2-4f74-42e3-9826-2fcbc7142846/content_warning/54"
+   },
+   {
+    "label": "Grief",
+    "source_url": "https://app.thestorygraph.com/book_reviews/71f4e2fd-2205-488d-9cf9-1868d535a86e/content_warning/67"
+   },
+   {
+    "label": "Sexual harassment",
+    "source_url": "https://app.thestorygraph.com/book_reviews/f8bf15c2-3d1d-4b59-8029-9e6a29373304/content_warning/89"
+   },
+   {
+    "label": "Sexual content",
+    "source_url": "https://app.thestorygraph.com/book_reviews/a19348d7-c80f-49d9-aad9-2eddd77ad921/content_warning/45"
+   },
+   {
+    "label": "Confinement",
+    "source_url": "https://app.thestorygraph.com/book_reviews/f8bf15c2-3d1d-4b59-8029-9e6a29373304/content_warning/15"
+   },
+   {
+    "label": "Rape",
+    "source_url": "https://app.thestorygraph.com/book_reviews/f8bf15c2-3d1d-4b59-8029-9e6a29373304/content_warning/41"
+   },
+   {
+    "label": "Racial slurs",
+    "source_url": "https://app.thestorygraph.com/book_reviews/71f4e2fd-2205-488d-9cf9-1868d535a86e/content_warning/39"
+   }
+  ],
+  "source": "web",
+  "checked_at": 1784044066
+ },
+ "Magician: Apprentice: Riftwar, Book 1": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1784044245
+ },
+ "Ship of Magic Part 1: The Liveship Traders, Book 1": {
+  "warnings": [
+   {
+    "label": "misogyny",
+    "source_url": "https://hardcover.app/books/ship-of-magic"
+   },
+   {
+    "label": "Child abuse",
+    "source_url": "https://hardcover.app/books/ship-of-magic"
+   },
+   {
+    "label": "Domestic abuse",
+    "source_url": "https://hardcover.app/books/ship-of-magic"
+   },
+   {
+    "label": "Vomit",
+    "source_url": "https://hardcover.app/books/ship-of-magic"
+   },
+   {
+    "label": "Sexual assault",
+    "source_url": "https://hardcover.app/books/ship-of-magic"
+   },
+   {
+    "label": "Blood",
+    "source_url": "https://hardcover.app/books/ship-of-magic"
+   },
+   {
+    "label": "Slavery",
+    "source_url": "https://hardcover.app/books/ship-of-magic"
+   },
+   {
+    "label": "Death",
+    "source_url": "https://hardcover.app/books/ship-of-magic"
+   },
+   {
+    "label": "sexism",
+    "source_url": "https://hardcover.app/books/ship-of-magic"
+   },
+   {
+    "label": "Gore",
+    "source_url": "https://hardcover.app/books/ship-of-magic"
+   }
+  ],
+  "source": "hardcover",
+  "checked_at": 1784044247
  }
 }
