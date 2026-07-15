@@ -204,10 +204,13 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
 .modal-close:hover{background:var(--neon-magenta);color:#fff}
 .field{margin-bottom:14px}
 .field label{display:block;font-size:.8em;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
-.field input[type=text],.field textarea,.field select{
+.field input[type=text],.field input[type=datetime-local],.field textarea,.field select{
   width:100%;padding:9px 12px;border:1px solid var(--border);
   background:var(--bg);color:var(--text);font-family:inherit;font-size:1em;
 }
+/* native picker popup + segment text follow the site theme */
+.field input[type=datetime-local]{color-scheme:dark}
+html.light .field input[type=datetime-local]{color-scheme:light}
 .field input:focus,.field textarea:focus,.field select:focus{outline:none;border-color:var(--neon-cyan)}
 .field textarea{resize:vertical;min-height:80px}
 .field-inline{display:flex;align-items:center;gap:8px}
@@ -329,11 +332,16 @@ html.light body{background-image:none}
       <input id="edit-prompts" type="checkbox" checked />
       <label for="edit-prompts" style="margin:0;text-transform:none">Starter questions (AI-suggested discussion prompts for hosts)</label>
     </div>
+    <div class="field" id="edit-reads-field" style="display:none">
+      <label>Active reads — CLUB-level actions (affects every member)</label>
+      <div id="edit-reads-list"></div>
+      <div class="er-hint">Finished the book yourself? Use "I'm finished" on the book's discussion page instead — these buttons end the read for the whole club.</div>
+    </div>
     <div class="field" id="edit-meeting-field" style="display:none">
-      <label for="edit-meeting-at">Next meeting (optional)</label>
+      <label for="edit-meeting-at">Next meeting</label>
       <input id="edit-meeting-at" type="datetime-local" />
       <textarea id="edit-meeting-notes" maxlength="500" rows="2"
-        placeholder="Meeting notes — agenda, where, what to have read (optional)"></textarea>
+        placeholder="Meeting notes — agenda, where, what to have read"></textarea>
       <small style="color:var(--muted)">Leave the date empty for no scheduled meeting.</small>
     </div>
     <div class="field" id="edit-joinmode-field" style="display:none">
@@ -342,11 +350,6 @@ html.light body{background-image:none}
         <option value="open">Open — anyone can join instantly</option>
         <option value="application">By application — host approves requests</option>
       </select>
-    </div>
-    <div class="field" id="edit-reads-field" style="display:none">
-      <label>Active reads — CLUB-level actions (affects every member)</label>
-      <div id="edit-reads-list"></div>
-      <div class="er-hint">Finished the book yourself? Use "I'm finished" on the book's discussion page instead — these buttons end the read for the whole club.</div>
     </div>
     <div id="edit-error" class="form-error"></div>
     <button id="edit-submit" class="nav-link btn-primary" style="width:100%">Save Changes</button>
@@ -511,8 +514,11 @@ html.light body{background-image:none}
   function renderNextMeeting() {
     const at = club.nextMeetingAt;
     if (!at || at < Date.now() - 24 * 60 * 60 * 1000) return '';
+    // toLocaleString renders in the viewer's own timezone (nextMeetingAt is
+    // an absolute instant); the tz abbreviation makes that explicit.
     const when = new Date(at).toLocaleString([], {
       weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+      timeZoneName: 'short',
     });
     const notes = (club.nextMeetingNotes || '').trim();
     return `<div class="next-meeting">📅 Next meeting: <strong>${when}</strong>${
