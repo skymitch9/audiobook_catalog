@@ -152,6 +152,7 @@ def generate_stats_html(stats: Dict[str, Any], generated_at: str) -> str:
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Audiobook Catalog - Statistics</title>
+<link rel="icon" type="image/png" href="static/img/favicon.png">
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
 /* =============== Cyberpunk 2077 Theme =============== */
