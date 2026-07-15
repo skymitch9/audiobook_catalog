@@ -17,6 +17,7 @@ docs/
 !site/chapters.json
 !site/discussion_prompts.json
 !site/content_warnings.json
+!site/additions_log.json
 !vitest.config.js
 !firebase.json
 scripts/upload_manifest.json

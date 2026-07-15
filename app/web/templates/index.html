@@ -418,8 +418,12 @@ body:not(.cards) #ab-table{display:table}
 
   <!-- Recently Added -->
   <div id="recently-added" style="background: var(--bg-2); border: 1px solid var(--border); border-left:3px solid var(--neon-cyan); border-radius: 0; padding: 1rem; margin-bottom: 1rem; clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));">
-    <h2 style="margin: 0 0 0.5rem 0; font-size: 1.1rem; text-transform:uppercase; letter-spacing:1px; color:var(--neon-cyan);">Recently Added</h2>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+      <h2 style="margin: 0; font-size: 1.1rem; text-transform:uppercase; letter-spacing:1px; color:var(--neon-cyan);">Recently Added</h2>
+      <button id="upload-history-btn" class="btn" style="font-size: 0.8rem;">Full History</button>
+    </div>
     <div id="recently-added-content">{{RECENTLY_ADDED}}</div>
+    <div id="upload-history" style="display:none; max-height:60vh; overflow-y:auto; margin-top:0.5rem; border-top:1px solid var(--border);">{{UPLOAD_HISTORY}}</div>
   </div>
 
   <div id="controls">
@@ -931,6 +935,20 @@ function toggleDarkMode(isDark){
   if(modalClose) modalClose.addEventListener("click", closeModal);
   modal.addEventListener("click", function(e){ if(e.target===modal) closeModal(); });
   document.addEventListener("keydown", function(e){ if(e.key==="Escape") closeModal(); });
+
+  // Upload history toggle (full dated list of additions past the recent 5)
+  (function(){
+    var btn=document.getElementById("upload-history-btn");
+    var panel=document.getElementById("upload-history");
+    var recent=document.getElementById("recently-added-content");
+    if(!btn||!panel) return;
+    btn.addEventListener("click", function(){
+      var open = panel.style.display!=="none";
+      panel.style.display = open ? "none" : "block";
+      if(recent) recent.style.display = open ? "block" : "none";
+      btn.textContent = open ? "Full History" : "Hide History";
+    });
+  })();
 
   // Recently Added item click -> open modal
   document.addEventListener("click", function(e){

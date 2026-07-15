@@ -50,6 +50,7 @@ def render_output_html(
     generated_at: str,
     csv_link: str,
     drive_link: Optional[str],
+    additions: Optional[Dict[str, dict]] = None,
 ) -> None:
     """
     Renders the timestamped HTML into output_files/ using the inline-CSS/JS template.
@@ -61,6 +62,7 @@ def render_output_html(
         generated_at=generated_at,
         csv_link=csv_link,
         drive_link=drive_link,
+        additions=additions,
     )
     print(f"Wrote HTML: {out_path}")
 
@@ -109,6 +111,7 @@ def stage_site_files(
     rows: List[Dict[str, str]],
     generated_at: str,
     drive_link: Optional[str],
+    additions: Optional[Dict[str, dict]] = None,
 ) -> None:
     """
     Prepare the deployable site directory:
@@ -137,6 +140,7 @@ def stage_site_files(
         generated_at=generated_at,
         csv_link=site_csv_name,  # RELATIVE link for GitHub Pages
         drive_link=drive_link,
+        additions=additions,
     )
 
     print(f"Staged site: {site_index_path} (CSV -> {csv_dst})")

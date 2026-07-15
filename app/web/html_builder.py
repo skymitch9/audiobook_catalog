@@ -155,55 +155,116 @@ def _load_author_map() -> str:
         return "{}"
 
 
-def _recently_added_html(rows: List[Dict[str, str]], count: int = 5) -> str:
-    """Render the 'Recently Added' section showing the most recent books by file mtime."""
-    # Sort by file modification time (descending), take top N
-    sortable = [r for r in rows if r.get("file_mtime")]
-    sortable.sort(key=lambda r: r.get("file_mtime", 0), reverse=True)
+def _added_item_html(r: Dict[str, str], date_label: str = "") -> str:
+    """One clickable book row, shared by 'Recently Added' and the history panel."""
+    cover = r.get("cover_href", "")
+    cover_url = _url_encode_path(cover) if cover else ""
+    cover_img = f'<img src="{cover_url}" alt="Cover" style="width:48px;height:auto;border-radius:6px;" loading="lazy">' if cover else ""
+    series_badge = ""
+    if r.get("series"):
+        idx = f' #{_esc(r["series_index_display"])}' if r.get("series_index_display") else ""
+        series_badge = f'<span class="ab-chip" style="font-size:.8em">{_esc(r["series"])}{idx}</span>'
+    date_html = (
+        f'<div style="flex-shrink:0;color:var(--muted);font-size:.8em;'
+        f'font-family:\'Share Tech Mono\',monospace">{_esc(date_label)}</div>'
+        if date_label else ""
+    )
+
+    # Data attributes for modal opening on click
+    data_attrs = " ".join([
+        f'data-cover="{_esc(cover_url)}"',
+        f'data-title="{_esc(r.get("title",""))}"',
+        f'data-series="{_esc(r.get("series",""))}"',
+        f'data-index="{_esc(r.get("series_index_display",""))}"',
+        f'data-author="{_esc(r.get("author",""))}"',
+        f'data-narrator="{_esc(r.get("narrator",""))}"',
+        f'data-year="{_esc(r.get("year",""))}"',
+        f'data-genre="{_esc(r.get("genre",""))}"',
+        f'data-duration="{_esc(r.get("duration_hhmm",""))}"',
+        f'data-companions="{_esc(r.get("companion_files",""))}"',
+        f'data-desc="{_esc(r.get("desc",""))}"',
+    ])
+
+    return (
+        f'<div class="recently-added-item" {data_attrs}'
+        f' style="display:flex;gap:10px;align-items:center;padding:8px 0;'
+        f'border-bottom:1px solid var(--border);cursor:pointer">'
+        f'<div style="flex-shrink:0">{cover_img}</div>'
+        f'<div style="flex:1;min-width:0">'
+        f'<div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{_esc(r.get("title",""))}</div>'
+        f'<div style="color:var(--muted);font-size:.9em">{_esc(r.get("author",""))}</div>'
+        f'{series_badge}'
+        f'</div>'
+        f'{date_html}'
+        f'</div>'
+    )
+
+
+def _added_date(r: Dict[str, str], additions: Optional[Dict[str, dict]]) -> str:
+    """The logged added-date for a row, or '' when the log has no entry."""
+    if not additions:
+        return ""
+    entry = additions.get(f"{r.get('title','')}|{r.get('author','')}")
+    return entry.get("added", "") if entry else ""
+
+
+def _recently_added_html(
+    rows: List[Dict[str, str]], additions: Optional[Dict[str, dict]] = None, count: int = 5
+) -> str:
+    """
+    Render the 'Recently Added' section: most recent books by logged added-date
+    (stable across file moves), with file mtime only as a same-day tiebreaker.
+    Falls back to pure mtime ordering when no additions log is available.
+    """
+    sortable = [r for r in rows if _added_date(r, additions) or r.get("file_mtime")]
+    sortable.sort(
+        key=lambda r: (_added_date(r, additions), r.get("file_mtime", 0)), reverse=True
+    )
     recent = sortable[:count]
 
     if not recent:
         return ""
 
-    items = []
-    for r in recent:
-        cover = r.get("cover_href", "")
-        cover_url = _url_encode_path(cover) if cover else ""
-        cover_img = f'<img src="{cover_url}" alt="Cover" style="width:48px;height:auto;border-radius:6px;" loading="lazy">' if cover else ""
-        series_badge = ""
-        if r.get("series"):
-            idx = f' #{_esc(r["series_index_display"])}' if r.get("series_index_display") else ""
-            series_badge = f'<span class="ab-chip" style="font-size:.8em">{_esc(r["series"])}{idx}</span>'
+    return "\n".join(_added_item_html(r, _added_date(r, additions)) for r in recent)
 
-        # Data attributes for modal opening on click
-        data_attrs = " ".join([
-            f'data-cover="{_esc(cover_url)}"',
-            f'data-title="{_esc(r.get("title",""))}"',
-            f'data-series="{_esc(r.get("series",""))}"',
-            f'data-index="{_esc(r.get("series_index_display",""))}"',
-            f'data-author="{_esc(r.get("author",""))}"',
-            f'data-narrator="{_esc(r.get("narrator",""))}"',
-            f'data-year="{_esc(r.get("year",""))}"',
-            f'data-genre="{_esc(r.get("genre",""))}"',
-            f'data-duration="{_esc(r.get("duration_hhmm",""))}"',
-            f'data-companions="{_esc(r.get("companion_files",""))}"',
-            f'data-desc="{_esc(r.get("desc",""))}"',
-        ])
 
-        items.append(
-            f'<div class="recently-added-item" {data_attrs}'
-            f' style="display:flex;gap:10px;align-items:center;padding:8px 0;'
-            f'border-bottom:1px solid var(--border);cursor:pointer">'
-            f'<div style="flex-shrink:0">{cover_img}</div>'
-            f'<div style="flex:1;min-width:0">'
-            f'<div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{_esc(r.get("title",""))}</div>'
-            f'<div style="color:var(--muted);font-size:.9em">{_esc(r.get("author",""))}</div>'
-            f'{series_badge}'
-            f'</div>'
-            f'</div>'
+_HISTORY_SOURCE_LABELS = {
+    "baseline": " · library baseline",
+    "purchase": " · purchase date",
+}
+
+
+def _upload_history_html(
+    rows: List[Dict[str, str]], additions: Optional[Dict[str, dict]] = None
+) -> str:
+    """Full upload history: every logged book, grouped by added-date, newest first."""
+    if not additions:
+        return '<div style="color:var(--muted);padding:8px 0">No upload history recorded yet.</div>'
+
+    dated = [(r, additions[f"{r.get('title','')}|{r.get('author','')}"])
+             for r in rows if f"{r.get('title','')}|{r.get('author','')}" in additions]
+    if not dated:
+        return '<div style="color:var(--muted);padding:8px 0">No upload history recorded yet.</div>'
+
+    groups: Dict[str, List[tuple]] = {}
+    for r, entry in dated:
+        groups.setdefault(entry.get("added", ""), []).append((r, entry))
+
+    parts = []
+    for day in sorted(groups, reverse=True):
+        items = sorted(groups[day], key=lambda pair: pair[0].get("title", "").lower())
+        sources = {e.get("source", "") for _, e in items}
+        suffix = _HISTORY_SOURCE_LABELS.get(next(iter(sources)), "") if len(sources) == 1 else ""
+        parts.append(
+            f'<div style="margin-top:10px;color:var(--neon-cyan);font-size:.85em;'
+            f'text-transform:uppercase;letter-spacing:1px;'
+            f'font-family:\'Share Tech Mono\',monospace">'
+            f'{_esc(day or "unknown date")}{_esc(suffix)}'
+            f' <span style="color:var(--muted)">({len(items)})</span></div>'
         )
+        parts.extend(_added_item_html(r) for r, _ in items)
 
-    return "\n".join(items)
+    return "\n".join(parts)
 
 
 def render_index_html(
@@ -212,6 +273,7 @@ def render_index_html(
     generated_at: str,
     csv_link: str,
     drive_link: Optional[str],
+    additions: Optional[Dict[str, dict]] = None,
 ) -> None:
     html_template = TEMPLATE_FILE.read_text(encoding="utf-8")
     table_rows = _table_rows_html(rows)
@@ -227,7 +289,8 @@ def render_index_html(
         )
         .replace("{{TABLE_ROWS}}", table_rows)
         .replace("{{CARDS}}", cards)
-        .replace("{{RECENTLY_ADDED}}", _recently_added_html(rows))
+        .replace("{{RECENTLY_ADDED}}", _recently_added_html(rows, additions))
+        .replace("{{UPLOAD_HISTORY}}", _upload_history_html(rows, additions))
         .replace("{{AUTHOR_MAP_JSON}}", author_map_json)
         .replace("{{AUTHOR_DRIVE_MAP_URL}}", "")  # Keep for compatibility
     )

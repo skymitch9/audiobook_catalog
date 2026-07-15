@@ -88,6 +88,11 @@ def main() -> None:
         print("No audiobook files found.")
         return
 
+    # 0) Record first-seen dates for any new books (drives "Recently Added"
+    #    and the upload-history view; immune to file moves/re-syncs)
+    from app.additions_log import update_additions_log
+    additions = update_additions_log(rows, SITE_DIR)
+
     # 1) Write CSV (timestamped) into output_files/
     write_csv(rows, out_csv)
 
@@ -100,6 +105,7 @@ def main() -> None:
         generated_at=generated_at,
         csv_link=out_csv.name,  # relative to this HTML in output_files/
         drive_link=DRIVE_FOLDER_URL or None,
+        additions=additions,
     )
 
     # 3) Stage the public site:
@@ -115,6 +121,7 @@ def main() -> None:
         rows=rows,
         generated_at=generated_at,
         drive_link=DRIVE_FOLDER_URL or None,
+        additions=additions,
     )
 
     # 4) Generate statistics page
