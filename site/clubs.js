@@ -134,6 +134,20 @@ export async function updateClubDetails(db, clubId, input) {
     }
     updates.joinMode = input.joinMode;
   }
+  // Optional next meeting: millis epoch (null clears), free-form notes.
+  if (input.nextMeetingAt !== undefined) {
+    if (input.nextMeetingAt !== null && !Number.isFinite(input.nextMeetingAt)) {
+      return { success: false, error: 'Invalid meeting time.' };
+    }
+    updates.nextMeetingAt = input.nextMeetingAt;
+  }
+  if (input.nextMeetingNotes !== undefined) {
+    const notes = (input.nextMeetingNotes || '').trim();
+    if (notes.length > 500) {
+      return { success: false, error: 'Meeting notes must be 500 characters or less.' };
+    }
+    updates.nextMeetingNotes = notes;
+  }
   try {
     await updateDoc(doc(db, col('clubs'), clubId), updates);
     return { success: true };

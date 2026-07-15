@@ -57,6 +57,12 @@ body{
   display:flex;gap:14px;margin-top:12px;flex-wrap:wrap;align-items:center;
   font-size:.85em;color:var(--muted);font-family:'Share Tech Mono',monospace;
 }
+.next-meeting{
+  margin-top:12px;padding:8px 12px;border:1px solid var(--border);
+  border-left:3px solid var(--neon-cyan);font-size:.85em;
+  font-family:'Share Tech Mono',monospace;color:var(--text);
+}
+.next-meeting .nm-notes{color:var(--muted);white-space:pre-line}
 .badge{padding:1px 7px;border:1px solid var(--border);font-size:.85em;text-transform:uppercase}
 .badge-role{color:var(--neon-yellow);border-color:var(--neon-yellow)}
 .tabs{display:flex;gap:4px;margin-bottom:0;flex-wrap:wrap}
@@ -323,6 +329,13 @@ html.light body{background-image:none}
       <input id="edit-prompts" type="checkbox" checked />
       <label for="edit-prompts" style="margin:0;text-transform:none">Starter questions (AI-suggested discussion prompts for hosts)</label>
     </div>
+    <div class="field" id="edit-meeting-field" style="display:none">
+      <label for="edit-meeting-at">Next meeting (optional)</label>
+      <input id="edit-meeting-at" type="datetime-local" />
+      <textarea id="edit-meeting-notes" maxlength="500" rows="2"
+        placeholder="Meeting notes — agenda, where, what to have read (optional)"></textarea>
+      <small style="color:var(--muted)">Leave the date empty for no scheduled meeting.</small>
+    </div>
     <div class="field" id="edit-joinmode-field" style="display:none">
       <label for="edit-joinmode">Join mode (host setting)</label>
       <select id="edit-joinmode">
@@ -398,7 +411,7 @@ html.light body{background-image:none}
     removeMemberBySlug, setMemberRole, deleteClub,
     updateClubDetails, requestToJoin, getRequests, acceptRequest, rejectRequest, inviteMember,
     acceptInvite, declineInvite, dismissRateNudge,
-  } from './clubs.js?v=20260707';
+  } from './clubs.js?v=20260714';
   import {
     getReads, startRead, removeRead, finishRead, getComments, updateReadLabel, splitByDuration, parseManualMilestones,
     loadCatalogBooks, MAX_ACTIVE_READS, groupChapters,
@@ -476,6 +489,7 @@ html.light body{background-image:none}
           <span>${club.joinMode === 'application' ? 'Join by application' : 'Open join'}</span>
           ${myRole() && myRole() !== 'invited' ? '<button id="edit-club-btn" class="nav-link" style="padding:4px 10px;font-size:.75em">Edit Club</button>' : ''}
         </div>
+        ${renderNextMeeting()}
       </div>
 
       <div class="tabs">
@@ -490,6 +504,19 @@ html.light body{background-image:none}
       <div class="footer-actions" id="footer-actions">${renderFooterActions()}</div>
     `;
     wireEvents();
+  }
+
+  // Optional next-meeting banner: renders only when a meeting is set and less
+  // than 24h in the past, so clubs that never schedule meetings see nothing.
+  function renderNextMeeting() {
+    const at = club.nextMeetingAt;
+    if (!at || at < Date.now() - 24 * 60 * 60 * 1000) return '';
+    const when = new Date(at).toLocaleString([], {
+      weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+    });
+    const notes = (club.nextMeetingNotes || '').trim();
+    return `<div class="next-meeting">📅 Next meeting: <strong>${when}</strong>${
+      notes ? `<br><span class="nm-notes">${escapeHtml(notes)}</span>` : ''}</div>`;
   }
 
   function renderTab() {
@@ -1202,6 +1229,13 @@ html.light body{background-image:none}
 
   // --- Edit Club modal (static DOM, wired once) ---
   const editModal = document.getElementById('edit-modal');
+  // millis -> datetime-local input value in the viewer's local time
+  function toDatetimeLocal(ms) {
+    const d = new Date(ms);
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
   function openEditModal() {
     document.getElementById('edit-name').value = club.name || '';
     document.getElementById('edit-desc').value = club.description || '';
@@ -1218,6 +1252,15 @@ html.light body{background-image:none}
     const jmField = document.getElementById('edit-joinmode-field');
     jmField.style.display = isHost() ? 'block' : 'none';
     document.getElementById('edit-joinmode').value = club.joinMode === 'application' ? 'application' : 'open';
+
+    // Next meeting (hosts/mods): schedule is club-level, like read management.
+    const meetingField = document.getElementById('edit-meeting-field');
+    meetingField.style.display = isMod() ? 'block' : 'none';
+    if (isMod()) {
+      const at = club.nextMeetingAt;
+      document.getElementById('edit-meeting-at').value = at ? toDatetimeLocal(at) : '';
+      document.getElementById('edit-meeting-notes').value = club.nextMeetingNotes || '';
+    }
 
     // Club-level read management (hosts/mods): Finish/Abandon/Remove live
     // here, off the read cards, so nobody ends a club read by accident.
@@ -1282,6 +1325,12 @@ html.light body{background-image:none}
       }
     }
     if (isHost()) input.joinMode = document.getElementById('edit-joinmode').value;
+    if (document.getElementById('edit-meeting-field').style.display !== 'none') {
+      const atRaw = document.getElementById('edit-meeting-at').value;
+      const parsed = atRaw ? new Date(atRaw).getTime() : NaN;
+      input.nextMeetingAt = Number.isFinite(parsed) ? parsed : null;
+      input.nextMeetingNotes = document.getElementById('edit-meeting-notes').value;
+    }
     const r = await updateClubDetails(db, clubId, input);
     if (!r.success) { errEl.textContent = r.error; return; }
     editModal.classList.remove('open');
