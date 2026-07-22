@@ -7182,5 +7182,48 @@
   "warnings": [],
   "source": "none",
   "checked_at": 1784129468
+ },
+ "Phoebe Berman's Gonna Lose It: A Novel": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1784761891
+ },
+ "Rock Bottom Girl: A Small Town Romantic Comedy": {
+  "warnings": [
+   {
+    "label": "Adult/minor relationship (Graphic)",
+    "source_url": "https://app.thestorygraph.com/book_reviews/f5084ce3-39ca-42b4-9704-bd058cb824c1/content_warning/45"
+   },
+   {
+    "label": "Body shaming (Graphic)",
+    "source_url": "https://app.thestorygraph.com/book_reviews/f5084ce3-39ca-42b4-9704-bd058cb824c1/content_warning/45"
+   },
+   {
+    "label": "Bullying (Graphic)",
+    "source_url": "https://app.thestorygraph.com/book_reviews/f5084ce3-39ca-42b4-9704-bd058cb824c1/content_warning/45"
+   },
+   {
+    "label": "Cursing (Graphic)",
+    "source_url": "https://app.thestorygraph.com/book_reviews/f5084ce3-39ca-42b4-9704-bd058cb824c1/content_warning/45"
+   },
+   {
+    "label": "Infidelity (Graphic)",
+    "source_url": "https://app.thestorygraph.com/book_reviews/f5084ce3-39ca-42b4-9704-bd058cb824c1/content_warning/45"
+   },
+   {
+    "label": "Panic attacks/disorders (Graphic)",
+    "source_url": "https://app.thestorygraph.com/book_reviews/f5084ce3-39ca-42b4-9704-bd058cb824c1/content_warning/45"
+   },
+   {
+    "label": "Sexual content (Graphic)",
+    "source_url": "https://app.thestorygraph.com/book_reviews/f5084ce3-39ca-42b4-9704-bd058cb824c1/content_warning/45"
+   },
+   {
+    "label": "Alcohol (Graphic)",
+    "source_url": "https://app.thestorygraph.com/book_reviews/f5084ce3-39ca-42b4-9704-bd058cb824c1/content_warning/45"
+   }
+  ],
+  "source": "web",
+  "checked_at": 1784762229
  }
 }
