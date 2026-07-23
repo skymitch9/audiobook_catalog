@@ -55,7 +55,7 @@ jobs:
       run: |
         # Files the pipeline's auto-commit is allowed to touch. Anything else
         # means dev work snuck in under the marker — refuse to auto-promote.
-        allow='^(site/(catalog\.csv|index\.html|stats\.html|chapters\.json|content_warnings\.json)|site/covers/.*|author_drive_map\.json)$'
+        allow='^(site/(catalog\.csv|index\.html|stats\.html|chapters\.json|content_warnings\.json|additions_log\.json)|site/covers/.*|author_drive_map\.json)$'
         # core.quotePath=false: emit raw UTF-8 paths (cover filenames often
         # carry non-ASCII chars git would otherwise wrap in quotes + \escapes).
         files=$(git -c core.quotePath=false diff-tree --no-commit-id --name-only -r "$SHA")
