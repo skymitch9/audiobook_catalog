@@ -7225,5 +7225,65 @@
   ],
   "source": "web",
   "checked_at": 1784762229
+ },
+ "End of King: Rise of the Cheat Potion Maker, Book 7": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1785838280
+ },
+ "Skeleton Knight in Another World, Vol. 6: Light Novel": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1785838341
+ },
+ "Armor of Dusk: The Graveyard Trees, Book 2": {
+  "warnings": [
+   {
+    "label": "Graphic: Confinement",
+    "source_url": "https://app.thestorygraph.com/book_reviews/0a53acb5-1b99-4c8d-ba90-716b0feb2903/content_warning/15"
+   },
+   {
+    "label": "Graphic: Violence",
+    "source_url": "https://app.thestorygraph.com/book_reviews/0a53acb5-1b99-4c8d-ba90-716b0feb2903/content_warning/54"
+   },
+   {
+    "label": "Graphic: Trafficking",
+    "source_url": "https://app.thestorygraph.com/book_reviews/0a53acb5-1b99-4c8d-ba90-716b0feb2903/content_warning/54"
+   },
+   {
+    "label": "Vomiting",
+    "source_url": "https://www.goodreads.com/book/show/214570071"
+   },
+   {
+    "label": "Experimentation on people",
+    "source_url": "https://www.goodreads.com/book/show/214570071"
+   },
+   {
+    "label": "Death of minor characters",
+    "source_url": "https://www.goodreads.com/book/show/214570071"
+   }
+  ],
+  "source": "web",
+  "checked_at": 1785838445
+ },
+ "Feathers of Dawn: The Graveyard Trees, Book 1": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1785838480
+ },
+ "Becoming Lady Miss Jacqueline": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1785838530
+ },
+ "Bunny Girl Evolution 2: A Monster Evolution LitRPG": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1785838855
+ },
+ "Bunny Girl Evolution 3: A Monster Evolution LitRPG": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1785839014
  }
 }
