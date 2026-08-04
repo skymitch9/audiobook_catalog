@@ -186734,5 +186734,487 @@
    }
   ],
   "parts": []
+ },
+ "Implode": {
+  "source": "m4b",
+  "chapters": [
+   {
+    "title": "Chapter 001  - 00:00:15",
+    "start_min": 0.0
+   },
+   {
+    "title": "Chapter 002  - 00:12:30",
+    "start_min": 0.3
+   },
+   {
+    "title": "Chapter 003  - 00:14:03",
+    "start_min": 12.8
+   },
+   {
+    "title": "Chapter 004  - 00:12:28",
+    "start_min": 26.8
+   },
+   {
+    "title": "Chapter 005  - 00:14:59",
+    "start_min": 39.3
+   },
+   {
+    "title": "Chapter 006  - 00:14:00",
+    "start_min": 54.3
+   },
+   {
+    "title": "Chapter 007  - 00:18:39",
+    "start_min": 68.3
+   },
+   {
+    "title": "Chapter 008  - 00:18:58",
+    "start_min": 86.9
+   },
+   {
+    "title": "Chapter 009  - 00:12:08",
+    "start_min": 105.9
+   },
+   {
+    "title": "Chapter 010  - 00:12:37",
+    "start_min": 118.1
+   },
+   {
+    "title": "Chapter 011  - 00:14:41",
+    "start_min": 130.7
+   },
+   {
+    "title": "Chapter 012  - 00:09:16",
+    "start_min": 145.4
+   },
+   {
+    "title": "Chapter 013  - 00:13:06",
+    "start_min": 154.6
+   },
+   {
+    "title": "Chapter 014  - 00:13:35",
+    "start_min": 167.8
+   },
+   {
+    "title": "Chapter 015  - 00:13:14",
+    "start_min": 181.4
+   },
+   {
+    "title": "Chapter 016  - 00:14:39",
+    "start_min": 194.6
+   },
+   {
+    "title": "Chapter 017  - 00:11:14",
+    "start_min": 209.3
+   },
+   {
+    "title": "Chapter 018  - 00:12:31",
+    "start_min": 220.5
+   },
+   {
+    "title": "Chapter 019  - 00:13:41",
+    "start_min": 233.0
+   },
+   {
+    "title": "Chapter 020  - 00:10:48",
+    "start_min": 246.7
+   },
+   {
+    "title": "Chapter 021  - 00:11:34",
+    "start_min": 257.5
+   },
+   {
+    "title": "Chapter 022  - 00:11:25",
+    "start_min": 269.1
+   },
+   {
+    "title": "Chapter 023  - 00:11:43",
+    "start_min": 280.5
+   },
+   {
+    "title": "Chapter 024  - 00:12:29",
+    "start_min": 292.3
+   },
+   {
+    "title": "Chapter 025  - 00:13:03",
+    "start_min": 304.7
+   },
+   {
+    "title": "Chapter 026  - 00:14:56",
+    "start_min": 317.8
+   },
+   {
+    "title": "Chapter 027  - 00:12:05",
+    "start_min": 332.7
+   },
+   {
+    "title": "Chapter 028  - 00:11:49",
+    "start_min": 344.8
+   },
+   {
+    "title": "Chapter 029  - 00:14:17",
+    "start_min": 356.7
+   },
+   {
+    "title": "Chapter 030  - 00:14:49",
+    "start_min": 371.0
+   },
+   {
+    "title": "Chapter 031  - 00:10:38",
+    "start_min": 385.8
+   },
+   {
+    "title": "Chapter 032  - 00:14:24",
+    "start_min": 396.4
+   },
+   {
+    "title": "Chapter 033  - 00:12:08",
+    "start_min": 410.8
+   },
+   {
+    "title": "Chapter 034  - 00:11:10",
+    "start_min": 423.0
+   },
+   {
+    "title": "Chapter 035  - 00:10:58",
+    "start_min": 434.2
+   },
+   {
+    "title": "Chapter 036  - 00:14:25",
+    "start_min": 445.1
+   },
+   {
+    "title": "Chapter 037  - 00:14:00",
+    "start_min": 459.6
+   },
+   {
+    "title": "Chapter 038  - 00:10:33",
+    "start_min": 473.6
+   },
+   {
+    "title": "Chapter 039  - 00:12:43",
+    "start_min": 484.1
+   },
+   {
+    "title": "Chapter 040  - 00:11:45",
+    "start_min": 496.8
+   },
+   {
+    "title": "Chapter 041  - 00:11:41",
+    "start_min": 508.6
+   },
+   {
+    "title": "Chapter 042  - 00:14:34",
+    "start_min": 520.3
+   },
+   {
+    "title": "Chapter 043  - 00:15:30",
+    "start_min": 534.9
+   },
+   {
+    "title": "Chapter 044  - 00:14:34",
+    "start_min": 550.4
+   },
+   {
+    "title": "Chapter 045  - 00:17:17",
+    "start_min": 564.9
+   },
+   {
+    "title": "Chapter 046  - 00:12:48",
+    "start_min": 582.2
+   },
+   {
+    "title": "Chapter 047  - 00:11:58",
+    "start_min": 595.0
+   },
+   {
+    "title": "Chapter 048  - 00:13:47",
+    "start_min": 607.0
+   },
+   {
+    "title": "Chapter 049  - 00:17:37",
+    "start_min": 620.8
+   },
+   {
+    "title": "Chapter 050  - 00:12:58",
+    "start_min": 638.4
+   },
+   {
+    "title": "Chapter 051  - 00:12:10",
+    "start_min": 651.4
+   },
+   {
+    "title": "Chapter 052  - 00:12:33",
+    "start_min": 663.6
+   },
+   {
+    "title": "Chapter 053  - 00:11:10",
+    "start_min": 676.1
+   },
+   {
+    "title": "Chapter 054  - 00:11:16",
+    "start_min": 687.3
+   },
+   {
+    "title": "Chapter 055  - 00:07:54",
+    "start_min": 698.6
+   },
+   {
+    "title": "Chapter 056  - 00:04:13",
+    "start_min": 706.5
+   },
+   {
+    "title": "Chapter 057  - 00:00:21",
+    "start_min": 710.7
+   }
+  ],
+  "parts": []
+ },
+ "Elantris": {
+  "source": "m4b",
+  "chapters": [
+   {
+    "title": "Chapter 001  - 01:05:17",
+    "start_min": 0.0
+   },
+   {
+    "title": "Chapter 002  - 01:05:54",
+    "start_min": 65.3
+   },
+   {
+    "title": "Chapter 003  - 00:58:13",
+    "start_min": 131.2
+   },
+   {
+    "title": "Chapter 004  - 01:03:28",
+    "start_min": 189.4
+   },
+   {
+    "title": "Chapter 005  - 01:00:02",
+    "start_min": 252.9
+   },
+   {
+    "title": "Chapter 006  - 01:05:05",
+    "start_min": 312.9
+   },
+   {
+    "title": "Chapter 007  - 01:06:29",
+    "start_min": 378.0
+   },
+   {
+    "title": "Chapter 008  - 01:11:22",
+    "start_min": 444.5
+   },
+   {
+    "title": "Chapter 009  - 01:09:22",
+    "start_min": 515.9
+   },
+   {
+    "title": "Chapter 010  - 01:04:08",
+    "start_min": 585.3
+   },
+   {
+    "title": "Chapter 011  - 01:00:45",
+    "start_min": 649.4
+   },
+   {
+    "title": "Chapter 012  - 00:55:47",
+    "start_min": 710.2
+   },
+   {
+    "title": "Chapter 013  - 01:06:12",
+    "start_min": 766.0
+   },
+   {
+    "title": "Chapter 014  - 01:06:56",
+    "start_min": 832.2
+   },
+   {
+    "title": "Chapter 015  - 01:05:13",
+    "start_min": 899.1
+   },
+   {
+    "title": "Chapter 016  - 00:59:38",
+    "start_min": 964.3
+   },
+   {
+    "title": "Chapter 017  - 01:05:31",
+    "start_min": 1024.0
+   },
+   {
+    "title": "Chapter 018  - 00:32:50",
+    "start_min": 1089.5
+   }
+  ],
+  "parts": []
+ },
+ "The Hope of Elantris": {
+  "source": "m4b",
+  "chapters": [
+   {
+    "title": "Chapter 001  - 00:38:41",
+    "start_min": 0.0
+   }
+  ],
+  "parts": []
+ },
+ "Warbreaker": {
+  "source": "m4b",
+  "chapters": [
+   {
+    "title": "Chapter 001  - 00:58:02",
+    "start_min": 0.0
+   },
+   {
+    "title": "Chapter 002  - 01:11:49",
+    "start_min": 58.0
+   },
+   {
+    "title": "Chapter 003  - 01:00:47",
+    "start_min": 129.9
+   },
+   {
+    "title": "Chapter 004  - 00:58:05",
+    "start_min": 190.7
+   },
+   {
+    "title": "Chapter 005  - 01:01:56",
+    "start_min": 248.8
+   },
+   {
+    "title": "Chapter 006  - 01:05:14",
+    "start_min": 310.7
+   },
+   {
+    "title": "Chapter 007  - 00:55:44",
+    "start_min": 375.9
+   },
+   {
+    "title": "Chapter 008  - 01:03:47",
+    "start_min": 431.7
+   },
+   {
+    "title": "Chapter 009  - 01:09:39",
+    "start_min": 495.5
+   },
+   {
+    "title": "Chapter 010  - 01:07:00",
+    "start_min": 565.1
+   },
+   {
+    "title": "Chapter 011  - 00:58:22",
+    "start_min": 632.2
+   },
+   {
+    "title": "Chapter 012  - 01:02:10",
+    "start_min": 690.5
+   },
+   {
+    "title": "Chapter 013  - 01:08:05",
+    "start_min": 752.7
+   },
+   {
+    "title": "Chapter 014  - 01:01:18",
+    "start_min": 820.8
+   },
+   {
+    "title": "Chapter 015  - 01:05:39",
+    "start_min": 882.1
+   },
+   {
+    "title": "Chapter 016  - 00:59:35",
+    "start_min": 947.8
+   },
+   {
+    "title": "Chapter 017  - 01:03:13",
+    "start_min": 1007.4
+   }
+  ],
+  "parts": []
+ },
+ "Dragon Slayer Book 1": {
+  "source": "m4b",
+  "chapters": [
+   {
+    "title": "Chapter 001  - 00:00:08",
+    "start_min": 0.0
+   },
+   {
+    "title": "Chapter 002  - 00:27:46",
+    "start_min": 0.1
+   },
+   {
+    "title": "Chapter 003  - 00:26:59",
+    "start_min": 27.9
+   },
+   {
+    "title": "Chapter 004  - 00:31:43",
+    "start_min": 54.9
+   },
+   {
+    "title": "Chapter 005  - 00:27:33",
+    "start_min": 86.7
+   },
+   {
+    "title": "Chapter 006  - 00:22:58",
+    "start_min": 114.2
+   },
+   {
+    "title": "Chapter 007  - 00:40:37",
+    "start_min": 137.2
+   },
+   {
+    "title": "Chapter 008  - 00:28:41",
+    "start_min": 177.8
+   },
+   {
+    "title": "Chapter 009  - 00:26:08",
+    "start_min": 206.5
+   },
+   {
+    "title": "Chapter 010  - 00:29:47",
+    "start_min": 232.6
+   },
+   {
+    "title": "Chapter 011  - 00:24:53",
+    "start_min": 262.4
+   },
+   {
+    "title": "Chapter 012  - 00:18:50",
+    "start_min": 287.3
+   },
+   {
+    "title": "Chapter 013  - 00:34:54",
+    "start_min": 306.2
+   },
+   {
+    "title": "Chapter 014  - 00:42:08",
+    "start_min": 341.1
+   },
+   {
+    "title": "Chapter 015  - 00:40:02",
+    "start_min": 383.2
+   },
+   {
+    "title": "Chapter 016  - 00:23:06",
+    "start_min": 423.3
+   },
+   {
+    "title": "Chapter 017  - 00:24:45",
+    "start_min": 446.4
+   },
+   {
+    "title": "Chapter 018  - 00:43:56",
+    "start_min": 471.1
+   },
+   {
+    "title": "Chapter 019  - 00:00:10",
+    "start_min": 515.1
+   },
+   {
+    "title": "Chapter 020  - 00:00:16",
+    "start_min": 515.2
+   }
+  ],
+  "parts": []
  }
 }

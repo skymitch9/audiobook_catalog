@@ -7285,5 +7285,233 @@
   "warnings": [],
   "source": "none",
   "checked_at": 1785839014
+ },
+ "Implode": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1785884864
+ },
+ "Elantris": {
+  "warnings": [
+   {
+    "label": "Death",
+    "source_url": "https://booktriggerwarnings.com/Elantris_by_Brandon_Sanderson"
+   },
+   {
+    "label": "Drug addiction (mentioned)",
+    "source_url": "https://booktriggerwarnings.com/Elantris_by_Brandon_Sanderson"
+   },
+   {
+    "label": "Epidemic",
+    "source_url": "https://booktriggerwarnings.com/Elantris_by_Brandon_Sanderson"
+   },
+   {
+    "label": "Hanging (mentioned)",
+    "source_url": "https://booktriggerwarnings.com/Elantris_by_Brandon_Sanderson"
+   },
+   {
+    "label": "Murder",
+    "source_url": "https://booktriggerwarnings.com/Elantris_by_Brandon_Sanderson"
+   },
+   {
+    "label": "Slavery",
+    "source_url": "https://booktriggerwarnings.com/Elantris_by_Brandon_Sanderson"
+   },
+   {
+    "label": "Suicide (mentioned)",
+    "source_url": "https://booktriggerwarnings.com/Elantris_by_Brandon_Sanderson"
+   },
+   {
+    "label": "Violence",
+    "source_url": "https://booktriggerwarnings.com/Elantris_by_Brandon_Sanderson"
+   },
+   {
+    "label": "Mild pain",
+    "source_url": "https://blog.worldanvil.com/reviews/book-reviews-elantris/"
+   },
+   {
+    "label": "Depression",
+    "source_url": "https://blog.worldanvil.com/reviews/book-reviews-elantris/"
+   },
+   {
+    "label": "Mob violence",
+    "source_url": "https://reactormag.com/elantris-reread-chapters-eighteen-and-nineteen/"
+   },
+   {
+    "label": "Immolation (death by fire)",
+    "source_url": "https://reactormag.com/elantris-reread-chapters-eighteen-and-nineteen/"
+   },
+   {
+    "label": "Chronic pain",
+    "source_url": "https://reactormag.com/elantris-reread-chapters-eighteen-and-nineteen/"
+   },
+   {
+    "label": "Misogyny",
+    "source_url": "https://app.thestorygraph.com/book_reviews/d06ba1d7-ab53-4d16-975b-eb1c84318688/content_warning/35"
+   },
+   {
+    "label": "Sexism",
+    "source_url": "https://app.thestorygraph.com/book_reviews/d06ba1d7-ab53-4d16-975b-eb1c84318688/content_warning/43"
+   },
+   {
+    "label": "Ableism",
+    "source_url": "https://app.thestorygraph.com/book_reviews/3883a47a-d05a-4fca-9d8c-9be51e6e60ce/content_warning/1"
+   },
+   {
+    "label": "Racism",
+    "source_url": "https://app.thestorygraph.com/book_reviews/d342d066-d582-4ba2-9405-9580aa684dfc/content_warning/40"
+   },
+   {
+    "label": "Self harm",
+    "source_url": "https://app.thestorygraph.com/book_reviews/a386c753-7ab6-49c4-99f4-0bebf8a51ddc/content_warning/42"
+   },
+   {
+    "label": "Hate crime",
+    "source_url": "https://app.thestorygraph.com/book_reviews/a386c753-7ab6-49c4-99f4-0bebf8a51ddc/content_warning/28"
+   },
+   {
+    "label": "Chronic illness",
+    "source_url": "https://app.thestorygraph.com/book_reviews/377b04d0-ac23-46fc-945e-4b60ad196e36/content_warning/14?page=2"
+   },
+   {
+    "label": "Sexual violence",
+    "source_url": "https://app.thestorygraph.com/book_reviews/f4980b63-83ef-4a2c-b719-a4f86e33d1af/content_warning/46"
+   }
+  ],
+  "source": "web",
+  "checked_at": 1785885152
+ },
+ "The Hope of Elantris": {
+  "warnings": [
+   {
+    "label": "Genocide (Graphic)",
+    "source_url": "https://app.thestorygraph.com/book_reviews/41dcb6d0-ca3a-42d3-ac46-3118d178a9aa/content_warning/51"
+   },
+   {
+    "label": "Violence (Graphic)",
+    "source_url": "https://app.thestorygraph.com/book_reviews/41dcb6d0-ca3a-42d3-ac46-3118d178a9aa/content_warning/51"
+   },
+   {
+    "label": "War (Graphic)",
+    "source_url": "https://app.thestorygraph.com/book_reviews/41dcb6d0-ca3a-42d3-ac46-3118d178a9aa/content_warning/51"
+   },
+   {
+    "label": "Body horror (Moderate)",
+    "source_url": "https://app.thestorygraph.com/book_reviews/41dcb6d0-ca3a-42d3-ac46-3118d178a9aa/content_warning/51"
+   },
+   {
+    "label": "Death of parent (Moderate)",
+    "source_url": "https://app.thestorygraph.com/book_reviews/41dcb6d0-ca3a-42d3-ac46-3118d178a9aa/content_warning/51"
+   },
+   {
+    "label": "Injury/Injury detail (Moderate)",
+    "source_url": "https://app.thestorygraph.com/book_reviews/41dcb6d0-ca3a-42d3-ac46-3118d178a9aa/content_warning/51"
+   },
+   {
+    "label": "Child death (Minor)",
+    "source_url": "https://app.thestorygraph.com/book_reviews/41dcb6d0-ca3a-42d3-ac46-3118d178a9aa/content_warning/51"
+   },
+   {
+    "label": "Torture (Minor)",
+    "source_url": "https://app.thestorygraph.com/book_reviews/41dcb6d0-ca3a-42d3-ac46-3118d178a9aa/content_warning/51"
+   },
+   {
+    "label": "Pregnancy (Minor)",
+    "source_url": "https://app.thestorygraph.com/book_reviews/41dcb6d0-ca3a-42d3-ac46-3118d178a9aa/content_warning/51"
+   },
+   {
+    "label": "Child death (Moderate)",
+    "source_url": "https://app.thestorygraph.com/book_reviews/67baf790-ab9a-4240-b3ca-21234be4c0de/content_warning/17"
+   },
+   {
+    "label": "Deadnaming (Moderate)",
+    "source_url": "https://app.thestorygraph.com/book_reviews/67baf790-ab9a-4240-b3ca-21234be4c0de/content_warning/17"
+   },
+   {
+    "label": "Death (Moderate)",
+    "source_url": "https://app.thestorygraph.com/book_reviews/67baf790-ab9a-4240-b3ca-21234be4c0de/content_warning/17"
+   },
+   {
+    "label": "Xenophobia (Moderate)",
+    "source_url": "https://app.thestorygraph.com/book_reviews/67baf790-ab9a-4240-b3ca-21234be4c0de/content_warning/17"
+   },
+   {
+    "label": "Blood (Moderate)",
+    "source_url": "https://app.thestorygraph.com/book_reviews/67baf790-ab9a-4240-b3ca-21234be4c0de/content_warning/57"
+   },
+   {
+    "label": "Religious bigotry (Moderate)",
+    "source_url": "https://app.thestorygraph.com/book_reviews/67baf790-ab9a-4240-b3ca-21234be4c0de/content_warning/17"
+   },
+   {
+    "label": "Murder (Moderate)",
+    "source_url": "https://app.thestorygraph.com/book_reviews/67baf790-ab9a-4240-b3ca-21234be4c0de/content_warning/17"
+   },
+   {
+    "label": "Pregnancy (Moderate)",
+    "source_url": "https://app.thestorygraph.com/book_reviews/67baf790-ab9a-4240-b3ca-21234be4c0de/content_warning/17"
+   },
+   {
+    "label": "Colonisation (Moderate)",
+    "source_url": "https://app.thestorygraph.com/book_reviews/67baf790-ab9a-4240-b3ca-21234be4c0de/content_warning/17"
+   },
+   {
+    "label": "War (Moderate)",
+    "source_url": "https://app.thestorygraph.com/book_reviews/67baf790-ab9a-4240-b3ca-21234be4c0de/content_warning/17"
+   }
+  ],
+  "source": "web",
+  "checked_at": 1785885411
+ },
+ "Warbreaker": {
+  "warnings": [
+   {
+    "label": "kidnapping",
+    "source_url": "https://hardcover.app/books/warbreaker"
+   },
+   {
+    "label": "Betrayal",
+    "source_url": "https://hardcover.app/books/warbreaker"
+   },
+   {
+    "label": "Arranged marriage",
+    "source_url": "https://hardcover.app/books/warbreaker"
+   },
+   {
+    "label": "Death",
+    "source_url": "https://hardcover.app/books/warbreaker"
+   },
+   {
+    "label": "Violence",
+    "source_url": "https://hardcover.app/books/warbreaker"
+   },
+   {
+    "label": "Murder",
+    "source_url": "https://hardcover.app/books/warbreaker"
+   },
+   {
+    "label": "War",
+    "source_url": "https://hardcover.app/books/warbreaker"
+   },
+   {
+    "label": "Sexual content",
+    "source_url": "https://hardcover.app/books/warbreaker"
+   },
+   {
+    "label": "animal death",
+    "source_url": "https://hardcover.app/books/warbreaker"
+   },
+   {
+    "label": "Adult/minor relationship",
+    "source_url": "https://hardcover.app/books/warbreaker"
+   }
+  ],
+  "source": "hardcover",
+  "checked_at": 1785885412
+ },
+ "Dragon Slayer Book 1": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1785885458
  }
 }
