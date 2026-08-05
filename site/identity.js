@@ -301,22 +301,6 @@ function _renderLoggedIn(containerEl, db, options, session) {
   methodBadge.textContent = session.method === 'google' ? 'Google' : 'Passphrase';
   wrapper.appendChild(methodBadge);
 
-  // Admin link — rendered only for admins, and only off the admin page itself.
-  // Lives in the identity bar so every page that renders the bar gets it
-  // without touching each page's own nav (index.html is generated, so a nav
-  // edit there would have to go into app/web/templates/ anyway).
-  if (isAdmin(session) && !/\/admin\.html$/.test(location.pathname)) {
-    const adminLink = document.createElement('a');
-    adminLink.className = 'identity-bar__admin-link';
-    adminLink.href = 'admin.html';
-    adminLink.textContent = '🔧 Admin';
-    adminLink.title = 'Admin panel — pipeline status, run trigger, user accounts';
-    adminLink.style.cssText =
-      'padding:6px 12px;border:1px solid var(--neon-cyan,#2b3a4d);border-radius:8px;'
-      + 'text-decoration:none;color:inherit;font-size:.9em;white-space:nowrap';
-    wrapper.appendChild(adminLink);
-  }
-
   const logoutBtn = document.createElement('button');
   logoutBtn.className = 'identity-bar__logout-btn';
   logoutBtn.textContent = 'Logout';

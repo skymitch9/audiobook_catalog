@@ -8,7 +8,7 @@
 // catalog.csv (index.html scrapes its own table instead; same data).
 
 import { doc, getDoc, setDoc, collection, getDocs, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
-import { getSession, signInWithGoogle, signOutGoogle, logout } from './identity.js';
+import { getSession, signInWithGoogle, signOutGoogle, logout, isAdmin } from './identity.js';
 import { col } from './fb-env.js';
 import { loadCatalogBooks } from './club-reads.js';
 
@@ -173,7 +173,16 @@ export function mountAccountModal(db, app, containerEl) {
           <span class="track"><span class="thumb"></span></span>
         </label>
       </div>
-      <button id="am-logout-btn" style="width:100%;margin-top:10px;background:var(--neon-magenta,#ff2a6d);color:#fff;border:none;padding:10px;cursor:pointer;font-weight:700;font-family:inherit">Logout</button>
+      <button id="am-logout-btn" style="width:100%;margin-top:10px;background:var(--neon-magenta,#ff2a6d);color:#fff;border:none;padding:10px;cursor:pointer;font-weight:700;font-family:inherit">Logout</button>`;
+
+    // Admin portal link — only visible to admins
+    if (isAdmin(session) && !/\/admin\.html$/.test(location.pathname)) {
+      const adminRow = document.createElement('a');
+      adminRow.href = 'admin.html';
+      adminRow.style.cssText = 'display:block;text-align:center;margin-top:10px;padding:10px;border:1px solid var(--border,#2a2a3a);text-decoration:none;color:var(--neon-cyan,#05d9e8);font-weight:700;font-size:.9em';
+      adminRow.textContent = '🔧 Admin Portal';
+      container.querySelector('#am-logout-btn').insertAdjacentElement('afterend', adminRow);
+    }
       <div style="border-top:1px solid var(--border,#2a2a3a);margin-top:12px;padding-top:12px">
         <div class="am-section-title">Currently Reading</div>
         <input id="am-reading" type="text" class="am-input" placeholder="Search catalog..." autocomplete="off" />
