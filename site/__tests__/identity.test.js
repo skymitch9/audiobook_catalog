@@ -23,7 +23,7 @@ vi.mock('firebase/firestore', () => {
   };
 });
 
-import { validateDisplayName, validatePassphrase, getSession, logout, register, login, renderIdentityBar } from '../identity.js';
+import { validateDisplayName, validatePassphrase, getSession, logout, register, login, renderIdentityBar, isAdmin } from '../identity.js';
 
 // Generators for valid display names (alphanumeric, 2-20 chars) and valid passphrases (4+ chars)
 const alphanumChars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -301,3 +301,43 @@ describe('Property 4: Generic error for invalid credentials', () => {
 // the firebase-auth vitest alias was added — the suite could not even load.
 // Rewrite them against the current SSO-first UI to re-enable.
 
+
+describe('isAdmin', () => {
+  beforeEach(() => localStorage.clear());
+
+  it('accepts the Google account by email, whatever the display name is', () => {
+    expect(isAdmin({ displayName: 'Skylar', email: 'nbaslamking@gmail.com' })).toBe(true);
+    // Renaming the Google profile must not silently drop admin
+    expect(isAdmin({ displayName: 'totally new name', email: 'nbaslamking@gmail.com' })).toBe(true);
+  });
+
+  it('is case- and whitespace-insensitive on the email', () => {
+    expect(isAdmin({ displayName: 'x', email: '  NBaslamKing@Gmail.com ' })).toBe(true);
+  });
+
+  it('still accepts the passphrase admin name', () => {
+    expect(isAdmin({ displayName: '!Sky', email: '' })).toBe(true);
+  });
+
+  it('rejects everyone else', () => {
+    expect(isAdmin({ displayName: 'Somebody', email: 'someone@example.com' })).toBe(false);
+    expect(isAdmin({ displayName: '', email: '' })).toBe(false);
+    expect(isAdmin(null)).toBe(false);
+  });
+
+  it('does not admit a near-miss name or email', () => {
+    expect(isAdmin({ displayName: '!Sky2', email: '' })).toBe(false);
+    expect(isAdmin({ displayName: 'sky', email: '' })).toBe(false);
+    expect(isAdmin({ displayName: '', email: 'nbaslamking@gmail.com.evil.com' })).toBe(false);
+  });
+
+  it('reads the stored session when called with no argument', () => {
+    localStorage.setItem('ab_identity_name', 'Skylar');
+    localStorage.setItem('ab_identity_session', 'active');
+    localStorage.setItem('ab_identity_email', 'nbaslamking@gmail.com');
+    expect(isAdmin()).toBe(true);
+    localStorage.setItem('ab_identity_email', 'nope@example.com');
+    localStorage.setItem('ab_identity_name', 'Nope');
+    expect(isAdmin()).toBe(false);
+  });
+});

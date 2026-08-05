@@ -149,7 +149,7 @@
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
   import { getFirestore, collection, getDocs } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
   import { col } from './fb-env.js';
-  import { renderIdentityBar, getSession, adminResetPassword } from './identity.js';
+  import { renderIdentityBar, getSession, adminResetPassword, isAdmin } from './identity.js';
   import {
     watchStatus, loadHistory, requestRun, getToken, setToken,
   } from './pipeline-status.js';
@@ -163,7 +163,6 @@
     appId: "1:68492219785:web:7cbe57dda8712377f0bd58"
   };
 
-  const ADMIN_NAME = '!Sky';
   let db = null;
 
   try {
@@ -177,7 +176,9 @@
     const content = document.getElementById('admin-content');
     const session = getSession();
 
-    if (!session || session.displayName !== ADMIN_NAME) {
+    // Shared with the nav link in identity.js so the two can never disagree.
+    // Presentation only - see the isAdmin() docblock.
+    if (!isAdmin(session)) {
       content.innerHTML = '<div class="denied">⛔ Access denied. Sign in as admin.</div>';
       return;
     }

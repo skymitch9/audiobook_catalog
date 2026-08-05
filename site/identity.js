@@ -37,7 +37,37 @@ export function getSession() {
     return null;
   }
 
-  return { displayName: name, photoURL, method };
+  const email = localStorage.getItem('ab_identity_email') || '';
+  return { displayName: name, photoURL, method, email };
+}
+
+// Accounts treated as admin. Both lanes (dev and prod) use the same list —
+// they are the same person and the same Firebase project.
+//   - emails come from Google SSO (stable; survives a display-name change)
+//   - names cover the passphrase fallback, which has no email
+export const ADMIN_EMAILS = ['nbaslamking@gmail.com'];
+export const ADMIN_NAMES = ['!Sky'];
+
+/**
+ * Is this session an admin?
+ *
+ * PRESENTATION ONLY — this decides what the UI shows, nothing more. The
+ * session comes from localStorage, so anyone can set ab_identity_name and
+ * pass this check. It is not, and cannot be, an access control: enforcing it
+ * needs Firebase Auth plus request.auth in firestore.rules. Never rely on it
+ * to protect an action that matters; the pipeline trigger is protected by a
+ * token the client never ships instead. See the 2026-08-04 handoff in
+ * docs/TODO.md.
+ *
+ * @param {{displayName?: string, email?: string}|null} [session] defaults to getSession()
+ * @returns {boolean}
+ */
+export function isAdmin(session) {
+  const s = session === undefined ? getSession() : session;
+  if (!s) return false;
+  const email = (s.email || '').trim().toLowerCase();
+  const name = (s.displayName || '').trim();
+  return ADMIN_EMAILS.includes(email) || ADMIN_NAMES.includes(name);
 }
 
 /**
@@ -48,6 +78,7 @@ export function logout() {
   localStorage.removeItem('ab_identity_session');
   localStorage.removeItem('ab_identity_method');
   localStorage.removeItem('ab_identity_photo');
+  localStorage.removeItem('ab_identity_email');
 }
 
 // ==================== Google SSO ====================
@@ -68,6 +99,10 @@ export async function signInWithGoogle(app) {
     localStorage.setItem('ab_identity_session', 'active');
     localStorage.setItem('ab_identity_method', 'google');
     localStorage.setItem('ab_identity_photo', user.photoURL || '');
+    // Captured so isAdmin() can key on the Google account rather than a
+    // display name, which a user can change at any time in their Google
+    // profile and which would silently drop admin access if it did.
+    localStorage.setItem('ab_identity_email', user.email || '');
 
     await ensureProfile(getFirestore(app), user.displayName || user.email, user.photoURL || '');
 
@@ -157,6 +192,7 @@ export async function register(displayName, passphrase, db) {
     localStorage.setItem('ab_identity_session', 'active');
     localStorage.setItem('ab_identity_method', 'passphrase');
     localStorage.removeItem('ab_identity_photo');
+    localStorage.removeItem('ab_identity_email');
     return { success: true };
   } catch (e) {
     return { success: false, error: 'Unable to connect. Please try again later.' };
@@ -184,6 +220,7 @@ export async function login(displayName, passphrase, db) {
     localStorage.setItem('ab_identity_session', 'active');
     localStorage.setItem('ab_identity_method', 'passphrase');
     localStorage.removeItem('ab_identity_photo');
+    localStorage.removeItem('ab_identity_email');
     return { success: true };
   } catch (e) {
     return { success: false, error: 'Unable to connect. Please try again later.' };
@@ -263,6 +300,22 @@ function _renderLoggedIn(containerEl, db, options, session) {
   methodBadge.style.cssText = 'font-size:.7em;color:var(--muted);text-transform:uppercase;letter-spacing:.5px';
   methodBadge.textContent = session.method === 'google' ? 'Google' : 'Passphrase';
   wrapper.appendChild(methodBadge);
+
+  // Admin link — rendered only for admins, and only off the admin page itself.
+  // Lives in the identity bar so every page that renders the bar gets it
+  // without touching each page's own nav (index.html is generated, so a nav
+  // edit there would have to go into app/web/templates/ anyway).
+  if (isAdmin(session) && !/\/admin\.html$/.test(location.pathname)) {
+    const adminLink = document.createElement('a');
+    adminLink.className = 'identity-bar__admin-link';
+    adminLink.href = 'admin.html';
+    adminLink.textContent = '🔧 Admin';
+    adminLink.title = 'Admin panel — pipeline status, run trigger, user accounts';
+    adminLink.style.cssText =
+      'padding:6px 12px;border:1px solid var(--neon-cyan,#2b3a4d);border-radius:8px;'
+      + 'text-decoration:none;color:inherit;font-size:.9em;white-space:nowrap';
+    wrapper.appendChild(adminLink);
+  }
 
   const logoutBtn = document.createElement('button');
   logoutBtn.className = 'identity-bar__logout-btn';
