@@ -74,7 +74,7 @@ export function getSession() {
 //   - emails come from Google SSO (stable; survives a display-name change)
 //   - names cover the passphrase fallback, which has no email
 export const ADMIN_EMAILS = ['nbaslamking@gmail.com'];
-export const ADMIN_NAMES = ['!Sky'];
+export const ADMIN_NAMES = ['!Sky', 'Skylar'];
 
 /**
  * Is this session an admin?
