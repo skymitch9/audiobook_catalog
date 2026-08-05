@@ -16,7 +16,6 @@
 import {
   collection, doc, addDoc, onSnapshot, query, orderBy, limit, getDocs,
 } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
-import { col } from './fb-env.js';
 
 const TOKEN_KEY = 'pipelineTriggerToken';
 
@@ -136,7 +135,8 @@ export function renderStatus(el, status) {
 }
 
 export function watchStatus(db, el) {
-  const ref = doc(collection(db, col('pipeline_status')), 'current');
+  // Pipeline is a single machine — always read prod status regardless of lane
+  const ref = doc(collection(db, 'pipeline_status'), 'current');
   return onSnapshot(
     ref,
     (snap) => renderStatus(el, snap.exists() ? snap.data() : null),
@@ -151,7 +151,7 @@ export function watchStatus(db, el) {
 
 export async function loadHistory(db, el, n = 8) {
   try {
-    const q = query(collection(db, col('pipeline_runs')), orderBy('startedAt', 'desc'), limit(n));
+    const q = query(collection(db, 'pipeline_runs'), orderBy('startedAt', 'desc'), limit(n));
     const snap = await getDocs(q);
     if (snap.empty) { el.innerHTML = ''; return; }
     const rows = snap.docs.map((d) => {
@@ -187,7 +187,7 @@ export async function requestRun(db, requestedBy) {
   if (!token || token.length < 16) {
     throw new Error('No trigger token saved. Paste the PIPELINE_TRIGGER_TOKEN from .env below first.');
   }
-  await addDoc(collection(db, col('pipeline_requests')), {
+  await addDoc(collection(db, 'pipeline_requests'), {
     token,
     requestedAt: new Date().toISOString(),
     requestedBy: String(requestedBy || 'admin').slice(0, 80),
