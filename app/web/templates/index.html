@@ -1294,7 +1294,7 @@ function toggleDarkMode(isDark){
 <script type="module">
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
   import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
-  import { getSession, signInWithGoogle, signOutGoogle, register, login, logout, validateDisplayName, validatePassphrase } from './identity.js';
+  import { getSession, signInWithGoogle, signOutGoogle, register, login, logout, validateDisplayName, validatePassphrase, isAdmin } from './identity.js';
   import { submitReview, getReviews, renderStars, bookIdFromTitle, computeAverageRating, formatDate } from './reviews.js';
   import { addUserWarning, getUserWarnings, deleteUserWarning, requestWarningCheck, getWarningRequest } from './user-warnings.js';
   import { col } from './fb-env.js';
@@ -1419,6 +1419,7 @@ function toggleDarkMode(isDark){
       </div>
 
       <button id="auth-logout-btn" class="btn" style="width:100%;margin-top:10px;background:var(--neon-magenta);color:#fff;border:none;padding:10px">Logout</button>
+      <a id="auth-admin-link" href="admin.html" style="display:none;text-align:center;margin-top:10px;padding:10px;border:1px solid var(--border);text-decoration:none;color:var(--neon-cyan);font-weight:700;font-size:.9em">🔧 Admin Portal</a>
 
       <!-- Profile section -->
       <div style="border-top:1px solid var(--border);margin-top:12px;padding-top:12px">
@@ -1456,6 +1457,12 @@ function toggleDarkMode(isDark){
       _updateAuthButton(authBtn);
       document.getElementById('auth-modal').classList.remove('open');
     });
+
+    // Admin link
+    if (isAdmin(session)) {
+      const adminLink = container.querySelector('#auth-admin-link');
+      if (adminLink) adminLink.style.display = 'block';
+    }
 
     // Fetch review stats from Firestore
     (async () => {
