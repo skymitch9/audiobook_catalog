@@ -1,9 +1,72 @@
 {
  "entries": [
   {
+   "key": "Wrath of the Dragon|Eric Vall",
+   "title": "Wrath of the Dragon",
+   "author": "Eric Vall",
+   "added": "2026-08-04",
+   "source": "pipeline"
+  },
+  {
+   "key": "Wrath of the Dragon 6|Eric Vall",
+   "title": "Wrath of the Dragon 6",
+   "author": "Eric Vall",
+   "added": "2026-08-04",
+   "source": "pipeline"
+  },
+  {
+   "key": "Wrath of the Dragon 5|Eric Vall",
+   "title": "Wrath of the Dragon 5",
+   "author": "Eric Vall",
+   "added": "2026-08-04",
+   "source": "pipeline"
+  },
+  {
+   "key": "Wrath of the Dragon 4|Eric Vall",
+   "title": "Wrath of the Dragon 4",
+   "author": "Eric Vall",
+   "added": "2026-08-04",
+   "source": "pipeline"
+  },
+  {
+   "key": "Wrath of the Dragon 3|Eric Vall",
+   "title": "Wrath of the Dragon 3",
+   "author": "Eric Vall",
+   "added": "2026-08-04",
+   "source": "pipeline"
+  },
+  {
+   "key": "Wrath of the Dragon 2|Eric Vall",
+   "title": "Wrath of the Dragon 2",
+   "author": "Eric Vall",
+   "added": "2026-08-04",
+   "source": "pipeline"
+  },
+  {
    "key": "Warbreaker|Brandon Sanderson",
    "title": "Warbreaker",
    "author": "Brandon Sanderson",
+   "added": "2026-08-04",
+   "source": "pipeline"
+  },
+  {
+   "key": "Viking Rune Smith|Michael-scott Earle",
+   "title": "Viking Rune Smith",
+   "author": "Michael-scott Earle",
+   "added": "2026-08-04",
+   "source": "pipeline"
+  },
+  {
+   "key": "Thunderplump|Dakota Krout",
+   "title": "Thunderplump",
+   "author": "Dakota Krout",
+   "added": "2026-08-04",
+   "source": "pipeline"
+  },
+  {
+   "key": "Thesaurize|Dakota Krout",
+   "title": "Thesaurize",
+   "author": "Dakota Krout",
    "added": "2026-08-04",
    "source": "pipeline"
   },
@@ -15,9 +78,233 @@
    "source": "pipeline"
   },
   {
+   "key": "Tenacity|Dakota Krout",
+   "title": "Tenacity",
+   "author": "Dakota Krout",
+   "added": "2026-08-04",
+   "source": "pipeline"
+  },
+  {
+   "key": "Tamer: King of Dinosaurs 9 Kickstarter Edition|Michael-scott Earle",
+   "title": "Tamer: King of Dinosaurs 9 Kickstarter Edition",
+   "author": "Michael-scott Earle",
+   "added": "2026-08-04",
+   "source": "pipeline"
+  },
+  {
+   "key": "Tamer: King of Dinosaurs 8|Michael-scott Earle",
+   "title": "Tamer: King of Dinosaurs 8",
+   "author": "Michael-scott Earle",
+   "added": "2026-08-04",
+   "source": "pipeline"
+  },
+  {
+   "key": "Tamer: King of Dinosaurs 7|Michael-scott Earle",
+   "title": "Tamer: King of Dinosaurs 7",
+   "author": "Michael-scott Earle",
+   "added": "2026-08-04",
+   "source": "pipeline"
+  },
+  {
+   "key": "Tamer: King of Dinosaurs 1|Michael-scott Earle",
+   "title": "Tamer: King of Dinosaurs 1",
+   "author": "Michael-scott Earle",
+   "added": "2026-08-04",
+   "source": "pipeline"
+  },
+  {
+   "key": "Tamer: King of Dinosaurs 10 Kickstarter Edition|Michael-scott Earle",
+   "title": "Tamer: King of Dinosaurs 10 Kickstarter Edition",
+   "author": "Michael-scott Earle",
+   "added": "2026-08-04",
+   "source": "pipeline"
+  },
+  {
+   "key": "Star Justice Book 2: Space Witch|Michael-scott Earle",
+   "title": "Star Justice Book 2: Space Witch",
+   "author": "Michael-scott Earle",
+   "added": "2026-08-04",
+   "source": "pipeline"
+  },
+  {
+   "key": "Space Knight Book 9|Michael-scott Earle",
+   "title": "Space Knight Book 9",
+   "author": "Michael-scott Earle",
+   "added": "2026-08-04",
+   "source": "pipeline"
+  },
+  {
+   "key": "Space Knight Book 8|Michael-scott Earle",
+   "title": "Space Knight Book 8",
+   "author": "Michael-scott Earle",
+   "added": "2026-08-04",
+   "source": "pipeline"
+  },
+  {
+   "key": "Space Knight Book 6|Michael-scott Earle",
+   "title": "Space Knight Book 6",
+   "author": "Michael-scott Earle",
+   "added": "2026-08-04",
+   "source": "pipeline"
+  },
+  {
+   "key": "Space Knight Book 5|Michael-scott Earle",
+   "title": "Space Knight Book 5",
+   "author": "Michael-scott Earle",
+   "added": "2026-08-04",
+   "source": "pipeline"
+  },
+  {
+   "key": "Space Knight Book 4|Michael-scott Earle",
+   "title": "Space Knight Book 4",
+   "author": "Michael-scott Earle",
+   "added": "2026-08-04",
+   "source": "pipeline"
+  },
+  {
+   "key": "Space Knight Book 3|Michael-scott Earle",
+   "title": "Space Knight Book 3",
+   "author": "Michael-scott Earle",
+   "added": "2026-08-04",
+   "source": "pipeline"
+  },
+  {
+   "key": "Space Knight Book 10|Michael-scott Earle",
+   "title": "Space Knight Book 10",
+   "author": "Michael-scott Earle",
+   "added": "2026-08-04",
+   "source": "pipeline"
+  },
+  {
+   "key": "Soul Gem Collector|Logan Jacobs",
+   "title": "Soul Gem Collector",
+   "author": "Logan Jacobs",
+   "added": "2026-08-04",
+   "source": "pipeline"
+  },
+  {
+   "key": "Soul Gem Collector 5|Logan Jacobs",
+   "title": "Soul Gem Collector 5",
+   "author": "Logan Jacobs",
+   "added": "2026-08-04",
+   "source": "pipeline"
+  },
+  {
+   "key": "Soul Gem Collector 4|Logan Jacobs",
+   "title": "Soul Gem Collector 4",
+   "author": "Logan Jacobs",
+   "added": "2026-08-04",
+   "source": "pipeline"
+  },
+  {
+   "key": "Soul Gem Collector 3|Logan Jacobs",
+   "title": "Soul Gem Collector 3",
+   "author": "Logan Jacobs",
+   "added": "2026-08-04",
+   "source": "pipeline"
+  },
+  {
+   "key": "Soul Gem Collector 2|Logan Jacobs",
+   "title": "Soul Gem Collector 2",
+   "author": "Logan Jacobs",
+   "added": "2026-08-04",
+   "source": "pipeline"
+  },
+  {
    "key": "Skeleton Knight in Another World, Vol. 6: Light Novel|Ennki Hakari",
    "title": "Skeleton Knight in Another World, Vol. 6: Light Novel",
    "author": "Ennki Hakari",
+   "added": "2026-08-04",
+   "source": "pipeline"
+  },
+  {
+   "key": "Monster Empire Book 2|Michael-scott Earle",
+   "title": "Monster Empire Book 2",
+   "author": "Michael-scott Earle",
+   "added": "2026-08-04",
+   "source": "pipeline"
+  },
+  {
+   "key": "Monster Empire Book 1|Michael-scott Earle",
+   "title": "Monster Empire Book 1",
+   "author": "Michael-scott Earle",
+   "added": "2026-08-04",
+   "source": "pipeline"
+  },
+  {
+   "key": "Mage|J.l.mullins",
+   "title": "Mage",
+   "author": "J.l.mullins",
+   "added": "2026-08-04",
+   "source": "pipeline"
+  },
+  {
+   "key": "Mageling|J.l.mullins",
+   "title": "Mageling",
+   "author": "J.l.mullins",
+   "added": "2026-08-04",
+   "source": "pipeline"
+  },
+  {
+   "key": "Lions Quest: Legendary|Michael-scott Earle",
+   "title": "Lions Quest: Legendary",
+   "author": "Michael-scott Earle",
+   "added": "2026-08-04",
+   "source": "pipeline"
+  },
+  {
+   "key": "Lion's Quest: Undefeated|Michael-scott Earle",
+   "title": "Lion's Quest: Undefeated",
+   "author": "Michael-scott Earle",
+   "added": "2026-08-04",
+   "source": "pipeline"
+  },
+  {
+   "key": "Lion's Quest: Ultimate|Michael-scott Earle",
+   "title": "Lion's Quest: Ultimate",
+   "author": "Michael-scott Earle",
+   "added": "2026-08-04",
+   "source": "pipeline"
+  },
+  {
+   "key": "Lion's Quest: Trinity|Michael-scott Earle",
+   "title": "Lion's Quest: Trinity",
+   "author": "Michael-scott Earle",
+   "added": "2026-08-04",
+   "source": "pipeline"
+  },
+  {
+   "key": "Lion's Quest: Dual Wield|Michael-scott Earle",
+   "title": "Lion's Quest: Dual Wield",
+   "author": "Michael-scott Earle",
+   "added": "2026-08-04",
+   "source": "pipeline"
+  },
+  {
+   "key": "Lion's Quest: Charmed|Michael-scott Earle",
+   "title": "Lion's Quest: Charmed",
+   "author": "Michael-scott Earle",
+   "added": "2026-08-04",
+   "source": "pipeline"
+  },
+  {
+   "key": "Jackal Among Snakes, Book 3|Nemorosus",
+   "title": "Jackal Among Snakes, Book 3",
+   "author": "Nemorosus",
+   "added": "2026-08-04",
+   "source": "pipeline"
+  },
+  {
+   "key": "Jackal Among Snakes, Book 2|Nemorosus",
+   "title": "Jackal Among Snakes, Book 2",
+   "author": "Nemorosus",
+   "added": "2026-08-04",
+   "source": "pipeline"
+  },
+  {
+   "key": "Jackal Among Snakes, Book 1|Nemorosus",
+   "title": "Jackal Among Snakes, Book 1",
+   "author": "Nemorosus",
    "added": "2026-08-04",
    "source": "pipeline"
   },
