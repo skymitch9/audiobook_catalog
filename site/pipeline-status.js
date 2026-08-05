@@ -46,7 +46,7 @@ function fmtDuration(sec) {
   return `${Math.floor(sec / 60)}m ${sec % 60}s`;
 }
 
-const STEP_MARK = { done: '✓', active: '▸', failed: '✕', pending: '·' };
+const STEP_MARK = { done: '✓', active: '▸', failed: '✕', pending: '·', skipped: '–' };
 
 /**
  * A run that never called finish_run (power cut, forced reboot) would otherwise

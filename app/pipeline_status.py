@@ -208,6 +208,13 @@ def finish_run(state: str = "success", error: str | None = None) -> None:
         for s in _state["steps"]:
             if s["state"] == "active":
                 s["state"] = "done" if state == "success" else "failed"
+        # An idle run legitimately stops at step 2. Leaving the rest "pending"
+        # on a SUCCESS card reads as though the run stalled, so distinguish
+        # "never reached, and that's fine" from "still to come".
+        if state != "running":
+            for s in _state["steps"]:
+                if s["state"] == "pending":
+                    s["state"] = "skipped"
         _state.update(
             state=state, error=error, progress=None,
             finishedAt=_now(), updatedAt=_now(),

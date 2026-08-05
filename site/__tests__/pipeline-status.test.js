@@ -123,3 +123,21 @@ describe('requestRun', () => {
     expect(getToken()).toBe('a'.repeat(20));
   });
 });
+
+describe('skipped steps', () => {
+  it('renders steps an idle run never reached as skipped, not pending', () => {
+    const d = el();
+    renderStatus(d, {
+      state: 'success', updatedAt: new Date().toISOString(),
+      steps: [
+        { key: 'detect', label: 'Detect new books', state: 'done', detail: '0 to upload' },
+        { key: 'upload', label: 'Upload to Drive', state: 'skipped', detail: '' },
+      ],
+      summary: { idle: true },
+    });
+    const skipped = d.querySelector('.pl-step--skipped');
+    expect(skipped).not.toBeNull();
+    expect(skipped.textContent).toContain('Upload to Drive');
+    expect(d.querySelector('.pl-step--pending')).toBeNull();
+  });
+});
