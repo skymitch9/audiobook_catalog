@@ -48,6 +48,62 @@
   .back-link { display: inline-block; margin-top: 20px; color: #667eea; text-decoration: none; }
   .back-link:hover { text-decoration: underline; }
   .loading { color: #9fb0c6; padding: 20px; }
+
+  /* ---- Pipeline status card ---- */
+  .pl-section { margin: 24px 0; }
+  .pl-section h2 { font-size: 1.1rem; margin-bottom: 12px; }
+  .pl-card { background: #1a2330; border: 1px solid #263241; border-radius: 12px; padding: 16px; }
+  .pl-card--running { border-color: #3b6ea5; }
+  .pl-card--failed  { border-color: #e53e3e; }
+  .pl-card--partial, .pl-card--unknown { border-color: #f6ad55; }
+  .pl-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .pl-dot { width: 10px; height: 10px; border-radius: 50%; background: #4a5568; flex: none; }
+  .pl-dot--running { background: #4299e1; animation: pl-pulse 1.4s ease-in-out infinite; }
+  .pl-dot--success { background: #48bb78; }
+  .pl-dot--failed  { background: #e53e3e; }
+  .pl-dot--partial, .pl-dot--unknown { background: #f6ad55; }
+  @keyframes pl-pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+  @media (prefers-reduced-motion: reduce) { .pl-dot--running { animation: none; } }
+  .pl-state { font-size: .8rem; letter-spacing: .06em; color: #9fb0c6; }
+  .pl-when, .pl-trigger { font-size: .8rem; color: #6b7f96; margin-left: auto; }
+  .pl-trigger { margin-left: 0; }
+  .pl-steps { list-style: none; margin: 0; padding: 0; }
+  .pl-step { display: flex; align-items: baseline; gap: 8px; padding: 3px 0; font-size: .9rem; }
+  .pl-step--pending { color: #55677d; }
+  .pl-step--done    { color: #9fb0c6; }
+  .pl-step--active  { color: #e7eef7; font-weight: 600; }
+  .pl-step--failed  { color: #e53e3e; }
+  .pl-step__mark  { width: 1em; flex: none; text-align: center; }
+  .pl-step__detail { color: #6b7f96; font-size: .82rem; font-weight: 400; }
+  .pl-progress { margin: 4px 0 8px 1.6em; }
+  .pl-progress__bar { height: 6px; background: #0f141a; border-radius: 4px; overflow: hidden; border: 1px solid #263241; }
+  .pl-progress__bar span { display: block; height: 100%; background: #4299e1; transition: width .3s ease; }
+  .pl-progress__label { font-size: .78rem; color: #9fb0c6; margin-top: 4px; word-break: break-word; }
+  .pl-summary { margin-top: 12px; padding-top: 10px; border-top: 1px solid #263241; font-size: .85rem; color: #9fb0c6; }
+  .pl-error { background: #e53e3e1a; border: 1px solid #e53e3e55; color: #ffb4b4;
+              padding: 8px 10px; border-radius: 8px; font-size: .85rem; margin-bottom: 10px; word-break: break-word; }
+  .pl-hint { color: #6b7f96; font-size: .85rem; margin-top: 8px; }
+  .pl-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+  .pl-run-btn { padding: 9px 18px; border: 1px solid #48bb78; border-radius: 8px;
+                background: #48bb7818; color: #48bb78; cursor: pointer; font-size: .95rem; font-weight: 600; }
+  .pl-run-btn:hover:not(:disabled) { background: #48bb7830; }
+  .pl-run-btn:disabled { opacity: .5; cursor: not-allowed; }
+  .pl-token-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+  .pl-token-row input { flex: 1 1 260px; padding: 7px 10px; border: 1px solid #263241;
+                        border-radius: 8px; background: #0f141a; color: #e7eef7; font-size: .85rem; }
+  .pl-token-row button { padding: 7px 14px; border: 1px solid #2b3a4d; border-radius: 8px;
+                         background: #1a2330; color: #e7eef7; cursor: pointer; }
+  .pl-msg { font-size: .85rem; }
+  .pl-msg--ok { color: #48bb78; }
+  .pl-msg--err { color: #e53e3e; }
+  .pl-hist { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: .85rem; }
+  .pl-hist th, .pl-hist td { padding: 7px 10px; border: 1px solid #263241; text-align: left; }
+  .pl-hist th { background: #1a2330; color: #9fb0c6; font-weight: 600; }
+  .pl-hist__title { font-size: .95rem; margin-top: 20px; color: #9fb0c6; }
+  .pl-hist__state--success { color: #48bb78; }
+  .pl-hist__state--failed  { color: #e53e3e; }
+  .pl-hist__state--partial { color: #f6ad55; }
+  .pl-table-wrap { overflow-x: auto; }
 </style>
 </head>
 <body>
@@ -56,6 +112,27 @@
   <p class="subtitle">Manage user accounts</p>
 
   <div id="identity-bar"></div>
+
+  <!-- Populated only for the admin; see checkAccess() below. -->
+  <section class="pl-section" id="pipeline-section" hidden>
+    <h2>📡 Sync pipeline</h2>
+    <div id="pipeline-status"><div class="loading">Loading status…</div></div>
+    <div class="pl-actions">
+      <button id="pl-run-btn" class="pl-run-btn" type="button">▶ Run pipeline now</button>
+      <span id="pl-msg" class="pl-msg"></span>
+    </div>
+    <div class="pl-token-row" id="pl-token-row">
+      <input id="pl-token" type="password" autocomplete="off" spellcheck="false"
+             placeholder="PIPELINE_TRIGGER_TOKEN (from .env) — stored on this device only">
+      <button id="pl-token-save" type="button">Save token</button>
+    </div>
+    <p class="pl-hint">
+      The token is what makes a run request real — the machine ignores requests without it.
+      It is kept in this browser's localStorage and never committed.
+    </p>
+    <div class="pl-table-wrap" id="pipeline-history"></div>
+  </section>
+
   <div id="admin-content"></div>
 
   <a href="index.html" class="back-link">← Back to Catalog</a>
@@ -66,6 +143,9 @@
   import { getFirestore, collection, getDocs } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
   import { col } from './fb-env.js';
   import { renderIdentityBar, getSession, adminResetPassword } from './identity.js';
+  import {
+    watchStatus, loadHistory, requestRun, getToken, setToken,
+  } from './pipeline-status.js';
 
   const firebaseConfig = {
     apiKey: "AIzaSyDgAblkxzVxl7nFbd7jXOo6PpuNPsJw11Y",
@@ -95,8 +175,67 @@
       return;
     }
 
+    initPipelinePanel(session);
     loadUsers();
   }
+
+  let unsubscribeStatus = null;
+
+  function initPipelinePanel(session) {
+    const section = document.getElementById('pipeline-section');
+    if (!db) {
+      section.hidden = false;
+      document.getElementById('pipeline-status').innerHTML =
+        '<div class="pl-card pl-card--failed"><div class="pl-error">Firebase unavailable — status cannot load.</div></div>';
+      return;
+    }
+    section.hidden = false;
+
+    unsubscribeStatus = watchStatus(db, document.getElementById('pipeline-status'));
+    loadHistory(db, document.getElementById('pipeline-history'));
+
+    const tokenInput = document.getElementById('pl-token');
+    const msg = document.getElementById('pl-msg');
+    if (getToken()) {
+      tokenInput.placeholder = 'Token saved on this device — paste again to replace';
+    }
+
+    document.getElementById('pl-token-save').addEventListener('click', () => {
+      const v = tokenInput.value.trim();
+      if (v.length < 16) {
+        msg.textContent = 'That token looks too short.';
+        msg.className = 'pl-msg pl-msg--err';
+        return;
+      }
+      setToken(v);
+      tokenInput.value = '';
+      tokenInput.placeholder = 'Token saved on this device — paste again to replace';
+      msg.textContent = 'Token saved.';
+      msg.className = 'pl-msg pl-msg--ok';
+    });
+
+    const runBtn = document.getElementById('pl-run-btn');
+    runBtn.addEventListener('click', async () => {
+      runBtn.disabled = true;
+      msg.textContent = 'Requesting…';
+      msg.className = 'pl-msg';
+      try {
+        msg.textContent = await requestRun(db, session.displayName);
+        msg.className = 'pl-msg pl-msg--ok';
+      } catch (e) {
+        msg.textContent = e.message || String(e);
+        msg.className = 'pl-msg pl-msg--err';
+      } finally {
+        // Long enough that an impatient second click can't stack requests; the
+        // watcher's cooldown is the real guard, this is just UI courtesy.
+        setTimeout(() => { runBtn.disabled = false; }, 15000);
+      }
+    });
+  }
+
+  window.addEventListener('beforeunload', () => {
+    if (unsubscribeStatus) unsubscribeStatus();
+  });
 
   async function loadUsers() {
     const content = document.getElementById('admin-content');

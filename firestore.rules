@@ -272,5 +272,66 @@ service cloud.firestore {
         }
       }
     }
+
+    // ---- Pipeline status & remote trigger (prod + _dev) ----
+    //
+    // Written by the sync pipeline on the home machine via a Firebase service
+    // account, which bypasses these rules entirely. So for CLIENTS:
+    //
+    //   pipeline_status / pipeline_runs — read-only. Nobody can forge a run.
+    //   pipeline_requests              — CREATE-ONLY, AND DELIBERATELY UNREADABLE.
+    //
+    // The unreadable part is the security control, not an oversight. This
+    // project has no server-side auth (no request.auth anywhere — "admin" is a
+    // client-side displayName check), so rules cannot tell the admin from
+    // anyone else. A request doc therefore carries a shared secret that only
+    // the admin's browser holds, and the watcher on the home machine refuses
+    // to act unless it matches. Making the collection unreadable is what stops
+    // a passer-by harvesting that token out of a pending request and replaying
+    // it to spin up runs on a private machine. Do not add `allow read` here.
+    //
+    // Worst case for an attacker who knows the schema: they can write junk
+    // docs that the watcher ignores and deletes. No execution, no disclosure.
+
+    function validPipelineRequest() {
+      return request.resource.data.token is string
+             && request.resource.data.token.size() >= 16
+             && request.resource.data.token.size() <= 200
+             && request.resource.data.requestedAt is string
+             && request.resource.data.requestedBy is string
+             && request.resource.data.requestedBy.size() <= 80;
+    }
+
+    match /pipeline_status/{docId} {
+      allow read: if true;
+      allow write: if false;   // service account only
+    }
+
+    match /pipeline_runs/{runId} {
+      allow read: if true;
+      allow write: if false;   // service account only
+    }
+
+    match /pipeline_requests/{reqId} {
+      allow read: if false;    // see note above — do not relax
+      allow create: if validPipelineRequest();
+      allow update, delete: if false;
+    }
+
+    match /pipeline_status_dev/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /pipeline_runs_dev/{runId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /pipeline_requests_dev/{reqId} {
+      allow read: if false;
+      allow create: if validPipelineRequest();
+      allow update, delete: if false;
+    }
   }
 }

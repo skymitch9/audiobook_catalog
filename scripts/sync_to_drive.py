@@ -49,6 +49,17 @@ try:
 except ImportError:
     pass
 
+# Live status for the admin panel. Import is guarded so this script still runs
+# on a machine where app/ or firebase-admin is unavailable; the fallback shim
+# makes every pstatus.* call a no-op instead of an AttributeError.
+try:
+    from app import pipeline_status as pstatus
+except Exception:  # pragma: no cover - defensive
+    class _NoStatus:
+        def __getattr__(self, _name):
+            return lambda *a, **k: ""
+    pstatus = _NoStatus()
+
 # OpenAudible export location
 OPENAUDIBLE_BOOKS_DIR = Path(os.getenv("ROOT_DIR", r"C:\Users\nbasl\OpenAudible\books"))
 # Books downloaded by the Dockerized OpenAudible (scratch runtime dir) get
@@ -652,7 +663,7 @@ def check_file_exists_on_drive(service, file_name: str, folder_id: str) -> str |
 
 def upload_file_to_drive(
     service, file_path: Path, folder_id: str, dry_run: bool = False,
-    max_retries: int = 3,
+    max_retries: int = 3, item_index: int = 0, item_total: int = 0,
 ) -> str | None:
     """
     Upload a file to a specific Google Drive folder using resumable upload.
@@ -704,6 +715,9 @@ def upload_file_to_drive(
                 if status:
                     pct = int(status.progress() * 100)
                     print(f"\r{label} ... {pct}%", end="", flush=True)
+                    pstatus.upload_progress(
+                        file_path.name, pct, item_index, item_total, size_mb
+                    )
 
             file_id = response.get("id")
             print(f"\r{label} ... done ({file_id})")
@@ -731,6 +745,7 @@ def run_pipeline(
     sort_only: bool = False,
     upload_only: bool = False,
     dry_run: bool = False,
+    trigger: str = "scheduled",
 ) -> None:
     """Run the full audiobook pipeline."""
     print("=" * 60)
@@ -740,12 +755,18 @@ def run_pipeline(
         print("  MODE: DRY RUN (no changes will be made)")
     print("=" * 60)
 
+    # Live status for the admin panel. Entirely best-effort: no credentials or
+    # no network means these calls are no-ops (see app/pipeline_status.py).
+    pstatus.start_run(trigger=trigger)
+    print(f"  {pstatus.status_note()}")
+
     # -----------------------------------------------------------------------
     # Step 0: Purchase audit — are recent Audible purchases missing locally?
     # (Book sort breaks OpenAudible's own tracking; this diff is the real
     # signal. Report-only, never blocks the sync.)
     # -----------------------------------------------------------------------
     print("\n[STEP 0] Auditing recent purchases vs catalog...")
+    pstatus.step("audit")
     try:
         from app.tools.audit_new_purchases import run_audit
         run_audit()
@@ -758,37 +779,50 @@ def run_pipeline(
     just_moved: frozenset[Path] = frozenset()
     if not upload_only:
         print("\n[STEP 1] Sorting books from OpenAudible export...")
+        pstatus.step("sort")
         moved = sort_books(dry_run=dry_run)
         print(f"  Sorted {len(moved)} file(s).")
         filed = sort_companion_files(dry_run=dry_run)
         if filed:
             print(f"  Filed {len(filed)} orphaned companion file(s).")
         just_moved = frozenset(moved) | frozenset(filed)
+        pstatus.step_detail("sort", f"{len(moved)} sorted, {len(filed)} companions filed")
+        pstatus.set_summary(sorted=len(moved))
     else:
         print("\n[STEP 1] Skipped (--upload-only)")
+        pstatus.step_detail("sort", "skipped (--upload-only)")
 
     # -----------------------------------------------------------------------
     # Step 2: Detect new (un-uploaded) books
     # -----------------------------------------------------------------------
     print("\n[STEP 2] Detecting new books to upload...")
+    pstatus.step("detect")
     manifest = load_manifest()
     new_files = detect_new_books(manifest, just_moved=just_moved)
     print(f"  Found {len(new_files)} new file(s) to upload.")
+    pstatus.step_detail("detect", f"{len(new_files)} to upload")
+    pstatus.set_summary(toUpload=len(new_files))
 
     if not new_files:
         print("\n  Nothing to upload. All books are synced!")
         print("=" * 60)
+        # The common case: an idle scheduled run. Report it as a real success
+        # so the panel shows "checked, nothing new" rather than a stale run.
+        pstatus.set_summary(idle=True)
+        pstatus.finish_run("success")
         return
 
     if sort_only:
         print("\n[STEP 3] Skipped (--sort-only)")
         print("=" * 60)
+        pstatus.finish_run("success")
         return
 
     # -----------------------------------------------------------------------
     # Step 3: Catalog existing Drive folders
     # -----------------------------------------------------------------------
     print("\n[STEP 3] Reading existing Google Drive folders...")
+    pstatus.step("folders")
 
     if not dry_run:
         from drive_auth import build_drive_service
@@ -796,6 +830,13 @@ def run_pipeline(
         if not service:
             print("  [ERROR] Failed to authenticate with Google Drive.")
             print("  Run this script interactively first to complete OAuth setup.")
+            # Surfacing this matters: OAuth needs an interactive browser step,
+            # so a scheduled run can silently stall here for days otherwise.
+            pstatus.finish_run(
+                "failed",
+                "Google Drive auth failed - run scripts/sync_to_drive.py "
+                "interactively to refresh the OAuth token",
+            )
             return
 
         # Try cache first, refresh if stale
@@ -805,6 +846,7 @@ def run_pipeline(
             save_drive_folders_cache(drive_folders)
         else:
             print(f"  Using cached folder list ({len(drive_folders)} folders)")
+        pstatus.step_detail("folders", f"{len(drive_folders)} folders")
     else:
         service = None
         drive_folders = {}
@@ -814,6 +856,7 @@ def run_pipeline(
     # Step 4: Upload files, resolving authors to Drive folders
     # -----------------------------------------------------------------------
     print(f"\n[STEP 4] Uploading {len(new_files)} file(s) to Google Drive...")
+    pstatus.step("upload", f"0/{len(new_files)}")
 
     from app.config import ROOT_DIR
 
@@ -868,7 +911,8 @@ def run_pipeline(
 
         # Upload the file
         drive_file_id = upload_file_to_drive(
-            service, file_path, folder_id, dry_run=dry_run
+            service, file_path, folder_id, dry_run=dry_run,
+            item_index=i, item_total=len(new_files),
         )
 
         if drive_file_id:
@@ -903,6 +947,14 @@ def run_pipeline(
     print("\n" + "=" * 60)
     print(f"  COMPLETE: {uploaded_count} uploaded, {skipped_count} skipped (already on Drive), {failed_count} failed")
     print(f"  Time: {elapsed:.1f}s")
+    pstatus.step_detail(
+        "upload",
+        f"{uploaded_count} uploaded, {skipped_count} already there, {failed_count} failed",
+    )
+    pstatus.set_summary(
+        uploaded=uploaded_count, skipped=skipped_count, failed=failed_count,
+        uploadSec=round(elapsed),
+    )
 
     # Report new folders created (so user can spot discrepancies)
     if new_folders_created:
@@ -922,12 +974,23 @@ def run_pipeline(
     # -----------------------------------------------------------------------
     if not dry_run and uploaded_count > 0:
         print("\n[STEP 5] Rebuilding catalog...")
+        pstatus.step("catalog")
         try:
             from app.main import main as catalog_main
             catalog_main()
             print("  Catalog rebuilt.")
+            try:
+                import csv as _csv
+                from app.config import SITE_DIR as _SD
+                with open(_SD / "catalog.csv", encoding="utf-8") as _f:
+                    _total = sum(1 for _ in _csv.DictReader(_f))
+                pstatus.step_detail("catalog", f"{_total} books")
+                pstatus.set_summary(books=_total)
+            except Exception:
+                pass
         except Exception as e:
             print(f"  [WARN] Catalog rebuild failed: {e}")
+            pstatus.step_detail("catalog", f"FAILED: {e}")
 
         # Extract chapters for the new books (already-done books are skipped
         # via the tag cache, so this only touches what just arrived)
@@ -943,6 +1006,7 @@ def run_pipeline(
         # DoesTheDogDie free passes, Claude web-search backfill). Never
         # blocks the sync.
         new_books = (chapter_stats or {}).get("new_books") or []
+        pstatus.set_summary(newBooks=[t for t, _a in new_books] if new_books else [])
         if new_books:
             print(f"\n[STEP 5.6] Content warnings for {len(new_books)} new book(s)...")
             try:
@@ -953,6 +1017,7 @@ def run_pipeline(
 
         # Auto-commit and push if there are changes
         print("\n[STEP 6] Auto-commit & push...")
+        pstatus.step("publish")
         _auto_commit_and_push()
     elif uploaded_count > 0:
         print("\n[STEP 5] Skipped catalog rebuild (dry-run)")
@@ -967,6 +1032,11 @@ def run_pipeline(
             fulfill_requests()
         except Exception as e:
             print(f"  [WARN] Warning-request fulfillment failed: {e}")
+
+    # A run that uploaded but could not publish is still a partial failure the
+    # panel should show, so key the outcome on failed_count rather than just
+    # "we reached the end".
+    pstatus.finish_run("success" if failed_count == 0 else "partial")
 
 
 # ---------------------------------------------------------------------------
@@ -1075,11 +1145,18 @@ def main():
         DRIVE_FOLDERS_CACHE_PATH.unlink()
         print("Drive folder cache cleared.")
 
-    run_pipeline(
-        sort_only=args.sort_only,
-        upload_only=args.upload_only,
-        dry_run=args.dry_run,
-    )
+    # A crash must still close out the status doc, otherwise the panel shows a
+    # run stuck "running" forever and there is no way to tell from off-site.
+    try:
+        run_pipeline(
+            sort_only=args.sort_only,
+            upload_only=args.upload_only,
+            dry_run=args.dry_run,
+            trigger=os.getenv("PIPELINE_TRIGGER", "scheduled"),
+        )
+    except BaseException as e:
+        pstatus.fail_run(e)
+        raise
 
 
 if __name__ == "__main__":

@@ -10,6 +10,10 @@ google-auth-oauthlib>=1.2.0
 google-auth-httplib2>=0.2.0
 google-api-python-client>=2.127.0
 
+# Live pipeline status + manual-run trigger (app/pipeline_status.py,
+# app/tools/pipeline_watcher.py). Optional: both degrade to no-ops if absent.
+firebase-admin>=6.5.0
+
 # Fuzzy matching for author name deduplication
 thefuzz>=0.22.1
 
