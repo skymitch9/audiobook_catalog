@@ -2,10 +2,36 @@
 // ES module, browser-native (no build step)
 
 import { doc, getDoc, setDoc, getFirestore, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
-import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+import { getAuth, signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 import { col } from './fb-env.js';
 
 // ==================== Session Management ====================
+
+/**
+ * Call on page load to complete a redirect-based Google sign-in (localhost only).
+ * If there's a pending redirect result, it finishes the sign-in and reloads.
+ * @param {import('firebase/app').FirebaseApp} app
+ */
+export async function handleRedirectResult(app) {
+  if (!app) return;
+  try {
+    const auth = getAuth(app);
+    const result = await getRedirectResult(auth);
+    if (result && result.user) {
+      const user = result.user;
+      localStorage.setItem('ab_identity_name', user.displayName || user.email);
+      localStorage.setItem('ab_identity_session', 'active');
+      localStorage.setItem('ab_identity_method', 'google');
+      localStorage.setItem('ab_identity_photo', user.photoURL || '');
+      localStorage.setItem('ab_identity_email', user.email || '');
+      await ensureProfile(getFirestore(app), user.displayName || user.email, user.photoURL || '');
+      try { await signOut(auth); } catch (e) { /* non-fatal */ }
+      location.reload();
+    }
+  } catch (e) {
+    console.warn('[Identity] redirect result error:', e);
+  }
+}
 
 /**
  * Get the current session. Checks Firebase Auth first, then localStorage fallback.
@@ -18,6 +44,8 @@ let _authDetached = false;
 function detachStaleFirebaseAuth() {
   if (_authDetached) return;
   _authDetached = true;
+  // On localhost we use redirect auth — don't detach or getRedirectResult returns null
+  if (['localhost', '127.0.0.1'].includes(location.hostname)) return;
   try {
     const auth = getAuth();
     if (auth.currentUser) signOut(auth).catch(() => {});
@@ -92,8 +120,18 @@ export async function signInWithGoogle(app) {
   try {
     const auth = getAuth(app);
     const provider = new GoogleAuthProvider();
-    const result = await signInWithPopup(auth, provider);
-    const user = result.user;
+
+    // On localhost, Chrome's COOP blocks popup communication — use redirect instead
+    const isLocal = ['localhost', '127.0.0.1'].includes(location.hostname);
+    let user;
+    if (isLocal) {
+      // Redirect flow: this call navigates away, result is picked up on return
+      await signInWithRedirect(auth, provider);
+      return { success: false, error: 'Redirecting...' }; // won't reach here
+    } else {
+      const result = await signInWithPopup(auth, provider);
+      user = result.user;
+    }
 
     localStorage.setItem('ab_identity_name', user.displayName || user.email);
     localStorage.setItem('ab_identity_session', 'active');

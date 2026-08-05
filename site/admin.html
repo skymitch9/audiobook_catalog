@@ -149,7 +149,7 @@
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
   import { getFirestore, collection, getDocs } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
   import { col } from './fb-env.js';
-  import { renderIdentityBar, getSession, adminResetPassword, isAdmin } from './identity.js';
+  import { renderIdentityBar, getSession, adminResetPassword, isAdmin, handleRedirectResult } from './identity.js';
   import {
     watchStatus, loadHistory, requestRun, getToken, setToken,
   } from './pipeline-status.js';
@@ -168,6 +168,7 @@
   try {
     const app = initializeApp(firebaseConfig);
     db = getFirestore(app);
+    handleRedirectResult(app);
   } catch (e) {
     console.warn('Firebase init failed:', e);
   }

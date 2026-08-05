@@ -8,7 +8,7 @@
 // catalog.csv (index.html scrapes its own table instead; same data).
 
 import { doc, getDoc, setDoc, collection, getDocs, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
-import { getSession, signInWithGoogle, signOutGoogle, logout, isAdmin } from './identity.js';
+import { getSession, signInWithGoogle, signOutGoogle, logout, isAdmin, handleRedirectResult } from './identity.js';
 import { col } from './fb-env.js';
 import { loadCatalogBooks } from './club-reads.js';
 
@@ -72,6 +72,8 @@ function setDarkPref(on) {
 
 export function mountAccountModal(db, app, containerEl) {
   if (!containerEl) return;
+  // Handle redirect result from localhost Google SSO
+  handleRedirectResult(app);
   if (!document.getElementById('account-modal-css')) {
     const style = document.createElement('style');
     style.id = 'account-modal-css';
