@@ -7528,5 +7528,40 @@
   "warnings": [],
   "source": "none",
   "checked_at": 1785896013
+ },
+ "The Keeper Chronicles: Complete Trilogy": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1786144866
+ },
+ "Bringing Home the Rain: The Redemption of Howard Marsh: The Jubal County Saga, Book 1": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1786144918
+ },
+ "Feet in the Fire: The Redemption of Howard Marsh 3 (The Jubal County Saga, Book 3)": {
+  "warnings": [
+   {
+    "label": "Cursing and foul language (publisher/author warning)",
+    "source_url": "https://www.amazon.com/Feet-Fire-Redemption-Howard-County-ebook/dp/B09PZMCGDH"
+   }
+  ],
+  "source": "web",
+  "checked_at": 1786145170
+ },
+ "Praying the Day's Not Poison: The Redemption of Howard Marsh 4 (The Jubal County Saga)": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1786145218
+ },
+ "The Depth of the Water: The Redemption of Howard Marsh 2 (The Jubal County Saga)": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1786145324
+ },
+ "Happy Jack and the Scary-Ass Book of Doom: Shadows Over Earth-That-Was, Book 1": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1786145513
  }
 }
