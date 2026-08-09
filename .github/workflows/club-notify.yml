@@ -9,7 +9,20 @@ on:
     - cron: "*/15 * * * *"
   workflow_dispatch:
 
-permissions: {}
+# ⚠️ `contents: read` is required, not optional — this was `{}` and every
+# scheduled run failed at checkout for days.
+#
+# The job posts to a webhook and touches nothing in the repo, so granting the
+# token nothing looked correct. But it still has to *check out the code it
+# runs*, and on a private repo a token with no scopes cannot. GitHub will not
+# confirm a private repo exists to a caller that cannot read it, so the failure
+# arrives as `remote: Repository not found` — an authorization error wearing a
+# 404, which reads like a deleted repo or a typo in the URL.
+#
+# This is still least-privilege: read is the floor for checkout, the webhook
+# comes from a secret rather than the token, and nothing here writes.
+permissions:
+  contents: read
 
 concurrency:
   group: "club-notify"
