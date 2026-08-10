@@ -215,8 +215,14 @@ def sort_books(dry_run: bool = False) -> list[Path]:
     """
     Sort audiobook files from OpenAudible export into author-named subfolders.
     Returns list of files that were moved (or would be moved in dry-run).
+
+    ⚠️ Scope is the WHOLE LIBRARY, not just new downloads: OPENAUDIBLE_BOOKS_DIR
+    and ROOT_DIR are the same path (both come from $ROOT_DIR), and this rglobs
+    the source. Every already-filed book is re-evaluated on every run, so the
+    shelf map below rewrites the library, not an inbox. Treat an entry added to
+    it as a bulk move and dry-run it first.
     """
-    from app.tools.book_sort import get_author_name
+    from app.author_names import get_author_name, load_shelf_aliases, resolve_shelf_author
     from app.config import ROOT_DIR
 
     source_dirs = [OPENAUDIBLE_BOOKS_DIR]
@@ -240,12 +246,24 @@ def sort_books(dry_run: bool = False) -> list[Path]:
         print("  No new audiobook files found in OpenAudible export.")
         return []
 
+    # Tag spelling is not shelf spelling. Without this the sorter fights the
+    # library: a book tagged "Alex Toxic" that lives in "Nadya Lee/" gets pulled
+    # back out on the next run, which is why the superseded whole-library sorter
+    # kept being hand-run to undo it. Deliberately NOT author_aliases.json —
+    # that map answers a different question and one of its answers ("this pen
+    # name is that human") is wrong for shelving. See app/author_names.py.
+    shelf_aliases = load_shelf_aliases()
+
     moved = []
     for f in files:
         author = get_author_name(f)
         if not author:
             print(f"  [SKIP] No author metadata: {f.name}")
             continue
+
+        shelved = resolve_shelf_author(author, shelf_aliases)
+        aliased_from = author if shelved != author else None
+        author = shelved
 
         author_folder = target_root / author
         dest = author_folder / f.name
@@ -254,6 +272,8 @@ def sort_books(dry_run: bool = False) -> list[Path]:
             print(f"  [EXISTS] {author}/{f.name} - already in library")
             continue
 
+        if aliased_from:
+            print(f"  [SHELF] '{aliased_from}' -> '{author}' (author_shelf_aliases.json)")
         print(f"  [MOVE] {f.name} -> {author}/{f.name}")
         if not dry_run:
             author_folder.mkdir(parents=True, exist_ok=True)

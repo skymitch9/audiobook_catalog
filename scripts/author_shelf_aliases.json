@@ -1,0 +1,15 @@
+{
+  "_description": "LOCAL SHELVING map: tag-derived author name -> the folder under ROOT_DIR its books are filed in. Read by app/author_names.py, used by sync_to_drive.sort_books() and app/tools/book_sort.py. Keys are matched case-insensitively.",
+  "_not_the_drive_map": "scripts/author_aliases.json is a DIFFERENT map with a DIFFERENT job: it routes a local FOLDER NAME to a Google Drive folder, and runs after this one. The two are allowed to disagree - Drive keeps one folder per human, a shelf keeps one folder per body of work.",
+  "_rule": "An entry belongs here only when both names denote the SAME body of work. Spelling, spacing, romanisation and role-suffix variants qualify; so does a co-author credit that only ever appears on one shared series. A pen name with its own separate bibliography DOES NOT qualify, even though it is the same human and the same Drive folder - it gets its own shelf.",
+  "_deliberately_absent": "'William D. Arand' -> 'Randi Darren': one human, two non-overlapping canons; merging them on 2026-08-09 destroyed a correct split and was reverted. 'T. L. Payne' -> 'T.L. Payne': the owner chose 'T. L. Payne', and the Drive side still has two folders to merge before any alias is safe. Do not re-add either. See docs/info/author-folder-audit.md.",
+  "_verified": "2026-08-09: every entry below is already how the library is filed, so adding this map moved nothing. Each one was blocked from being UNDONE by the pipeline sorter, which is why the map exists.",
+
+  "A.J. Pine": "A. J. Pine",
+  "Alex Toxic": "Nadya Lee",
+  "J J Bookerson": "JJ Bookerson",
+  "Jim Butcher - Editor": "Jim Butcher",
+  "Mashton X X": "Mashton XX",
+  "N.C. Lux": "N. C. Lux",
+  "リュート": "Ryuto"
+}

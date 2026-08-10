@@ -1,133 +1,28 @@
 # app/tools/book_sort.py
 # Move audiobook files into subfolders named after the primary author.
 # Uses ROOT_DIR and EXTS from app.config (set via .env).
+#
+# ⚠️ SUPERSEDED. The live sorter is scripts/sync_to_drive.py sort_books()
+# (ARCHITECTURE.md STEP 1) and it now does everything this does, including
+# alias resolution — the gap that used to make hand-running this file
+# necessary. Kept only because a whole-library pass is occasionally useful.
+# Both paths share app/author_names.py so they cannot drift apart again;
+# that shared module is also where get_author_name now lives.
 
 from __future__ import annotations
 
+import argparse
 import shutil
 from pathlib import Path
-from typing import Optional
 
-from mutagen.mp4 import MP4
-
-# Reuse your configured root + extensions
+# The tag reader and the shelf map both live in one place now, so a hand-run of
+# this script and a pipeline run reach the same answer for every file.
+from app.author_names import (  # noqa: F401  (get_author_name re-exported for callers)
+    get_author_name,
+    load_shelf_aliases,
+    resolve_shelf_author,
+)
 from app.config import EXTS, ROOT_DIR
-
-# iTunes atom for author
-K_ARTIST = "\xa9ART"
-
-
-def _bytes_to_str(b: bytes) -> str:
-    for enc in ("utf-8", "utf-16", "latin-1"):
-        try:
-            return b.decode(enc).strip()
-        except Exception:
-            pass
-    return b.decode("utf-8", errors="ignore").strip()
-
-
-def _first_str(val) -> Optional[str]:
-    v = val[0] if isinstance(val, list) and val else val
-    if v is None:
-        return None
-    if isinstance(v, bytes):
-        return _bytes_to_str(v)
-    return str(v).strip()
-
-
-def _load_priority_authors() -> list[str]:
-    """Load priority authors list from scripts/priority_authors.json."""
-    import json
-    priority_path = Path(__file__).resolve().parent.parent.parent / "scripts" / "priority_authors.json"
-    if priority_path.exists():
-        try:
-            with open(priority_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            return [a.lower() for a in data.get("priority_authors", [])]
-        except Exception:
-            pass
-    return []
-
-
-def get_author_name(file_path: Path) -> Optional[str]:
-    """
-    Returns a normalized primary author string from MP4/M4B tags.
-    - Reads ©ART / \xa9ART (iTunes 'Artist' a.k.a. Author in many audiobook rips)
-    - For multi-author fields, uses priority-author classification to select primary.
-    - Falls back to first author before comma if no priority author found.
-    """
-    try:
-        audio = MP4(str(file_path))
-        tags = audio.tags or {}
-        author_field = tags.get(K_ARTIST)
-        if not author_field:
-            return None
-        raw = _first_str(author_field)
-        if not raw:
-            return None
-
-        # Split all authors and normalize each
-        import re
-        parts = re.split(r"[;,/&]| and ", raw, flags=re.IGNORECASE)
-        authors = []
-        for p in parts:
-            name = p.strip()
-            if not name:
-                continue
-            name_parts = name.split()
-            if not name_parts:
-                continue
-            normalized = " ".join(
-                w if (w.isupper() and len(w) <= 5) else w.capitalize()
-                for w in name_parts
-            )
-            authors.append(normalized)
-
-        if not authors:
-            return None
-
-        # Check if any author is in the priority list — pick highest rank
-        priority = _load_priority_authors()
-        best_author = None
-        best_rank = len(priority) + 1
-        for author in authors:
-            if author.lower() in priority:
-                rank = priority.index(author.lower())
-                if rank < best_rank:
-                    best_rank = rank
-                    best_author = author
-        if best_author:
-            return best_author
-
-        # Default to first author
-        return authors[0]
-    except Exception as e:
-        print(f"[WARN] Metadata read failed: {file_path} - {e}")
-        return None
-
-
-def _load_aliases() -> dict:
-    """Load author aliases from the scripts directory."""
-    import json
-    alias_path = Path(__file__).resolve().parent.parent.parent / "scripts" / "author_aliases.json"
-    if alias_path.exists():
-        try:
-            with open(alias_path, "r", encoding="utf-8") as af:
-                raw = json.load(af)
-                return {k.lower(): v for k, v in raw.items() if not k.startswith("_")}
-        except Exception:
-            pass
-    return {}
-
-
-def _resolve_author_alias(author: str, aliases: dict) -> str:
-    """Resolve an author name through the alias map."""
-    alias_key = author.lower()
-    if alias_key in aliases:
-        resolved = aliases[alias_key]
-        if not resolved.startswith("__FOLDER_ID__"):
-            return resolved
-    return author
 
 
 def organize_by_author(root_dir: Path, exts: set[str], recursive: bool = True, dry_run: bool = False) -> None:
@@ -135,10 +30,10 @@ def organize_by_author(root_dir: Path, exts: set[str], recursive: bool = True, d
     Moves files under root_dir into subfolders named after the detected author.
     - Only files with extensions in `exts` are processed.
     - If a file already resides in an 'Author' folder that matches the author, it is skipped.
-    - Applies author aliases to normalize folder names.
+    - Applies the local shelving aliases (scripts/author_shelf_aliases.json).
     - Set dry_run=True to preview without moving.
     """
-    aliases = _load_aliases()
+    aliases = load_shelf_aliases()
 
     if recursive:
         files = [p for p in root_dir.rglob("*") if p.is_file() and p.suffix.lower() in exts]
@@ -155,8 +50,10 @@ def organize_by_author(root_dir: Path, exts: set[str], recursive: bool = True, d
             print(f"Skipping (no author): {f.relative_to(root_dir)}")
             continue
 
-        # Apply alias resolution
-        author = _resolve_author_alias(author, aliases)
+        # Shelf aliases only. This used to read scripts/author_aliases.json,
+        # a Drive-routing table, and on 2026-08-09 that merged two pen names
+        # with separate bibliographies. See docs/info/author-folder-audit.md.
+        author = resolve_shelf_author(author, aliases)
 
         # Target folder directly under ROOT_DIR
         author_folder = root_dir / author
@@ -171,29 +68,43 @@ def organize_by_author(root_dir: Path, exts: set[str], recursive: bool = True, d
             # If file is not under root_dir (shouldn't happen), we still try to move
             pass
 
-        author_folder.mkdir(parents=True, exist_ok=True)
         dest = author_folder / f.name
 
+        # ASCII arrows on purpose: Windows consoles are cp1252 and a "→" here
+        # raised UnicodeEncodeError mid-run, so a preview could not be read to
+        # the end. Same lesson as scripts/revert_author_moves.py.
         if dest.exists():
-            print(f"Exists → skip: {dest.relative_to(root_dir)}")
+            print(f"Exists -> skip: {dest.relative_to(root_dir)}")
             continue
 
-        print(f"Move: {f.relative_to(root_dir)}  →  {dest.relative_to(root_dir)}")
+        print(f"Move: {f.relative_to(root_dir)}  ->  {dest.relative_to(root_dir)}")
         if not dry_run:
+            author_folder.mkdir(parents=True, exist_ok=True)
             try:
                 shutil.move(str(f), str(dest))
             except Exception as e:
-                print(f"[ERROR] Move failed: {f} → {dest} ({e})")
+                print(f"[ERROR] Move failed: {f} -> {dest} ({e})")
 
 
 def main():
+    # Dry run is the default. This used to move ~25 GB with no flag and no
+    # prompt, which is how the 2026-08-09 incident got as far as it did.
+    # --execute matches scripts/migrate_folder_names.py's convention.
+    parser = argparse.ArgumentParser(
+        description="Superseded whole-library author sorter. Prefer "
+                    "scripts/sync_to_drive.py --sort-only."
+    )
+    parser.add_argument("--execute", action="store_true", help="actually move files")
+    args = parser.parse_args()
+
     # Safety: ensure ROOT_DIR exists
     if not ROOT_DIR.exists():
         print(f"[ERROR] ROOT_DIR not found: {ROOT_DIR}")
         return
 
-    # Default: recursive, real move. Flip to dry_run=True to preview.
-    organize_by_author(ROOT_DIR, EXTS, recursive=True, dry_run=False)
+    organize_by_author(ROOT_DIR, EXTS, recursive=True, dry_run=not args.execute)
+    if not args.execute:
+        print("\nDRY RUN. Nothing moved. Re-run with --execute.")
 
 
 if __name__ == "__main__":

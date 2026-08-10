@@ -10,6 +10,7 @@ docs/
 !package-lock.json
 !author_drive_map.json
 !scripts/author_aliases.json
+!scripts/author_shelf_aliases.json
 !scripts/priority_authors.json
 !scripts/bookfunnel_books.json
 !scripts/audit_exclusions.json
