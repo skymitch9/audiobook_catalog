@@ -1294,7 +1294,7 @@ function toggleDarkMode(isDark){
 <script type="module">
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
   import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
-  import { getSession, signInWithGoogle, signOutGoogle, register, login, logout, validateDisplayName, validatePassphrase, isAdmin } from './identity.js';
+  import { getSession, signInWithGoogle, signOutGoogle, register, login, logout, validateDisplayName, validatePassphrase, isAdmin, handleRedirectResult } from './identity.js';
   import { submitReview, getReviews, renderStars, bookIdFromTitle, computeAverageRating, formatDate } from './reviews.js';
   import { addUserWarning, getUserWarnings, deleteUserWarning, requestWarningCheck, getWarningRequest } from './user-warnings.js';
   import { col } from './fb-env.js';
@@ -1317,6 +1317,16 @@ function toggleDarkMode(isDark){
   } catch (e) {
     console.warn('[Firebase] Init failed:', e);
   }
+
+  // Collect a redirect sign-in on the way back from Google.
+  //
+  // ⚠️ Must run before anything reads the session, and must run on THIS page —
+  // account-modal.js and admin.html each call it for their own page and none of
+  // them covers this one. Without it, a redirect sign-in (which is what mobile
+  // and in-app browsers get, since popups are refused there) completes at
+  // Google, returns here, and is silently discarded: the user arrives back
+  // signed out with nothing to explain why.
+  if (app) handleRedirectResult(app);
 
   // Render auth button in header + auth modal
   if (db) {

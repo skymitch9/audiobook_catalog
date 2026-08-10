@@ -8,8 +8,26 @@ import { col } from './fb-env.js';
 // ==================== Session Management ====================
 
 /**
- * Call on page load to complete a redirect-based Google sign-in (localhost only).
+ * Set for the duration of a redirect sign-in — from just before we navigate
+ * away to the moment the result is collected on the way back.
+ *
+ * It has to survive a full page navigation, so module state cannot hold it and
+ * sessionStorage does. `detachStaleFirebaseAuth()` reads it to know it must
+ * keep its hands off the Auth session; see the comment there.
+ */
+const REDIRECT_PENDING = 'ab_identity_redirect_pending';
+
+/**
+ * Call on page load to complete a redirect-based Google sign-in.
  * If there's a pending redirect result, it finishes the sign-in and reloads.
+ *
+ * ⚠️ **Every page that offers sign-in must call this.** It is not optional and
+ * it is not localhost-only any more: `signInWithGoogle()` falls back to the
+ * redirect flow whenever a popup cannot be opened, which is the normal case on
+ * mobile and inside in-app browsers. A page that omits this call sends the user
+ * to Google, brings them back, and drops the credential on the floor — they
+ * land on the page still signed out, with no error to explain it.
+ *
  * @param {import('firebase/app').FirebaseApp} app
  */
 export async function handleRedirectResult(app) {
@@ -17,6 +35,10 @@ export async function handleRedirectResult(app) {
   try {
     const auth = getAuth(app);
     const result = await getRedirectResult(auth);
+    // Cleared whether or not a result came back: a `null` means there was no
+    // redirect in flight, so leaving the flag set would suppress the auth
+    // detach on every subsequent load of this tab.
+    sessionStorage.removeItem(REDIRECT_PENDING);
     if (result && result.user) {
       const user = result.user;
       localStorage.setItem('ab_identity_name', user.displayName || user.email);
@@ -46,6 +68,15 @@ function detachStaleFirebaseAuth() {
   _authDetached = true;
   // On localhost we use redirect auth — don't detach or getRedirectResult returns null
   if (['localhost', '127.0.0.1'].includes(location.hostname)) return;
+  // Same hazard, now reachable on any host: a redirect sign-in is mid-flight and
+  // the credential Firebase is about to hand back lives in the very Auth session
+  // this would tear down. Sign out here and getRedirectResult() returns null, so
+  // the user comes back from Google still signed out. getSession() runs on load
+  // and can easily win the race against getRedirectResult(), so the guard has to
+  // be a flag that survived the navigation rather than anything in module state.
+  try {
+    if (sessionStorage.getItem(REDIRECT_PENDING) === '1') return;
+  } catch (e) { /* storage disabled — fall through and detach as before */ }
   try {
     const auth = getAuth();
     if (auth.currentUser) signOut(auth).catch(() => {});
@@ -112,6 +143,39 @@ export function logout() {
 // ==================== Google SSO ====================
 
 /**
+ * Popup failures that mean *the browser will not give us a popup*, as opposed to
+ * *the person changed their mind*. Only these justify falling back to redirect.
+ */
+const POPUP_UNAVAILABLE = new Set([
+  'auth/popup-blocked',
+  'auth/operation-not-supported-in-this-environment',
+  'auth/web-storage-unsupported',
+]);
+
+/**
+ * Begin the redirect sign-in. Navigates away; nothing after it runs.
+ *
+ * The flag is set *before* the call, because once `signInWithRedirect` starts
+ * the navigation there is no later moment on this page to set it in.
+ */
+async function startRedirect(auth, provider) {
+  try {
+    sessionStorage.setItem(REDIRECT_PENDING, '1');
+  } catch (e) { /* storage disabled — the redirect is still worth attempting */ }
+  try {
+    await signInWithRedirect(auth, provider);
+  } catch (e) {
+    // ⚠️ The navigation never happened, so nothing will ever come back to clear
+    // this. Left set, it makes detachStaleFirebaseAuth() a no-op for the rest of
+    // the tab's life and a stale Auth session survives to poison Firestore
+    // writes later. Observed for real: serving on 127.0.0.1 (not an authorized
+    // domain) failed here and stranded the flag.
+    try { sessionStorage.removeItem(REDIRECT_PENDING); } catch (e2) { /* ignore */ }
+    throw e;
+  }
+}
+
+/**
  * Sign in with Google via Firebase Auth popup.
  * @param {import('firebase/app').FirebaseApp} app
  * @returns {Promise<{ success: boolean, displayName?: string, error?: string }>}
@@ -126,10 +190,27 @@ export async function signInWithGoogle(app) {
     let user;
     if (isLocal) {
       // Redirect flow: this call navigates away, result is picked up on return
-      await signInWithRedirect(auth, provider);
+      await startRedirect(auth, provider);
       return { success: false, error: 'Redirecting...' }; // won't reach here
     } else {
-      const result = await signInWithPopup(auth, provider);
+      // Popup first — it keeps the page state, and it is what desktop has always
+      // used. But a popup is a privilege the browser can simply decline, and on
+      // mobile and inside in-app browsers (the Gmail/Slack/Instagram webviews)
+      // it usually does. Falling back to redirect turns a dead button into a
+      // slower sign-in rather than no sign-in at all.
+      let result;
+      try {
+        result = await signInWithPopup(auth, provider);
+      } catch (popupErr) {
+        if (!POPUP_UNAVAILABLE.has(popupErr?.code)) throw popupErr;
+        // ⚠️ Deliberately NOT triggered by auth/popup-closed-by-user or
+        // auth/cancelled-popup-request. Those mean the person chose to back out,
+        // and answering a cancellation by navigating the whole page to Google is
+        // a worse surprise than the failure it would be papering over.
+        console.warn('[Auth] popup unavailable (%s) — falling back to redirect', popupErr.code);
+        await startRedirect(auth, provider);
+        return { success: false, error: 'Redirecting...' }; // won't reach here
+      }
       user = result.user;
     }
 
