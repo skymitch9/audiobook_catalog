@@ -176,10 +176,15 @@ def check_discord_webhook() -> None:
 
 
 def check_site_deployment() -> None:
-    """Check if the GitHub Pages site is accessible."""
+    """Check if the live site is accessible."""
     _header("Site Deployment")
 
-    site_url = "https://skymitch9.github.io/audiobook_catalog/"
+    # Same knob as the Discord notifier (app/tools/send_discord_notification.py)
+    # and deploy.yml, which reads the repo variable of the same name. Hardcoding
+    # the GitHub Pages URL here meant a health check that passed while pointing
+    # at the host being migrated away from — it would have gone on reporting a
+    # healthy site indefinitely after the real one moved.
+    site_url = os.environ.get("SITE_URL", "https://audiobooks.heygabi.ai/")
 
     try:
         import requests
