@@ -1,4 +1,4 @@
-name: Deploy to GitHub Pages
+name: Deploy site (GitHub Pages + Cloudflare Pages)
 
 # Two-lane deploy:
 #   - Site root (prod) is ALWAYS built from the `prod` branch. Humans never push
@@ -6,6 +6,20 @@ name: Deploy to GitHub Pages
 #     which runs guard checks first.
 #   - /dev/ is built from `main` on every push, so main can break freely without
 #     affecting prod.
+#
+# HOSTS (migration in progress — see docs/access/pages-migration.md):
+#   - GitHub Pages   skymitch9.github.io/audiobook_catalog/  — LIVE today
+#   - Cloudflare Pages (direct upload)                       — parallel publish,
+#     INERT until CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID exist as repo
+#     secrets. Both hosts receive the SAME assembled `_site`, so the two-lane
+#     semantics are identical on both.
+#
+# ⚠️ The Cloudflare Pages project MUST stay a direct-upload project. Never
+#    connect it to this GitHub repo. The Pages git integration puts branch
+#    previews on their own HOSTNAME, and site/fb-env.js `detectDevLane()` keys
+#    the dev lane on a `/dev/` PATH — on a preview hostname it returns false and
+#    the dev lane silently reads/writes PRODUCTION Firestore collections.
+#    catalog-platform/docs/DOMAIN_AND_HOSTING.md §2.3.
 on:
   push:
     branches: [ main, master ]
@@ -40,6 +54,19 @@ jobs:
   build:
     needs: [test, lint]
     runs-on: ubuntu-latest
+
+    env:
+      # A BOOLEAN, not a value: step-level `if:` cannot read the `secrets`
+      # context, but it can read `env`, and job-level `env` can. Nothing here
+      # exports the token itself into the job environment.
+      # Flips to 'true' the moment BOTH repo secrets exist — that is the
+      # Cloudflare cutover switch, and it is off until the owner throws it.
+      CF_CONFIGURED: ${{ secrets.CLOUDFLARE_API_TOKEN != '' && secrets.CLOUDFLARE_ACCOUNT_ID != '' }}
+      # Cloudflare Pages project name. Must match the project the owner creates
+      # (direct upload, no git connection). Its *production branch* must be set
+      # to `main`, or every deployment below lands as a preview and the custom
+      # domain keeps serving stale content.
+      CF_PAGES_PROJECT: audiobook-catalog
 
     steps:
     - name: 📥 Checkout prod branch (site root)
@@ -115,6 +142,11 @@ jobs:
         echo "Total size:  $(du -sh _site | cut -f1)"
         echo "::endgroup::"
 
+    # ---- GitHub Pages lane -------------------------------------------------
+    # ⚠️ REMOVE-ON-CUTOVER BLOCK A (see docs/access/pages-migration.md, step 14)
+    # These two steps, the `deploy` job's first three steps, the `pages:` /
+    # `id-token:` permissions and the `github-pages` environment are the whole
+    # GitHub Pages path. They stay until the grace period ends.
     - name: 📄 Setup Pages
       uses: actions/configure-pages@v5
 
@@ -122,10 +154,48 @@ jobs:
       uses: actions/upload-pages-artifact@v4
       with:
         path: './_site'
+    # ---- end REMOVE-ON-CUTOVER BLOCK A -------------------------------------
+
+    # ---- Cloudflare Pages lane (direct upload) -----------------------------
+    # Publishes the SAME `_site` that GitHub Pages gets: root = prod branch,
+    # /dev/ = main branch. Because the dev lane stays a PATH, site/fb-env.js
+    # `detectDevLane()` behaves identically on both hosts and the dev lane keeps
+    # writing *_dev Firestore collections. This is the whole reason direct
+    # upload is used instead of the Pages git integration (DOMAIN_AND_HOSTING.md
+    # §2.3 / §5).
+    #
+    # Skipped entirely until both secrets exist, so this commit is inert on the
+    # live site. `continue-on-error` keeps a Cloudflare problem from failing the
+    # build job and thereby blocking the GitHub Pages deploy job that needs it —
+    # drop it together with REMOVE-ON-CUTOVER BLOCK A.
+    - name: ☁️ Publish to Cloudflare Pages
+      id: cf_pages
+      if: env.CF_CONFIGURED == 'true'
+      uses: cloudflare/wrangler-action@v3
+      continue-on-error: true
+      with:
+        apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        command: >-
+          pages deploy _site
+          --project-name=${{ env.CF_PAGES_PROJECT }}
+          --branch=main
+          --commit-dirty=true
+
+    - name: ⚠️ Cloudflare publish failed (GitHub Pages unaffected)
+      if: env.CF_CONFIGURED == 'true' && steps.cf_pages.outcome == 'failure'
+      run: |
+        echo "::warning::Cloudflare Pages publish FAILED — GitHub Pages is still serving the site."
+        echo "::warning::Check the project name (${CF_PAGES_PROJECT}), the API token scopes, and that the project exists. docs/access/pages-migration.md"
 
     - name: ✅ Build summary
       run: |
         echo "::notice::Two-lane site built (root=prod branch, /dev/=main branch)"
+        if [ "$CF_CONFIGURED" = "true" ]; then
+          echo "::notice::Cloudflare Pages publish: ${{ steps.cf_pages.outcome }} (project ${CF_PAGES_PROJECT})"
+        else
+          echo "::notice::Cloudflare Pages publish SKIPPED — CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID not set. GitHub Pages only."
+        fi
 
   deploy:
     environment:
@@ -135,6 +205,7 @@ jobs:
     needs: build
 
     steps:
+    # ⚠️ REMOVE-ON-CUTOVER BLOCK B (see docs/access/pages-migration.md, step 14)
     - name: 🚀 Deploy to GitHub Pages
       id: deployment
       uses: actions/deploy-pages@v5
@@ -144,12 +215,14 @@ jobs:
       id: deployment_retry
       if: steps.deployment.outcome == 'failure'
       uses: actions/deploy-pages@v5
+    # ---- end REMOVE-ON-CUTOVER BLOCK B -------------------------------------
 
     - name: ✅ Deployment summary
       run: |
         echo "::notice::Deployment completed successfully"
-        echo "::notice::Prod URL: ${{ steps.deployment.outputs.page_url || steps.deployment_retry.outputs.page_url }}"
-        echo "::notice::Dev URL:  ${{ steps.deployment.outputs.page_url || steps.deployment_retry.outputs.page_url }}dev/"
+        echo "::notice::GitHub Pages prod URL: ${{ steps.deployment.outputs.page_url || steps.deployment_retry.outputs.page_url }}"
+        echo "::notice::GitHub Pages dev URL:  ${{ steps.deployment.outputs.page_url || steps.deployment_retry.outputs.page_url }}dev/"
+        echo "::notice::Canonical SITE_URL for notifications: ${{ vars.SITE_URL || steps.deployment.outputs.page_url || steps.deployment_retry.outputs.page_url }}"
 
     # ---- New-book notification: only when promote.yml dispatched us ----
 
@@ -182,7 +255,14 @@ jobs:
       if: github.event_name == 'workflow_dispatch' && inputs.notify && steps.detect_books.outputs.has_new_books == 'true'
       env:
         DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-        SITE_URL: ${{ steps.deployment.outputs.page_url }}
+        # Repo VARIABLE `SITE_URL` wins when set — that is the one-knob cutover
+        # for the Discord link, and it is what keeps this working after
+        # REMOVE-ON-CUTOVER BLOCK B goes (deploy-pages' page_url output dies
+        # with it; DOMAIN_AND_HOSTING.md §2.7 row 3). The retry fallback also
+        # fixes a latent bug: when the first deploy failed and the retry
+        # succeeded, page_url was empty and the link silently fell back to
+        # send_discord_notification.py's hardcoded default.
+        SITE_URL: ${{ vars.SITE_URL || steps.deployment.outputs.page_url || steps.deployment_retry.outputs.page_url }}
       run: |
         python -m app.tools.send_discord_notification
 
