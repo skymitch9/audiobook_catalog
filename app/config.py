@@ -46,9 +46,19 @@ SITE_CSV_NAME: str = "catalog.csv"
 #
 # Set COVERS_BASE_URL="covers/" to restore the old fully-relative behaviour
 # (useful for a purely local preview with site/covers present).
+# Switched off the r2.dev URL on 2026-08-10. That was always the interim, and
+# Cloudflare's own notice on it is the reason: the public development URL is
+# **rate-limited, and Cache and Access are unavailable on it**. A custom domain
+# puts covers inside the heygabi.ai zone, so they are cached at the edge and
+# honour the `public, max-age=604800` that upload_covers_r2.py already sets —
+# the zone's Browser Cache TTL is "Respect Existing Headers" (see
+# docs/info/caching.md), so that header is obeyed rather than overridden.
+#
+# The r2.dev URL still works and is the fallback: set COVERS_BASE_URL in the
+# environment to move everything back without touching code.
 COVERS_BASE_URL: str = (
     os.getenv("COVERS_BASE_URL")
-    or "https://pub-7ab0a1938250448aa329ca218db15a68.r2.dev/"
+    or "https://covers.heygabi.ai/"
 ).strip()
 
 COVERS_R2_BUCKET: str = os.getenv("COVERS_R2_BUCKET") or "audiobook-covers"

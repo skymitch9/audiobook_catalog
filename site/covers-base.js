@@ -8,7 +8,7 @@
 // site/index.html does NOT import this - its cover URLs are already absolute,
 // baked in at build time by app/web/html_builder.py cover_src().
 
-export const COVERS_BASE_URL = 'https://pub-7ab0a1938250448aa329ca218db15a68.r2.dev/';
+export const COVERS_BASE_URL = 'https://covers.heygabi.ai/';
 
 /**
  * Resolve a catalog.csv `cover_href` to a fetchable URL.
