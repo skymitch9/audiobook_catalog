@@ -175,16 +175,7 @@ export function mountAccountModal(db, app, containerEl) {
           <span class="track"><span class="thumb"></span></span>
         </label>
       </div>
-      <button id="am-logout-btn" style="width:100%;margin-top:10px;background:var(--neon-magenta,#ff2a6d);color:#fff;border:none;padding:10px;cursor:pointer;font-weight:700;font-family:inherit">Logout</button>`;
-
-    // Admin portal link — only visible to admins
-    if (isAdmin(session) && !/\/admin\.html$/.test(location.pathname)) {
-      const adminRow = document.createElement('a');
-      adminRow.href = 'admin.html';
-      adminRow.style.cssText = 'display:block;text-align:center;margin-top:10px;padding:10px;border:1px solid var(--border,#2a2a3a);text-decoration:none;color:var(--neon-cyan,#05d9e8);font-weight:700;font-size:.9em';
-      adminRow.textContent = '🔧 Admin Portal';
-      container.querySelector('#am-logout-btn').insertAdjacentElement('afterend', adminRow);
-    }
+      <button id="am-logout-btn" style="width:100%;margin-top:10px;background:var(--neon-magenta,#ff2a6d);color:#fff;border:none;padding:10px;cursor:pointer;font-weight:700;font-family:inherit">Logout</button>
       <div style="border-top:1px solid var(--border,#2a2a3a);margin-top:12px;padding-top:12px">
         <div class="am-section-title">Currently Reading</div>
         <input id="am-reading" type="text" class="am-input" placeholder="Search catalog..." autocomplete="off" />
@@ -200,6 +191,26 @@ export function mountAccountModal(db, app, containerEl) {
         <div id="am-fav-list" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px"></div>
         <div style="height:8px"></div>
       </div>`;
+
+    // Admin portal link — only visible to admins.
+    //
+    // ⚠️ This must stay AFTER the template literal above, not inside it. It was
+    // once inserted mid-literal, which closed the string early and left the
+    // remaining markup (Currently Reading, Favorite Books) sitting in the file
+    // as bare HTML. That is a SyntaxError, so the whole module failed to parse
+    // and every page importing it — community, clubs, club-read — died on load
+    // showing only "Loading community…". A broken module is silent apart from
+    // one console line, so it looked like a data problem for a long time.
+    //
+    // The DOM result is unchanged: insertAdjacentElement('afterend') still puts
+    // the link directly below the logout button.
+    if (isAdmin(session) && !/\/admin\.html$/.test(location.pathname)) {
+      const adminRow = document.createElement('a');
+      adminRow.href = 'admin.html';
+      adminRow.style.cssText = 'display:block;text-align:center;margin-top:10px;padding:10px;border:1px solid var(--border,#2a2a3a);text-decoration:none;color:var(--neon-cyan,#05d9e8);font-weight:700;font-size:.9em';
+      adminRow.textContent = '🔧 Admin Portal';
+      container.querySelector('#am-logout-btn').insertAdjacentElement('afterend', adminRow);
+    }
 
     container.querySelector('#am-dark-toggle').addEventListener('change', function () {
       setDarkPref(this.checked);
