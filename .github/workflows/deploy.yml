@@ -30,11 +30,11 @@ on:
         type: boolean
         default: false
 
-# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+# `contents: write` is for the catalog auto-commit. The `pages:` and
+# `id-token:` permissions went with GitHub Pages on 2026-08-10 (cutover step 14)
+# — Cloudflare Pages authenticates with an API token, not the GITHUB_TOKEN.
 permissions:
   contents: write
-  pages: write
-  id-token: write
 
 # Allow only one concurrent deployment
 concurrency:
@@ -142,20 +142,6 @@ jobs:
         echo "Total size:  $(du -sh _site | cut -f1)"
         echo "::endgroup::"
 
-    # ---- GitHub Pages lane -------------------------------------------------
-    # ⚠️ REMOVE-ON-CUTOVER BLOCK A (see docs/access/pages-migration.md, step 14)
-    # These two steps, the `deploy` job's first three steps, the `pages:` /
-    # `id-token:` permissions and the `github-pages` environment are the whole
-    # GitHub Pages path. They stay until the grace period ends.
-    - name: 📄 Setup Pages
-      uses: actions/configure-pages@v5
-
-    - name: 📦 Upload artifact
-      uses: actions/upload-pages-artifact@v4
-      with:
-        path: './_site'
-    # ---- end REMOVE-ON-CUTOVER BLOCK A -------------------------------------
-
     # ---- Cloudflare Pages lane (direct upload) -----------------------------
     # Publishes the SAME `_site` that GitHub Pages gets: root = prod branch,
     # /dev/ = main branch. Because the dev lane stays a PATH, site/fb-env.js
@@ -164,15 +150,16 @@ jobs:
     # upload is used instead of the Pages git integration (DOMAIN_AND_HOSTING.md
     # §2.3 / §5).
     #
-    # Skipped entirely until both secrets exist, so this commit is inert on the
-    # live site. `continue-on-error` keeps a Cloudflare problem from failing the
-    # build job and thereby blocking the GitHub Pages deploy job that needs it —
-    # drop it together with REMOVE-ON-CUTOVER BLOCK A.
+    # ⚠️ `continue-on-error` was REMOVED on 2026-08-10 (cutover step 14), and its
+    # removal is the point of that step. It existed so a Cloudflare failure could
+    # not fail the build job and thereby block the GitHub Pages deploy that
+    # depended on it — correct while both hosts published, and actively wrong
+    # now: with Cloudflare the only publisher, keeping it would turn a failed
+    # publish into a green run that shipped nothing.
     - name: ☁️ Publish to Cloudflare Pages
       id: cf_pages
       if: env.CF_CONFIGURED == 'true'
       uses: cloudflare/wrangler-action@v3
-      continue-on-error: true
       with:
         apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -194,35 +181,19 @@ jobs:
         if [ "$CF_CONFIGURED" = "true" ]; then
           echo "::notice::Cloudflare Pages publish: ${{ steps.cf_pages.outcome }} (project ${CF_PAGES_PROJECT})"
         else
-          echo "::notice::Cloudflare Pages publish SKIPPED — CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID not set. GitHub Pages only."
+          echo "::notice::Cloudflare Pages publish SKIPPED — CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID not set. NOTHING WAS PUBLISHED."
         fi
 
   deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     needs: build
 
     steps:
-    # ⚠️ REMOVE-ON-CUTOVER BLOCK B (see docs/access/pages-migration.md, step 14)
-    - name: 🚀 Deploy to GitHub Pages
-      id: deployment
-      uses: actions/deploy-pages@v5
-      continue-on-error: true
-
-    - name: 🔁 Retry deploy (Pages transient "try again later" errors)
-      id: deployment_retry
-      if: steps.deployment.outcome == 'failure'
-      uses: actions/deploy-pages@v5
-    # ---- end REMOVE-ON-CUTOVER BLOCK B -------------------------------------
-
     - name: ✅ Deployment summary
       run: |
-        echo "::notice::Deployment completed successfully"
-        echo "::notice::GitHub Pages prod URL: ${{ steps.deployment.outputs.page_url || steps.deployment_retry.outputs.page_url }}"
-        echo "::notice::GitHub Pages dev URL:  ${{ steps.deployment.outputs.page_url || steps.deployment_retry.outputs.page_url }}dev/"
-        echo "::notice::Canonical SITE_URL for notifications: ${{ vars.SITE_URL || steps.deployment.outputs.page_url || steps.deployment_retry.outputs.page_url }}"
+        echo "::notice::Published to Cloudflare Pages by the build job."
+        echo "::notice::Live site: ${{ vars.SITE_URL }}"
+        echo "::notice::Dev lane:  ${{ vars.SITE_URL }}dev/"
 
     # ---- New-book notification: only when promote.yml dispatched us ----
 
@@ -255,14 +226,15 @@ jobs:
       if: github.event_name == 'workflow_dispatch' && inputs.notify && steps.detect_books.outputs.has_new_books == 'true'
       env:
         DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-        # Repo VARIABLE `SITE_URL` wins when set — that is the one-knob cutover
-        # for the Discord link, and it is what keeps this working after
-        # REMOVE-ON-CUTOVER BLOCK B goes (deploy-pages' page_url output dies
-        # with it; DOMAIN_AND_HOSTING.md §2.7 row 3). The retry fallback also
-        # fixes a latent bug: when the first deploy failed and the retry
-        # succeeded, page_url was empty and the link silently fell back to
-        # send_discord_notification.py's hardcoded default.
-        SITE_URL: ${{ vars.SITE_URL || steps.deployment.outputs.page_url || steps.deployment_retry.outputs.page_url }}
+        # ⚠️ The repo VARIABLE `SITE_URL` is now the ONLY source, and it must
+        # stay set. The old `steps.deployment.outputs.page_url` fallbacks died
+        # with the GitHub Pages jobs on 2026-08-10 (cutover step 14) — they were
+        # removed rather than left in place, because a reference to a step that
+        # no longer exists evaluates to empty and would have silently handed the
+        # link to send_discord_notification.py's hardcoded old-host default.
+        # If this is ever empty, the Discord post links to skymitch9.github.io,
+        # which after step 15 does not exist at all.
+        SITE_URL: ${{ vars.SITE_URL }}
       run: |
         python -m app.tools.send_discord_notification
 
