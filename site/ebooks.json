@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-08-10T02:55:56.221831Z",
+  "generated_at": "2026-08-10T04:20:27.328677Z",
   "root": "C:/Users/nbasl/OpenAudible/books",
-  "count": 148,
+  "count": 146,
   "ebooks": [
     {
       "path": "A Killer's Mind (Zoe Bentley Mystery Book 1) - Mike Omer.epub",
@@ -1316,23 +1316,23 @@
       "path": "Selkie Myth/BtDEM 15 Rise from the Ashes - Selkie Myth - 20250515.epub",
       "filename": "BtDEM 15 Rise from the Ashes - Selkie Myth - 20250515.epub",
       "format": "epub",
-      "title": "Beneath the Dragoneye Moons",
+      "title": "Rise from the Ashes",
       "author": "Selkie Myth",
       "source": "opf",
       "beside_audiobook": "Selkie Myth",
-      "size_bytes": 7459445,
-      "modified": "2026-06-21T17:30:34.344643Z"
+      "size_bytes": 7459802,
+      "modified": "2026-08-10T04:20:00.249167Z"
     },
     {
       "path": "Selkie Myth/BtDEM 16 Of Gods and Dragons - Selkie Myth - 20270827.epub",
       "filename": "BtDEM 16 Of Gods and Dragons - Selkie Myth - 20270827.epub",
       "format": "epub",
-      "title": "Beneath the Dragoneye Moons",
+      "title": "Of Gods and Dragons",
       "author": "Selkie Myth",
       "source": "opf",
       "beside_audiobook": "Selkie Myth",
-      "size_bytes": 7588149,
-      "modified": "2026-06-21T17:30:35.585473Z"
+      "size_bytes": 7588126,
+      "modified": "2026-08-10T04:20:00.459088Z"
     },
     {
       "path": "Selkie Myth/BtDEM 2 Adventures in the Argo - Selkie Myth - 20250107.epub",
@@ -1399,17 +1399,6 @@
       "beside_audiobook": "Selkie Myth",
       "size_bytes": 7336716,
       "modified": "2026-06-21T17:30:46.850173Z"
-    },
-    {
-      "path": "Selkie Myth/Copy of BtDEM 12 Phoenix Peaks - Selkie Myth - 20250115.epub",
-      "filename": "Copy of BtDEM 12 Phoenix Peaks - Selkie Myth - 20250115.epub",
-      "format": "epub",
-      "title": "Phoenix Peaks - MM",
-      "author": "Selkie Myth",
-      "source": "opf",
-      "beside_audiobook": "Selkie Myth",
-      "size_bytes": 7683476,
-      "modified": "2026-06-19T13:15:55.738008Z"
     },
     {
       "path": "Shannon Chakraborty/The Adventures of Amina al-Sirafi - A Novel.pdf",
@@ -1575,17 +1564,6 @@
       "beside_audiobook": null,
       "size_bytes": 3223671,
       "modified": "2026-08-10T02:21:20.209767Z"
-    },
-    {
-      "path": "Untapped - Dakota Krout.epub",
-      "filename": "Untapped - Dakota Krout.epub",
-      "format": "epub",
-      "title": "Untapped",
-      "author": "Dakota Krout",
-      "source": "opf",
-      "beside_audiobook": null,
-      "size_bytes": 756185,
-      "modified": "2026-08-05T00:33:28.909827Z"
     },
     {
       "path": "Waybound (Cradle Book 12) - Will Wight.epub",
