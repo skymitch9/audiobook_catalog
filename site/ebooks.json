@@ -1,74 +1,8 @@
 {
-  "generated_at": "2026-08-10T04:20:27.328677Z",
+  "generated_at": "2026-08-10T16:38:33.201603Z",
   "root": "C:/Users/nbasl/OpenAudible/books",
-  "count": 146,
+  "count": 147,
   "ebooks": [
-    {
-      "path": "A Killer's Mind (Zoe Bentley Mystery Book 1) - Mike Omer.epub",
-      "filename": "A Killer's Mind (Zoe Bentley Mystery Book 1) - Mike Omer.epub",
-      "format": "epub",
-      "title": "A Killer's Mind (Zoe Bentley Mystery Book 1)",
-      "author": "Mike Omer",
-      "source": "opf",
-      "beside_audiobook": null,
-      "size_bytes": 2235393,
-      "modified": "2026-08-10T02:21:06.009834Z"
-    },
-    {
-      "path": "Arcane Pathfinder Book 5- Daunting - Mashton XX.epub",
-      "filename": "Arcane Pathfinder Book 5- Daunting - Mashton XX.epub",
-      "format": "epub",
-      "title": "Arcane Pathfinder Book 5: Daunting",
-      "author": "Mashton XX",
-      "source": "opf",
-      "beside_audiobook": null,
-      "size_bytes": 3874660,
-      "modified": "2026-08-10T02:19:54.251142Z"
-    },
-    {
-      "path": "Beautiful Exiles - Meg Waite Clayton.epub",
-      "filename": "Beautiful Exiles - Meg Waite Clayton.epub",
-      "format": "epub",
-      "title": "Beautiful Exiles",
-      "author": "Meg Waite Clayton",
-      "source": "opf",
-      "beside_audiobook": null,
-      "size_bytes": 2675164,
-      "modified": "2026-08-10T02:21:17.650450Z"
-    },
-    {
-      "path": "Blackflame (Cradle Book 3) - Will Wight.epub",
-      "filename": "Blackflame (Cradle Book 3) - Will Wight.epub",
-      "format": "epub",
-      "title": "Blackflame (Cradle Book 3)",
-      "author": "Will Wight",
-      "source": "opf",
-      "beside_audiobook": null,
-      "size_bytes": 3041449,
-      "modified": "2026-08-10T02:19:17.205542Z"
-    },
-    {
-      "path": "Bloodline - Will Wight.epub",
-      "filename": "Bloodline - Will Wight.epub",
-      "format": "epub",
-      "title": "Bloodline",
-      "author": "Will Wight",
-      "source": "opf",
-      "beside_audiobook": null,
-      "size_bytes": 3207125,
-      "modified": "2026-08-10T02:19:20.291392Z"
-    },
-    {
-      "path": "Board & Conquest- [A Kingdom Building LitRPG] - Maxime J. Durand.epub",
-      "filename": "Board & Conquest- [A Kingdom Building LitRPG] - Maxime J. Durand.epub",
-      "format": "epub",
-      "title": "Board & Conquest: [A Kingdom Building LitRPG]",
-      "author": "Maxime J. Durand",
-      "source": "opf",
-      "beside_audiobook": null,
-      "size_bytes": 3346784,
-      "modified": "2026-08-10T02:20:05.871272Z"
-    },
     {
       "path": "Brandon Sanderson/Defiant.pdf",
       "filename": "Defiant.pdf",
@@ -323,6 +257,17 @@
       "modified": "2026-06-21T17:39:13.051879Z"
     },
     {
+      "path": "Brandon Sanderson/White Sand Omnibus (Brandon Sanderson's White Sand) - Rik Hoskin.epub",
+      "filename": "White Sand Omnibus (Brandon Sanderson's White Sand) - Rik Hoskin.epub",
+      "format": "epub",
+      "title": "White Sand Omnibus (Brandon Sanderson's White Sand)",
+      "author": "Rik Hoskin",
+      "source": "opf",
+      "beside_audiobook": "Brandon Sanderson",
+      "size_bytes": 412436591,
+      "modified": "2026-08-10T16:30:19.501837Z"
+    },
+    {
       "path": "Brandon Sanderson/whitesand.epub",
       "filename": "whitesand.epub",
       "format": "epub",
@@ -389,6 +334,17 @@
       "modified": "2026-08-05T00:26:03.540217Z"
     },
     {
+      "path": "Dakota Krout/The Divine Dungeon Complete Series- Dungeon Core GameLit Fantasy - Dakota Krout.epub",
+      "filename": "The Divine Dungeon Complete Series- Dungeon Core GameLit Fantasy - Dakota Krout.epub",
+      "format": "epub",
+      "title": "The Divine Dungeon Complete Series: Dungeon Core GameLit Fantasy",
+      "author": "Dakota Krout",
+      "source": "opf",
+      "beside_audiobook": "Dakota Krout",
+      "size_bytes": 2448074,
+      "modified": "2026-08-10T02:21:00.896784Z"
+    },
+    {
       "path": "Dakota Krout/Uncapped - Dakota Krout.epub",
       "filename": "Uncapped - Dakota Krout.epub",
       "format": "epub",
@@ -444,6 +400,28 @@
       "modified": "2025-05-03T20:24:10.413535Z"
     },
     {
+      "path": "David Niemitz/Guild Mage- Apprentice - David Niemitz.epub",
+      "filename": "Guild Mage- Apprentice - David Niemitz.epub",
+      "format": "epub",
+      "title": "Guild Mage: Apprentice",
+      "author": "David Niemitz",
+      "source": "opf",
+      "beside_audiobook": "David Niemitz",
+      "size_bytes": 4109888,
+      "modified": "2026-08-10T02:20:00.537008Z"
+    },
+    {
+      "path": "Diana Marcum/The Tenth Island- Finding Joy, Beauty, and Unexpected Love in the Azores - Diana Marcum.epub",
+      "filename": "The Tenth Island- Finding Joy, Beauty, and Unexpected Love in the Azores - Diana Marcum.epub",
+      "format": "epub",
+      "title": "The Tenth Island: Finding Joy, Beauty, and Unexpected Love in the Azores",
+      "author": "Diana Marcum",
+      "source": "opf",
+      "beside_audiobook": "Diana Marcum",
+      "size_bytes": 3009680,
+      "modified": "2026-08-10T02:21:15.130850Z"
+    },
+    {
       "path": "Django Wexler/How to Become the Dark Lord and Die Trying.pdf",
       "filename": "How to Become the Dark Lord and Die Trying.pdf",
       "format": "pdf",
@@ -455,15 +433,26 @@
       "modified": "2025-10-08T19:30:07.808518Z"
     },
     {
-      "path": "Dreadgod (Cradle Book 11) - Will Wight.epub",
-      "filename": "Dreadgod (Cradle Book 11) - Will Wight.epub",
+      "path": "Ellen Javernick/What If Everybody Said That- (What If Everybody-) - Ellen Javernick.epub",
+      "filename": "What If Everybody Said That- (What If Everybody-) - Ellen Javernick.epub",
       "format": "epub",
-      "title": "Dreadgod (Cradle Book 11)",
-      "author": "Will Wight",
+      "title": "What If Everybody Said That? (What If Everybody?)",
+      "author": "Ellen Javernick",
       "source": "opf",
-      "beside_audiobook": null,
-      "size_bytes": 3147048,
-      "modified": "2026-08-10T02:19:23.615438Z"
+      "beside_audiobook": "Ellen Javernick",
+      "size_bytes": 4305892,
+      "modified": "2026-08-10T02:21:07.659182Z"
+    },
+    {
+      "path": "Erik Colombe/Undead Knight - Erik Colombe.epub",
+      "filename": "Undead Knight - Erik Colombe.epub",
+      "format": "epub",
+      "title": "Undead Knight",
+      "author": "Erik Colombe",
+      "source": "opf",
+      "beside_audiobook": "Erik Colombe",
+      "size_bytes": 3166897,
+      "modified": "2026-08-10T02:21:03.168800Z"
     },
     {
       "path": "Fujino Omori/Is It Wrong to Try to Pick Up Girls in a Dungeon, Vol. 1.pdf",
@@ -477,17 +466,6 @@
       "modified": "2026-06-18T23:11:00.740678Z"
     },
     {
-      "path": "Ghostwater - Will Wight.epub",
-      "filename": "Ghostwater - Will Wight.epub",
-      "format": "epub",
-      "title": "Ghostwater",
-      "author": "Will Wight",
-      "source": "opf",
-      "beside_audiobook": null,
-      "size_bytes": 3130299,
-      "modified": "2026-08-10T02:19:34.462087Z"
-    },
-    {
       "path": "Gretchen Rubin/Get It Done - How to Complete Your Dream Project.pdf",
       "filename": "Get It Done - How to Complete Your Dream Project.pdf",
       "format": "pdf",
@@ -497,72 +475,6 @@
       "beside_audiobook": "Gretchen Rubin",
       "size_bytes": 543376,
       "modified": "2026-01-16T02:00:50.723022Z"
-    },
-    {
-      "path": "Guild Mage- Apprentice - David Niemitz.epub",
-      "filename": "Guild Mage- Apprentice - David Niemitz.epub",
-      "format": "epub",
-      "title": "Guild Mage: Apprentice",
-      "author": "David Niemitz",
-      "source": "opf",
-      "beside_audiobook": null,
-      "size_bytes": 4109888,
-      "modified": "2026-08-10T02:20:00.537008Z"
-    },
-    {
-      "path": "He Who Fights with Monsters 10- A LitRPG Adventure - Travis Deverell.epub",
-      "filename": "He Who Fights with Monsters 10- A LitRPG Adventure - Travis Deverell.epub",
-      "format": "epub",
-      "title": "He Who Fights with Monsters 10: A LitRPG Adventure",
-      "author": "Travis Deverell",
-      "source": "opf",
-      "beside_audiobook": null,
-      "size_bytes": 3150003,
-      "modified": "2026-08-10T02:20:38.666774Z"
-    },
-    {
-      "path": "He Who Fights with Monsters 2- A LitRPG Adventure - Travis Deverell.epub",
-      "filename": "He Who Fights with Monsters 2- A LitRPG Adventure - Travis Deverell.epub",
-      "format": "epub",
-      "title": "He Who Fights with Monsters 2: A LitRPG Adventure",
-      "author": "Travis Deverell",
-      "source": "opf",
-      "beside_audiobook": null,
-      "size_bytes": 2771821,
-      "modified": "2026-08-10T02:20:32.959512Z"
-    },
-    {
-      "path": "He Who Fights with Monsters 3- A LitRPG Adventure - Travis Deverell.epub",
-      "filename": "He Who Fights with Monsters 3- A LitRPG Adventure - Travis Deverell.epub",
-      "format": "epub",
-      "title": "He Who Fights with Monsters 3: A LitRPG Adventure",
-      "author": "Travis Deverell",
-      "source": "opf",
-      "beside_audiobook": null,
-      "size_bytes": 3170093,
-      "modified": "2026-08-10T02:20:27.380502Z"
-    },
-    {
-      "path": "He Who Fights with Monsters 5- A LitRPG Adventure - Travis Deverell.epub",
-      "filename": "He Who Fights with Monsters 5- A LitRPG Adventure - Travis Deverell.epub",
-      "format": "epub",
-      "title": "He Who Fights with Monsters 5: A LitRPG Adventure",
-      "author": "Travis Deverell",
-      "source": "opf",
-      "beside_audiobook": null,
-      "size_bytes": 2723021,
-      "modified": "2026-08-10T02:20:46.212078Z"
-    },
-    {
-      "path": "He Who Fights with Monsters 6- A LitRPG Adventure - Travis Deverell.epub",
-      "filename": "He Who Fights with Monsters 6- A LitRPG Adventure - Travis Deverell.epub",
-      "format": "epub",
-      "title": "He Who Fights with Monsters 6: A LitRPG Adventure",
-      "author": "Travis Deverell",
-      "source": "opf",
-      "beside_audiobook": null,
-      "size_bytes": 2590253,
-      "modified": "2026-08-10T02:20:50.261353Z"
     },
     {
       "path": "Highschool DXD/High School DxD - Volume 07 - Ragnarok After the School.epub",
@@ -741,6 +653,17 @@
       "modified": "2026-08-05T00:31:50.215514Z"
     },
     {
+      "path": "J. R. Saileri/Rise of the Weakest Summoner- Volume XI - J. R. Saileri.epub",
+      "filename": "Rise of the Weakest Summoner- Volume XI - J. R. Saileri.epub",
+      "format": "epub",
+      "title": "Rise of the Weakest Summoner: Volume XI",
+      "author": "J. R. Saileri",
+      "source": "opf",
+      "beside_audiobook": "J. R. Saileri",
+      "size_bytes": 1161951,
+      "modified": "2026-08-10T02:19:57.651245Z"
+    },
+    {
       "path": "J.R. Mathews/Jake's Magical Market 3 - Home Sweet Home.pdf",
       "filename": "Jake's Magical Market 3 - Home Sweet Home.pdf",
       "format": "pdf",
@@ -763,15 +686,15 @@
       "modified": "2025-05-03T21:58:29.345107Z"
     },
     {
-      "path": "John (LifeChange Book 20) - The Navigators.epub",
-      "filename": "John (LifeChange Book 20) - The Navigators.epub",
+      "path": "James Swain/The King Tides (Lancaster & Daniels Book 1) - James Swain.epub",
+      "filename": "The King Tides (Lancaster & Daniels Book 1) - James Swain.epub",
       "format": "epub",
-      "title": "John (LifeChange Book 20)",
-      "author": "The Navigators",
+      "title": "The King Tides (Lancaster & Daniels Book 1)",
+      "author": "James Swain",
       "source": "opf",
-      "beside_audiobook": null,
-      "size_bytes": 6644795,
-      "modified": "2026-08-10T02:20:41.570638Z"
+      "beside_audiobook": "James Swain",
+      "size_bytes": 3728866,
+      "modified": "2026-08-10T02:21:13.055798Z"
     },
     {
       "path": "Jordan Stephanie Gray/The Wicked Sea.pdf",
@@ -796,6 +719,17 @@
       "modified": "2025-05-03T21:12:15.853021Z"
     },
     {
+      "path": "Kerry Anne King/Whisper Me This- A Novel - Kerry Anne King.epub",
+      "filename": "Whisper Me This- A Novel - Kerry Anne King.epub",
+      "format": "epub",
+      "title": "Whisper Me This: A Novel",
+      "author": "Kerry Anne King",
+      "source": "opf",
+      "beside_audiobook": "Kerry Anne King",
+      "size_bytes": 1364977,
+      "modified": "2026-08-10T02:21:10.453058Z"
+    },
+    {
       "path": "Kumo Kagyu/Goblin Slayer, Vol. 1.pdf",
       "filename": "Goblin Slayer, Vol. 1.pdf",
       "format": "pdf",
@@ -816,6 +750,39 @@
       "beside_audiobook": "Lawrence M. Krauss",
       "size_bytes": 3066225,
       "modified": "2025-05-03T21:15:57.352506Z"
+    },
+    {
+      "path": "Mashton XX/Arcane Pathfinder Book 5- Daunting - Mashton XX.epub",
+      "filename": "Arcane Pathfinder Book 5- Daunting - Mashton XX.epub",
+      "format": "epub",
+      "title": "Arcane Pathfinder Book 5: Daunting",
+      "author": "Mashton XX",
+      "source": "opf",
+      "beside_audiobook": "Mashton XX",
+      "size_bytes": 3874660,
+      "modified": "2026-08-10T02:19:54.251142Z"
+    },
+    {
+      "path": "Maxime J. Durand/Board & Conquest- [A Kingdom Building LitRPG] - Maxime J. Durand.epub",
+      "filename": "Board & Conquest- [A Kingdom Building LitRPG] - Maxime J. Durand.epub",
+      "format": "epub",
+      "title": "Board & Conquest: [A Kingdom Building LitRPG]",
+      "author": "Maxime J. Durand",
+      "source": "opf",
+      "beside_audiobook": "Maxime J. Durand",
+      "size_bytes": 3346784,
+      "modified": "2026-08-10T02:20:05.871272Z"
+    },
+    {
+      "path": "Meg Waite Clayton/Beautiful Exiles - Meg Waite Clayton.epub",
+      "filename": "Beautiful Exiles - Meg Waite Clayton.epub",
+      "format": "epub",
+      "title": "Beautiful Exiles",
+      "author": "Meg Waite Clayton",
+      "source": "opf",
+      "beside_audiobook": "Meg Waite Clayton",
+      "size_bytes": 2675164,
+      "modified": "2026-08-10T02:21:17.650450Z"
     },
     {
       "path": "Michael-Scott Earle/Monster Empire Book 2 - Michael-Scott Earle.epub",
@@ -917,6 +884,17 @@
       "modified": "2025-05-03T21:11:39.595477Z"
     },
     {
+      "path": "Mike Omer/A Killer's Mind (Zoe Bentley Mystery Book 1) - Mike Omer.epub",
+      "filename": "A Killer's Mind (Zoe Bentley Mystery Book 1) - Mike Omer.epub",
+      "format": "epub",
+      "title": "A Killer's Mind (Zoe Bentley Mystery Book 1)",
+      "author": "Mike Omer",
+      "source": "opf",
+      "beside_audiobook": "Mike Omer",
+      "size_bytes": 2235393,
+      "modified": "2026-08-10T02:21:06.009834Z"
+    },
+    {
       "path": "Morgan Taylor/I'm from the Sun - The Gustafer Yellowgold Story.pdf",
       "filename": "I'm from the Sun - The Gustafer Yellowgold Story.pdf",
       "format": "pdf",
@@ -937,17 +915,6 @@
       "beside_audiobook": "Neal Shusterman",
       "size_bytes": 37598,
       "modified": "2025-05-03T21:33:26.272868Z"
-    },
-    {
-      "path": "Onyx Storm (The Empyrean) - Rebecca Yarros.epub",
-      "filename": "Onyx Storm (The Empyrean) - Rebecca Yarros.epub",
-      "format": "epub",
-      "title": "Onyx Storm (The Empyrean)",
-      "author": "Rebecca Yarros",
-      "source": "opf",
-      "beside_audiobook": null,
-      "size_bytes": 3094900,
-      "modified": "2026-08-10T02:20:22.335394Z"
     },
     {
       "path": "Pirateaba/Fae and Fare - The Wandering Inn, Book 2.pdf",
@@ -983,26 +950,15 @@
       "modified": "2025-05-03T20:38:33.851740Z"
     },
     {
-      "path": "Reaper - Will Wight.epub",
-      "filename": "Reaper - Will Wight.epub",
+      "path": "Rebecca Yarros/Onyx Storm (The Empyrean) - Rebecca Yarros.epub",
+      "filename": "Onyx Storm (The Empyrean) - Rebecca Yarros.epub",
       "format": "epub",
-      "title": "Reaper",
-      "author": "Will Wight",
+      "title": "Onyx Storm (The Empyrean)",
+      "author": "Rebecca Yarros",
       "source": "opf",
-      "beside_audiobook": null,
-      "size_bytes": 3075922,
-      "modified": "2026-08-10T02:19:31.831772Z"
-    },
-    {
-      "path": "Rise of the Weakest Summoner- Volume XI - J. R. Saileri.epub",
-      "filename": "Rise of the Weakest Summoner- Volume XI - J. R. Saileri.epub",
-      "format": "epub",
-      "title": "Rise of the Weakest Summoner: Volume XI",
-      "author": "J. R. Saileri",
-      "source": "opf",
-      "beside_audiobook": null,
-      "size_bytes": 1161951,
-      "modified": "2026-08-10T02:19:57.651245Z"
+      "beside_audiobook": "Rebecca Yarros",
+      "size_bytes": 3094900,
+      "modified": "2026-08-10T02:20:22.335394Z"
     },
     {
       "path": "Sarah A. Parker/When the Moon Hatched - A Novel.pdf",
@@ -1412,6 +1368,17 @@
       "modified": "2025-05-03T21:10:57.146252Z"
     },
     {
+      "path": "Shirtaloon/He Who Fights with Monsters 10- A LitRPG Adventure - Travis Deverell.epub",
+      "filename": "He Who Fights with Monsters 10- A LitRPG Adventure - Travis Deverell.epub",
+      "format": "epub",
+      "title": "He Who Fights with Monsters 10: A LitRPG Adventure",
+      "author": "Travis Deverell",
+      "source": "opf",
+      "beside_audiobook": "Shirtaloon",
+      "size_bytes": 3150003,
+      "modified": "2026-08-10T02:20:38.666774Z"
+    },
+    {
       "path": "Shirtaloon/He Who Fights with Monsters 10.pdf",
       "filename": "He Who Fights with Monsters 10.pdf",
       "format": "pdf",
@@ -1434,178 +1401,222 @@
       "modified": "2025-05-27T19:48:24.748964Z"
     },
     {
-      "path": "Skysworn (Cradle Book 4) - Will Wight.epub",
+      "path": "Shirtaloon/He Who Fights with Monsters 2- A LitRPG Adventure - Travis Deverell.epub",
+      "filename": "He Who Fights with Monsters 2- A LitRPG Adventure - Travis Deverell.epub",
+      "format": "epub",
+      "title": "He Who Fights with Monsters 2: A LitRPG Adventure",
+      "author": "Travis Deverell",
+      "source": "opf",
+      "beside_audiobook": "Shirtaloon",
+      "size_bytes": 2771821,
+      "modified": "2026-08-10T02:20:32.959512Z"
+    },
+    {
+      "path": "Shirtaloon/He Who Fights with Monsters 3- A LitRPG Adventure - Travis Deverell.epub",
+      "filename": "He Who Fights with Monsters 3- A LitRPG Adventure - Travis Deverell.epub",
+      "format": "epub",
+      "title": "He Who Fights with Monsters 3: A LitRPG Adventure",
+      "author": "Travis Deverell",
+      "source": "opf",
+      "beside_audiobook": "Shirtaloon",
+      "size_bytes": 3170093,
+      "modified": "2026-08-10T02:20:27.380502Z"
+    },
+    {
+      "path": "Shirtaloon/He Who Fights with Monsters 5- A LitRPG Adventure - Travis Deverell.epub",
+      "filename": "He Who Fights with Monsters 5- A LitRPG Adventure - Travis Deverell.epub",
+      "format": "epub",
+      "title": "He Who Fights with Monsters 5: A LitRPG Adventure",
+      "author": "Travis Deverell",
+      "source": "opf",
+      "beside_audiobook": "Shirtaloon",
+      "size_bytes": 2723021,
+      "modified": "2026-08-10T02:20:46.212078Z"
+    },
+    {
+      "path": "Shirtaloon/He Who Fights with Monsters 6- A LitRPG Adventure - Travis Deverell.epub",
+      "filename": "He Who Fights with Monsters 6- A LitRPG Adventure - Travis Deverell.epub",
+      "format": "epub",
+      "title": "He Who Fights with Monsters 6: A LitRPG Adventure",
+      "author": "Travis Deverell",
+      "source": "opf",
+      "beside_audiobook": "Shirtaloon",
+      "size_bytes": 2590253,
+      "modified": "2026-08-10T02:20:50.261353Z"
+    },
+    {
+      "path": "The Navigators/John (LifeChange Book 20) - The Navigators.epub",
+      "filename": "John (LifeChange Book 20) - The Navigators.epub",
+      "format": "epub",
+      "title": "John (LifeChange Book 20)",
+      "author": "The Navigators",
+      "source": "opf",
+      "beside_audiobook": "The Navigators",
+      "size_bytes": 6644795,
+      "modified": "2026-08-10T02:20:41.570638Z"
+    },
+    {
+      "path": "Will Wight/Blackflame (Cradle Book 3) - Will Wight.epub",
+      "filename": "Blackflame (Cradle Book 3) - Will Wight.epub",
+      "format": "epub",
+      "title": "Blackflame (Cradle Book 3)",
+      "author": "Will Wight",
+      "source": "opf",
+      "beside_audiobook": "Will Wight",
+      "size_bytes": 3041449,
+      "modified": "2026-08-10T02:19:17.205542Z"
+    },
+    {
+      "path": "Will Wight/Bloodline - Will Wight.epub",
+      "filename": "Bloodline - Will Wight.epub",
+      "format": "epub",
+      "title": "Bloodline",
+      "author": "Will Wight",
+      "source": "opf",
+      "beside_audiobook": "Will Wight",
+      "size_bytes": 3207125,
+      "modified": "2026-08-10T02:19:20.291392Z"
+    },
+    {
+      "path": "Will Wight/Dreadgod (Cradle Book 11) - Will Wight.epub",
+      "filename": "Dreadgod (Cradle Book 11) - Will Wight.epub",
+      "format": "epub",
+      "title": "Dreadgod (Cradle Book 11)",
+      "author": "Will Wight",
+      "source": "opf",
+      "beside_audiobook": "Will Wight",
+      "size_bytes": 3147048,
+      "modified": "2026-08-10T02:19:23.615438Z"
+    },
+    {
+      "path": "Will Wight/Ghostwater - Will Wight.epub",
+      "filename": "Ghostwater - Will Wight.epub",
+      "format": "epub",
+      "title": "Ghostwater",
+      "author": "Will Wight",
+      "source": "opf",
+      "beside_audiobook": "Will Wight",
+      "size_bytes": 3130299,
+      "modified": "2026-08-10T02:19:34.462087Z"
+    },
+    {
+      "path": "Will Wight/Reaper - Will Wight.epub",
+      "filename": "Reaper - Will Wight.epub",
+      "format": "epub",
+      "title": "Reaper",
+      "author": "Will Wight",
+      "source": "opf",
+      "beside_audiobook": "Will Wight",
+      "size_bytes": 3075922,
+      "modified": "2026-08-10T02:19:31.831772Z"
+    },
+    {
+      "path": "Will Wight/Skysworn (Cradle Book 4) - Will Wight.epub",
       "filename": "Skysworn (Cradle Book 4) - Will Wight.epub",
       "format": "epub",
       "title": "Skysworn (Cradle Book 4)",
       "author": "Will Wight",
       "source": "opf",
-      "beside_audiobook": null,
+      "beside_audiobook": "Will Wight",
       "size_bytes": 3553751,
       "modified": "2026-08-10T02:19:28.509167Z"
     },
     {
-      "path": "Soulsmith (Cradle Book 2) - Will Wight.epub",
+      "path": "Will Wight/Soulsmith (Cradle Book 2) - Will Wight.epub",
       "filename": "Soulsmith (Cradle Book 2) - Will Wight.epub",
       "format": "epub",
       "title": "Soulsmith (Cradle Book 2)",
       "author": "Will Wight",
       "source": "opf",
-      "beside_audiobook": null,
+      "beside_audiobook": "Will Wight",
       "size_bytes": 3096137,
       "modified": "2026-08-10T02:19:26.062235Z"
     },
     {
-      "path": "The Captain (The Last Horizon Book 1) - Will Wight.epub",
+      "path": "Will Wight/The Captain (The Last Horizon Book 1) - Will Wight.epub",
       "filename": "The Captain (The Last Horizon Book 1) - Will Wight.epub",
       "format": "epub",
       "title": "The Captain (The Last Horizon Book 1)",
       "author": "Will Wight",
       "source": "opf",
-      "beside_audiobook": null,
+      "beside_audiobook": "Will Wight",
       "size_bytes": 2076122,
       "modified": "2026-08-10T02:20:16.461089Z"
     },
     {
-      "path": "The Divine Dungeon Complete Series- Dungeon Core GameLit Fantasy - Dakota Krout.epub",
-      "filename": "The Divine Dungeon Complete Series- Dungeon Core GameLit Fantasy - Dakota Krout.epub",
-      "format": "epub",
-      "title": "The Divine Dungeon Complete Series: Dungeon Core GameLit Fantasy",
-      "author": "Dakota Krout",
-      "source": "opf",
-      "beside_audiobook": null,
-      "size_bytes": 2448074,
-      "modified": "2026-08-10T02:21:00.896784Z"
-    },
-    {
-      "path": "The Engineer (The Last Horizon Book 2) - Will Wight.epub",
+      "path": "Will Wight/The Engineer (The Last Horizon Book 2) - Will Wight.epub",
       "filename": "The Engineer (The Last Horizon Book 2) - Will Wight.epub",
       "format": "epub",
       "title": "The Engineer (The Last Horizon Book 2)",
       "author": "Will Wight",
       "source": "opf",
-      "beside_audiobook": null,
+      "beside_audiobook": "Will Wight",
       "size_bytes": 1400568,
       "modified": "2026-08-10T02:20:12.667089Z"
     },
     {
-      "path": "The King Tides (Lancaster & Daniels Book 1) - James Swain.epub",
-      "filename": "The King Tides (Lancaster & Daniels Book 1) - James Swain.epub",
-      "format": "epub",
-      "title": "The King Tides (Lancaster & Daniels Book 1)",
-      "author": "James Swain",
-      "source": "opf",
-      "beside_audiobook": null,
-      "size_bytes": 3728866,
-      "modified": "2026-08-10T02:21:13.055798Z"
-    },
-    {
-      "path": "The Knight (The Last Horizon Book 3) - Will Wight.epub",
+      "path": "Will Wight/The Knight (The Last Horizon Book 3) - Will Wight.epub",
       "filename": "The Knight (The Last Horizon Book 3) - Will Wight.epub",
       "format": "epub",
       "title": "The Knight (The Last Horizon Book 3)",
       "author": "Will Wight",
       "source": "opf",
-      "beside_audiobook": null,
+      "beside_audiobook": "Will Wight",
       "size_bytes": 1357702,
       "modified": "2026-08-10T02:20:09.117004Z"
     },
     {
-      "path": "The Tenth Island- Finding Joy, Beauty, and Unexpected Love in the Azores - Diana Marcum.epub",
-      "filename": "The Tenth Island- Finding Joy, Beauty, and Unexpected Love in the Azores - Diana Marcum.epub",
-      "format": "epub",
-      "title": "The Tenth Island: Finding Joy, Beauty, and Unexpected Love in the Azores",
-      "author": "Diana Marcum",
-      "source": "opf",
-      "beside_audiobook": null,
-      "size_bytes": 3009680,
-      "modified": "2026-08-10T02:21:15.130850Z"
-    },
-    {
-      "path": "Uncrowned - Will Wight.epub",
+      "path": "Will Wight/Uncrowned - Will Wight.epub",
       "filename": "Uncrowned - Will Wight.epub",
       "format": "epub",
       "title": "Uncrowned",
       "author": "Will Wight",
       "source": "opf",
-      "beside_audiobook": null,
+      "beside_audiobook": "Will Wight",
       "size_bytes": 3158334,
       "modified": "2026-08-10T02:19:37.215186Z"
     },
     {
-      "path": "Undead Knight - Erik Colombe.epub",
-      "filename": "Undead Knight - Erik Colombe.epub",
-      "format": "epub",
-      "title": "Undead Knight",
-      "author": "Erik Colombe",
-      "source": "opf",
-      "beside_audiobook": null,
-      "size_bytes": 3166897,
-      "modified": "2026-08-10T02:21:03.168800Z"
-    },
-    {
-      "path": "Underlord (Cradle Book 6) - Will Wight.epub",
+      "path": "Will Wight/Underlord (Cradle Book 6) - Will Wight.epub",
       "filename": "Underlord (Cradle Book 6) - Will Wight.epub",
       "format": "epub",
       "title": "Underlord (Cradle Book 6)",
       "author": "Will Wight",
       "source": "opf",
-      "beside_audiobook": null,
+      "beside_audiobook": "Will Wight",
       "size_bytes": 3737454,
       "modified": "2026-08-10T02:19:40.699088Z"
     },
     {
-      "path": "Unsouled - Will Wight.epub",
+      "path": "Will Wight/Unsouled - Will Wight.epub",
       "filename": "Unsouled - Will Wight.epub",
       "format": "epub",
       "title": "Unsouled",
       "author": "Will Wight",
       "source": "opf",
-      "beside_audiobook": null,
+      "beside_audiobook": "Will Wight",
       "size_bytes": 3223671,
       "modified": "2026-08-10T02:21:20.209767Z"
     },
     {
-      "path": "Waybound (Cradle Book 12) - Will Wight.epub",
+      "path": "Will Wight/Waybound (Cradle Book 12) - Will Wight.epub",
       "filename": "Waybound (Cradle Book 12) - Will Wight.epub",
       "format": "epub",
       "title": "Waybound (Cradle Book 12)",
       "author": "Will Wight",
       "source": "opf",
-      "beside_audiobook": null,
+      "beside_audiobook": "Will Wight",
       "size_bytes": 3197514,
       "modified": "2026-08-10T02:19:45.657090Z"
     },
     {
-      "path": "What If Everybody Said That- (What If Everybody-) - Ellen Javernick.epub",
-      "filename": "What If Everybody Said That- (What If Everybody-) - Ellen Javernick.epub",
-      "format": "epub",
-      "title": "What If Everybody Said That? (What If Everybody?)",
-      "author": "Ellen Javernick",
-      "source": "opf",
-      "beside_audiobook": null,
-      "size_bytes": 4305892,
-      "modified": "2026-08-10T02:21:07.659182Z"
-    },
-    {
-      "path": "Whisper Me This- A Novel - Kerry Anne King.epub",
-      "filename": "Whisper Me This- A Novel - Kerry Anne King.epub",
-      "format": "epub",
-      "title": "Whisper Me This: A Novel",
-      "author": "Kerry Anne King",
-      "source": "opf",
-      "beside_audiobook": null,
-      "size_bytes": 1364977,
-      "modified": "2026-08-10T02:21:10.453058Z"
-    },
-    {
-      "path": "Wintersteel - Will Wight.epub",
+      "path": "Will Wight/Wintersteel - Will Wight.epub",
       "filename": "Wintersteel - Will Wight.epub",
       "format": "epub",
       "title": "Wintersteel",
       "author": "Will Wight",
       "source": "opf",
-      "beside_audiobook": null,
+      "beside_audiobook": "Will Wight",
       "size_bytes": 3472507,
       "modified": "2026-08-10T02:19:50.360222Z"
     }

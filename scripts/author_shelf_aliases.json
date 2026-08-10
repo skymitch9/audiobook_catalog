@@ -4,6 +4,7 @@
   "_rule": "An entry belongs here only when both names denote the SAME body of work. Spelling, spacing, romanisation and role-suffix variants qualify; so does a co-author credit that only ever appears on one shared series. A pen name with its own separate bibliography DOES NOT qualify, even though it is the same human and the same Drive folder - it gets its own shelf.",
   "_deliberately_absent": "'William D. Arand' -> 'Randi Darren': one human, two non-overlapping canons; merging them on 2026-08-09 destroyed a correct split and was reverted. 'T. L. Payne' -> 'T.L. Payne': the owner chose 'T. L. Payne', and the Drive side still has two folders to merge before any alias is safe. Do not re-add either. See docs/info/author-folder-audit.md.",
   "_verified": "2026-08-09: every entry below is already how the library is filed, so adding this map moved nothing. Each one was blocked from being UNDONE by the pipeline sorter, which is why the map exists.",
+  "_added_2026_08_10": "The last two entries are the first that MOVE something. They came from sorting 35 loose ebooks (scripts/sort_ebooks.py), where an EPUB's OPF credits a name the audiobooks are not filed under. 'Travis Deverell' -> 'Shirtaloon': same human, and there is no separate Deverell canon - He Who Fights with Monsters is written AS Shirtaloon, which is how the 'Alex Toxic' -> 'Nadya Lee' entry above already reads the rule. 'Rik Hoskin' -> 'Brandon Sanderson': the co-author clause. Hoskin appears in this library on White Sand and nothing else, White Sand is a Sanderson property, and the vol 1 file was ALREADY shelved under Brandon Sanderson - so the alias makes the omnibus join its sibling instead of opening a second shelf for the same work. ⚠️ If Rik Hoskin ever arrives here with a book of his own, this entry stops qualifying under _rule and must be removed.",
 
   "A.J. Pine": "A. J. Pine",
   "Alex Toxic": "Nadya Lee",
@@ -11,5 +12,7 @@
   "Jim Butcher - Editor": "Jim Butcher",
   "Mashton X X": "Mashton XX",
   "N.C. Lux": "N. C. Lux",
+  "Rik Hoskin": "Brandon Sanderson",
+  "Travis Deverell": "Shirtaloon",
   "リュート": "Ryuto"
 }
