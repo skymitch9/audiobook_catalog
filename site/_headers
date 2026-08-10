@@ -1,0 +1,56 @@
+# Cloudflare Pages headers. Applied at the edge from the ROOT of the uploaded
+# directory only — deploy.yml assembles `_site/` from prod-src/site/, so this
+# file is the root one and its rules cover the /dev/ lane too. (A copy also
+# lands at _site/dev/_headers from main; Cloudflare ignores nested ones.)
+# GitHub Pages ignores this file entirely, which is fine — it is on its way out.
+#
+# ---------------------------------------------------------------------------
+# WHY THIS EXISTS
+# ---------------------------------------------------------------------------
+# On 2026-08-10 account-modal.js was shipped with a syntax error that broke the
+# community and clubs pages. The fix was deployed and verified with curl — and
+# the browser kept running the broken file anyway.
+#
+# The default here was `Cache-Control: public, max-age=14400`: a FOUR HOUR
+# browser cache. `must-revalidate` does not help, because it only applies once
+# max-age has expired; inside the window the browser never asks. So a corrected
+# file was invisible for four hours to every device that had already loaded the
+# broken one, and the site looked unfixed long after it was fixed.
+#
+# ⚠️ THE KEY FACT: none of this site's assets are content-hashed. `identity.js`,
+# `account-modal.js`, `reviews.js` and the JSON payloads all keep the same
+# filename forever and change their bytes in place. That is the exact opposite
+# of the situation where a long cache is safe. `immutable`, and the year-long
+# max-age used for hashed bundles in library_catalog, would be a lie here — the
+# URL genuinely does not change when the content does.
+#
+# So: never trust a cached copy of anything whose name is stable.
+#
+# The cost is one conditional request per file per load. Cloudflare serves these
+# with an ETag, so an unchanged file answers 304 with no body. That is a
+# round trip, not a download, and it buys the guarantee that a deploy is a
+# deploy rather than a suggestion.
+#
+# Covers are deliberately NOT listed. They are large, one per book, and replaced
+# almost never — they keep the default and should. This file is about
+# correctness of code and data, not about image bandwidth.
+#
+# If hashed filenames ever arrive (a build step, a bundler), THOSE may be
+# `immutable` with a long max-age, and should be — see
+# library_catalog/apps/web/public/_headers, which does exactly that because Vite
+# hashes its bundles.
+
+/
+  Cache-Control: no-cache
+
+/*.html
+  Cache-Control: no-cache
+
+/*.js
+  Cache-Control: no-cache
+
+/*.json
+  Cache-Control: no-cache
+
+/*.css
+  Cache-Control: no-cache
