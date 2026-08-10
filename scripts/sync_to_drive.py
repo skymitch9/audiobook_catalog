@@ -1054,6 +1054,20 @@ def run_pipeline(
             except Exception as e:
                 print(f"  [WARN] Content-warning fetch failed: {e}")
 
+        # Push the new books' cover art to R2 BEFORE committing. Covers are
+        # not in git any more (see .gitignore / docs/info/covers-r2.md); the
+        # site links straight at the bucket, so an uncommitted-but-uploaded
+        # cover is fine and a committed-but-unuploaded one is a broken image.
+        # Upload first, commit second — the same ordering as the migration.
+        print("\n[STEP 5.7] Uploading new covers to R2...")
+        try:
+            from scripts.upload_covers_r2 import main as upload_covers_main
+            rc = upload_covers_main([])
+            if rc != 0:
+                print("  [WARN] Some covers failed to upload — they will retry next run.")
+        except Exception as e:
+            print(f"  [WARN] Cover upload failed: {e}")
+
         # Auto-commit and push if there are changes
         print("\n[STEP 6] Auto-commit & push...")
         pstatus.step("publish")
@@ -1097,9 +1111,18 @@ def _auto_commit_and_push() -> None:
             print("  No catalog changes to commit.")
             return
 
-        # Stage site files
+        # Stage site files.
+        # ⚠️ site/covers/ is deliberately NOT here: covers live in Cloudflare
+        # R2 and the directory is gitignored. Naming an ignored path makes
+        # `git add` exit 1 with "paths are ignored by .gitignore" (measured:
+        # the other paths DO still get staged, so this was noise rather than
+        # breakage — but returncode is not checked here, so the noise would
+        # have been invisible too).
+        # site/covers_manifest.json is its replacement — the committed record
+        # of what is in the bucket, and what the promote audit checks.
         subprocess.run(
-            ["git", "add", "site/catalog.csv", "site/index.html", "site/covers/",
+            ["git", "add", "site/catalog.csv", "site/index.html",
+             "site/covers_manifest.json", "site/covers-base.js",
              "site/stats.html", "site/chapters.json", "site/content_warnings.json",
              "site/additions_log.json", "site/ebooks.json", "author_drive_map.json"],
             cwd=str(PROJECT_ROOT), capture_output=True,

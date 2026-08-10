@@ -6,7 +6,7 @@ import shutil
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from app.config import OUTPUT_DIR
+from app.config import COVERS_BASE_URL, OUTPUT_DIR
 from app.web.html_builder import TEMPLATE_DIR  # not strictly needed, but useful when debugging
 from app.web.html_builder import STATIC_DIR, render_index_html
 
@@ -81,6 +81,55 @@ def _copy_covers_to_site(site_dir: Path) -> None:
         shutil.copytree(covers_src, covers_dst, dirs_exist_ok=True)
 
 
+_COVERS_BASE_JS_TEMPLATE = '''\
+// covers-base.js - where cover images live. GENERATED, do not edit.
+//
+// Written by app/writers.py from app/config.py COVERS_BASE_URL, which is the
+// single source of truth. Covers are served from Cloudflare R2, not from this
+// site, so anything that reads catalog.csv has to resolve the relative
+// `cover_href` through coverUrl() before putting it in an <img src>.
+//
+// site/index.html does NOT import this - its cover URLs are already absolute,
+// baked in at build time by app/web/html_builder.py cover_src().
+
+export const COVERS_BASE_URL = {base!r};
+
+/**
+ * Resolve a catalog.csv `cover_href` to a fetchable URL.
+ * "covers/A. American/Home.jpg" -> "<base>/A.%20American/Home.jpg"
+ * Absolute hrefs (already-resolved, or historic values stored in Firestore)
+ * pass through untouched.
+ * @param {{string}} href
+ * @returns {{string}} '' when there is no cover
+ */
+export function coverUrl(href) {{
+  const cover = (href || '').trim();
+  if (!cover) return '';
+  if (/^(https?:)?\\/\\//.test(cover) || cover.startsWith('data:')) return cover;
+  const rel = cover.startsWith('covers/') ? cover.slice('covers/'.length) : cover;
+  if (!COVERS_BASE_URL) return cover;
+  // Match Python's urllib.parse.quote(safe='/') exactly, so a cover has ONE
+  // canonical URL whichever side emitted it. encodeURIComponent leaves
+  // !'()* alone; quote() percent-encodes them.
+  const enc = (s) => encodeURIComponent(s).replace(
+    /[!'()*]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase());
+  const encoded = rel.replace(/^\\/+/, '').split('/').map(enc).join('/');
+  return COVERS_BASE_URL.replace(/\\/+$/, '') + '/' + encoded;
+}}
+'''
+
+
+def _write_covers_base_js(site_dir: Path) -> None:
+    """Emit site/covers-base.js so browser-side code shares the one knob.
+
+    Rewritten on every build; committed, because the static pages import it
+    and CI has no library to rebuild from.
+    """
+    js = _COVERS_BASE_JS_TEMPLATE.format(base=COVERS_BASE_URL)
+    # repr() of a str gives single quotes — fine for JS, and keeps escaping honest.
+    (site_dir / "covers-base.js").write_text(js, encoding="utf-8", newline="\n")
+
+
 def _copy_static_to_site(site_dir: Path) -> None:
     """
     Copy app/web/static into site/static if it exists.
@@ -128,9 +177,12 @@ def stage_site_files(
     shutil.copy2(out_csv, csv_dst)
 
     # 2) Copy covers/ and static/ assets
+    #    site/covers/ is a LOCAL build product and is gitignored — it is the
+    #    upload source for scripts/upload_covers_r2.py, not a deploy artifact.
     _copy_covers_to_site(site_dir)
     _copy_static_to_site(site_dir)
     _copy_game_page_to_site(site_dir)
+    _write_covers_base_js(site_dir)
 
     # 3) Render site/index.html with csv_link pointing at the site CSV file name
     site_index_path = site_dir / site_index_name

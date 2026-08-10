@@ -20,6 +20,7 @@ docs/
 !site/content_warnings.json
 !site/additions_log.json
 !site/ebooks.json
+!site/covers_manifest.json
 !vitest.config.js
 !firebase.json
 scripts/upload_manifest.json
@@ -31,7 +32,26 @@ node_modules/
 # site/index.html — committed (needed for GitHub Pages)
 # site/catalog.csv — committed (needed for GitHub Pages)
 # site/stats.html — committed (needed for GitHub Pages)
-# site/covers/ — committed (needed for GitHub Pages)
+#
+# ⚠️⚠️ NEVER gitignore site/ itself, or site/index.html / site/catalog.csv /
+# site/static. Doing that once caused a full site outage, and
+# .github/workflows/promote.yml's first guard refuses to promote if any of
+# them is ignored. That guard is correct and stays.
+#
+# site/covers/ IS the one sanctioned exception, added 2026-08-10. Cover art
+# (243 MB / 1,843 files) now lives in Cloudflare R2 and the site links
+# straight at the bucket, so the images are no longer a deploy artifact — they
+# were being copied into BOTH lanes on every deploy (~514 MB per publish).
+# site/covers/ is still produced locally by app/writers.py; it is the upload
+# source for scripts/upload_covers_r2.py, not something to ship.
+#
+# The committed replacement is site/covers_manifest.json (negated above) —
+# the record of what is in the bucket, and what the promote audit checks
+# instead of statting files. Removing site/covers from that promote guard had
+# to land in the SAME commit as this line; splitting them breaks the next
+# promote. See catalog-platform/docs/DOMAIN_AND_HOSTING.md §2.6(a) and
+# docs/info/covers-r2.md.
+site/covers/
 
 # Runtime artifacts
 new_books.json

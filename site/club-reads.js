@@ -7,6 +7,7 @@ import {
   query, where, serverTimestamp, runTransaction, increment,
 } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 import { col } from './fb-env.js';
+import { coverUrl } from './covers-base.js';
 import { slugifyName } from './identity.js';
 
 export const MAX_ACTIVE_READS = 2;
@@ -280,6 +281,12 @@ export function parseCsv(text) {
 
 /**
  * Fetch and parse the catalog for the book picker.
+ *
+ * `coverHref` comes back as a FULL URL (covers live in R2, not on this site —
+ * see covers-base.js). Callers put it straight in an <img src>, and the value
+ * is what gets stored in Firestore for club reads / favourites, so it must be
+ * absolute or those records break the moment the page moves.
+ *
  * @returns {Promise<Array<{title, author, durationHhmm, durationMinutes, coverHref}>>}
  */
 export async function loadCatalogBooks(url = 'catalog.csv') {
@@ -293,7 +300,7 @@ export async function loadCatalogBooks(url = 'catalog.csv') {
       author: r.author || '',
       durationHhmm: r.duration_hhmm || '',
       durationMinutes: parseHhmm(r.duration_hhmm),
-      coverHref: r.cover_href || '',
+      coverHref: coverUrl(r.cover_href || ''),
     }))
     .sort((a, b) => a.title.localeCompare(b.title));
 }

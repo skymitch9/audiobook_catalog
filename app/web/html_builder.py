@@ -7,6 +7,8 @@ import json
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from app.config import COVERS_BASE_URL
+
 TEMPLATE_DIR = Path(__file__).parent / "templates"
 STATIC_DIR = Path(__file__).parent / "static"  # kept for other assets if you have them
 TEMPLATE_FILE = TEMPLATE_DIR / "index.html"
@@ -27,6 +29,33 @@ def _url_encode_path(path: str) -> str:
     return quote(path, safe="/")
 
 
+def cover_src(cover_href: str) -> str:
+    """Resolve catalog.csv's relative `cover_href` to the URL the page uses.
+
+    Covers are served from Cloudflare R2 (app.config.COVERS_BASE_URL). The R2
+    object key is the path relative to site/covers, so the leading "covers/"
+    is stripped before the base is applied:
+
+        "covers/A. American/Home.jpg"
+          -> "https://<base>/A.%20American/Home.jpg"
+
+    Set COVERS_BASE_URL="covers/" and the old relative behaviour comes back
+    byte-for-byte. Already-absolute hrefs pass through untouched so historic
+    rows and hand-set values are never double-prefixed.
+    """
+    cover = (cover_href or "").strip()
+    if not cover:
+        return ""
+    if cover.startswith(("http://", "https://", "//", "data:")):
+        return cover
+    rel = cover[len("covers/"):] if cover.startswith("covers/") else cover
+    base = (COVERS_BASE_URL or "").strip()
+    if not base:
+        # No base configured: behave exactly as the site did before R2.
+        return _url_encode_path(cover)
+    return base.rstrip("/") + "/" + _url_encode_path(rel.lstrip("/"))
+
+
 def _cover_button(r: Dict[str, str], inline: bool = False) -> str:
     """
     Wrap cover <img> in a button with data-* attributes used by the modal.
@@ -36,7 +65,7 @@ def _cover_button(r: Dict[str, str], inline: bool = False) -> str:
     if not cover:
         return ""
     cls = "cover-btn inline" if inline else "cover-btn"
-    cover_url = _url_encode_path(cover)
+    cover_url = cover_src(cover)
     # Data attributes: keep short names to minimize HTML size
     data_attrs = " ".join(
         [
@@ -95,7 +124,7 @@ def _card_html(r: Dict[str, str]) -> str:
         "genre": r.get("genre", ""),
         "duration_hhmm": r.get("duration_hhmm", ""),
         # Add modal data attributes
-        "cover": r.get("cover_href", ""),
+        "cover": cover_src(r.get("cover_href", "")),
         "index": r.get("series_index_display", ""),
         "companions": r.get("companion_files", ""),
         "desc": r.get("desc", ""),
@@ -158,7 +187,7 @@ def _load_author_map() -> str:
 def _added_item_html(r: Dict[str, str], date_label: str = "") -> str:
     """One clickable book row, shared by 'Recently Added' and the history panel."""
     cover = r.get("cover_href", "")
-    cover_url = _url_encode_path(cover) if cover else ""
+    cover_url = cover_src(cover)
     cover_img = f'<img src="{cover_url}" alt="Cover" style="width:48px;height:auto;border-radius:6px;" loading="lazy">' if cover else ""
     series_badge = ""
     if r.get("series"):
@@ -293,6 +322,9 @@ def render_index_html(
         .replace("{{UPLOAD_HISTORY}}", _upload_history_html(rows, additions))
         .replace("{{AUTHOR_MAP_JSON}}", author_map_json)
         .replace("{{AUTHOR_DRIVE_MAP_URL}}", "")  # Keep for compatibility
+        # Lets the in-page cover-fallback handler tell a failed COVER apart
+        # from a failed avatar. Same knob as every other cover URL.
+        .replace("{{COVERS_BASE_URL}}", _esc(COVERS_BASE_URL))
     )
 
     out_path.parent.mkdir(parents=True, exist_ok=True)

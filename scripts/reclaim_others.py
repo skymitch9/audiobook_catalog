@@ -262,6 +262,15 @@ def main():
             catalog_main()
             print("  Catalog rebuilt.")
 
+            # Covers are not in git — push them to R2 before committing, or
+            # the reclaimed books ship with broken images.
+            # (scripts/upload_covers_r2.py; same ordering as the pipeline.)
+            try:
+                from scripts.upload_covers_r2 import main as upload_covers_main
+                upload_covers_main([])
+            except Exception as e:
+                print(f"  [WARN] Cover upload to R2 failed: {e}")
+
             # Auto-commit and push
             import subprocess
             status = subprocess.run(
@@ -269,7 +278,9 @@ def main():
                 capture_output=True, text=True, cwd=str(PROJECT_ROOT),
             )
             if status.stdout.strip():
-                subprocess.run(["git", "add", "site/catalog.csv", "site/index.html", "site/covers/", "site/stats.html"],
+                subprocess.run(["git", "add", "site/catalog.csv", "site/index.html",
+                                "site/covers_manifest.json", "site/covers-base.js",
+                                "site/stats.html"],
                                cwd=str(PROJECT_ROOT), capture_output=True)
                 msg = f"feat(catalog): Reclaimed {downloaded} books from other owners"
                 subprocess.run(["git", "commit", "-m", msg], cwd=str(PROJECT_ROOT), capture_output=True)

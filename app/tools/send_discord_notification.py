@@ -11,6 +11,8 @@ from pathlib import Path
 
 import requests
 
+from app.web.html_builder import cover_src
+
 
 def create_embed(new_books_data, site_url):
     """Create Discord embed with new books."""
@@ -102,13 +104,12 @@ def create_embed(new_books_data, site_url):
             if fields:
                 book_embed["fields"] = fields
 
-            # Add cover image if available
+            # Add cover image if available.
+            # Covers are served from Cloudflare R2, not from site_url — resolve
+            # through the one knob (app/config.py COVERS_BASE_URL) so the embed
+            # thumbnail keeps working now that site/covers is out of git.
             if cover:
-                # Convert relative path to full URL (URL-encode spaces and special chars)
-                from urllib.parse import quote
-                cover_encoded = quote(cover.lstrip('/'), safe='/')
-                cover_url = f"{site_url.rstrip('/')}/{cover_encoded}"
-                book_embed["thumbnail"] = {"url": cover_url}
+                book_embed["thumbnail"] = {"url": cover_src(cover)}
 
             embeds.append(book_embed)
 

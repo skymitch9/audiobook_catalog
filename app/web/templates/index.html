@@ -392,6 +392,49 @@ body:not(.cards) #ab-table{display:table}
 
 <!-- Optional env hook (unused here) -->
 <script>window.AB_AUTHOR_MAP_URL="{{AUTHOR_DRIVE_MAP_URL}}";</script>
+
+<!--
+  Cover fallback. Covers are served from Cloudflare R2 (app/config.py
+  COVERS_BASE_URL), so a cover that was never uploaded, or a bucket blip, is
+  now a cross-origin 404 rather than a same-origin one. Either way the browser
+  paints its broken-image glyph, which looks like the site is broken.
+
+  One delegated listener in the CAPTURE phase catches every <img> error on the
+  page — error does not bubble, so capture is the only way to do this once
+  instead of per-image. It must be in <head>: images start loading during
+  parse and an error can fire before the body scripts run.
+
+  This costs ~1 KB total; an onerror= attribute or a data: URI per <img> would
+  cost that much per book, and index.html is already 8 MB for 1,073 books.
+-->
+<script>
+(function(){
+  // Neutral "no cover" tile - a framed book glyph, readable on either theme.
+  var PLACEHOLDER = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="180" viewBox="0 0 120 180">' +
+    '<rect width="120" height="180" fill="#1b1b26"/>' +
+    '<rect x="0.5" y="0.5" width="119" height="179" fill="none" stroke="#3a3a4a"/>' +
+    '<path d="M34 52h52v76H34z" fill="none" stroke="#55556a" stroke-width="3"/>' +
+    '<path d="M60 52v76M42 66h10M42 78h10" stroke="#55556a" stroke-width="3"/>' +
+    '<text x="60" y="150" fill="#6f6f88" font-family="monospace" font-size="12" ' +
+    'text-anchor="middle">no cover</text></svg>');
+  window.AB_COVER_PLACEHOLDER = PLACEHOLDER;
+  window.AB_COVERS_BASE_URL = "{{COVERS_BASE_URL}}";
+  function isCover(img){
+    if (/cover/i.test(img.className) || /cover/i.test(img.id || "")) return true;
+    var src = img.getAttribute("src") || "";
+    return !!window.AB_COVERS_BASE_URL && src.indexOf(window.AB_COVERS_BASE_URL) === 0;
+  }
+  window.addEventListener("error", function(e){
+    var img = e && e.target;
+    if (!img || img.tagName !== "IMG") return;
+    if (img.dataset.coverFallback) return;      // don't loop on the placeholder
+    if (!isCover(img)) return;                  // leave avatars etc. alone
+    img.dataset.coverFallback = "1";
+    img.src = PLACEHOLDER;
+  }, true);
+})();
+</script>
 </head>
 
 <body>

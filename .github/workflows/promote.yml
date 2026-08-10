@@ -39,9 +39,24 @@ jobs:
         fetch-depth: 0
 
     - name: 🛡️ Critical paths are tracked, not gitignored
+      # ⚠️ site/covers was in this list until 2026-08-10 and is deliberately
+      # NOT any more: cover art moved to Cloudflare R2 and site/covers/ is now
+      # gitignored on purpose (see .gitignore, and DOMAIN_AND_HOSTING.md
+      # §2.6(a)). That removal HAD to ship in the same commit as the
+      # .gitignore edit and the `git rm -r --cached site/covers`, or the very
+      # next promote would fail on a guard doing its job.
+      #
+      # Everything else in the list stays. Gitignoring site/ once caused a
+      # full outage and this guard is why it cannot happen again — do not
+      # "simplify" it.
+      #
+      # Covers are still gated, just differently, and the check branches on
+      # the ref being promoted so that ROLLING BACK to a pre-R2 prod-* tag
+      # still works: those refs have covers in git and no manifest, and a flat
+      # "manifest must be tracked" rule would refuse every one of them.
       run: |
         fail=0
-        for p in site/index.html site/catalog.csv site/covers site/static; do
+        for p in site/index.html site/catalog.csv site/static; do
           if git check-ignore -q "$p"; then
             echo "::error::$p is matched by .gitignore — this is the outage bug, refusing to promote"
             fail=1
@@ -53,6 +68,26 @@ jobs:
             fail=1
           fi
         done
+        # Covers: EITHER committed (refs before 2026-08-10) OR in R2 with a
+        # tracked manifest. Never neither.
+        #
+        # ⚠️ Do NOT branch on `git check-ignore site/covers`. The ignore
+        # pattern is `site/covers/`, which matches a DIRECTORY only, and on a
+        # fresh CI checkout that directory does not exist — check-ignore then
+        # answers "not ignored" and the R2 branch is silently skipped, i.e.
+        # the guard stops checking anything in exactly the environment it runs
+        # in. Measured on a clean worktree. Branch on what git TRACKS instead.
+        if [ -n "$(git ls-files site/covers | head -1)" ]; then
+          echo "✓ covers are committed to git on this ref (pre-R2)"
+        elif git ls-files --error-unmatch site/covers_manifest.json > /dev/null 2>&1; then
+          # encoding= is not optional: the manifest holds non-ASCII author
+          # names and open() otherwise uses the locale codec.
+          n=$(python3 -c 'import json; print(json.load(open("site/covers_manifest.json", encoding="utf-8"))["count"])' 2>/dev/null || echo '?')
+          echo "✓ covers served from Cloudflare R2 ($n objects in the manifest)"
+        else
+          echo "::error::no covers tracked in git and no site/covers_manifest.json — every cover would 404. Refusing to promote"
+          fail=1
+        fi
         exit $fail
 
     - name: 🛡️ Site content is real (not placeholder)

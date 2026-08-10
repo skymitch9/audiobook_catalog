@@ -3,7 +3,9 @@ Audit the committed site artifacts for the core catalog guarantees:
 
   1. Every book has an author.
   2. Every book has a narrator.
-  3. Every book has a cover image that exists on disk under site/.
+  3. Every book has a cover image — recorded in site/covers_manifest.json
+     (i.e. uploaded to Cloudflare R2, which is where covers are served from)
+     or, failing that, present on disk under site/.
   4. Every author resolves to a Google Drive folder (matching the site's own
      resolution: exact or case-insensitive match on the FULL author string),
      or is explicitly excluded in scripts/audit_exclusions.json.
@@ -34,6 +36,7 @@ from pathlib import Path
 
 EXCLUSIONS_REL_PATH = Path("scripts") / "audit_exclusions.json"
 AUTHOR_MAP_NAME = "author_drive_map.json"
+COVER_MANIFEST_NAME = "covers_manifest.json"
 
 
 def load_exclusions(path: Path) -> dict:
@@ -138,9 +141,43 @@ def _check_required_fields(rows: list, exclusions: dict) -> list:
     return failures
 
 
+def load_cover_manifest(site_dir: Path) -> set:
+    """Object keys recorded in site/covers_manifest.json.
+
+    Covers live in Cloudflare R2, not in git, so in CI there is no
+    site/covers/ to stat. The manifest — written by
+    scripts/upload_covers_r2.py and committed — is the record of what is
+    actually in the bucket, and is what this audit checks against.
+
+    Returns an empty set when the manifest is absent or unreadable; the
+    caller then falls back to the on-disk check.
+    """
+    path = site_dir / COVER_MANIFEST_NAME
+    if not path.exists():
+        return set()
+    try:
+        with open(path, encoding="utf-8") as f:
+            return set((json.load(f).get("files") or {}).keys())
+    except (json.JSONDecodeError, OSError):
+        return set()
+
+
+def _cover_key(href: str) -> str:
+    """catalog.csv's `cover_href` -> the R2 object key (path under site/covers)."""
+    href = href.replace("\\", "/").lstrip("/")
+    return href[len("covers/"):] if href.startswith("covers/") else href
+
+
 def _check_covers(rows: list, site_dir: Path, exclusions: dict) -> list:
-    """Every row must have a cover_href pointing at a file that exists under site/."""
+    """Every row must have a cover_href that resolves to a real cover.
+
+    "Real" means present in site/covers_manifest.json (i.e. uploaded to R2)
+    OR present on disk under site/. Either satisfies the guarantee; a local
+    working tree has both, a CI checkout has only the manifest, and an old
+    rollback target predating R2 has only the files.
+    """
     skip_titles = _excluded_titles(exclusions, "covers")
+    manifest_keys = load_cover_manifest(site_dir)
     no_href = []
     missing_file = []
     for r in rows:
@@ -149,18 +186,27 @@ def _check_covers(rows: list, site_dir: Path, exclusions: dict) -> list:
         href = (r.get("cover_href") or "").strip()
         if not href:
             no_href.append(r["title"])
-        elif not (site_dir / href).exists():
+            continue
+        if _cover_key(href) in manifest_keys:
+            continue
+        if not (site_dir / href).exists():
             missing_file.append(f"{r['title']} -> {href}")
 
     failures = []
     if no_href:
         failures.append(f"{len(no_href)} books have no cover_href: " + _summarize(no_href))
     if missing_file:
+        where = (
+            f"{site_dir / COVER_MANIFEST_NAME} and not on disk under {site_dir}"
+            if manifest_keys else f"{site_dir}"
+        )
         failures.append(
-            f"{len(missing_file)} cover files missing from {site_dir}: " + _summarize(missing_file)
+            f"{len(missing_file)} covers missing from {where}: " + _summarize(missing_file)
+            + (" — run `python -m scripts.upload_covers_r2`" if manifest_keys else "")
         )
     if not failures:
-        print(f"[OK] covers: all {len(rows)} books have a cover file on disk")
+        source = f"{len(manifest_keys)} in the R2 manifest" if manifest_keys else "on disk"
+        print(f"[OK] covers: all {len(rows)} books have a cover ({source})")
     return failures
 
 
