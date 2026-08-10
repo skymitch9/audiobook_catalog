@@ -1,4 +1,32 @@
 rules_version = '2';
+
+// ============================================================================
+// TRUST MODEL — read this before tightening anything.
+//
+// This site is auth-free by design. The browser writes to Firestore directly
+// and `request.auth` is ALWAYS null: site/identity.js signs out of Firebase
+// Auth the moment it has captured the Google profile. identity.js isAdmin() is
+// presentation only and says so in its own comment. So these rules can enforce
+// document SHAPE and nothing else — they can never tell one visitor from
+// another.
+//
+// The line, therefore, is impersonation and destruction, not writing:
+//   - reviews, club comments, quotes, TBR, warnings and profiles are MEANT to
+//     be writable by anyone who can load the page. That openness is the design;
+//     do not "fix" it.
+//   - credential overwrite is not (see /users), and neither is a wipe that no
+//     client ever needed (see /reviews delete).
+//
+// Deletes that a normal member action performs (clubs, members, club content,
+// reading lists, user warnings, cw_requests) stay open because no rule can
+// distinguish the author from a passer-by. That is an accepted, documented
+// residual risk of the auth-free design, not an oversight. Closing it needs
+// Firebase Auth kept alive plus request.auth checks — a different project.
+//
+// Audited end to end 2026-08-10 against every writer in site/*.js, site/*.html
+// and app/tools/*.py. Prod and *_dev rules must always stay in step.
+// ============================================================================
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -79,17 +107,61 @@ service cloud.firestore {
       allow write: if validLeaderboard();
     }
 
+    // ⚠️ PASSPHRASE ACCOUNTS ARE FROZEN — do not re-open `update` here.
+    //
+    // This block used to say `allow update: if true`, which was an account
+    // takeover hole. User docs are world-readable and hold
+    // { displayName, passphraseHash, createdAt }, so two unauthenticated calls
+    // from any browser were enough: read a doc, PATCH its passphraseHash to the
+    // SHA-256 of a passphrase you picked, then sign in as that person. That
+    // includes the admin account (`!sky`, whose displayName '!Sky' is in
+    // identity.js ADMIN_NAMES).
+    //
+    // The obvious fix, `request.auth.uid == userId`, is NOT available here.
+    // site/identity.js captures the Google profile and then deliberately
+    // signOut()s immediately (see signInWithGoogle's detach comment and
+    // detachStaleFirebaseAuth), because a persisted token expiring mid-session
+    // poisoned Firestore writes with PERMISSION_DENIED. request.auth is
+    // therefore null on EVERY request this site makes.
+    //
+    // With world-readable docs and no auth there is nothing a rule can use to
+    // tell the account owner from an attacker, so no secure passphrase-change
+    // rule exists at all. Passphrase auth is retired — the whole collection is
+    // three docs (`!sky`, `divaelf`, `test`), all superseded by Google SSO — so
+    // the accounts are frozen instead:
+    //   create : still allowed, so registration is not silently broken and the
+    //            rule change cannot orphan a half-written flow.
+    //   update : refused. Closes the takeover.
+    //   delete : refused (it already was, implicitly — now explicit).
+    //
+    // `passwordReset` is refused along with everything else on purpose. Left
+    // writable it would be destruction by another door: any visitor could flag
+    // any account for reset, and since the matching setNewPassphrase() write is
+    // now refused too, the account could never log in by passphrase again.
+    //
+    // KNOWN, DELIBERATE BREAKAGE: identity.js setNewPassphrase() and
+    // adminResetPassword() — i.e. the admin.html "Reset Password" button — now
+    // fail with PERMISSION_DENIED. Neither half of that flow can be made safe
+    // without real auth, so both halves are off. Everything else that touches
+    // /users is a read (login, register's name check, admin.html's user list).
     match /users/{userId} {
       allow read: if true;
       allow create: if validUserCreate();
-      // Allow update for password reset flag or setting new passphrase
-      allow update: if true;
+      allow update, delete: if false;
     }
 
     match /reviews/{reviewId} {
       allow read: if true;
-      allow write: if validReview();
-      allow delete: if true;
+      // Open by design: anyone who can load the page may post or edit a review.
+      // Split out from `allow write` only to make the delete rule below
+      // unambiguous — the semantics of create/update are unchanged.
+      allow create, update: if validReview();
+      // Was `allow delete: if true`, i.e. any visitor could wipe all ~300
+      // reviews with a loop. Nothing needs it: no deleteDoc() against reviews
+      // exists in site/*.js or site/*.html, and the only server-side REST
+      // deleter (app/tools/fetch_content_warnings.py) touches cw_requests only.
+      // Moderation happens in the Firebase console, which bypasses rules.
+      allow delete: if false;
     }
 
     match /user_content_warnings/{docId} {
@@ -98,6 +170,11 @@ service cloud.firestore {
       allow delete: if true;
     }
 
+    // ⚠️ `allow delete: if true` is LOAD-BEARING and must stay.
+    // app/tools/fetch_content_warnings.py clears fulfilled requests with a REST
+    // DELETE authenticated by the *public web API key* (_fs_delete), not by the
+    // service account — so it is gated by these rules like any browser. Closing
+    // delete here would silently strand every fulfilled request.
     match /cw_requests/{docId} {
       allow read: if true;
       allow write: if validCwRequest();
@@ -123,7 +200,20 @@ service cloud.firestore {
     match /clubs/{clubId} {
       allow read: if true;
       allow create: if validClub();
-      allow update: if true;
+      // Was `allow update: if true` — the same create-validated /
+      // update-unvalidated split that made /users exploitable. Any visitor
+      // could blank a club's name and host or stuff it with arbitrary data.
+      // Hardening, not a hole closure: `allow delete: if true` below still lets
+      // anyone remove a club outright, and cannot be tightened without auth
+      // (deleteClub in clubs.js is a normal member action).
+      //
+      // Safe for every write path: on an update request.resource.data is the
+      // POST-merge document, and every writer is a partial update
+      // (updateDoc / tx.update in clubs.js + club-reads.js) or a full-fields
+      // replace (app/tools/migrate_club.py put_doc), so name and
+      // hostDisplayName survive. Verified against all live docs — 3 clubs and
+      // 3 clubs_dev, all with a 9–12 char name and a string hostDisplayName.
+      allow update: if validClub();
       allow delete: if true;
 
       match /members/{memberId} {
@@ -180,16 +270,17 @@ service cloud.firestore {
       allow write: if validLeaderboard();
     }
 
+    // Mirrors /users — see the takeover note there. Keep the two in step.
     match /users_dev/{userId} {
       allow read: if true;
       allow create: if validUserCreate();
-      allow update: if true;
+      allow update, delete: if false;
     }
 
     match /reviews_dev/{reviewId} {
       allow read: if true;
-      allow write: if validReview();
-      allow delete: if true;
+      allow create, update: if validReview();
+      allow delete: if false;   // mirrors /reviews
     }
 
     match /user_content_warnings_dev/{docId} {
@@ -198,6 +289,7 @@ service cloud.firestore {
       allow delete: if true;
     }
 
+    // delete stays open — fetch_content_warnings.py clears this lane too.
     match /cw_requests_dev/{docId} {
       allow read: if true;
       allow write: if validCwRequest();
@@ -223,7 +315,7 @@ service cloud.firestore {
     match /clubs_dev/{clubId} {
       allow read: if true;
       allow create: if validClub();
-      allow update: if true;
+      allow update: if validClub();   // mirrors /clubs
       allow delete: if true;
 
       match /members/{memberId} {
