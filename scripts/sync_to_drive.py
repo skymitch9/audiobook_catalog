@@ -778,6 +778,25 @@ def run_pipeline(
     # -----------------------------------------------------------------------
     just_moved: frozenset[Path] = frozenset()
     if not upload_only:
+        # Step 1a: Rename ASIN-named epubs to Title - Author.epub
+        from scripts.rename_epubs import get_epub_metadata, sanitize_filename
+        epub_source = OPENAUDIBLE_BOOKS_DIR
+        epubs_renamed = 0
+        for epub in sorted(epub_source.glob("*.epub")):
+            meta = get_epub_metadata(epub)
+            if not meta or not meta["title"]:
+                continue
+            title = meta["title"]
+            author = meta.get("author", "")
+            new_name = sanitize_filename(f"{title} - {author}.epub" if author else f"{title}.epub")
+            new_path = epub.parent / new_name
+            if new_path != epub and not new_path.exists():
+                if not dry_run:
+                    epub.rename(new_path)
+                epubs_renamed += 1
+        if epubs_renamed:
+            print(f"\n[STEP 1a] Renamed {epubs_renamed} ASIN-named epub(s)")
+
         print("\n[STEP 1] Sorting books from OpenAudible export...")
         pstatus.step("sort")
         moved = sort_books(dry_run=dry_run)
