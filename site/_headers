@@ -40,17 +40,26 @@
 # library_catalog/apps/web/public/_headers, which does exactly that because Vite
 # hashes its bundles.
 
-/
+# ⚠️ Extension patterns like `/*.js` DO NOT WORK here. The first version of this
+# file used them and measured no effect: identity.js still came back
+# `max-age=14400` after deploying. Cloudflare's `*` is a path splat, not a glob,
+# so a wildcard has to be a trailing segment. `/*` and `/covers/*` are the shapes
+# that match. (The `no-cache` seen on .html was Pages' own default for HTML, not
+# a rule of ours — easy to misread as the pattern working.)
+#
+# So: catch everything, then hand the images their cache back. Later rules win
+# for the same header name, which is why the override sits below the catch-all
+# and not above it. A new .js file added tomorrow is covered without anyone
+# remembering to list it, which an explicit filename list would not manage.
+
+/*
   Cache-Control: no-cache
 
-/*.html
-  Cache-Control: no-cache
+/covers/*
+  Cache-Control: public, max-age=604800
 
-/*.js
-  Cache-Control: no-cache
+/dev/covers/*
+  Cache-Control: public, max-age=604800
 
-/*.json
-  Cache-Control: no-cache
-
-/*.css
-  Cache-Control: no-cache
+/static/img/*
+  Cache-Control: public, max-age=604800
