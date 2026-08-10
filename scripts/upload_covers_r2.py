@@ -321,10 +321,19 @@ def main(argv: List[str] | None = None) -> int:
         print("Nothing to upload. Manifest refreshed.")
         return 0
 
-    # Record only what is genuinely in the bucket: everything already in the
+    # Record what is genuinely in the bucket: everything already in the
     # manifest plus this run's successes. A failure stays out, so the next run
     # retries exactly it.
-    recorded = {k: v for k, v in manifest.items() if k in local}
+    #
+    # ⚠️ Entries whose local file has gone are KEPT, deliberately. The object
+    # is still in R2 and `prod` may still be serving it, and site/covers is a
+    # rebuildable local cache that genuinely does empty out — an ff-merge past
+    # the commit that untracked it wipes the directory, and app.main refills it
+    # from output_files/covers on the next build. Pruning on "not on disk"
+    # would silently shrink the manifest, and the manifest is what the promote
+    # audit checks, so the next promote would fail on books whose covers are
+    # perfectly fine. Use --report-orphans to see them.
+    recorded = dict(manifest)
 
     uploaded, failed = [], []
     started = time.time()
