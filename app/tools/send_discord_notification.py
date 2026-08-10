@@ -183,7 +183,12 @@ def send_notification(webhook_url, embeds):
 def main():
     # Get environment variables
     webhook_url = os.environ.get("DISCORD_WEBHOOK")
-    site_url = os.environ.get("SITE_URL", "https://skymitch9.github.io/audiobook_catalog/")
+    # ⚠️ The default used to be https://skymitch9.github.io/audiobook_catalog/.
+    # That host was retired on 2026-08-10 (cutover steps 14 and 15) and no longer
+    # exists — making the old default a link to nothing, silently, on the one
+    # code path nobody watches. deploy.yml passes SITE_URL from the repo
+    # variable; this is only the belt to that braces.
+    site_url = os.environ.get("SITE_URL", "https://audiobooks.heygabi.ai/")
 
     if not webhook_url:
         print("DISCORD_WEBHOOK not set, skipping notification")
