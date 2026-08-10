@@ -18,6 +18,25 @@ import { col } from './fb-env.js';
 const REDIRECT_PENDING = 'ab_identity_redirect_pending';
 
 /**
+ * True from the moment a sign-in starts until it has been captured and
+ * deliberately torn down.
+ *
+ * ⚠️ Without this, the load-time cleanup in `detachStaleFirebaseAuth()` races
+ * the sign-in it is supposed to run before. A successful popup makes Firebase
+ * publish the new user, that listener sees "a user appeared" and signs it out —
+ * while `signInWithPopup` is still completing its credential exchange, so the
+ * promise never settles and the button sits on "Signing in…" for ever. Nothing
+ * is thrown, so there is no catch and no console error; the only visible symptom
+ * is a dead button.
+ *
+ * Declared here, above its first use, rather than beside the function that
+ * clears it: both `handleRedirectResult()` and `signInWithGoogle()` touch it,
+ * and a `let` referenced from a function defined above its declaration is a
+ * temporal-dead-zone trap for whoever next moves a call site.
+ */
+let _signInInFlight = false;
+
+/**
  * Call on page load to complete a redirect-based Google sign-in.
  * If there's a pending redirect result, it finishes the sign-in and reloads.
  *
@@ -32,6 +51,9 @@ const REDIRECT_PENDING = 'ab_identity_redirect_pending';
  */
 export async function handleRedirectResult(app) {
   if (!app) return;
+  // Same claim as the popup path: collecting a redirect result publishes an auth
+  // state change, and nothing else must interpret that as a stale session.
+  _signInInFlight = true;
   try {
     const auth = getAuth(app);
     const result = await getRedirectResult(auth);
@@ -52,6 +74,8 @@ export async function handleRedirectResult(app) {
     }
   } catch (e) {
     console.warn('[Identity] redirect result error:', e);
+  } finally {
+    _signInInFlight = false;
   }
 }
 
@@ -79,8 +103,23 @@ function detachStaleFirebaseAuth() {
   } catch (e) { /* storage disabled — fall through and detach as before */ }
   try {
     const auth = getAuth();
-    if (auth.currentUser) signOut(auth).catch(() => {});
-    else onAuthStateChanged(auth, (user) => { if (user) signOut(auth).catch(() => {}); });
+    if (auth.currentUser) { signOut(auth).catch(() => {}); return; }
+    // ⚠️ ONE SHOT — unsubscribe inside the first callback.
+    //
+    // This used to be a permanent subscription, which is not what "one-time
+    // cleanup" means and is not what it did: it stayed armed for the life of the
+    // page and signed out *every* user who ever appeared, including the one a
+    // sign-in had just produced a second earlier.
+    //
+    // Unsubscribing on the first callback is still correct for the stated job.
+    // Firebase does not fire this until persistence has been read, so the first
+    // callback already carries any restored session — which is exactly the stale
+    // session this exists to drop. Anything arriving after that is a live
+    // sign-in, and is none of this function's business.
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      unsubscribe();
+      if (user && !_signInInFlight) signOut(auth).catch(() => {});
+    });
   } catch (e) { /* no default app yet — harmless */ }
 }
 
@@ -181,6 +220,11 @@ async function startRedirect(auth, provider) {
  * @returns {Promise<{ success: boolean, displayName?: string, error?: string }>}
  */
 export async function signInWithGoogle(app) {
+  // Claim the flag before anything can publish an auth state change, so the
+  // load-time cleanup cannot mistake this sign-in for a stale session and sign
+  // it out mid-flight. Released in the finally below, after the intentional
+  // detach has already run.
+  _signInInFlight = true;
   try {
     const auth = getAuth(app);
     const provider = new GoogleAuthProvider();
@@ -238,6 +282,11 @@ export async function signInWithGoogle(app) {
     }
     console.error('[Auth] Google sign-in failed:', e);
     return { success: false, error: 'Sign-in failed. Try again.' };
+  } finally {
+    // Cleared on every exit, including the redirect path — that one navigates
+    // away and the whole module is reloaded on the way back, so the flag is
+    // module state that simply ceases to exist rather than something to unset.
+    _signInInFlight = false;
   }
 }
 
