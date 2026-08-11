@@ -88,6 +88,20 @@ def main() -> None:
         print("No audiobook files found.")
         return
 
+    # 0a) The shared universe list — catalog-platform/data/universes.json, read
+    #     by this pipeline and by library_catalog. This REPORTS ONLY: it writes
+    #     nothing to the CSV or the site, because surfacing universes on screen
+    #     is a separate job and a new column would change every generated page.
+    #     It runs on every build so the dependency is exercised — a list nobody
+    #     reads is a list that breaks quietly. A missing or malformed list warns
+    #     and the build continues. See app/core/universes.py.
+    from app.core.universes import report_coverage
+
+    try:
+        report_coverage(rows)
+    except Exception as e:  # noqa: BLE001 — reference data must never stop a build
+        print(f"[WARN] Universe coverage report failed: {e}", file=sys.stderr)
+
     # 0) Record first-seen dates for any new books (drives "Recently Added"
     #    and the upload-history view; immune to file moves/re-syncs)
     from app.additions_log import update_additions_log
