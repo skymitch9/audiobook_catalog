@@ -779,8 +779,38 @@ def main(argv: Optional[List[str]] = None) -> int:
             print("DRY RUN - nothing was written. Re-run with --commit to apply.\n")
         return 0
 
+    if not args.from_overrides_only:
+        # DISARMED 2026-08-11 by owner decision, after the full-library dry run.
+        # The uncurated repair path proposed 128 writes of which 7 were plausible:
+        # 108 would have written the book's own title into the series slot, and 91
+        # would have written SRSQ=1 from a trkn that means "track 1 of 1" — three of
+        # them over a filename volume that was demonstrably correct.
+        #
+        # Both bugs are real and are described in docs/info/catalog-corrections.md
+        # §8.2. Neither is fixed. This refusal exists because the failure is silent
+        # and the files are irreplaceable: a plausible-looking --commit is exactly
+        # how this damages a library, and "the tool ran clean" is what it looks like.
+        #
+        # To revive it: fix the prefix guard (line ~408) and the trkn=1 rule
+        # (line ~423), re-run --plan across the full library, and delete this block
+        # only once the plan reads correctly.
+        print("=" * 100)
+        print("REFUSING TO COMMIT - the uncurated repair path is disarmed", file=sys.stderr)
+        print("=" * 100)
+        print(
+            "\n  The full-library dry run (2026-08-11) proposed 128 writes.\n"
+            "  Measured: 7 plausible, 108 that write the title into the series slot,\n"
+            "  91 that write SRSQ=1 from a track number meaning 'track 1 of 1'.\n\n"
+            "  Read docs/info/catalog-corrections.md section 8.2 before changing this.\n\n"
+            "  --plan and the read-only survey still work, and are still useful.\n"
+            "  --commit --from-overrides-only still works: the corrections file is\n"
+            "  researched by hand, and that path is what wrote the 13 good files.\n",
+            file=sys.stderr,
+        )
+        return 2
+
     print("=" * 100)
-    print("COMMIT - writing tags to real audiobook files")
+    print("COMMIT - writing tags to real audiobook files (curated entries only)")
     print("=" * 100)
     return repair(scans, run_dir, safe_copy=args.safe_copy)
 
