@@ -1,0 +1,205 @@
+{
+  "_description": "CATALOG CORRECTIONS LAYER. Corrects any field the pipeline derives from m4b tags - title, author, narrator, year, genre, series, series_index - without touching the audio files. Read by app/core/catalog_overrides.py, applied by app/metadata.py:extract_metadata() after tag extraction and title parsing. The correction is always the last word.",
+
+  "_why_this_exists": "site/catalog.csv is a generated copy (app/main.py step 3). Editing it is wiped by the next build. Every value in it comes from the m4b tags, and a large part of this library was tagged by hand over several years, so the tags carry hand-entry damage: blanks, four spellings of one series name, volume numbers off by one, series fields holding the book title. This file is where that damage is corrected. It is not a pile of exceptions - it is the corrected truth for this catalog, and it is expected to grow to cover the whole library.",
+
+  "_precedent": "Shape and location follow scripts/author_aliases.json and scripts/author_shelf_aliases.json. Unlike those, every entry is evidence-bearing: each corrected field must carry an evidence note saying what was on disk and what settled it, and tests/test_catalog_overrides.py fails the build if one does not. A future reader must always be able to tell a researched correction from a typo.",
+
+  "_relationship_to_the_tag_sweep": "This layer leaves the m4b files alone, so it is safe and instant but only fixes the catalog. app/tools/audit_series_tags.py is the other half: it surveys the real tags across all 422 author folders and can write corrections back into the files (dry run by default, --commit to write, sidecar backup first). Run the survey, decide, then either fix the tags at source or record the correction here. Entries here stay valid either way - a corrected tag simply makes its entry redundant rather than wrong.",
+
+  "_schema": {
+    "match": "An entry applies when EVERY field present in its match block matches the extracted metadata. See _keying below.",
+    "match.asin": "Audible product ASIN, from the CDEK atom. The most stable key - survives both file renames and retagging. Absent on hand-tagged files.",
+    "match.title": "Matched against the ©nam tag, case-insensitive, whitespace-collapsed.",
+    "match.author": "Matches if this name is one of the comma-separated names in the extracted author field, case-insensitive.",
+    "match.file": "Basename of the m4b, case-insensitive. Use only to disambiguate; it does not survive a rename.",
+    "set": "Field -> corrected value. Allowed fields: title, author, narrator, year, genre, series, series_index. Set series_index to \"\" to force the volume BLANK when the true number is unknown - never invent one.",
+    "evidence": "Required. Must contain one key per field in 'set', explaining that specific correction. May also carry 'tags_read', 'filename_said', 'sources' and 'note'. 'sources' holds citable URLs when the value came from outside the files.",
+    "added": "ISO date the entry was added.",
+    "canonical_series": "variant spelling (lowercased) -> canonical spelling. Applied to EVERY book after extraction, whether or not an entry matched. This is what stops one series being spelled four ways."
+  },
+
+  "_keying": {
+    "problem": "Both of the obvious keys drift. Filenames get renamed by hand and by the sort scripts; tags get rewritten by re-downloads, by OpenAudible, and by the eventual tag sweep.",
+    "rule": "Key on ASIN when the file has one - it is the product identity and survives both kinds of drift. Otherwise key on title + author, which survives renames and re-syncs (a re-download restores the same ©nam/©ART) and only breaks if someone deliberately retitles the book. Use 'file' only as a tiebreaker for genuinely ambiguous titles, never as the sole key.",
+    "consequence": "The hand-made files that need correcting most - Completionist Chronicles 8-14 - have no ASIN at all, so those entries are keyed on title + author. If the tag sweep later writes ASINs into them, add the asin field to those entries and they become rename-proof and retag-proof."
+  },
+
+  "_verified": "2026-08-11. Every 'tags_read' value was read from the real m4b with mutagen. Every volume number was cross-checked against a citable external source as well as the file's own tags; where the two disagree the disagreement is written down rather than smoothed over.",
+
+  "_precedence_rule": {
+    "finding": "Across all 14 Completionist Chronicles books the trkn tag was correct every single time. The FILENAMES were the damaged source: one had no series at all, one claimed the wrong volume, one had the book title in the series slot, and the series name was spelled four ways. There was never a real volume collision.",
+    "rule": "Where a tag and a filename disagree, PREFER THE TAG and treat the filename as suspect. Filename parsing is evidence to report, never a value to write over a good tag. app/parsers/title.py only runs when the tags are silent, and it must stay that way.",
+    "consequence": "The damage is narrower than it looked. Ordering never needs reconstructing - only the series STRING is broken. That makes both this layer and the eventual tag sweep much lower risk than assumed."
+  },
+
+  "canonical_series": {
+    "completionist chronicles": "The Completionist Chronicles",
+    "the completionist chronicles": "The Completionist Chronicles",
+    "completionist chronicles series": "The Completionist Chronicles",
+    "the completionist chronicles series": "The Completionist Chronicles",
+    "the selfless hero trilogy": "The Selfless Hero Trilogy",
+    "selfless hero trilogy": "The Selfless Hero Trilogy",
+    "otherlife": "The Selfless Hero Trilogy"
+  },
+
+  "overrides": [
+    {
+      "match": { "author": "Dakota Krout", "title": "Implode" },
+      "set": { "series": "The Completionist Chronicles", "series_index": "8" },
+      "added": "2026-08-11",
+      "evidence": {
+        "series": "©alb already held 'The Completionist Chronicles'; the pipeline does not read ©alb, which is the only reason the catalog showed this book seriesless.",
+        "series_index": "trkn=8 in the file, and Goodreads lists Implode as Book 8. Two independent sources agree, and 8 is exactly the gap in the on-disk run (7 then 9).",
+        "tags_read": { "©nam": "Implode", "©alb": "The Completionist Chronicles", "trkn": "(8, 0)", "SRNM": "absent", "SRSQ": "absent", "©day": "2022" },
+        "filename_said": "nothing - the file is a bare 'Implode.m4b' with no series and no volume",
+        "sources": ["https://www.goodreads.com/series/229735-the-completionist-chronicles"],
+        "note": "Book 8 was one of the two numbers the owner flagged as missing from the run. It was on disk the whole time, just invisible to the catalog. Deliberately keyed on title + author and NOT on file: 'Implode.m4b' is exactly the name someone renames to 'Implode - The Completionist Chronicles, Book 8.m4b', and a file key would silently stop applying if they did."
+      }
+    },
+    {
+      "match": { "author": "Dakota Krout", "title": "Tenacity" },
+      "set": { "series": "The Completionist Chronicles", "series_index": "9" },
+      "added": "2026-08-11",
+      "evidence": {
+        "series": "©alb held the correct series; the pipeline does not read ©alb. Hand-tagged file - no SRNM/SRSQ and no ©day, unlike the Audible-sourced books 1-7.",
+        "series_index": "trkn=9, filename says 9, Goodreads says Book 9. All three agree.",
+        "tags_read": { "©nam": "Tenacity", "©alb": "The Completionist Chronicles", "trkn": "(9, 0)", "SRNM": "absent", "SRSQ": "absent" },
+        "filename_said": "The Completionist Chronicles - 9",
+        "sources": ["https://www.goodreads.com/series/229735-the-completionist-chronicles"]
+      }
+    },
+    {
+      "match": { "author": "Dakota Krout", "title": "Thesaurize" },
+      "set": { "series": "The Completionist Chronicles", "series_index": "10" },
+      "added": "2026-08-11",
+      "evidence": {
+        "series": "©alb held the correct series; the pipeline does not read ©alb.",
+        "series_index": "trkn=10, filename says 10, Goodreads says Book 10. All three agree.",
+        "tags_read": { "©nam": "Thesaurize", "©alb": "The Completionist Chronicles", "trkn": "(10, 0)", "SRNM": "absent", "SRSQ": "absent" },
+        "filename_said": "The Completionist Chronicles - 10",
+        "sources": ["https://www.goodreads.com/series/229735-the-completionist-chronicles"]
+      }
+    },
+    {
+      "match": { "author": "Dakota Krout", "title": "Thunderplump" },
+      "set": { "series": "The Completionist Chronicles", "series_index": "11" },
+      "added": "2026-08-11",
+      "evidence": {
+        "series": "©alb held the correct series; the pipeline does not read ©alb.",
+        "series_index": "trkn=11, filename says 11, Goodreads says Book 11. All three agree. Thunderplump is the genuine book 11 - the apparent clash with Untapped is Untapped's FILENAME being wrong, not this book's number.",
+        "tags_read": { "©nam": "Thunderplump", "©alb": "The Completionist Chronicles", "trkn": "(11, 0)", "SRNM": "absent", "SRSQ": "absent" },
+        "filename_said": "The Completionist Chronicles - 11",
+        "sources": ["https://www.goodreads.com/series/229735-the-completionist-chronicles"]
+      }
+    },
+    {
+      "match": { "author": "Dakota Krout", "title": "Untapped" },
+      "set": { "series": "The Completionist Chronicles", "series_index": "12" },
+      "added": "2026-08-11",
+      "evidence": {
+        "series": "©alb held 'Completionist Chronicles', missing the leading 'The'. Normalised to the canonical form.",
+        "series_index": "NOT guessed from the gap. trkn=12 in the file, and Goodreads lists Untapped as Book 12. The filename's 'Book 11' is the error, and it is the sole source of the duplicate-volume-11 collision the owner spotted. Corroborated a third way by ©day=2025, later than Thunderplump.",
+        "tags_read": { "©nam": "Untapped", "©alb": "Completionist Chronicles", "trkn": "(12, 0)", "SRNM": "absent", "SRSQ": "absent", "©day": "2025" },
+        "filename_said": "The Completionist Chronicles, Book 11 - WRONG",
+        "sources": ["https://www.goodreads.com/series/229735-the-completionist-chronicles"],
+        "note": "The m4b tag never claimed 11. Only the filename did."
+      }
+    },
+    {
+      "match": { "author": "Dakota Krout", "title": "Unmapped" },
+      "set": { "series": "The Completionist Chronicles", "series_index": "13" },
+      "added": "2026-08-11",
+      "evidence": {
+        "series": "©alb held 'Completionist Chronicles', missing the leading 'The'. Normalised to the canonical form.",
+        "series_index": "trkn=13, filename says 13, Goodreads says Book 13. All three agree.",
+        "tags_read": { "©nam": "Unmapped", "©alb": "Completionist Chronicles", "trkn": "(13, 0)", "SRNM": "absent", "SRSQ": "absent" },
+        "filename_said": "Completionist Chronicles, Book 13",
+        "sources": ["https://www.goodreads.com/series/229735-the-completionist-chronicles"]
+      }
+    },
+    {
+      "match": { "author": "Dakota Krout", "title": "Uncapped" },
+      "set": { "series": "The Completionist Chronicles", "series_index": "14" },
+      "added": "2026-08-11",
+      "evidence": {
+        "series": "Broken at source: ©alb was filled with the BOOK TITLE, 'Uncapped', instead of the series, and the filename inherited that error. The correct series name comes from the publisher's own listing, not from the file.",
+        "series_index": "trkn=14 in the file. Independently confirmed by the publisher Mountaindale Press ('Uncapped | Completionist Chronicles Book 14') and by the Audible/Amazon product title 'Uncapped: An Epic Fantasy LitRPG Adventure (The Completionist Chronicles, Book 14)'.",
+        "tags_read": { "©nam": "Uncapped", "©alb": "Uncapped", "trkn": "(14, 0)", "SRNM": "absent", "SRSQ": "absent" },
+        "filename_said": "series 'Uncapped', volume 14 - the series field holds the title",
+        "sources": [
+          "https://www.mountaindalepress.store/products/uncapped",
+          "https://www.amazon.com/dp/B0H3QBRC6X",
+          "https://www.goodreads.com/series/229735-the-completionist-chronicles"
+        ],
+        "note": "This is the one entry whose series NAME could not come from the file at all, because the file's series field is the title. It is sourced externally and cited above."
+      }
+    },
+
+    {
+      "match": { "author": "William D. Arand", "title": "Otherlife Dreams - The Selfless Hero Trilogy" },
+      "set": { "series": "The Selfless Hero Trilogy", "series_index": "1" },
+      "added": "2026-08-11",
+      "evidence": {
+        "series": "No series tag exists on the file. The series name is buried inside ©nam, where the pipeline's title parser does not reach it, so the catalog showed all three books seriesless.",
+        "series_index": "Goodreads lists it as The Selfless Hero Trilogy #1, and ©day=2016-05-13 makes it the earliest of the three. trkn is (1, 0) on ALL THREE books, so it is a disc-track placeholder carrying no series information - it must NOT be read as volume 1 here even though it happens to agree.",
+        "tags_read": { "©nam": "Otherlife Dreams - The Selfless Hero Trilogy", "©alb": "Otherlife Dreams", "trkn": "(1, 0)", "SRNM": "absent", "SRSQ": "absent", "©day": "2016-05-13" },
+        "filename_said": "series name inside the title; no volume anywhere",
+        "sources": ["https://www.goodreads.com/series/191509-the-selfless-hero-trilogy"],
+        "note": "Without these three entries the trilogy sorts alphabetically - Awakenings, Dreams, Nightmares - which is the wrong reading order."
+      }
+    },
+    {
+      "match": { "author": "William D. Arand", "title": "Otherlife Nightmares - The Selfless Hero Trilogy" },
+      "set": { "series": "The Selfless Hero Trilogy", "series_index": "2" },
+      "added": "2026-08-11",
+      "evidence": {
+        "series": "No series tag exists on the file; the name is inside ©nam.",
+        "series_index": "Goodreads lists it as #2, and ©day=2016-08-26 places it between Dreams and Awakenings. trkn=(1, 0) here too and is meaningless.",
+        "tags_read": { "©nam": "Otherlife Nightmares - The Selfless Hero Trilogy", "©alb": "Otherlife Nightmares", "trkn": "(1, 0)", "SRNM": "absent", "SRSQ": "absent", "©day": "2016-08-26" },
+        "filename_said": "series name inside the title; no volume anywhere",
+        "sources": ["https://www.goodreads.com/series/191509-the-selfless-hero-trilogy"]
+      }
+    },
+    {
+      "match": { "author": "William D. Arand", "title": "Otherlife Awakenings - The Selfless Hero Trilogy" },
+      "set": { "series": "The Selfless Hero Trilogy", "series_index": "3" },
+      "added": "2026-08-11",
+      "evidence": {
+        "series": "No series tag exists on the file; the name is inside ©nam.",
+        "series_index": "Goodreads lists it as #3, and ©day=2016-10-05 is the latest of the three. trkn=(1, 0) here too and is meaningless.",
+        "tags_read": { "©nam": "Otherlife Awakenings - The Selfless Hero Trilogy", "©alb": "Otherlife Awakenings", "trkn": "(1, 0)", "SRNM": "absent", "SRSQ": "absent", "©day": "2016-10-05" },
+        "filename_said": "series name inside the title; no volume anywhere",
+        "sources": ["https://www.goodreads.com/series/191509-the-selfless-hero-trilogy"],
+        "note": "These three exist twice on disk - under 'William D. Arand/' and under \"Randi Darren/William D. Arand - Men's Harem Delight LOL/\". app/main.py dedupes by filename keeping the longest path, so the Randi Darren copy is the one catalogued. Keying on title + author covers both copies, so the correction survives whichever wins."
+      }
+    }
+  ],
+
+  "_not_corrected_on_purpose": {
+    "Completionist Chronicles books 1-7": "Ritualist, Regicide, Rexus: Side Quest, Raze, Ruthless, Inflame and Invent were downloaded from Audible and still carry their vendor tags (SRNM='The Completionist Chronicles', SRSQ=1..7, plus CDEK ASINs and an SRLK series link). They already appear correctly in the catalog and need no entry. Their FILENAMES spell the series four different ways - with and without 'The', with and without 'Series' - but a filename never reaches the series field while SRNM is present, so that is cosmetic. canonical_series above catches it if the vendor tags are ever lost, and the tag sweep will report it.",
+    "verified_run": "With the seven entries above, the Completionist Chronicles run is complete and contiguous, 1 through 14, no gaps and no duplicate volumes - matching the Goodreads series listing exactly and the owner's expectation of ~14 books."
+  },
+
+  "_not_owned": {
+    "_why_this_is_here": "So that a future audit does not read these as missing data and try to manufacture entries for them. They are genuine gaps in what the owner has bought, not defects in the catalog.",
+    "The Completionist Chronicles": {
+      "6.5": "Havoc in the Deathyards",
+      "7.5": "The Tragedy of Trigger",
+      "11.5": "Jaxon's New Clients",
+      "13.5": "Poppy's Promise",
+      "source": "https://www.goodreads.com/series/229735-the-completionist-chronicles",
+      "note": "Four decimal-numbered short stories listed by Goodreads and not present in the library. Do NOT create override entries for them."
+    }
+  },
+
+  "_unresolved": [
+    {
+      "item": "Invent Short Story - Dakota Krout.epub",
+      "where": "sits in C:/Users/nbasl/OpenAudible/books/Dakota Krout/ and is filed under this series in the sibling library catalog; it surfaces in this catalog only as a companion_files entry",
+      "question": "Goodreads has no Completionist Chronicles entry by that name. It is either 7.5 'The Tragedy of Trigger' under a generic filename, or a mislabelled duplicate of Invent (#7).",
+      "status": "UNRESOLVED - deliberately not assigned a volume. Assigning one would silently reorder the series, and nobody re-checks a number once it is written down.",
+      "raised": "2026-08-11"
+    }
+  ]
+}

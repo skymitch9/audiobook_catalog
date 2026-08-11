@@ -12,6 +12,7 @@ docs/
 !scripts/author_aliases.json
 !scripts/author_shelf_aliases.json
 !scripts/priority_authors.json
+!scripts/catalog_overrides.json
 !scripts/bookfunnel_books.json
 !scripts/audit_exclusions.json
 !last_catalog_snapshot.json

@@ -14,6 +14,9 @@ from mutagen.mp4 import MP4, MP4Cover, MP4FreeForm
 # Import config (paths used for cover extraction output)
 from app.config import OUTPUT_DIR, ROOT_DIR
 
+# The corrections layer — scripts/catalog_overrides.json wins over the tags.
+from app.core.catalog_overrides import apply_overrides
+
 # ---------- Tag keys ----------
 # MP4/iTunes atoms
 K_TITLE = "\xa9nam"  # Title
@@ -30,6 +33,7 @@ K_DESC = "desc"  # Description (some tools use this)
 # Vendor atoms (Audible-style that you provided)
 K_SERIES_VENDOR = "SRNM"  # Series Name
 K_INDEX_VENDOR = "SRSQ"  # Series Sequence (e.g., 2.1)
+K_ASIN = "CDEK"  # Audible product ASIN — the stable key for the corrections layer
 
 # Free-form keys (----:com.apple.iTunes:*)
 FREEFORM_HINTS = {
@@ -345,6 +349,30 @@ def extract_metadata(path: Path) -> Dict[str, str]:
             series = ts
         if not series_index_display and ti:
             series_index_display = _normalize_index(ti)
+
+    # 3b) Corrections layer — scripts/catalog_overrides.json wins over the tags,
+    #     for any derived field. Also folds series-name spelling variants onto one
+    #     canonical form. See app/core/catalog_overrides.py.
+    corrected = apply_overrides(
+        {
+            "title": title,
+            "author": author,
+            "narrator": narrator,
+            "year": year,
+            "genre": genre,
+            "series": series,
+            "series_index": series_index_display,
+        },
+        path=path,
+        asin=get_tag_any(tags, [K_ASIN]),
+    )
+    title = corrected["title"] or ""
+    author = corrected["author"]
+    narrator = corrected["narrator"]
+    year = corrected["year"] or ""
+    genre = corrected["genre"] or ""
+    series = corrected["series"]
+    series_index_display = corrected["series_index"]
 
     series_index_sort = _sort_key_for_index(series_index_display)
 
