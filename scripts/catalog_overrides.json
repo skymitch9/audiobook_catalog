@@ -953,11 +953,68 @@
           "the owner, 2026-08-11: 'Do a full sweep and compare vs audio book catalog, make sure series is complete and comprehensive'"
         ]
       }
+    },
+    {
+      "match": {
+        "author": "Michael-Scott Earle",
+        "title": "Tamer: King of Dinosaurs 1"
+      },
+      "set": {
+        "series": "Tamer: King of Dinosaurs",
+        "series_index": "1"
+      },
+      "added": "2026-08-11",
+      "evidence": {
+        "series": "©alb already held 'Tamer: King of Dinosaurs'; the pipeline does not read ©alb.",
+        "series_index": "trkn=1. ⚠️ This is ONE OF TWO rows deliberately at volume 1 - 762.8 MB, narrated by Christopher Boucher and Jessica Threet. The owner confirmed they own the book twice with different narration, so two rows at rung 1 is the truth, not the DUPLICATE_VOLUME defect. Distinguished by ©nam, which differs between them.",
+        "tags_read": {
+          "©nam": "Tamer: King of Dinosaurs 1",
+          "©ART": "Michael-Scott Earle",
+          "©alb": "Tamer: King of Dinosaurs",
+          "trkn": "(1, 0)",
+          "SRNM": "absent",
+          "SRSQ": "absent"
+        },
+        "sources": [
+          "the owner, 2026-08-11: 'yes I own Tamer twice with different narration'"
+        ]
+      }
+    },
+    {
+      "match": {
+        "author": "Michael-Scott Earle",
+        "title": "Tamer: King of Dinosaurs"
+      },
+      "set": {
+        "series": "Tamer: King of Dinosaurs",
+        "series_index": "1"
+      },
+      "added": "2026-08-11",
+      "evidence": {
+        "series": "©alb already held 'Tamer: King of Dinosaurs'; the pipeline does not read ©alb.",
+        "series_index": "trkn=1. ⚠️ This is ONE OF TWO rows deliberately at volume 1 - 333.8 MB, 12.25h, a different narration of the same book. The owner confirmed they own the book twice with different narration, so two rows at rung 1 is the truth, not the DUPLICATE_VOLUME defect. Distinguished by ©nam, which differs between them.",
+        "tags_read": {
+          "©nam": "Tamer: King of Dinosaurs",
+          "©ART": "Michael-Scott Earle",
+          "©alb": "Tamer: King of Dinosaurs",
+          "trkn": "(1, 0)",
+          "SRNM": "absent",
+          "SRSQ": "absent"
+        },
+        "sources": [
+          "the owner, 2026-08-11: 'yes I own Tamer twice with different narration'"
+        ]
+      }
     }
   ],
   "_not_corrected_on_purpose": {
     "Completionist Chronicles books 1-7": "Ritualist, Regicide, Rexus: Side Quest, Raze, Ruthless, Inflame and Invent were downloaded from Audible and still carry their vendor tags (SRNM='The Completionist Chronicles', SRSQ=1..7, plus CDEK ASINs and an SRLK series link). They already appear correctly in the catalog and need no entry. Their FILENAMES spell the series four different ways - with and without 'The', with and without 'Series' - but a filename never reaches the series field while SRNM is present, so that is cosmetic. canonical_series above catches it if the vendor tags are ever lost, and the tag sweep will report it.",
-    "verified_run": "With the seven entries above, the Completionist Chronicles run is complete and contiguous, 1 through 14, no gaps and no duplicate volumes - matching the Goodreads series listing exactly and the owner's expectation of ~14 books."
+    "verified_run": "With the seven entries above, the Completionist Chronicles run is complete and contiguous, 1 through 14, no gaps and no duplicate volumes - matching the Goodreads series listing exactly and the owner's expectation of ~14 books.",
+    "Tamer: King of Dinosaurs volume 1 appears TWICE, and that is correct": {
+      "why": "Two different recordings of book 1: 762.8 MB narrated by Christopher Boucher and Jessica Threet, and a 333.8 MB 12.25h edition. Different sizes, different narrators - not duplicate files. The owner owns both.",
+      "soDoNot": "'fix' this by deleting one or by renumbering. The sweep will keep reporting it as DUPLICATE_VOLUME because that check cannot know an alternate narration from a mistake; that report is expected here and should be ignored for these two rows.",
+      "answered": "the owner, 2026-08-11: 'yes I own Tamer twice with different narration'"
+    }
   },
   "_not_owned": {
     "_why_this_is_here": "So that a future audit does not read these as missing data and try to manufacture entries for them. They are genuine gaps in what the owner has bought, not defects in the catalog.",
@@ -977,13 +1034,6 @@
       "question": "Goodreads has no Completionist Chronicles entry by that name. It is either 7.5 'The Tragedy of Trigger' under a generic filename, or a mislabelled duplicate of Invent (#7).",
       "status": "UNRESOLVED - deliberately not assigned a volume. Assigning one would silently reorder the series, and nobody re-checks a number once it is written down.",
       "raised": "2026-08-11"
-    },
-    {
-      "flaggedBy": "the owner, 2026-08-11: 'We should flag that one to fix eventually'",
-      "detail": "'Tamer: King of Dinosaurs 1' (762.8 MB, narrated by Christopher Boucher and Jessica Threet) and 'Tamer- King of Dinosaurs.m4b' (333.8 MB, 12.25h) are DIFFERENT recordings, not duplicate files - different sizes and different narrators. Both are legitimately book 1.",
-      "whyNotCorrected": "Both were deliberately left seriesless rather than both being written as volume 1, because that would render two rows at the same rung and look like the DUPLICATE_VOLUME defect the sweep refuses to auto-resolve. Which recording is canonical - or whether both should show - is the owner's call.",
-      "howToFix": "Add two override entries keyed on their distinct ©nam titles, or delete the unwanted recording. The other four Tamer books (7, 8, 9, 10) ARE corrected.",
-      "item": "Tamer: King of Dinosaurs - TWO recordings both claim volume 1"
     }
   ]
 }
