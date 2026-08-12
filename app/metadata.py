@@ -7,7 +7,7 @@ from __future__ import annotations
 import html as htmlmod
 import re
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from mutagen.mp4 import MP4, MP4Cover, MP4FreeForm
 
@@ -313,22 +313,21 @@ def _find_companion_files(audio_path: Path) -> str:
     return " | ".join(companions)
 
 
-def extract_metadata(path: Path) -> Dict[str, str]:
-    """Extract metadata from an MP4/M4B file, preferring SRNM/SRSQ,
-    then free-form tags, and finally conservative title parsing. Also saves cover and cleaned description."""
-    audio = MP4(str(path))
-    tags = audio.tags or {}
-    duration = getattr(getattr(audio, "info", None), "length", None)
-    length_sec = int(duration) if duration else None
+def derive_correctable_fields(tags: Dict[str, Any]) -> Dict[str, Optional[str]]:
+    """
+    The seven correctable fields exactly as the pipeline derives them from a
+    file's tags, BEFORE the corrections layer runs.
 
+    This is the row apply_overrides() matches against, so it is also the row an
+    override entry must be keyed on. Shared with app/core/book_lookup.py so the
+    editor keys entries on the same values the build will match — a second copy
+    of these rules would drift and produce entries that silently never fire.
+    """
     title = get_tag_any(tags, [K_TITLE]) or ""
     author = resolve_primary_author(normalize_people_field(get_tag_any(tags, [K_ARTIST])))
     narrator = normalize_people_field(get_tag_any(tags, [K_WRITER]))
     year = get_tag_any(tags, [K_DAY]) or ""
     genre = get_tag_any(tags, [K_GENRE]) or ""
-
-    # Description (cleaned)
-    desc = _extract_description(tags) or ""
 
     # 1) Prefer vendor tags if present (SRNM/SRSQ)
     series = get_tag_any(tags, [K_SERIES_VENDOR])
@@ -350,19 +349,36 @@ def extract_metadata(path: Path) -> Dict[str, str]:
         if not series_index_display and ti:
             series_index_display = _normalize_index(ti)
 
+    return {
+        "title": title,
+        "author": author,
+        "narrator": narrator,
+        "year": year,
+        "genre": genre,
+        "series": series,
+        "series_index": series_index_display,
+    }
+
+
+def extract_metadata(path: Path) -> Dict[str, str]:
+    """Extract metadata from an MP4/M4B file, preferring SRNM/SRSQ,
+    then free-form tags, and finally conservative title parsing. Also saves cover and cleaned description."""
+    audio = MP4(str(path))
+    tags = audio.tags or {}
+    duration = getattr(getattr(audio, "info", None), "length", None)
+    length_sec = int(duration) if duration else None
+
+    # Description (cleaned)
+    desc = _extract_description(tags) or ""
+
+    # 1-3) Tags, free-form hints, then conservative title parsing.
+    derived = derive_correctable_fields(tags)
+
     # 3b) Corrections layer — scripts/catalog_overrides.json wins over the tags,
     #     for any derived field. Also folds series-name spelling variants onto one
     #     canonical form. See app/core/catalog_overrides.py.
     corrected = apply_overrides(
-        {
-            "title": title,
-            "author": author,
-            "narrator": narrator,
-            "year": year,
-            "genre": genre,
-            "series": series,
-            "series_index": series_index_display,
-        },
+        derived,
         path=path,
         asin=get_tag_any(tags, [K_ASIN]),
     )

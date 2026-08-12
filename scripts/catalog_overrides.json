@@ -5,13 +5,15 @@
   "_relationship_to_the_tag_sweep": "This layer leaves the m4b files alone, so it is safe and instant but only fixes the catalog. app/tools/audit_series_tags.py is the other half: it surveys the real tags across all 422 author folders and can write corrections back into the files (dry run by default, --commit to write, sidecar backup first). Run the survey, decide, then either fix the tags at source or record the correction here. Entries here stay valid either way - a corrected tag simply makes its entry redundant rather than wrong.",
   "_schema": {
     "match": "An entry applies when EVERY field present in its match block matches the extracted metadata. See _keying below.",
-    "match.asin": "Audible product ASIN, from the CDEK atom. The most stable key - survives both file renames and retagging. Absent on hand-tagged files.",
+    "match.asin": "Audible product ASIN, from the CDEK atom. The most stable key - survives both file renames and retagging. Absent on hand-tagged files. Used ALONE: every field in a match block must match, so carrying a title alongside an asin makes the entry break on the first retitle - the exact drift the asin key exists to survive.",
     "match.title": "Matched against the ©nam tag, case-insensitive, whitespace-collapsed.",
     "match.author": "Matches if this name is one of the comma-separated names in the extracted author field, case-insensitive.",
     "match.file": "Basename of the m4b, case-insensitive. Use only to disambiguate; it does not survive a rename.",
     "set": "Field -> corrected value. Allowed fields: title, author, narrator, year, genre, series, series_index. Set series_index to \"\" to force the volume BLANK when the true number is unknown - never invent one.",
     "evidence": "Required. Must contain one key per field in 'set', explaining that specific correction. May also carry 'tags_read', 'filename_said', 'sources' and 'note'. 'sources' holds citable URLs when the value came from outside the files.",
     "added": "ISO date the entry was added.",
+    "updated": "Optional ISO date, added when an existing entry is amended. 'added' keeps the date the entry was first made.",
+    "book": "Optional human label, \"Title - Author\". A LABEL, NOT A KEY - nothing is matched on it. It exists so an asin-keyed entry is still readable.",
     "canonical_series": "variant spelling (lowercased) -> canonical spelling. Applied to EVERY book after extraction, whether or not an entry matched. This is what stops one series being spelled four ways."
   },
   "_keying": {
@@ -25,6 +27,7 @@
     "rule": "Where a tag and a filename disagree, PREFER THE TAG and treat the filename as suspect. Filename parsing is evidence to report, never a value to write over a good tag. app/parsers/title.py only runs when the tags are silent, and it must stay that way.",
     "consequence": "The damage is narrower than it looked. Ordering never needs reconstructing - only the series STRING is broken. That makes both this layer and the eventual tag sweep much lower risk than assumed."
   },
+  "_editor": "Edit this file with `python -m app.tools.edit_overrides` rather than by hand: it keys entries on the PRE-correction tag values (site/catalog.csv is post-correction, so keying on a published title that is itself a correction produces an entry that never fires), fills evidence.tags_read from the real m4b, refuses a correction with no stated reason, proves the entry actually applies by running the real layer over the proposed file before writing, and writes atomically. `... validate` checks the whole file. See docs/info/catalog-corrections.md section 10.",
   "canonical_series": {
     "completionist chronicles": "The Completionist Chronicles",
     "the completionist chronicles": "The Completionist Chronicles",

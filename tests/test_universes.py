@@ -189,7 +189,13 @@ def test_normalisation_folds_case_whitespace_and_quotes():
 
 
 @requires_platform
-def test_six_universes_in_the_order_the_owner_approved():
+def test_seven_universes_in_the_order_the_owner_approved():
+    # ⚠️ Willverse added 2026-08-12 as the SEVENTH, and it is the first reversed
+    # refusal: held out twice — once as an unconfirmed authorial hint, once because
+    # the household appeared to own only one member series — and admitted only when
+    # The Last Horizon was confirmed as Iteration 119, giving two owned series to
+    # span. This assertion failing is the test WORKING: an edit in catalog-platform
+    # cannot land in either catalog unnoticed.
     assert uv.universe_names() == [
         "The Cosmere",
         "Runnerverse",
@@ -197,6 +203,7 @@ def test_six_universes_in_the_order_the_owner_approved():
         "Maasverse",
         "Riordanverse",
         "Solaria",
+        "Willverse",
     ]
 
 
@@ -214,6 +221,9 @@ def test_the_counts_the_owner_signed_off():
         "Maasverse": (3, 0, 0),
         "Riordanverse": (3, 0, 0),
         "Solaria": (2, 0, 0),
+        # Cradle and The Last Horizon are owned; The Elder Empire and The
+        # Traveler's Gate are listed so a future purchase files itself.
+        "Willverse": (4, 0, 0),
     }
 
 
@@ -228,10 +238,13 @@ def test_every_book_entry_carries_a_reason():
 
 
 @requires_platform
-def test_the_five_held_out_subjects_are_still_refused():
+def test_the_four_held_out_subjects_are_still_refused():
+    # ⚠️ "Will Wight" was the fifth and is deliberately GONE — that refusal was
+    # answered on 2026-08-12 and became the Willverse. Dropping it here is the other
+    # half of the decision; leaving it would assert a refusal that no longer exists.
     doc = json.loads((PLATFORM_DIR / "data" / "universes.json").read_text(encoding="utf-8"))
     subjects = " | ".join(r["subject"] for r in doc["_refused"])
-    for needle in ("Will Wight", "Turncoat's Truth", "Cultivating Chaos", "The Axe Falls", "Tailored Realities"):
+    for needle in ("Turncoat's Truth", "Cultivating Chaos", "The Axe Falls", "Tailored Realities"):
         assert needle in subjects, needle
 
 
