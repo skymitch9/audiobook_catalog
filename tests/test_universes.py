@@ -216,7 +216,9 @@ def test_the_counts_the_owner_signed_off():
     }
     assert counts == {
         "The Cosmere": (5, 10, 8),
-        "Runnerverse": (11, 3, 0),
+        # 12 since 2026-08-12: Turncoat's Truth restored from _refused once the owner
+        # verified the co-authored book does sit inside the continuity.
+        "Runnerverse": (12, 3, 0),
         "CAL Verse": (9, 0, 0),
         "Maasverse": (3, 0, 0),
         "Riordanverse": (3, 0, 0),
