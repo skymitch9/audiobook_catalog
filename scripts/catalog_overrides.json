@@ -426,6 +426,36 @@
     {
       "match": {
         "author": "Michael-Scott Earle",
+        "title": "Space Knight Book 7"
+      },
+      "set": {
+        "series": "Space Knight",
+        "series_index": "7"
+      },
+      "added": "2026-08-12",
+      "evidence": {
+        "series": "©alb already held 'Space Knight'; the pipeline does not read ©alb, which is why the catalog showed this book seriesless. Books 1 and 2 are Audible downloads and carry SRNM='Space Knight' already, so the series name is theirs, not invented.",
+        "series_index": "THREE independent agreements: the ©nam title is 'Space Knight Book 7', trkn=7, and the filename is 'Michael-Scott Earle - [Space Knight - 7] - ...'. No source disagrees, and 7 is exactly the gap in the on-disk run (6 then 8).",
+        "tags_read": {
+          "©nam": "Space Knight Book 7",
+          "©ART": "Michael-Scott Earle",
+          "©alb": "Space Knight",
+          "trkn": "(7, 0)",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "Michael-Scott Earle - [Space Knight - 7] - Space Knight Book 7",
+        "sources": [
+          "the owner, 2026-08-11: 'For space knight I own more than just 5-6'",
+          "the owner, 2026-08-12: 'space knight 7 should be in the books folder awaiting the pipeline to run'"
+        ],
+        "note": "⚠️ This entry was written a day after its six siblings for a reason worth keeping. On 2026-08-11 the file did not exist in the library — it was sitting LOOSE at the books/ root, unsorted, so the walk never saw it and the series read 1-6, 8-10. That absence was then reported upward as 'no audio for volume 7', and the print catalog recorded Space Knight 7 as print-only with no borrowable cover. The sort pipeline was run manually on 2026-08-12 and filed it; this entry is the last step of that repair."
+      }
+    },
+    {
+      "match": {
+        "author": "Michael-Scott Earle",
         "title": "Space Knight Book 8"
       },
       "set": {
