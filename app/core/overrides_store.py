@@ -92,9 +92,20 @@ def save(data: Dict[str, Any], path: Path = OVERRIDES_PATH) -> None:
         raise OverridesError("refusing to write an invalid corrections file:\n  " + "\n  ".join(problems))
 
     path.parent.mkdir(parents=True, exist_ok=True)
+    # Keep the file's existing line endings. git is configured with
+    # autocrlf=true here, so rewriting a CRLF working copy as LF leaves a file
+    # git reports as modified with an empty diff - noise on a tracked file the
+    # pipeline also commits.
+    newline = "\n"
+    try:
+        if b"\r\n" in path.read_bytes():
+            newline = "\r\n"
+    except OSError:
+        pass
+
     fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=".catalog_overrides.", suffix=".tmp")
     try:
-        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
+        with os.fdopen(fd, "w", encoding="utf-8", newline=newline) as f:
             f.write(dumps(data))
             f.flush()
             os.fsync(f.fileno())

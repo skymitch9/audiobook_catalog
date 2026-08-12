@@ -167,6 +167,18 @@ def test_load_refuses_a_malformed_file_instead_of_silently_emptying_it(tmp_path)
         store.load(broken)
 
 
+def test_save_keeps_the_files_existing_line_endings(sandbox):
+    """git here runs autocrlf=true; rewriting CRLF as LF is a diff-less 'modified' file."""
+    crlf = sandbox.read_text(encoding="utf-8").replace("\n", "\r\n")
+    sandbox.write_bytes(crlf.encode("utf-8"))
+    store.save(store.load(sandbox), sandbox)
+    assert b"\r\n" in sandbox.read_bytes()
+
+    sandbox.write_bytes(store.dumps(store.load(sandbox)).encode("utf-8"))
+    store.save(store.load(sandbox), sandbox)
+    assert b"\r\n" not in sandbox.read_bytes()
+
+
 def test_validate_catches_a_duplicate_match_block(sandbox):
     data = store.load(sandbox)
     data["overrides"].append(json.loads(json.dumps(data["overrides"][0])))
