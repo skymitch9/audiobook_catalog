@@ -194588,5 +194588,111 @@
    }
   ],
   "parts": []
+ },
+ "Space Knight Book 7": {
+  "source": "m4b",
+  "chapters": [
+   {
+    "title": "Chapter 001  - 00:00:13",
+    "start_min": 0.0
+   },
+   {
+    "title": "Chapter 002  - 00:23:15",
+    "start_min": 0.2
+   },
+   {
+    "title": "Chapter 003  - 00:38:14",
+    "start_min": 23.5
+   },
+   {
+    "title": "Chapter 004  - 00:31:14",
+    "start_min": 61.7
+   },
+   {
+    "title": "Chapter 005  - 00:37:00",
+    "start_min": 93.0
+   },
+   {
+    "title": "Chapter 006  - 00:26:12",
+    "start_min": 130.0
+   },
+   {
+    "title": "Chapter 007  - 00:43:33",
+    "start_min": 156.2
+   },
+   {
+    "title": "Chapter 008  - 00:23:15",
+    "start_min": 199.7
+   },
+   {
+    "title": "Chapter 009  - 00:33:49",
+    "start_min": 223.0
+   },
+   {
+    "title": "Chapter 010  - 00:35:22",
+    "start_min": 256.8
+   },
+   {
+    "title": "Chapter 011  - 00:28:07",
+    "start_min": 292.2
+   },
+   {
+    "title": "Chapter 012  - 00:33:28",
+    "start_min": 320.3
+   },
+   {
+    "title": "Chapter 013  - 00:27:43",
+    "start_min": 353.8
+   },
+   {
+    "title": "Chapter 014  - 00:35:58",
+    "start_min": 381.5
+   },
+   {
+    "title": "Chapter 015  - 00:31:09",
+    "start_min": 417.5
+   },
+   {
+    "title": "Chapter 016  - 00:21:48",
+    "start_min": 448.6
+   },
+   {
+    "title": "Chapter 017  - 00:35:22",
+    "start_min": 470.4
+   },
+   {
+    "title": "Chapter 018  - 00:21:04",
+    "start_min": 505.8
+   },
+   {
+    "title": "Chapter 019  - 00:22:57",
+    "start_min": 526.9
+   },
+   {
+    "title": "Chapter 020  - 00:21:31",
+    "start_min": 549.8
+   },
+   {
+    "title": "Chapter 021  - 00:43:40",
+    "start_min": 571.4
+   },
+   {
+    "title": "Chapter 022  - 00:36:22",
+    "start_min": 615.0
+   },
+   {
+    "title": "Chapter 023  - 00:28:18",
+    "start_min": 651.4
+   },
+   {
+    "title": "Chapter 024  - 00:34:48",
+    "start_min": 679.7
+   },
+   {
+    "title": "Chapter 025  - 00:00:14",
+    "start_min": 714.5
+   }
+  ],
+  "parts": []
  }
 }
