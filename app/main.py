@@ -14,6 +14,7 @@ from app.config import (
     SITE_DIR,
     SITE_INDEX_NAME,
 )
+from app.core.file_dedupe import dedupe_library
 from app.metadata import extract_metadata, walk_library
 from app.writers import render_output_html, stage_site_files, write_csv
 
@@ -38,44 +39,15 @@ def main() -> None:
     # Filter out "Copy of" files (leftovers from Drive reclaim operations)
     files = [f for f in files if not f.name.startswith("Copy of ")]
 
-    # Filter out numbered duplicates like "Title (1).m4b" when "Title.m4b" exists
-    import re
-    numbered_dupe_re = re.compile(r'^(.+?)\s*\(\d+\)(\.\w+)$')
-    all_names = {f.name for f in files}
-    filtered_files = []
-    numbered_dupes = 0
-    for f in files:
-        m = numbered_dupe_re.match(f.name)
-        if m:
-            original_name = m.group(1) + m.group(2)
-            if original_name in all_names:
-                numbered_dupes += 1
-                continue
-        filtered_files.append(f)
-    if numbered_dupes:
-        print(f"[INFO] Removed {numbered_dupes} numbered duplicates (e.g., 'Title (1).m4b')")
-    files = filtered_files
-
-    # Deduplicate by filename: same .m4b in multiple author folders is always a copy.
-    # Prefer the file in the longest folder path (most descriptive author folder).
-    from collections import defaultdict
-    by_name: dict[str, list[Path]] = defaultdict(list)
-    for f in files:
-        by_name[f.name].append(f)
-
-    deduped_files = []
-    dupe_count = 0
-    for name, paths in by_name.items():
-        if len(paths) == 1:
-            deduped_files.append(paths[0])
-        else:
-            # Pick the one with the longest parent folder name (most descriptive)
-            best = max(paths, key=lambda p: len(str(p.parent)))
-            deduped_files.append(best)
-            dupe_count += len(paths) - 1
-
-    if dupe_count:
-        print(f"[INFO] Deduplicated {dupe_count} duplicate files (same book in multiple folders)")
+    # Two dedupe passes, in app/core/file_dedupe.py — see that module for why the
+    # tie-break prefers the longest parent path, and why the numbered pass runs
+    # first. Extracted 2026-08-12 to bring this function under flake8's C901
+    # ceiling, which had been failing Lint and Deploy on every push.
+    deduped_files, dedupe = dedupe_library(files)
+    if dedupe.numbered:
+        print(f"[INFO] Removed {dedupe.numbered} numbered duplicates (e.g., 'Title (1).m4b')")
+    if dedupe.duplicates:
+        print(f"[INFO] Deduplicated {dedupe.duplicates} duplicate files (same book in multiple folders)")
 
     rows = []
     for p in deduped_files:

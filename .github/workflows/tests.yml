@@ -30,7 +30,12 @@ jobs:
     - name: 🧪 Run unit tests
       run: |
         echo "::group::Running test suite"
-        python run_tests.py -v
+        # ⚠️ pytest, not run_tests.py. run_tests.py uses unittest discovery,
+        # which collects 135 tests and CANNOT run the pytest-style modules in
+        # tests/ — it reported them as import errors. pytest runs both styles,
+        # including every unittest.TestCase, for 293 tests. One runner, whole
+        # suite, and no silently-unrun files.
+        python -m pytest -q
         echo "::endgroup::"
     
     - name: 📊 Test summary

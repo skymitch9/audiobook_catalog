@@ -24,3 +24,10 @@ flake8>=7.0.0
 isort>=5.13.2
 bandit>=1.7.6
 anthropic>=0.92.0  # extract_chapters LLM fallback
+
+# ⚠️ REQUIRED BY CI, not optional. tests/ contains pytest-style modules
+# (test_catalog_overrides, test_audit_series_tags, test_edit_overrides,
+# test_universes). Without pytest installed they fail to IMPORT, and
+# unittest discovery reports them as errors rather than skips — which is
+# what broke Tests, and Deploy with it, on every push from 2026-08-11.
+pytest>=8.0.0
