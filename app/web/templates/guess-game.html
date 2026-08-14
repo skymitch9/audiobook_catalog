@@ -26,7 +26,11 @@
             padding: 20px;
         }
         /* Keep the fixed estate cog clear of the nav/identity row */
-        .nav-row { padding-right: 56px; }
+        /* Cog clearance — only where the fixed cog can actually collide
+           with the nav; wider screens sit exactly where prod puts them. */
+        @media (max-width: 760px) {
+            .nav-row { padding-right: 56px; }
+        }
         #wrap { max-width: 640px; margin: 0 auto; }
         .nav-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:16px; }
 
@@ -331,6 +335,38 @@
 
 .nav-link.active{border-color:var(--neon-cyan,var(--neon-cyan));color:var(--neon-yellow,var(--neon-yellow))}
 
+
+/* =============== CYBERPUNK IDENTITY RESTORES ===============
+   Owner, 2026-08-14: "/dev/ and the existing page don't look the same."
+   Pre-theme literals (a202f4a), verbatim, scoped to the default theme so
+   the other themes keep their honest token rendering. */
+html[data-theme="cyberpunk"] body{
+  background-image:
+    radial-gradient(ellipse at 30% 50%, rgba(255,42,109,.04) 0%, transparent 50%),
+    radial-gradient(ellipse at 70% 20%, rgba(5,217,232,.04) 0%, transparent 50%);
+}
+html[data-theme="cyberpunk"] .game-container{border-radius:0;box-shadow:0 0 30px rgba(5,217,232,.1)}
+html[data-theme="cyberpunk"] h1{letter-spacing:2px}
+html[data-theme="cyberpunk"] .subtitle{letter-spacing:1px}
+html[data-theme="cyberpunk"] .score-value{text-shadow:0 0 6px rgba(252,238,10,.3)}
+html[data-theme="cyberpunk"] .book-cover:hover{box-shadow:0 0 20px rgba(5,217,232,.2)}
+html[data-theme="cyberpunk"] .hint-badge{color:var(--bg);border-radius:0;clip-path:polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%)}
+html[data-theme="cyberpunk"] .guess-input{border-radius:0}
+html[data-theme="cyberpunk"] .guess-input:focus{box-shadow:0 0 10px rgba(252,238,10,.2)}
+html[data-theme="cyberpunk"] .btn{border-radius:0;clip-path:polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%)}
+html[data-theme="cyberpunk"] .btn-primary{color:var(--bg);box-shadow:0 0 10px rgba(252,238,10,.3)}
+html[data-theme="cyberpunk"] .btn-primary:hover{box-shadow:0 0 16px rgba(252,238,10,.5)}
+html[data-theme="cyberpunk"] .btn-secondary:hover{color:var(--bg);box-shadow:0 0 10px rgba(5,217,232,.3)}
+html[data-theme="cyberpunk"] .attempt-dot{border-color:#3a3a4a}
+html[data-theme="cyberpunk"] .attempt-dot.used{border-color:var(--neon-magenta);box-shadow:0 0 6px rgba(255,42,109,.4)}
+html[data-theme="cyberpunk"] .result-correct{background:#0a1a12;box-shadow:0 0 10px rgba(5,217,232,.2)}
+html[data-theme="cyberpunk"] .result-wrong{background:#1a0a12}
+html[data-theme="cyberpunk"] .result-gameover{background:#1a1a0a}
+html[data-theme="cyberpunk"] .leaderboard-header h3{letter-spacing:1px}
+html[data-theme="cyberpunk"] .leaderboard-table th{background:#1a1a2e}
+html[data-theme="cyberpunk"] .leaderboard-table tr:nth-child(even){background:#0e0e1a}
+html[data-theme="cyberpunk"] .current-player{background:rgba(252,238,10,.05) !important}
+html[data-theme="cyberpunk"] #guess-section > span{color:#666}
 </style>
 </head>
 <body>

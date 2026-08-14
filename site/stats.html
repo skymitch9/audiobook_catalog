@@ -40,7 +40,8 @@ body{
   padding:40px;
   clip-path:var(--et-clip-panel);
 }
-h1{margin:0 0 8px 0; color:var(--neon-yellow); font-family:var(--et-font-display); text-transform:var(--et-title-case); letter-spacing:var(--et-title-spacing); text-shadow:var(--et-glow-title)}
+h1{margin:0 0 8px 0; color:var(--neon-yellow); font-family:var(--et-font-display);
+   text-transform:var(--et-title-case); letter-spacing:var(--et-title-spacing); text-shadow:var(--et-glow-title)}
 
 .stats-grid {
   display: grid;
@@ -161,6 +162,26 @@ h1{margin:0 0 8px 0; color:var(--neon-yellow); font-family:var(--et-font-display
     grid-template-columns: 1fr;
   }
 }
+
+/* =============== CYBERPUNK IDENTITY RESTORES ===============
+   Owner, 2026-08-14: "/dev/ and the existing page don't look the same."
+   Pre-theme literals (a202f4a), verbatim, scoped to the default theme so
+   the other themes keep their honest token rendering. */
+html[data-theme="cyberpunk"] #wrap{
+  border-radius:0;
+  box-shadow:0 0 30px rgba(5,217,232,.1);
+  clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 16px 100%, 0 calc(100% - 16px));
+}
+html[data-theme="cyberpunk"] .stat-card,
+html[data-theme="cyberpunk"] .top-list,
+html[data-theme="cyberpunk"] .insights,
+html[data-theme="cyberpunk"] .insight-item,
+html[data-theme="cyberpunk"] .nav-link{border-radius:0}
+html[data-theme="cyberpunk"] h1{letter-spacing:2px}
+html[data-theme="cyberpunk"] .stat-number{text-shadow:0 0 8px rgba(252,238,10,.3)}
+html[data-theme="cyberpunk"] .top-list h3,
+html[data-theme="cyberpunk"] .insights h3{letter-spacing:1px}
+html[data-theme="cyberpunk"] .nav-link{clip-path:polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%)}
 </style>
 </head>
 <body>
@@ -460,7 +481,7 @@ h1{margin:0 0 8px 0; color:var(--neon-yellow); font-family:var(--et-font-display
   </div>
 
   <div style="margin-top: 30px; padding: 20px; background: var(--bg-2); border-radius: var(--radius); text-align: center; color: var(--muted);">
-    <small>Generated at: 2026-08-13 21:35:11</small>
+    <small>Generated at: 2026-08-13 22:57:26</small>
   </div>
 </div>
 
@@ -530,7 +551,8 @@ h1{margin:0 0 8px 0; color:var(--neon-yellow); font-family:var(--et-font-display
         </div>`;
 
       if (topReviewers.length > 0) {
-        html += '<div style="margin-top:12px"><strong style="color:var(--neon-cyan);font-size:.85em;text-transform:var(--et-title-case)">Top Reviewers</strong>';
+        html += ('<div style="margin-top:12px"><strong style="color:var(--neon-cyan);'
+                 'font-size:.85em;text-transform:var(--et-title-case)">Top Reviewers</strong>');
         topReviewers.forEach(([name, count]) => {
           html += `<div class="top-item"><span class="top-name">${name}</span><span class="top-count">${count} reviews</span></div>`;
         });
@@ -538,7 +560,8 @@ h1{margin:0 0 8px 0; color:var(--neon-yellow); font-family:var(--et-font-display
       }
 
       if (topBooks.length > 0) {
-        html += '<div style="margin-top:12px"><strong style="color:var(--neon-cyan);font-size:.85em;text-transform:var(--et-title-case)">Most Reviewed Books</strong>';
+        html += ('<div style="margin-top:12px"><strong style="color:var(--neon-cyan);'
+                 'font-size:.85em;text-transform:var(--et-title-case)">Most Reviewed Books</strong>');
         topBooks.forEach(([bookId, count]) => {
           const title = bookId.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
           html += `<div class="top-item"><span class="top-name">${title}</span><span class="top-count">${count} reviews</span></div>`;

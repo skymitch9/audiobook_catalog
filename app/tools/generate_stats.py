@@ -203,7 +203,7 @@ def generate_stats_html(stats: Dict[str, Any], generated_at: str) -> str:
             return f"{listening['days']:.1f} days"
     
     html = f"""<!doctype html>
-<html data-default-theme="cyberpunk">
+<html data-default-theme="cyberpunk" data-default-mode="dark">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -366,6 +366,26 @@ h1{{margin:0 0 8px 0; color:var(--neon-yellow); font-family:var(--et-font-displa
     grid-template-columns: 1fr;
   }}
 }}
+
+/* =============== CYBERPUNK IDENTITY RESTORES ===============
+   Owner, 2026-08-14: "/dev/ and the existing page don't look the same."
+   Pre-theme literals (a202f4a), verbatim, scoped to the default theme so
+   the other themes keep their honest token rendering. */
+html[data-theme="cyberpunk"] #wrap{{
+  border-radius:0;
+  box-shadow:0 0 30px rgba(5,217,232,.1);
+  clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 16px 100%, 0 calc(100% - 16px));
+}}
+html[data-theme="cyberpunk"] .stat-card,
+html[data-theme="cyberpunk"] .top-list,
+html[data-theme="cyberpunk"] .insights,
+html[data-theme="cyberpunk"] .insight-item,
+html[data-theme="cyberpunk"] .nav-link{{border-radius:0}}
+html[data-theme="cyberpunk"] h1{{letter-spacing:2px}}
+html[data-theme="cyberpunk"] .stat-number{{text-shadow:0 0 8px rgba(252,238,10,.3)}}
+html[data-theme="cyberpunk"] .top-list h3,
+html[data-theme="cyberpunk"] .insights h3{{letter-spacing:1px}}
+html[data-theme="cyberpunk"] .nav-link{{clip-path:polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%)}}
 </style>
 </head>
 <body>
