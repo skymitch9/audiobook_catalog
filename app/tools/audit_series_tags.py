@@ -176,6 +176,35 @@ def _looks_like_series(name: Optional[str]) -> bool:
     return bool(name and len(name.strip()) >= 3)
 
 
+_SUBTITLE_SEP = re.compile(r"^\s*[-:–—]")
+
+
+def _is_title_prefix(candidate: Optional[str], title: Optional[str]) -> bool:
+    """True when `candidate` is the title with a trailing subtitle stripped.
+
+    Bug 1 of the disarmed repair path (catalog-corrections.md §8.2): Audible
+    titles often carry a subtitle the album tag drops — e.g. title
+    'The Woman in the Window - A Novel', album 'The Woman in the Window'. The
+    original guard compared for exact equality, which this near-miss slips
+    past, so it got written as a one-book series (the same Uncapped defect the
+    tool exists to catch). A candidate only counts as a title-prefix — and is
+    therefore NOT a series name — when what follows it in the title looks like
+    a subtitle separator (a dash or colon), not merely the start of a longer,
+    unrelated word or a real volume number ('The Primal Hunter 12' minus
+    'The Primal Hunter' must NOT match this, so a real series-plus-volume
+    title still gets its album written as the series).
+    """
+    if not candidate or not title:
+        return False
+    c = candidate.strip().lower()
+    t = title.strip().lower()
+    if not c or c == t:
+        return True
+    if not t.startswith(c):
+        return False
+    return bool(_SUBTITLE_SEP.match(t[len(c):]))
+
+
 @dataclass
 class Scan:
     path: Path
@@ -409,7 +438,7 @@ def cross_check(scans: List[Scan]) -> Dict[str, Any]:
 # --------------------------------------------------------------------------- #
 
 
-def propose(s: Scan, from_overrides_only: bool = False) -> Optional[Dict[str, Any]]:
+def propose(s: Scan, from_overrides_only: bool = False, recover_only: bool = False) -> Optional[Dict[str, Any]]:
     """
     Decide the SRNM/SRSQ a repair would write, or None to leave the file alone.
 
@@ -420,6 +449,12 @@ def propose(s: Scan, from_overrides_only: bool = False) -> Optional[Dict[str, An
       3. the filename — NEVER. It is reported and otherwise ignored.
 
     Anything in NEEDS_DECISION suppresses the proposal for that field.
+
+    `recover_only` restricts the uncurated rungs to the two RECOVERABLE classes
+    (SERIES_ONLY_IN_ALBUM: fill a blank SRNM from the album; INDEX_ONLY_IN_TRACK:
+    fill a blank SRSQ from trkn) — never the canonical_series respelling of an
+    ALREADY-PRESENT SRNM, which is a different kind of write and was never part
+    of the gated recovery sweep (docs/info/tag-repair-plan.md).
     """
     writes: Dict[str, str] = {}
     sources: Dict[str, str] = {}
@@ -431,11 +466,16 @@ def propose(s: Scan, from_overrides_only: bool = False) -> Optional[Dict[str, An
             sources[K_SERIES_VENDOR] = "catalog_overrides.json"
     elif not from_overrides_only:
         if not s.srnm and "SERIES_IS_TITLE" not in s.issues:
+            # Bug 1 (repair path, fixed 2026-08-14): an Audible title's subtitle
+            # is dropped by the album tag ('Title - A Novel' vs 'Title'), which
+            # used to slip past an exact-equality guard and get written as a
+            # one-book series. _is_title_prefix catches the near-miss without
+            # blocking a real 'series name' + 'volume number' title.
             candidate = s.album or s.ff_series
-            if _looks_like_series(candidate) and candidate != s.title:
+            if _looks_like_series(candidate) and not _is_title_prefix(candidate, s.title):
                 writes[K_SERIES_VENDOR] = canonicalize_series(candidate)
                 sources[K_SERIES_VENDOR] = "album tag (©alb)"
-        elif s.srnm and canonicalize_series(s.srnm) != s.srnm:
+        elif not recover_only and s.srnm and canonicalize_series(s.srnm) != s.srnm:
             writes[K_SERIES_VENDOR] = canonicalize_series(s.srnm)
             sources[K_SERIES_VENDOR] = "canonical_series normalisation"
 
@@ -446,12 +486,21 @@ def propose(s: Scan, from_overrides_only: bool = False) -> Optional[Dict[str, An
             sources[K_INDEX_VENDOR] = "catalog_overrides.json"
     elif not from_overrides_only:
         if not s.srsq and s.trkn and "INDEX_CONFLICT" not in s.issues:
-            # The filename disagreeing does not veto the tag — the tag wins — but it
-            # does mean a human should see it, so say so rather than writing quietly.
-            if s.file_index and s.file_index != normalize_index(s.trkn):
-                sources["_note"] = f"filename says {s.file_index}, trkn says {s.trkn}; wrote trkn, filename is suspect"
-            writes[K_INDEX_VENDOR] = normalize_index(s.trkn)
-            sources[K_INDEX_VENDOR] = "trkn atom"
+            # Bug 2 (repair path, fixed 2026-08-14): trkn=1 normally means "track
+            # 1 of 1", not "volume 1" — the 2026-08-11 full-library dry run
+            # measured 91 of 128 uncurated writes as exactly this misreading, 3
+            # of them over a filename volume that was demonstrably correct. Only
+            # a trkn greater than 1 is real volume evidence, matching the same
+            # rule already applied to the INDEX_CONFLICT classifier (line ~316).
+            trkn_norm = normalize_index(s.trkn)
+            if trkn_norm and trkn_norm != "1":
+                # The filename disagreeing does not veto the tag — the tag wins — but
+                # it does mean a human should see it, so say so rather than writing
+                # quietly.
+                if s.file_index and s.file_index != trkn_norm:
+                    sources["_note"] = f"filename says {s.file_index}, trkn says {s.trkn}; wrote trkn, filename is suspect"
+                writes[K_INDEX_VENDOR] = trkn_norm
+                sources[K_INDEX_VENDOR] = "trkn atom"
 
     if not writes:
         return None
@@ -755,6 +804,15 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="only write values sourced from scripts/catalog_overrides.json (the safest first sweep)",
     )
+    p.add_argument(
+        "--from-tags-only",
+        action="store_true",
+        help=(
+            "the gated recovery sweep (SERIES_ONLY_IN_ALBUM + INDEX_ONLY_IN_TRACK): also "
+            "fill a currently-blank SRNM from the album tag and a blank SRSQ from trkn (trkn>1 "
+            "only) — never rewrites an already-present SRNM's spelling. See docs/info/tag-repair-plan.md."
+        ),
+    )
     p.add_argument("--safe-copy", action="store_true", help="tag a copy and atomically swap it in; costs space and IO")
     p.add_argument("--author", metavar="NAME", help="restrict to author folders containing NAME")
     p.add_argument("--series", metavar="NAME", help="restrict the report to one series")
@@ -789,7 +847,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         scans = [s for s in scans if needle in ((s.override_series or s.catalog_series or "").lower())]
 
     for s in scans:
-        s.proposal = propose(s, from_overrides_only=args.from_overrides_only)
+        s.proposal = propose(s, from_overrides_only=args.from_overrides_only, recover_only=args.from_tags_only)
 
     print_survey(scans, cross, show_clean=args.show_clean)
 
@@ -808,38 +866,37 @@ def main(argv: Optional[List[str]] = None) -> int:
             print("DRY RUN - nothing was written. Re-run with --commit to apply.\n")
         return 0
 
-    if not args.from_overrides_only:
-        # DISARMED 2026-08-11 by owner decision, after the full-library dry run.
-        # The uncurated repair path proposed 128 writes of which 7 were plausible:
-        # 108 would have written the book's own title into the series slot, and 91
-        # would have written SRSQ=1 from a trkn that means "track 1 of 1" — three of
-        # them over a filename volume that was demonstrably correct.
+    if not args.from_overrides_only and not args.from_tags_only:
+        # DISARMED 2026-08-11 by owner decision, after the full-library dry run;
+        # RE-VERIFIED 2026-08-14 after fixing both named bugs (see _is_title_prefix
+        # and the trkn_norm != "1" guard above). This block still refuses the fully
+        # open uncurated path — canonical_series respelling of an already-present
+        # SRNM was never measured safe across the whole library and stays disarmed.
         #
-        # Both bugs are real and are described in docs/info/catalog-corrections.md
-        # §8.2. Neither is fixed. This refusal exists because the failure is silent
-        # and the files are irreplaceable: a plausible-looking --commit is exactly
-        # how this damages a library, and "the tool ran clean" is what it looks like.
-        #
-        # To revive it: fix the prefix guard (line ~408) and the trkn=1 rule
-        # (line ~423), re-run --plan across the full library, and delete this block
-        # only once the plan reads correctly.
+        # The two RECOVERABLE classes this was blocking (SERIES_ONLY_IN_ALBUM,
+        # INDEX_ONLY_IN_TRACK) have their own scoped flag now: --from-tags-only.
+        # That path only fills a currently-blank SRNM/SRSQ from the file's own
+        # tags; it never touches a tag that already holds a value.
         print("=" * 100)
-        print("REFUSING TO COMMIT - the uncurated repair path is disarmed", file=sys.stderr)
+        print("REFUSING TO COMMIT - the fully uncurated repair path stays disarmed", file=sys.stderr)
         print("=" * 100)
         print(
-            "\n  The full-library dry run (2026-08-11) proposed 128 writes.\n"
-            "  Measured: 7 plausible, 108 that write the title into the series slot,\n"
-            "  91 that write SRSQ=1 from a track number meaning 'track 1 of 1'.\n\n"
-            "  Read docs/info/catalog-corrections.md section 8.2 before changing this.\n\n"
+            "\n  The full-library dry run (2026-08-11) proposed 128 writes, most of them\n"
+            "  from two now-fixed bugs (docs/info/catalog-corrections.md §8.2,\n"
+            "  docs/info/tag-repair-plan.md §8). The recovery classes those bugs were\n"
+            "  blocking have their own scoped flag: --commit --from-tags-only fills a\n"
+            "  blank SRNM from the album tag and a blank SRSQ from trkn (trkn>1 only) —\n"
+            "  never rewrites an already-present tag's spelling.\n\n"
             "  --plan and the read-only survey still work, and are still useful.\n"
             "  --commit --from-overrides-only still works: the corrections file is\n"
-            "  researched by hand, and that path is what wrote the 13 good files.\n",
+            "  researched by hand, and that path is what wrote the first good files.\n",
             file=sys.stderr,
         )
         return 2
 
     print("=" * 100)
-    print("COMMIT - writing tags to real audiobook files (curated entries only)")
+    scope = "curated + blank-tag recovery" if args.from_tags_only else "curated entries only"
+    print(f"COMMIT - writing tags to real audiobook files ({scope})")
     print("=" * 100)
     return repair(scans, run_dir, safe_copy=args.safe_copy)
 

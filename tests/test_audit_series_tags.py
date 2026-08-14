@@ -265,6 +265,131 @@ def test_from_overrides_only_writes_nothing_without_a_curated_entry(tmp_path):
 
 
 # --------------------------------------------------------------------------- #
+# The two disarmed-repair-path bugs, fixed 2026-08-14
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize(
+    "candidate,title,expected",
+    [
+        ("The Woman in the Window", "The Woman in the Window - A Novel", True),
+        ("The Woman in the Window", "The Woman in the Window: A Novel", True),
+        ("The Woman in the Window", "The Woman in the Window", True),
+        ("The Primal Hunter", "The Primal Hunter 12", False),
+        ("Full Murderhobo", "Everything - Full Murderhobo, Book 3", False),
+        (None, "Anything", False),
+        ("Something", None, False),
+    ],
+)
+def test_is_title_prefix(candidate, title, expected):
+    assert ast._is_title_prefix(candidate, title) is expected
+
+
+def test_bug1_album_that_is_the_title_minus_a_subtitle_is_not_written_as_a_series(tmp_path):
+    """Bug 1 (catalog-corrections.md sec 8.2): the album tag drops an Audible
+    subtitle ('Title - A Novel' -> 'Title'). The old exact-equality guard let
+    this slip through and would have written the truncated title as a
+    one-book series - the same Uncapped defect the tool exists to catch."""
+    book = make_book(
+        tmp_path,
+        "prefix.m4b",
+        title="The Woman in the Window - A Novel",
+        series=None,
+        index=None,
+        album="The Woman in the Window",
+        track=1,
+    )
+    s = scan(book)
+    assert "SERIES_ONLY_IN_ALBUM" in s.issues, "still flagged - the file is still worth a human look"
+    proposal = ast.propose(s)
+    assert proposal is None, "but nothing is proposed to write, because it is not really a series"
+
+
+def test_bug1_fix_does_not_block_a_real_series_plus_volume_title(tmp_path):
+    """The common, legitimate shape must still be recoverable: album holds the
+    bare series name, and the title is 'series name' + a volume number with no
+    subtitle separator between them."""
+    book = make_book(
+        tmp_path, "real.m4b", title="The Primal Hunter 12", series=None, index=None, album="The Primal Hunter", track=12
+    )
+    s = scan(book)
+    proposal = ast.propose(s)
+    assert proposal["writes"][K_SRNM] == "The Primal Hunter"
+
+
+def test_bug2_trkn_of_one_is_never_written_as_srsq(tmp_path):
+    """Bug 2 (catalog-corrections.md sec 8.2): trkn=1 normally means 'track 1 of
+    1', not 'volume 1'. The 2026-08-11 dry run measured 91/128 uncurated writes
+    as exactly this misreading. Only trkn>1 is real volume evidence."""
+    book = make_book(tmp_path, "t1.m4b", title="Standalone Thing", series="A Series", index=None, album=None, track=1)
+    s = scan(book)
+    assert "INDEX_ONLY_IN_TRACK" in s.issues, "still flagged - a human can still resolve it"
+    assert ast.propose(s) is None, "but nothing is written from an ambiguous trkn=1"
+
+
+def test_bug2_fix_does_not_block_a_real_trkn_greater_than_one(tmp_path):
+    book = make_book(tmp_path, "t2.m4b", title="Volume Two", series="A Series", index=None, album=None, track=2)
+    s = scan(book)
+    proposal = ast.propose(s)
+    assert proposal["writes"][K_SRSQ] == "2"
+
+
+def test_recover_only_fills_a_blank_srnm_from_album_and_a_blank_srsq_from_trkn(tmp_path):
+    """The gated recovery sweep: exactly the two RECOVERABLE classes, and
+    nothing else - in particular, no canonical_series respelling of a tag that
+    is already present."""
+    book = make_book(
+        tmp_path, "rec.m4b", title="Recoverable Book", series=None, index=None, album="Recoverable Series", track=4
+    )
+    s = scan(book)
+    proposal = ast.propose(s, recover_only=True)
+    assert proposal["writes"] == {K_SRNM: "Recoverable Series", K_SRSQ: "4"}
+
+
+def test_recover_only_does_not_respell_an_already_present_srnm(tmp_path):
+    book = make_book(
+        tmp_path, "spell.m4b", title="Some Book", series="Completionist Chronicles Series", index="4", album=None, track=None
+    )
+    s = scan(book)
+    assert "SERIES_SPELLING" in s.issues
+    assert ast.propose(s, recover_only=True) is None, "recover-only must not touch a spelling variant"
+    assert ast.propose(s) is not None, "the fully permissive mode still would (and stays disarmed at the CLI)"
+
+
+def test_from_tags_only_flag_parses_and_is_independent_of_from_overrides_only():
+    args = ast.build_parser().parse_args(["--commit", "--from-tags-only"])
+    assert args.from_tags_only is True
+    assert args.from_overrides_only is False
+
+
+def test_commit_without_from_overrides_only_or_from_tags_only_still_refuses(tmp_path, monkeypatch, capsys):
+    """The fully uncurated path (canonical_series respelling etc.) stays disarmed
+    even after the two bug fixes - only the scoped recovery flag opens it."""
+    book = make_book(
+        tmp_path, "w.m4b", title="Some Book", series="Completionist Chronicles Series", index="4", album=None, track=None
+    )
+    monkeypatch.setattr(ast, "ROOT_DIR", tmp_path)
+    monkeypatch.setattr(ast, "OUTPUT_DIR", tmp_path / "out")
+    rc = ast.main(["--commit"])
+    assert rc == 2
+    assert "disarmed" in capsys.readouterr().err
+    assert MP4(str(book)).tags["SRSQ"] == ["4"], "untouched"
+
+
+def test_commit_with_from_tags_only_recovers_a_blank_atom_end_to_end(tmp_path, monkeypatch):
+    book = make_book(
+        tmp_path, "e2e.m4b", title="End To End", series=None, index=None, album="End To End Series", track=5
+    )
+    monkeypatch.setattr(ast, "ROOT_DIR", tmp_path)
+    monkeypatch.setattr(ast, "OUTPUT_DIR", tmp_path / "out")
+    rc = ast.main(["--commit", "--from-tags-only", "--report-json", str(tmp_path / "report.json")])
+    assert rc == 0
+    after = MP4(str(book)).tags
+    assert after["SRNM"] == ["End To End Series"]
+    assert after["SRSQ"] == ["5"]
+
+
+# --------------------------------------------------------------------------- #
 # Backup, write, verify, restore
 # --------------------------------------------------------------------------- #
 
