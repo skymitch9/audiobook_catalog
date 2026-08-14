@@ -26,7 +26,7 @@
   'use strict';
 
   var docEl = document.documentElement;
-  var THEMES = ['apple', 'cyberpunk', 'retro'];
+  var THEMES = ['apple', 'cyberpunk', 'retro', 'classic'];
   var MODES = ['auto', 'light', 'dark'];
   var DEFAULT_THEME = docEl.getAttribute('data-default-theme') || 'apple';
   var media = window.matchMedia('(prefers-color-scheme: dark)');

@@ -165,7 +165,7 @@ _COG_HTML = (
     '    <select id="hg-theme-select">\n'
     '      <option value="cyberpunk">Cyberpunk</option>\n'
     '      <option value="apple">Apple</option>\n'
-    '      <option value="retro">Retro</option>\n'
+    '      <option value="retro">Retro</option><option value="classic">Classic</option>\n'
     '    </select>\n'
     '  </div>\n'
     '  <div class="hg-row">\n'

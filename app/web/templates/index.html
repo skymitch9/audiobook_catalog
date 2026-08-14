@@ -92,6 +92,17 @@ button.btn:focus, select:focus, input:focus{ outline:2px solid var(--neon-cyan);
 .game-btn:active{
   transform: translateY(0);
 }
+/* The pink gradient is cyberpunk IDENTITY, restored at the owner's word
+   (2026-08-14) after the theme adoption flattened it to the accent fill - it
+   had no token role. Theme-scoped: other themes keep the honest flat fill. */
+html[data-theme="cyberpunk"] .game-btn{
+  background: linear-gradient(135deg, #ff2a6d 0%, #7b61ff 100%) !important;
+  color: #fff !important;
+  box-shadow: 0 0 15px rgba(255,42,109,.4), 0 0 30px rgba(123,97,255,.2);
+}
+html[data-theme="cyberpunk"] .game-btn:hover{
+  box-shadow: 0 0 18px rgba(255,42,109,.5), 0 0 34px rgba(123,97,255,.3);
+}
 .game-btn::before{
   content: '';
   position: absolute;
@@ -429,7 +440,7 @@ body:not(.cards) #ab-table{display:table}
     <select id="hg-theme-select">
       <option value="cyberpunk">Cyberpunk</option>
       <option value="apple">Apple</option>
-      <option value="retro">Retro</option>
+      <option value="retro">Retro</option><option value="classic">Classic</option>
     </select>
   </div>
   <div class="hg-row">

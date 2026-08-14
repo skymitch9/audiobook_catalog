@@ -3,10 +3,20 @@
  * One implementation, consumers adopt — the same move the estate made with
  * auth (packages/estate-auth), applied to design.
  *
- * THREE NAMED THEMES, user-selectable per site, each in light AND dark:
+ * FOUR NAMED THEMES, user-selectable per site, each in light AND dark:
  *
+ *   classic    — the apex's ORIGINAL look (extracted from git 3b9c6b3's
+ *                inline styles, 2026-08-14): warm paper / lamp-lit library,
+ *                green + gold + clay, aurora-blob backdrop. The apex's
+ *                default by owner ruling.
  *   apple      — near-monochrome, one accent, big quiet type, pill buttons.
- *                Authored here; the apex's and the library's default.
+ *                Authored here; the library's default.
+ *
+ * ⚠️ THEMES CHANGE SKIN, NEVER BONES (owner ruling, 2026-08-14): a theme may
+ * restate palette, type, shadows, radii, glows, motion tempo — it may NOT
+ * change page structure. The apex's layout (its boxes, its grid) is the
+ * layout under every theme; the full-bleed tile experiment that violated
+ * this is what got it written down.
  *   cyberpunk  — EXTRACTED from the audiobook site's real CSS (dark-first
  *                neon + its ab_theme light variant): Rajdhani / Share Tech
  *                Mono, #0a0a12 ground, yellow/cyan/magenta neons, glows,
@@ -88,15 +98,25 @@
 /* ===========================================================================
  * THE TOKEN CONTRACT — every theme defines all of these.
  *
- *   color    --et-bg --et-bg-texture --et-bg-texture-size --et-surface
+ *   color    --et-bg --et-bg-2 --et-bg-texture --et-bg-texture-size
+ *            --et-surface --et-surface-edge
  *            --et-fg --et-muted --et-hairline --et-ink
  *            --et-accent --et-accent-fg --et-accent-2 --et-heading-color
  *            --et-ok --et-warn --et-danger
- *            --et-panel-border --et-field-border
- *            --et-shadow-lift --et-glow --et-glow-title
- *   type     --et-font --et-font-display --et-font-mono
+ *            --et-ok-bg --et-warn-bg --et-danger-bg
+ *            --et-info --et-info-bg --et-transit --et-transit-bg
+ *            --et-panel-border --et-field-border --et-field-bg --et-field-shadow
+ *            --et-brand-fill --et-brand-stroke --et-brand-shadow
+ *            --et-shadow --et-shadow-lift --et-glow --et-glow-title
+ *   identity --et-hue-1 --et-hue-2 --et-hue-3  (the three shelves' spine
+ *            colors — audio, books, games; a theme with one voice sets all
+ *            three to its accent)
+ *   ambient  --et-blob-1 --et-blob-2 --et-blob-3 --et-grain-opacity  (the
+ *            apex backdrop's drifting fields + grain; transparent/0 where a
+ *            theme carries its atmosphere in --et-bg-texture instead)
+ *   type     --et-font --et-font-display --et-font-mono --et-font-label
  *            --et-text-display/-title/-heading/-body/-small/-micro
- *            --et-title-case --et-title-spacing
+ *            --et-title-case --et-title-spacing --et-heading-weight
  *   shape    --et-radius --et-radius-lg --et-radius-xl --et-radius-pill
  *            --et-border-w --et-clip-panel
  *   button   --et-btn-bg --et-btn-fg --et-btn-border --et-btn-shadow
@@ -112,6 +132,20 @@
  * others alias it to the hairline. --et-panel-border/--et-field-border are
  * transparent where the theme is flat (apple) and visible where borders ARE
  * the theme. Status colors carry STATUS, never mood.
+ *
+ * Extended 2026-08-13 for the games adoption: --et-ok/warn/danger-bg are the
+ * status TINT fills (badge and notice grounds); --et-info marks a
+ * lent/labelled state and --et-transit an on-its-way state — still status,
+ * never decoration. --et-field-bg / --et-field-shadow are the input
+ * treatment (retro's sunken "hole in the paper"; flat elsewhere), and retro's
+ * --et-field-border is the INK, per its source app's own rule. The
+ * --et-brand-* trio is the masthead-only logo treatment (retro: cream fill,
+ * 3px ink stroke, brick offset; others: heading color, no stroke).
+ * --et-font-label is the small display-label face (retro: Luckiest Guy).
+ * --et-heading-weight exists because Bangers ships ONE weight and synthetic
+ * bold fills its counters in (retro: 400; everyone else: 700). The base
+ * defines the derived ones RELATIVELY (color-mix off the theme's own status
+ * colors), so a theme that never overrides them still renders honestly.
  * ========================================================================= */
 
 /* ---- shared: type scale, rhythm, motion (theme-independent) --------------- */
@@ -138,6 +172,67 @@
   --et-dur: .35s;
   --et-dur-slow: .7s;
   --et-tilt-max: 4; /* degrees; read by assets/motion.js (apple-only pattern) */
+
+  /* ---- card dress (the apex's three catalogue cards) ----------------------
+     Skin for shared bones (the skin-not-bones ruling): how a theme DRESSES
+     the cards without touching their grid. Neutral defaults here — every
+     theme inherits the classic grammar (surface gradient, left-aligned,
+     lift + shadow + sheen on hover) unless it overrides. Apple overrides
+     below (:root[data-theme="apple"]) with the apple.com tile grammar:
+     alternating gray/black grounds, centered stack, big quiet name, a
+     whisper of scale and NO shadow explosion. Defined relatively, so every
+     theme's own surface/fg/muted flow through without restating. */
+  --et-card-1-bg: linear-gradient(180deg, var(--et-surface-edge), var(--et-surface));
+  --et-card-2-bg: linear-gradient(180deg, var(--et-surface-edge), var(--et-surface));
+  --et-card-3-bg: linear-gradient(180deg, var(--et-surface-edge), var(--et-surface));
+  --et-card-1-fg: var(--et-fg);
+  --et-card-2-fg: var(--et-fg);
+  --et-card-3-fg: var(--et-fg);
+  --et-card-1-muted: var(--et-muted);
+  --et-card-2-muted: var(--et-muted);
+  --et-card-3-muted: var(--et-muted);
+  --et-lift: translateY(-3px);            /* the hover move */
+  --et-lift-shadow: var(--et-shadow-lift); /* the hover shadow */
+  --et-sheen: 1;                           /* hover sheen visibility */
+  --et-card-align: left;
+  --et-card-name-size: 1.25rem;
+  --et-card-glyph-margin: 0 0 .9rem;
+}
+
+/* The apple card dress — the one theme whose cards leave the neutral grammar.
+   Observed from apple.com live (2026-08-14): tiles as self-contained scenes
+   on alternating soft-gray/black grounds, centered type stack, big semibold
+   name, calm ~1.016 hover scale with the RESTING shadow (precision, not
+   fireworks). Scoped to the stamped theme; a no-JS visitor gets the neutral
+   dress, which is graceful rather than wrong. */
+:root[data-theme="apple"] {
+  --et-card-1-bg: #f5f5f7;
+  --et-card-1-fg: #1d1d1f;
+  --et-card-1-muted: #6e6e73;
+  --et-card-2-bg: #000000;
+  --et-card-2-fg: #f5f5f7;
+  --et-card-2-muted: #86868b;
+  --et-card-3-bg: #f5f5f7;
+  --et-card-3-fg: #1d1d1f;
+  --et-card-3-muted: #6e6e73;
+  --et-lift: scale(1.016);
+  --et-lift-shadow: var(--et-shadow);
+  --et-sheen: 0;
+  --et-card-align: center;
+  --et-card-name-size: clamp(1.5rem, 3vw, 2rem);
+  --et-card-glyph-margin: 0 auto .9rem;
+}
+/* Dark flips the pair: the black tile becomes the light one. */
+:root[data-theme="apple"][data-mode="dark"] {
+  --et-card-1-bg: #1d1d1f;
+  --et-card-1-fg: #f5f5f7;
+  --et-card-1-muted: #86868b;
+  --et-card-2-bg: #f5f5f7;
+  --et-card-2-fg: #1d1d1f;
+  --et-card-2-muted: #6e6e73;
+  --et-card-3-bg: #1d1d1f;
+  --et-card-3-fg: #f5f5f7;
+  --et-card-3-muted: #86868b;
 }
 
 /* Native widgets (selects, date pickers) follow the stamped mode. */
@@ -148,13 +243,23 @@
 
 :root {
   --et-bg: #fbfbfd;
+  --et-bg-2: #f5f5f7;
   --et-bg-texture: none;
   --et-bg-texture-size: auto;
   --et-surface: #f5f5f7;
+  --et-surface-edge: #ffffff;
   --et-fg: #1d1d1f;
   --et-muted: #6e6e73;
   --et-hairline: #d2d2d7;
   --et-ink: #d2d2d7;
+
+  --et-hue-1: #0071e3; /* one voice: all three shelves wear the accent */
+  --et-hue-2: #0071e3;
+  --et-hue-3: #0071e3;
+  --et-blob-1: transparent; /* apple's ground is clean, deliberately */
+  --et-blob-2: transparent;
+  --et-blob-3: transparent;
+  --et-grain-opacity: 0;
 
   --et-accent: #0071e3;
   --et-accent-fg: #ffffff;
@@ -164,10 +269,23 @@
   --et-ok: #1d8a34;
   --et-warn: #b25000;
   --et-danger: #d70015;
+  --et-ok-bg: color-mix(in srgb, var(--et-ok) 12%, var(--et-bg));
+  --et-warn-bg: color-mix(in srgb, var(--et-warn) 12%, var(--et-bg));
+  --et-danger-bg: color-mix(in srgb, var(--et-danger) 10%, var(--et-bg));
+  --et-info: var(--et-accent);
+  --et-info-bg: color-mix(in srgb, var(--et-info) 12%, var(--et-bg));
+  --et-transit: #0e7f9b; /* INVENTED — an apple-family teal for "on its way"; no other role claims it */
+  --et-transit-bg: color-mix(in srgb, var(--et-transit) 12%, var(--et-bg));
 
   --et-panel-border: transparent; /* apple is FLAT: surfaces, not boxes */
   --et-field-border: transparent;
+  --et-field-bg: var(--et-surface);
+  --et-field-shadow: none;
+  --et-brand-fill: var(--et-heading-color);
+  --et-brand-stroke: 0 transparent;
+  --et-brand-shadow: none;
 
+  --et-shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 8px 24px -12px rgba(0, 0, 0, .12);
   --et-shadow-lift: 0 14px 40px -12px rgba(0, 0, 0, .18);
   --et-glow: none;
   --et-glow-title: none;
@@ -178,6 +296,8 @@
   --et-font-mono: ui-monospace, SFMono-Regular, "Cascadia Mono", Menlo, monospace;
   --et-title-case: none;
   --et-title-spacing: -.02em;
+  --et-font-label: var(--et-font);
+  --et-heading-weight: 700;
 
   --et-radius: 12px;
   --et-radius-lg: 18px;
@@ -198,32 +318,145 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-mode="light"]) {
     --et-bg: #000000;
+    --et-bg-2: #161617;
     --et-surface: #1d1d1f;
+    --et-surface-edge: #2c2c2e;
     --et-fg: #f5f5f7;
     --et-muted: #86868b;
     --et-hairline: #3a3a3c;
     --et-ink: #3a3a3c;
     --et-accent: #2997ff;
     --et-accent-2: #2997ff;
+    --et-hue-1: #2997ff;
+    --et-hue-2: #2997ff;
+    --et-hue-3: #2997ff;
     --et-ok: #30d158;
     --et-warn: #ff9f0a;
     --et-danger: #ff453a;
+    --et-transit: #3fc0da; /* the teal, lifted for black */
+    --et-shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 10px 30px -14px rgba(0, 0, 0, .7);
     --et-shadow-lift: 0 16px 48px -12px rgba(0, 0, 0, .65);
   }
 }
 :root[data-mode="dark"] {
   --et-bg: #000000;
+  --et-bg-2: #161617;
   --et-surface: #1d1d1f;
+  --et-surface-edge: #2c2c2e;
   --et-fg: #f5f5f7;
   --et-muted: #86868b;
   --et-hairline: #3a3a3c;
   --et-ink: #3a3a3c;
   --et-accent: #2997ff;
   --et-accent-2: #2997ff;
+  --et-hue-1: #2997ff;
+  --et-hue-2: #2997ff;
+  --et-hue-3: #2997ff;
   --et-ok: #30d158;
   --et-warn: #ff9f0a;
   --et-danger: #ff453a;
+  --et-transit: #3fc0da; /* the teal, lifted for black */
+  --et-shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 10px 30px -14px rgba(0, 0, 0, .7);
   --et-shadow-lift: 0 16px 48px -12px rgba(0, 0, 0, .65);
+}
+
+/* ---- CLASSIC — the apex's original look, promoted to a theme --------------- */
+/* Extracted 2026-08-14 from the pre-retheme front door (git 3b9c6b3's inline
+   styles): warm paper by day, a lamp-lit library at night. Green is the
+   interactive voice, gold the second voice, clay the third shelf's spine.
+   The drifting aurora blobs + grain ARE this theme's atmosphere — the one
+   theme that uses the ambient tokens at full strength. Two INVENTED values,
+   flagged: --et-ok and light-mode --et-warn (the original page had no
+   ok/warn colors; built from its green/gold families for contrast).
+   ⚠️ Placement matters: these blocks sit AFTER apple's dark blocks so
+   classic-light (0,2,0) beats apple's stamped dark (0,2,0) on file order,
+   and classic-dark (0,3,0) beats apple's media dark. */
+
+:root[data-theme="classic"] {
+  --et-bg: #f7f4ed;
+  --et-bg-2: #efe9dc;
+  --et-bg-texture: none;
+  --et-bg-texture-size: auto;
+  --et-surface: #fffdf8;
+  --et-surface-edge: #ffffff;
+  --et-fg: #17150f;
+  --et-muted: #6b6559;
+  --et-hairline: #e0d9c9;
+  --et-ink: #e0d9c9;
+
+  --et-accent: #3a5a40;
+  --et-accent-fg: #fbfaf7;
+  --et-accent-2: #b3822c;
+  --et-heading-color: var(--et-fg);
+
+  --et-ok: #4e7a44;  /* INVENTED — the source page had no ok color */
+  --et-warn: #8a6414; /* INVENTED — gold family, darkened for contrast */
+  --et-danger: #b1533c;
+
+  --et-panel-border: var(--et-hairline);
+  --et-field-border: var(--et-hairline);
+
+  --et-shadow: 0 1px 2px rgba(23, 21, 15, .05), 0 8px 24px -12px rgba(23, 21, 15, .18);
+  --et-shadow-lift: 0 2px 4px rgba(23, 21, 15, .06), 0 20px 40px -16px rgba(23, 21, 15, .28);
+  --et-glow: none;
+  --et-glow-title: none;
+
+  --et-font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --et-font-display: var(--et-font);
+  --et-font-mono: ui-monospace, SFMono-Regular, "Cascadia Mono", Menlo, monospace;
+  --et-title-case: none;
+  --et-title-spacing: -.03em;
+
+  --et-radius: 10px;
+  --et-radius-lg: 14px;
+  --et-radius-xl: 16px;
+  --et-radius-pill: 999px;
+  --et-border-w: 1px;
+  --et-clip-panel: none;
+
+  --et-btn-bg: color-mix(in srgb, var(--et-accent) 14%, var(--et-surface));
+  --et-btn-fg: var(--et-fg);
+  --et-btn-border: 1px solid color-mix(in srgb, var(--et-accent) 55%, var(--et-hairline));
+  --et-btn-shadow: none;
+  --et-press: scale(.98);
+
+  --et-hue-1: #b3822c; /* audio — gold */
+  --et-hue-2: #3a5a40; /* books — green */
+  --et-hue-3: #b1533c; /* games — clay */
+  --et-blob-1: rgba(58, 90, 64, .20);
+  --et-blob-2: rgba(217, 164, 65, .18);
+  --et-blob-3: rgba(177, 83, 60, .12);
+  --et-grain-opacity: .035;
+}
+
+:root[data-theme="classic"][data-mode="dark"] {
+  --et-bg: #0a0b09;
+  --et-bg-2: #121610;
+  --et-surface: #171a13;
+  --et-surface-edge: #22261c;
+  --et-fg: #ece7d9;
+  --et-muted: #9a948a;
+  --et-hairline: #2a2c22;
+  --et-ink: #2a2c22;
+
+  --et-accent: #8fbc8f;
+  --et-accent-fg: #12140f;
+  --et-accent-2: #d9a441;
+
+  --et-ok: #6f9e63;  /* INVENTED, as above */
+  --et-warn: #d9a441;
+  --et-danger: #d97e63;
+
+  --et-shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 10px 30px -14px rgba(0, 0, 0, .8);
+  --et-shadow-lift: 0 2px 6px rgba(0, 0, 0, .5), 0 26px 50px -18px rgba(0, 0, 0, .9);
+
+  --et-hue-1: #d9a441;
+  --et-hue-2: #8fbc8f;
+  --et-hue-3: #d97e63;
+  --et-blob-1: rgba(143, 188, 143, .16);
+  --et-blob-2: rgba(217, 164, 65, .16);
+  --et-blob-3: rgba(217, 126, 99, .11);
+  --et-grain-opacity: .05;
 }
 
 /* ---- CYBERPUNK — dark first (the audiobook site's identity) --------------- */
@@ -235,6 +468,16 @@
 
 :root[data-theme="cyberpunk"] {
   --et-bg: #0a0a12;
+  --et-bg-2: #12121f;
+  --et-surface-edge: #12121f; /* flat: the notch is the identity, not a bevel */
+  --et-shadow: 0 0 10px rgba(5, 217, 232, .12);
+  --et-hue-1: #fcee0a; /* the three neons ARE the three shelves */
+  --et-hue-2: #05d9e8;
+  --et-hue-3: #ff2a6d;
+  --et-blob-1: transparent; /* atmosphere lives in --et-bg-texture's haze */
+  --et-blob-2: transparent;
+  --et-blob-3: transparent;
+  --et-grain-opacity: 0;
   --et-bg-texture:
     radial-gradient(ellipse at 20% 50%, rgba(252, 238, 10, .03) 0%, transparent 50%),
     radial-gradient(ellipse at 80% 20%, rgba(5, 217, 232, .03) 0%, transparent 50%),
@@ -283,6 +526,11 @@
   --et-btn-border: 1px solid var(--et-accent);
   --et-btn-shadow: none;
   --et-press: scale(.97);
+
+  --et-transit: #bd6ee8; /* INVENTED — the site has no fourth neon; violet is the nearest idiomatic neighbour */
+  --et-field-bg: var(--et-bg);   /* fields recess to the ground; panels stay lifted */
+  --et-font-label: var(--et-font-mono);
+  --et-brand-shadow: var(--et-glow-title);
 }
 
 /* Cyberpunk light — the site's own html.light palette (club pages, the
@@ -291,8 +539,14 @@
    deviation, flagged. */
 :root[data-theme="cyberpunk"][data-mode="light"] {
   --et-bg: #eef0f5;
+  --et-bg-2: #e4e7ee;
   --et-bg-texture: none; /* the site kills its haze in light mode */
   --et-surface: #ffffff;
+  --et-surface-edge: #ffffff;
+  --et-shadow: 0 4px 14px rgba(22, 22, 30, .10);
+  --et-hue-1: #9a7b00;
+  --et-hue-2: #00798f;
+  --et-hue-3: #c31e58;
   --et-fg: #16161e;
   --et-muted: #5c6270;
   --et-hairline: #c9cdd9;
@@ -309,6 +563,7 @@
   --et-shadow-lift: 0 6px 20px rgba(22, 22, 30, .15);
   --et-glow: 0 0 8px rgba(0, 121, 143, .25);
   --et-glow-title: 0 0 10px rgba(154, 123, 0, .25);
+  --et-transit: #8a3fb8; /* INVENTED, as above — the violet's light form */
 }
 
 /* ---- RETRO — light first (the games app's aged-paper identity) ------------ */
@@ -320,6 +575,16 @@
 
 :root[data-theme="retro"] {
   --et-bg: #f2e8d5;
+  --et-bg-2: #ece0c8;
+  --et-surface-edge: #fbf5e9; /* flat card face — the ink outline does the work */
+  --et-shadow: 2px 2px 0 rgba(43, 38, 34, .15);
+  --et-hue-1: #d99a2b; /* mustard / blue / red — the app's own poster palette */
+  --et-hue-2: #4a7c9b;
+  --et-hue-3: #a8443a;
+  --et-blob-1: transparent; /* atmosphere is the halftone, not aurora */
+  --et-blob-2: transparent;
+  --et-blob-3: transparent;
+  --et-grain-opacity: 0;
   --et-bg-texture:
     radial-gradient(circle at 1px 1px, rgba(43, 38, 34, .055) 1px, transparent 0),
     radial-gradient(circle at 4px 4px, rgba(43, 38, 34, .035) 1px, transparent 0);
@@ -338,19 +603,36 @@
   --et-ok: #4e7a44;
   --et-warn: #9a6a12;
   --et-danger: #a8443a;
+  --et-ok-bg: #dfe4c8;
+  --et-warn-bg: #f2e2b8;
+  --et-danger-bg: #f0d6cf;
+  --et-info: #3f6480;
+  --et-info-bg: #d8e2e9;
+  --et-transit: #2f7d84;
+  --et-transit-bg: #d2e5e2;
 
   --et-panel-border: var(--et-ink);   /* the 2px ink outline IS the theme */
-  --et-field-border: var(--et-hairline);
+  /* Fields wear the ink too — the source app's own rule ("a hairline search
+     box inside a 2px panel reads as an unstyled control that was missed") —
+     and sink INTO the paper: recessed ground, inset hard shadow. */
+  --et-field-border: var(--et-ink);
+  --et-field-bg: #e8dbc3; /* paper-deep, verbatim */
+  --et-field-shadow: inset 2px 2px 0 rgba(43, 38, 34, .07);
 
   --et-shadow-lift: 3px 3px 0 rgba(43, 38, 34, .18); /* hard offset, NO blur */
   --et-glow: none;
   --et-glow-title: none;
+  --et-brand-fill: var(--et-surface); /* the masthead's cream lettering */
+  --et-brand-stroke: 3px var(--et-ink);
+  --et-brand-shadow: 2px 2px 0 #a8443a; /* the brick offset — logo-only, not the danger role */
 
   --et-font: system-ui, -apple-system, "Segoe UI", sans-serif;
   --et-font-display: 'Bangers', 'Luckiest Guy', 'Trebuchet MS', system-ui, sans-serif;
   --et-font-mono: ui-monospace, "Cascadia Code", Consolas, monospace;
   --et-title-case: none;
   --et-title-spacing: .03em; /* opens Bangers' tight caps back up */
+  --et-font-label: 'Luckiest Guy', 'Bangers', 'Trebuchet MS', system-ui, sans-serif;
+  --et-heading-weight: 400; /* Bangers ships ONE weight — synthetic bold fills its counters in */
 
   --et-radius: 7px;      /* controls */
   --et-radius-lg: 10px;  /* panels */
@@ -368,6 +650,12 @@
 
 :root[data-theme="retro"][data-mode="dark"] {
   --et-bg: #1b1814;
+  --et-bg-2: #241f18;
+  --et-surface-edge: #302a20;
+  --et-shadow: 2px 2px 0 rgba(0, 0, 0, .5);
+  --et-hue-1: #e5b45c;
+  --et-hue-2: #7fb0cd;
+  --et-hue-3: #d4776b;
   --et-bg-texture:
     radial-gradient(circle at 1px 1px, rgba(236, 224, 203, .05) 1px, transparent 0),
     radial-gradient(circle at 4px 4px, rgba(236, 224, 203, .03) 1px, transparent 0);
@@ -384,6 +672,15 @@
   --et-ok: #8fbb7e;
   --et-warn: #d9a441;
   --et-danger: #d4776b;
+  --et-ok-bg: #2b3720;
+  --et-warn-bg: #3d3016;
+  --et-danger-bg: #3d221e;
+  --et-info: #93b4c9;
+  --et-info-bg: #24333d;
+  --et-transit: #6fb3b3;
+  --et-transit-bg: #1d3634;
+  --et-field-bg: #141109; /* paper-deep's dark, verbatim */
+  --et-brand-shadow: 2px 2px 0 #d4776b;
 
   --et-shadow-lift: 3px 3px 0 rgba(0, 0, 0, .6);
 
@@ -442,7 +739,8 @@
   padding: .5em 1em;
   border: var(--et-border-w) solid var(--et-field-border);
   border-radius: var(--et-radius);
-  background: var(--et-surface);
+  background: var(--et-field-bg);
+  box-shadow: var(--et-field-shadow);
   color: var(--et-fg);
   font: var(--et-text-body)/1.4 var(--et-font);
   transition: border-color var(--et-dur-fast) var(--et-ease);
@@ -573,6 +871,31 @@
 .hg-mode-group button:focus-visible { outline: 2px solid var(--et-accent); outline-offset: 2px; }
 
 .hg-cog-note { margin: .8rem 0 0; color: var(--et-muted); font-size: var(--et-text-micro); }
+
+/* v2 per-page affordances (both optional in the markup contract):
+   #hg-apply-all — the quiet "apply to all pages" lever under the select;
+   #hg-scope-note — shown only while THIS page carries its own override. */
+.hg-apply-all {
+  margin: .45rem 0 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--et-muted);
+  font: 600 var(--et-text-micro)/1.3 var(--et-font);
+  letter-spacing: .02em;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.hg-apply-all:hover { color: var(--et-accent); }
+.hg-apply-all:focus-visible { outline: 2px solid var(--et-accent); outline-offset: 2px; }
+.hg-scope-note {
+  margin: .45rem 0 0;
+  color: var(--et-muted);
+  font-size: var(--et-text-micro);
+  font-style: italic;
+}
+.hg-scope-note[hidden] { display: none; }
 
 /* ---- motion machinery ----------------------------------------------------- */
 /*
