@@ -1,78 +1,75 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-default-theme="cyberpunk">
 <head>
-<script>if(localStorage.getItem("ab_theme")==="light")document.documentElement.classList.add("light");</script>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<!-- Estate theme system: token contract + pre-paint switcher. Fonts are
+     self-hosted under static/fonts/ (no third-party requests). theme.js is
+     synchronous on purpose so the stored theme/mode land on <html> before
+     first paint; it also migrates the legacy ab_theme key once. -->
+<link rel="stylesheet" href="static/css/estate-theme.css">
+<link rel="stylesheet" href="static/css/ab-bridge.css">
+<script src="static/js/theme.js"></script>
 <title>Community - Audiobook Catalog</title>
 <link rel="icon" type="image/png" href="static/img/favicon.png">
 <style>
-:root{
-  --bg:#0a0a12; --bg-2:#12121f;
-  --text:#e8e6e3; --muted:#8a8f98;
-  --border:#2a2a3a;
-  --neon-yellow:#fcee0a;
-  --neon-cyan:#05d9e8;
-  --neon-magenta:#ff2a6d;
-}
+/* Palette lives in static/css/estate-theme.css (the --et-* token contract:
+   cyberpunk / apple / retro, each light + dark) with ab-bridge.css aliasing
+   this page's legacy names (--bg, --neon-*, …) onto it. theme.js stamps
+   data-theme/data-mode on <html>; the old html.light mechanism is gone. */
 *{box-sizing:border-box}
 body{
   margin:0; padding:20px;
-  font-family:'Rajdhani','Segoe UI',system-ui,sans-serif;
-  background:var(--bg); color:var(--text);
-  background-image:
-    radial-gradient(ellipse at 20% 50%, rgba(252,238,10,.03) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 20%, rgba(5,217,232,.03) 0%, transparent 50%);
   min-height:100vh;
 }
 #wrap{max-width:900px;margin:0 auto}
 h1{
-  color:var(--neon-yellow);text-transform:uppercase;letter-spacing:2px;
-  text-shadow:0 0 10px rgba(252,238,10,.3);margin:0 0 8px;
+  color:var(--neon-yellow);text-transform:var(--et-title-case);letter-spacing:var(--et-title-spacing);
+  text-shadow:var(--et-glow-title);margin:0 0 8px;
+  font-family:var(--et-font-display);
 }
 .nav-row{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
 .nav-link{
   display:inline-block;padding:8px 14px;background:var(--bg-2);color:var(--neon-cyan);
   text-decoration:none;border:1px solid var(--border);font-weight:700;font-size:.85em;
-  text-transform:uppercase;letter-spacing:.5px;transition:all .2s;
+  text-transform:var(--et-title-case);letter-spacing:.5px;transition:all .2s;
 }
-.nav-link:hover{border-color:var(--neon-cyan);box-shadow:0 0 8px rgba(5,217,232,.2)}
+.nav-link:hover{border-color:var(--neon-cyan);box-shadow: var(--et-glow)}
 #search-input{
   flex:1;min-width:200px;padding:8px 12px;border:1px solid var(--border);
   background:var(--bg-2);color:var(--text);font-size:.9em;
-  font-family:'Share Tech Mono',monospace;
+  font-family:var(--et-font-mono);
 }
 #search-input:focus{outline:none;border-color:var(--neon-cyan)}
 .clubs-banner{
   display:flex;align-items:center;gap:16px;margin-top:16px;padding:20px 24px;
   background:var(--bg-2);border:1px solid var(--neon-cyan);text-decoration:none;color:var(--text);
-  clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,14px 100%,0 calc(100% - 14px));
+  clip-path:var(--et-clip-panel);
   transition:box-shadow .2s;
 }
-.clubs-banner:hover{box-shadow:0 0 16px rgba(5,217,232,.25)}
+.clubs-banner:hover{box-shadow: var(--et-shadow-lift)}
 .cb-icon{font-size:2.4em}
-.cb-title{display:block;font-size:1.3em;font-weight:700;color:var(--neon-cyan);text-transform:uppercase;letter-spacing:1.5px}
+.cb-title{display:block;font-size:1.3em;font-weight:700;color:var(--neon-cyan);text-transform:var(--et-title-case);letter-spacing:var(--et-title-spacing);font-family:var(--et-font-display)}
 #cb-new-badge{
   padding:2px 9px;border:1px solid var(--neon-magenta);color:var(--neon-magenta);
-  font-size:.6em;letter-spacing:.5px;vertical-align:middle;font-family:'Share Tech Mono',monospace;
+  font-size:.6em;letter-spacing:.5px;vertical-align:middle;font-family:var(--et-font-mono);
 }
 .cb-sub{display:block;color:var(--muted);font-size:.92em;margin-top:2px}
 .cb-arrow{margin-left:auto;font-size:1.8em;color:var(--neon-cyan)}
 .user-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;margin-top:16px}
 .user-card{
   background:var(--bg-2);border:1px solid var(--border);padding:20px;
-  clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px));
+  clip-path:var(--et-clip-panel);
   transition:border-color .2s; cursor:pointer;
 }
 .user-card:hover{border-color:var(--neon-magenta)}
 .user-header{display:flex;align-items:center;gap:12px;margin-bottom:12px}
 .user-avatar{width:48px;height:48px;border-radius:50%;border:2px solid var(--neon-cyan);object-fit:cover}
-.user-name{font-weight:700;font-size:1.2em;color:var(--neon-cyan);text-transform:uppercase;letter-spacing:.5px}
+.user-name{font-weight:700;font-size:1.2em;color:var(--neon-cyan);text-transform:var(--et-title-case);letter-spacing:.5px}
 .user-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin:10px 0}
 .stat-box{background:var(--bg);border:1px solid var(--border);padding:8px;text-align:center}
-.stat-val{font-size:1.3em;font-weight:700;color:var(--neon-yellow);font-family:'Share Tech Mono',monospace}
-.stat-lbl{font-size:.7em;color:var(--muted);text-transform:uppercase}
+.stat-val{font-size:1.3em;font-weight:700;color:var(--neon-yellow);font-family:var(--et-font-mono)}
+.stat-lbl{font-size:.7em;color:var(--muted);text-transform:var(--et-title-case)}
 .user-reading{font-size:.9em;color:var(--muted);margin-top:10px;display:flex;align-items:center;gap:8px}
 .user-reading strong{color:var(--neon-magenta)}
 .user-reading img{width:36px;height:auto;border-radius:2px;border:1px solid var(--border)}
@@ -82,9 +79,9 @@ h1{
   display:inline-block;padding:3px 8px;margin:2px;font-size:.8em;
   background:var(--bg);border:1px solid var(--border);color:var(--text);
 }
-.loading{text-align:center;padding:40px;color:var(--muted);font-family:'Share Tech Mono',monospace}
+.loading{text-align:center;padding:40px;color:var(--muted);font-family:var(--et-font-mono)}
 .empty{text-align:center;padding:30px;color:var(--muted)}
-#user-count{color:var(--muted);font-size:.85em;font-family:'Share Tech Mono',monospace}
+#user-count{color:var(--muted);font-size:.85em;font-family:var(--et-font-mono)}
 /* User modal */
 #user-modal{
   position:fixed;inset:0;display:none;align-items:center;justify-content:center;
@@ -94,7 +91,7 @@ h1{
 .user-modal-panel{
   background:var(--bg-2);border:1px solid var(--neon-cyan);
   width:min(520px,92vw);padding:32px;position:relative;
-  clip-path:polygon(0 0,calc(100% - 16px) 0,100% 16px,100% 100%,16px 100%,0 calc(100% - 16px));
+  clip-path:var(--et-clip-panel);
 }
 .user-modal-close{
   position:absolute;top:12px;right:12px;background:none;border:1px solid var(--neon-magenta);
@@ -102,18 +99,18 @@ h1{
 }
 .user-modal-close:hover{background:var(--neon-magenta);color:#fff}
 .um-avatar{width:80px;height:80px;border-radius:50%;border:3px solid var(--neon-cyan);object-fit:cover}
-.um-name{font-size:1.6em;font-weight:700;color:var(--neon-cyan);text-transform:uppercase;letter-spacing:1px}
+.um-name{font-size:1.6em;font-weight:700;color:var(--neon-cyan);text-transform:var(--et-title-case);letter-spacing:var(--et-title-spacing)}
 .um-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0}
 .um-stat{background:var(--bg);border:1px solid var(--border);padding:14px;text-align:center}
-.um-stat-val{font-size:1.8em;font-weight:700;color:var(--neon-yellow);font-family:'Share Tech Mono',monospace}
-.um-stat-lbl{font-size:.75em;color:var(--muted);text-transform:uppercase}
+.um-stat-val{font-size:1.8em;font-weight:700;color:var(--neon-yellow);font-family:var(--et-font-mono)}
+.um-stat-lbl{font-size:.75em;color:var(--muted);text-transform:var(--et-title-case)}
 .um-section{margin-top:16px;padding-top:14px;border-top:1px solid var(--border)}
-.um-section-title{font-size:.85em;color:var(--neon-magenta);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+.um-section-title{font-size:.85em;color:var(--neon-magenta);text-transform:var(--et-title-case);letter-spacing:.5px;margin-bottom:8px}
 .um-favs{display:flex;gap:8px;flex-wrap:wrap}
 .um-years{display:flex;gap:8px;flex-wrap:wrap}
 .um-year{
   padding:6px 12px;background:var(--bg);border:1px solid var(--border);
-  font-family:'Share Tech Mono',monospace;font-size:.9em;color:var(--neon-yellow);
+  font-family:var(--et-font-mono);font-size:.9em;color:var(--neon-yellow);
 }
 .um-year strong{color:var(--muted);font-weight:400;margin-right:6px}
 .um-clubs{display:flex;flex-direction:column;gap:8px}
@@ -148,21 +145,40 @@ h1{
 .identity-bar__google-btn:disabled{opacity:.6;cursor:wait}
 .identity-bar__logout-btn{
   background:none;border:1px solid var(--border,#2a2a3a);color:var(--muted,#8a8f98);cursor:pointer;
-  font-size:.75em;padding:4px 10px;font-family:inherit;text-transform:uppercase;letter-spacing:.5px;
+  font-size:.75em;padding:4px 10px;font-family:inherit;text-transform:var(--et-title-case);letter-spacing:.5px;
 }
 .identity-bar__logout-btn:hover{border-color:var(--neon-magenta,#ff2a6d);color:var(--neon-magenta,#ff2a6d)}
 
 .nav-link.active{border-color:var(--neon-cyan,#05d9e8);color:var(--neon-yellow,#fcee0a)}
 
-/* Light theme: html.light overrides the palette vars site-wide */
-html.light{
-  --bg:#eef0f5; --bg-2:#ffffff; --text:#16161e; --muted:#5c6270; --border:#c9cdd9;
-  --neon-yellow:#9a7b00; --neon-cyan:#00798f; --neon-magenta:#c31e58;
-}
-html.light body{background-image:none}
 </style>
 </head>
 <body>
+<!-- Estate settings cog: theme + light/dark. static/js/theme.js wires this
+     standard markup (select#hg-theme-select, [data-hg-mode]) automatically. -->
+<button id="hg-cog" class="hg-cog" type="button" aria-expanded="false" aria-controls="hg-cog-panel" aria-label="Display settings">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.56-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.09a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.09a1.7 1.7 0 0 0 1.56 1.03H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1.03z"/></svg>
+</button>
+<div id="hg-cog-panel" class="hg-cog-panel" hidden>
+  <div class="hg-row">
+    <label class="hg-label" for="hg-theme-select">Theme</label>
+    <select id="hg-theme-select">
+      <option value="cyberpunk">Cyberpunk</option>
+      <option value="apple">Apple</option>
+      <option value="retro">Retro</option>
+    </select>
+  </div>
+  <div class="hg-row">
+    <span class="hg-label" id="hg-mode-label">Appearance</span>
+    <div class="hg-mode-group" role="group" aria-labelledby="hg-mode-label">
+      <button type="button" data-hg-mode="auto" aria-pressed="true">Auto</button>
+      <button type="button" data-hg-mode="light" aria-pressed="false">Light</button>
+      <button type="button" data-hg-mode="dark" aria-pressed="false">Dark</button>
+    </div>
+  </div>
+  <p class="hg-cog-note">Your choice is remembered on this site only — each catalogue keeps its own look until you change it there.</p>
+</div>
+
 <div id="wrap">
   <h1>Community</h1>
   <div class="nav-row">

@@ -48,27 +48,28 @@ const CSS = `
   width:20px;height:20px;border-radius:2px;position:absolute;top:2px;left:3px;
   background:var(--muted,#8a8f98);transition:left .2s,background .2s;
 }
-.am-switch input:checked + .track .thumb{left:23px;background:var(--neon-cyan,#05d9e8);box-shadow:0 0 6px rgba(5,217,232,.5)}
+.am-switch input:checked + .track .thumb{left:23px;background:var(--neon-cyan,#05d9e8);box-shadow:var(--et-glow)}
 .am-switch input:checked + .track{background:var(--bg-2,#12121f);border-color:var(--neon-cyan,#05d9e8)}
 .am-stat{background:var(--bg,#0a0a12);border:1px solid var(--border,#2a2a3a);padding:10px;text-align:center}
-.am-stat .v{font-size:1.4em;font-weight:700;color:var(--neon-yellow,#fcee0a);font-family:'Share Tech Mono',monospace}
-.am-stat .l{font-size:.7em;color:var(--muted,#8a8f98);text-transform:uppercase}
+.am-stat .v{font-size:1.4em;font-weight:700;color:var(--neon-yellow,#fcee0a);font-family:var(--et-font-mono,monospace)}
+.am-stat .l{font-size:.7em;color:var(--muted,#8a8f98);text-transform:var(--et-title-case)}
 .am-input{
   width:100%;padding:6px 8px;border:1px solid var(--border,#2a2a3a);background:var(--bg,#0a0a12);
   color:var(--text,#e8e6e3);font-size:.85em;font-family:inherit;
 }
 .am-results{background:var(--bg-2,#12121f);border:1px solid var(--border,#2a2a3a);max-height:200px;overflow-y:auto;display:none}
-.am-section-title{font-size:.8em;color:var(--neon-cyan,#05d9e8);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+.am-section-title{font-size:.8em;color:var(--neon-cyan,#05d9e8);text-transform:var(--et-title-case);letter-spacing:.5px;margin-bottom:8px}
 `;
 
+// Mode now lives with the estate theme switcher (static/js/theme.js): keys
+// hg_theme/hg_mode, stamped as data-theme/data-mode on <html>. The legacy
+// ab_theme key is migrated once by theme.js and never written again.
 function darkPref() {
-  const saved = localStorage.getItem('ab_theme');
-  return saved ? saved === 'dark' : true;
+  if (window.estateTheme) return window.estateTheme.get().resolvedMode === 'dark';
+  return document.documentElement.getAttribute('data-mode') !== 'light';
 }
 function setDarkPref(on) {
-  localStorage.setItem('ab_theme', on ? 'dark' : 'light');
-  document.documentElement.classList.toggle('light', !on);
-  document.body.classList.toggle('dark', on); // index.html compatibility
+  if (window.estateTheme) window.estateTheme.setMode(on ? 'dark' : 'light');
 }
 
 export function mountAccountModal(db, app, containerEl) {
@@ -126,7 +127,7 @@ export function mountAccountModal(db, app, containerEl) {
   function renderLoggedOut(container) {
     container.innerHTML = `
       <div style="padding:20px 0;text-align:center">
-        <h3 style="color:var(--neon-yellow,#fcee0a);text-transform:uppercase;letter-spacing:1px;margin:0 0 16px">Sign In</h3>
+        <h3 style="color:var(--neon-yellow,#fcee0a);text-transform:var(--et-title-case);letter-spacing:1px;margin:0 0 16px">Sign In</h3>
         <button id="am-google-btn" style="width:100%;justify-content:center;padding:12px 16px;font-size:.95em;display:inline-flex;align-items:center;border:1px solid var(--border,#2a2a3a);background:var(--bg,#0a0a12);color:var(--text,#e8e6e3);font-weight:700;cursor:pointer;font-family:inherit">
           ${GOOGLE_SVG}Continue with Google
         </button>
@@ -160,7 +161,7 @@ export function mountAccountModal(db, app, containerEl) {
     container.innerHTML = `
       <div style="text-align:center;padding:10px 0">
         ${photo}
-        <div style="margin-top:8px;font-size:1.2em;font-weight:700;color:var(--neon-cyan,#05d9e8);text-transform:uppercase">${session.displayName}</div>
+        <div style="margin-top:8px;font-size:1.2em;font-weight:700;color:var(--neon-cyan,#05d9e8);text-transform:var(--et-title-case)">${session.displayName}</div>
         <div style="color:var(--muted,#8a8f98);font-size:.75em;margin-top:2px">${session.method === 'google' ? 'Google Account' : 'Passphrase Account'}</div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0;text-align:center">

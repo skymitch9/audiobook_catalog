@@ -1,73 +1,71 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-default-theme="cyberpunk">
 <head>
-<script>if(localStorage.getItem("ab_theme")==="light")document.documentElement.classList.add("light");</script>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<!-- Estate theme system: token contract + pre-paint switcher. Fonts are
+     self-hosted under static/fonts/ (no third-party requests). theme.js is
+     synchronous on purpose so the stored theme/mode land on <html> before
+     first paint; it also migrates the legacy ab_theme key once. -->
+<link rel="stylesheet" href="static/css/estate-theme.css">
+<link rel="stylesheet" href="static/css/ab-bridge.css">
+<script src="static/js/theme.js"></script>
 <title>Book Clubs - Audiobook Catalog</title>
 <link rel="icon" type="image/png" href="static/img/favicon.png">
 <style>
-:root{
-  --bg:#0a0a12; --bg-2:#12121f;
-  --text:#e8e6e3; --muted:#8a8f98;
-  --border:#2a2a3a;
-  --neon-yellow:#fcee0a;
-  --neon-cyan:#05d9e8;
-  --neon-magenta:#ff2a6d;
-}
+/* Palette lives in static/css/estate-theme.css (the --et-* token contract:
+   cyberpunk / apple / retro, each light + dark) with ab-bridge.css aliasing
+   this page's legacy names (--bg, --neon-*, …) onto it. theme.js stamps
+   data-theme/data-mode on <html>; the old html.light mechanism is gone. */
 *{box-sizing:border-box}
 body{
   margin:0; padding:20px;
-  font-family:'Rajdhani','Segoe UI',system-ui,sans-serif;
-  background:var(--bg); color:var(--text);
-  background-image:
-    radial-gradient(ellipse at 20% 50%, rgba(252,238,10,.03) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 20%, rgba(5,217,232,.03) 0%, transparent 50%);
   min-height:100vh;
 }
 #wrap{max-width:900px;margin:0 auto}
 h1{
-  color:var(--neon-yellow);text-transform:uppercase;letter-spacing:2px;
-  text-shadow:0 0 10px rgba(252,238,10,.3);margin:0 0 8px;
+  color:var(--neon-yellow);text-transform:var(--et-title-case);letter-spacing:var(--et-title-spacing);
+  text-shadow:var(--et-glow-title);margin:0 0 8px;
+  font-family:var(--et-font-display);
 }
 h2{
-  color:var(--neon-magenta);text-transform:uppercase;letter-spacing:1px;
+  color:var(--neon-magenta);text-transform:var(--et-title-case);letter-spacing:var(--et-title-spacing);
   font-size:1.05em;margin:26px 0 10px;border-bottom:1px solid var(--border);padding-bottom:6px;
+  font-family:var(--et-font-display);
 }
 .nav-row{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
 .nav-link{
   display:inline-block;padding:8px 14px;background:var(--bg-2);color:var(--neon-cyan);
   text-decoration:none;border:1px solid var(--border);font-weight:700;font-size:.85em;
-  text-transform:uppercase;letter-spacing:.5px;transition:all .2s;cursor:pointer;
+  text-transform:var(--et-title-case);letter-spacing:.5px;transition:all .2s;cursor:pointer;
   font-family:inherit;
 }
-.nav-link:hover{border-color:var(--neon-cyan);box-shadow:0 0 8px rgba(5,217,232,.2)}
+.nav-link:hover{border-color:var(--neon-cyan);box-shadow: var(--et-glow)}
 .btn-primary{
-  background:var(--neon-cyan);color:#04121a;border:none;font-weight:700;
+  background:var(--neon-cyan);color:var(--et-accent-fg);border:none;font-weight:700;
 }
-.btn-primary:hover{box-shadow:0 0 12px rgba(5,217,232,.5)}
+.btn-primary:hover{box-shadow: var(--et-glow)}
 /* Sized to match the user cards on community.html */
 .club-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px}
 .club-card{
   background:var(--bg-2);border:1px solid var(--border);padding:20px;cursor:pointer;
-  clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px));
+  clip-path:var(--et-clip-panel);
   transition:border-color .2s;text-decoration:none;color:var(--text);display:block;
 }
 .club-card:hover{border-color:var(--neon-magenta)}
 .club-emoji{font-size:2.2em;margin-right:10px;vertical-align:middle}
 .club-cover{width:48px;height:auto;border:1px solid var(--border);margin-right:12px;vertical-align:middle}
-.club-name{font-weight:700;font-size:1.2em;color:var(--neon-cyan);text-transform:uppercase;letter-spacing:.5px;vertical-align:middle}
+.club-name{font-weight:700;font-size:1.2em;color:var(--neon-cyan);text-transform:var(--et-title-case);letter-spacing:.5px;vertical-align:middle}
 .club-desc{color:var(--muted);font-size:.92em;margin:8px 0 10px;min-height:1.2em}
-.club-meta{font-size:.8em;color:var(--muted);font-family:'Share Tech Mono',monospace;display:flex;gap:12px}
-.badge{padding:1px 7px;border:1px solid var(--border);font-size:.75em;text-transform:uppercase}
+.club-meta{font-size:.8em;color:var(--muted);font-family:var(--et-font-mono);display:flex;gap:12px}
+.badge{padding:1px 7px;border:1px solid var(--border);font-size:.75em;text-transform:var(--et-title-case)}
 .badge-host{color:var(--neon-yellow);border-color:var(--neon-yellow)}
 .new-badge{
   margin-left:8px;padding:1px 8px;border:1px solid var(--neon-magenta);color:var(--neon-magenta);
-  font-size:.65em;text-transform:uppercase;letter-spacing:.5px;vertical-align:middle;
-  font-family:'Share Tech Mono',monospace;
+  font-size:.65em;text-transform:var(--et-title-case);letter-spacing:.5px;vertical-align:middle;
+  font-family:var(--et-font-mono);
 }
-.loading,.empty{text-align:center;padding:30px;color:var(--muted);font-family:'Share Tech Mono',monospace}
+.loading,.empty{text-align:center;padding:30px;color:var(--muted);font-family:var(--et-font-mono)}
 .notice{
   padding:12px 16px;border:1px solid var(--border);background:var(--bg-2);
   color:var(--muted);margin-bottom:16px;font-size:.95em;
@@ -83,7 +81,7 @@ h2{
 .modal-panel{
   background:var(--bg-2);border:1px solid var(--neon-cyan);
   width:min(480px,92vw);padding:28px;position:relative;
-  clip-path:polygon(0 0,calc(100% - 16px) 0,100% 16px,100% 100%,16px 100%,0 calc(100% - 16px));
+  clip-path:var(--et-clip-panel);
 }
 .modal-close{
   position:absolute;top:12px;right:12px;background:none;border:1px solid var(--neon-magenta);
@@ -91,7 +89,7 @@ h2{
 }
 .modal-close:hover{background:var(--neon-magenta);color:#fff}
 .field{margin-bottom:14px}
-.field label{display:block;font-size:.8em;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.field label{display:block;font-size:.8em;color:var(--muted);text-transform:var(--et-title-case);letter-spacing:.5px;margin-bottom:4px}
 .field input[type=text],.field textarea{
   width:100%;padding:9px 12px;border:1px solid var(--border);
   background:var(--bg);color:var(--text);font-family:inherit;font-size:1em;
@@ -124,21 +122,40 @@ h2{
 .identity-bar__google-btn:disabled{opacity:.6;cursor:wait}
 .identity-bar__logout-btn{
   background:none;border:1px solid var(--border,#2a2a3a);color:var(--muted,#8a8f98);cursor:pointer;
-  font-size:.75em;padding:4px 10px;font-family:inherit;text-transform:uppercase;letter-spacing:.5px;
+  font-size:.75em;padding:4px 10px;font-family:inherit;text-transform:var(--et-title-case);letter-spacing:.5px;
 }
 .identity-bar__logout-btn:hover{border-color:var(--neon-magenta,#ff2a6d);color:var(--neon-magenta,#ff2a6d)}
 
 .nav-link.active{border-color:var(--neon-cyan,#05d9e8);color:var(--neon-yellow,#fcee0a)}
 
-/* Light theme: html.light overrides the palette vars site-wide */
-html.light{
-  --bg:#eef0f5; --bg-2:#ffffff; --text:#16161e; --muted:#5c6270; --border:#c9cdd9;
-  --neon-yellow:#9a7b00; --neon-cyan:#00798f; --neon-magenta:#c31e58;
-}
-html.light body{background-image:none}
 </style>
 </head>
 <body>
+<!-- Estate settings cog: theme + light/dark. static/js/theme.js wires this
+     standard markup (select#hg-theme-select, [data-hg-mode]) automatically. -->
+<button id="hg-cog" class="hg-cog" type="button" aria-expanded="false" aria-controls="hg-cog-panel" aria-label="Display settings">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.56-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.09a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.09a1.7 1.7 0 0 0 1.56 1.03H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1.03z"/></svg>
+</button>
+<div id="hg-cog-panel" class="hg-cog-panel" hidden>
+  <div class="hg-row">
+    <label class="hg-label" for="hg-theme-select">Theme</label>
+    <select id="hg-theme-select">
+      <option value="cyberpunk">Cyberpunk</option>
+      <option value="apple">Apple</option>
+      <option value="retro">Retro</option>
+    </select>
+  </div>
+  <div class="hg-row">
+    <span class="hg-label" id="hg-mode-label">Appearance</span>
+    <div class="hg-mode-group" role="group" aria-labelledby="hg-mode-label">
+      <button type="button" data-hg-mode="auto" aria-pressed="true">Auto</button>
+      <button type="button" data-hg-mode="light" aria-pressed="false">Light</button>
+      <button type="button" data-hg-mode="dark" aria-pressed="false">Dark</button>
+    </div>
+  </div>
+  <p class="hg-cog-note">Your choice is remembered on this site only — each catalogue keeps its own look until you change it there.</p>
+</div>
+
 <div id="wrap">
   <h1>Book Clubs</h1>
   <div class="nav-row">

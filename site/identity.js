@@ -465,7 +465,7 @@ function _renderLoggedIn(containerEl, db, options, session) {
   wrapper.appendChild(greeting);
 
   const methodBadge = document.createElement('span');
-  methodBadge.style.cssText = 'font-size:.7em;color:var(--muted);text-transform:uppercase;letter-spacing:.5px';
+  methodBadge.style.cssText = 'font-size:.7em;color:var(--muted);text-transform:var(--et-title-case);letter-spacing:.5px';
   methodBadge.textContent = session.method === 'google' ? 'Google' : 'Passphrase';
   wrapper.appendChild(methodBadge);
 

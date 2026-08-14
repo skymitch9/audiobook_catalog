@@ -1,74 +1,73 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-default-theme="cyberpunk">
 <head>
-<script>if(localStorage.getItem("ab_theme")==="light")document.documentElement.classList.add("light");</script>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<!-- Estate theme system: token contract + pre-paint switcher. Fonts are
+     self-hosted under static/fonts/ (no third-party requests). theme.js is
+     synchronous on purpose so the stored theme/mode land on <html> before
+     first paint; it also migrates the legacy ab_theme key once. -->
+<link rel="stylesheet" href="static/css/estate-theme.css">
+<link rel="stylesheet" href="static/css/ab-bridge.css">
+<script src="static/js/theme.js"></script>
 <title>Club - Audiobook Catalog</title>
 <link rel="icon" type="image/png" href="static/img/favicon.png">
 <style>
-:root{
-  --bg:#0a0a12; --bg-2:#12121f;
-  --text:#e8e6e3; --muted:#8a8f98;
-  --border:#2a2a3a;
-  --neon-yellow:#fcee0a;
-  --neon-cyan:#05d9e8;
-  --neon-magenta:#ff2a6d;
-}
+/* Palette lives in static/css/estate-theme.css (the --et-* token contract:
+   cyberpunk / apple / retro, each light + dark) with ab-bridge.css aliasing
+   this page's legacy names (--bg, --neon-*, …) onto it. theme.js stamps
+   data-theme/data-mode on <html>; the old html.light mechanism is gone. */
 *{box-sizing:border-box}
 body{
   margin:0; padding:20px;
-  font-family:'Rajdhani','Segoe UI',system-ui,sans-serif;
-  background:var(--bg); color:var(--text);
-  background-image:
-    radial-gradient(ellipse at 20% 50%, rgba(252,238,10,.03) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 20%, rgba(5,217,232,.03) 0%, transparent 50%);
   min-height:100vh;
 }
+/* Keep the fixed estate cog clear of the nav/identity row */
+.nav-row{padding-right:56px}
 #wrap{max-width:900px;margin:0 auto}
 .nav-row{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
 .nav-link{
   display:inline-block;padding:8px 14px;background:var(--bg-2);color:var(--neon-cyan);
   text-decoration:none;border:1px solid var(--border);font-weight:700;font-size:.85em;
-  text-transform:uppercase;letter-spacing:.5px;transition:all .2s;cursor:pointer;
+  text-transform:var(--et-title-case);letter-spacing:.5px;transition:all .2s;cursor:pointer;
   font-family:inherit;
 }
-.nav-link:hover{border-color:var(--neon-cyan);box-shadow:0 0 8px rgba(5,217,232,.2)}
+.nav-link:hover{border-color:var(--neon-cyan);box-shadow: var(--et-glow)}
 .club-back{display:inline-flex;align-items:center;gap:6px;margin-bottom:14px;padding:7px 13px;
   background:var(--bg-2);color:var(--neon-cyan);text-decoration:none;border:1px solid var(--border);
-  font-weight:700;font-size:.8em;text-transform:uppercase;letter-spacing:.5px;transition:all .2s}
-.club-back:hover{border-color:var(--neon-cyan);box-shadow:0 0 8px rgba(5,217,232,.2)}
+  font-weight:700;font-size:.8em;text-transform:var(--et-title-case);letter-spacing:.5px;transition:all .2s}
+.club-back:hover{border-color:var(--neon-cyan);box-shadow: var(--et-glow)}
 .btn-danger{color:var(--neon-magenta)}
-.btn-danger:hover{border-color:var(--neon-magenta);box-shadow:0 0 8px rgba(255,42,109,.2)}
+.btn-danger:hover{border-color:var(--neon-magenta);box-shadow: var(--et-glow)}
 .club-header{
   background:var(--bg-2);border:1px solid var(--border);padding:22px;margin-bottom:16px;
-  clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,14px 100%,0 calc(100% - 14px));
+  clip-path:var(--et-clip-panel);
 }
 .club-title{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .club-emoji{font-size:2.2em}
 .club-cover-lg{width:64px;height:auto;border:1px solid var(--border)}
 .club-name{
-  color:var(--neon-yellow);text-transform:uppercase;letter-spacing:2px;margin:0;
-  text-shadow:0 0 10px rgba(252,238,10,.3);font-size:1.6em;font-weight:700;
+  color:var(--neon-yellow);text-transform:var(--et-title-case);letter-spacing:var(--et-title-spacing);margin:0;
+  text-shadow:var(--et-glow-title);font-size:1.6em;font-weight:700;
+  font-family:var(--et-font-display);
 }
 .club-desc{color:var(--muted);margin:10px 0 0}
 .club-meta{
   display:flex;gap:14px;margin-top:12px;flex-wrap:wrap;align-items:center;
-  font-size:.85em;color:var(--muted);font-family:'Share Tech Mono',monospace;
+  font-size:.85em;color:var(--muted);font-family:var(--et-font-mono);
 }
 .next-meeting{
   margin-top:12px;padding:8px 12px;border:1px solid var(--border);
   border-left:3px solid var(--neon-cyan);font-size:.85em;
-  font-family:'Share Tech Mono',monospace;color:var(--text);
+  font-family:var(--et-font-mono);color:var(--text);
 }
 .next-meeting .nm-notes{color:var(--muted);white-space:pre-line}
-.badge{padding:1px 7px;border:1px solid var(--border);font-size:.85em;text-transform:uppercase}
+.badge{padding:1px 7px;border:1px solid var(--border);font-size:.85em;text-transform:var(--et-title-case)}
 .badge-role{color:var(--neon-yellow);border-color:var(--neon-yellow)}
 .tabs{display:flex;gap:4px;margin-bottom:0;flex-wrap:wrap}
 .tab{
   padding:10px 18px;background:var(--bg-2);border:1px solid var(--border);border-bottom:none;
-  color:var(--muted);cursor:pointer;font-weight:700;text-transform:uppercase;
+  color:var(--muted);cursor:pointer;font-weight:700;text-transform:var(--et-title-case);
   letter-spacing:.5px;font-size:.85em;font-family:inherit;
 }
 .tab.active{color:var(--neon-cyan);border-color:var(--neon-cyan);border-bottom:1px solid var(--bg-2)}
@@ -89,22 +88,22 @@ body{
 .member-actions{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
 .member-actions button{
   background:none;border:1px solid var(--border);color:var(--muted);cursor:pointer;
-  font-size:.75em;padding:3px 9px;font-family:inherit;text-transform:uppercase;
+  font-size:.75em;padding:3px 9px;font-family:inherit;text-transform:var(--et-title-case);
 }
 .member-actions button:hover{border-color:var(--neon-cyan);color:var(--neon-cyan)}
 .member-actions button.danger:hover{border-color:var(--neon-magenta);color:var(--neon-magenta)}
 .stub{
   text-align:center;padding:36px 20px;color:var(--muted);
 }
-.stub .stub-title{font-size:1.1em;color:var(--neon-cyan);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
-.loading,.empty{text-align:center;padding:30px;color:var(--muted);font-family:'Share Tech Mono',monospace}
+.stub .stub-title{font-size:1.1em;color:var(--neon-cyan);text-transform:var(--et-title-case);letter-spacing:var(--et-title-spacing);margin-bottom:6px}
+.loading,.empty{text-align:center;padding:30px;color:var(--muted);font-family:var(--et-font-mono)}
 .error-box{
   padding:12px 16px;border:1px solid var(--neon-magenta);background:var(--bg-2);
   color:var(--neon-magenta);margin-bottom:16px;
 }
 .footer-actions{margin-top:16px;display:flex;gap:8px;flex-wrap:wrap}
-.btn-primary{background:var(--neon-cyan);color:#04121a;border:none;font-weight:700}
-.btn-primary:hover{box-shadow:0 0 12px rgba(5,217,232,.5)}
+.btn-primary{background:var(--neon-cyan);color:var(--et-accent-fg);border:none;font-weight:700}
+.btn-primary:hover{box-shadow: var(--et-glow)}
 .read-card{
   display:flex;gap:14px;background:var(--bg);border:1px solid var(--border);
   padding:14px;margin-bottom:10px;text-decoration:none;color:var(--text);
@@ -112,19 +111,19 @@ body{
 }
 .read-card:hover{border-color:var(--neon-magenta)}
 .rc-cover{width:60px;height:auto;border:1px solid var(--border);flex-shrink:0}
-.rc-slot{font-size:.7em;color:var(--neon-magenta);text-transform:uppercase;letter-spacing:1px;font-family:'Share Tech Mono',monospace}
+.rc-slot{font-size:.7em;color:var(--neon-magenta);text-transform:var(--et-title-case);letter-spacing:var(--et-title-spacing);font-family:var(--et-font-mono)}
 .rc-label-edit{
   background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.1em;
   padding:0 2px;vertical-align:middle;
 }
 .rc-label-edit:hover{color:var(--neon-cyan)}
-.rc-title{font-weight:700;font-size:1.1em;color:var(--neon-cyan);text-transform:uppercase;letter-spacing:.5px}
+.rc-title{font-weight:700;font-size:1.1em;color:var(--neon-cyan);text-transform:var(--et-title-case);letter-spacing:.5px}
 .rc-author{color:var(--muted);font-size:.9em}
-.rc-meta{font-size:.75em;color:var(--muted);font-family:'Share Tech Mono',monospace;margin-top:4px}
+.rc-meta{font-size:.75em;color:var(--muted);font-family:var(--et-font-mono);margin-top:4px}
 .rate-nudge{
   display:flex;gap:14px;align-items:center;position:relative;
   background:var(--bg-2);border:1px solid var(--neon-yellow);
-  padding:14px 40px 14px 14px;margin-bottom:10px;box-shadow:0 0 10px rgba(252,238,10,.12);
+  padding:14px 40px 14px 14px;margin-bottom:10px;box-shadow: var(--et-glow-title);
 }
 .rate-nudge .rc-cover{width:48px}
 .rate-nudge-body{flex:1;min-width:0}
@@ -139,14 +138,14 @@ body{
 .rc-new{color:var(--neon-magenta);font-weight:700}
 .stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:14px}
 .stat-box{background:var(--bg);border:1px solid var(--border);padding:14px;text-align:center}
-.stat-val{font-size:1.6em;font-weight:700;color:var(--neon-yellow);font-family:'Share Tech Mono',monospace}
-.stat-lbl{font-size:.72em;color:var(--muted);text-transform:uppercase;margin-top:4px}
+.stat-val{font-size:1.6em;font-weight:700;color:var(--neon-yellow);font-family:var(--et-font-mono)}
+.stat-lbl{font-size:.72em;color:var(--muted);text-transform:var(--et-title-case);margin-top:4px}
 .stat-line{color:var(--muted);margin-top:8px}
 .stat-line strong{color:var(--neon-cyan)}
 .rc-actions{margin-left:auto;display:flex;gap:6px;align-items:center;flex-shrink:0}
 .rc-actions button{
   background:none;border:1px solid var(--border);color:var(--muted);cursor:pointer;
-  font-size:.72em;padding:4px 9px;font-family:inherit;text-transform:uppercase;
+  font-size:.72em;padding:4px 9px;font-family:inherit;text-transform:var(--et-title-case);
 }
 .rc-actions button:hover{border-color:var(--neon-cyan);color:var(--neon-cyan)}
 .tbr-row{
@@ -157,7 +156,7 @@ body{
 .tbr-actions{margin-left:auto;display:flex;gap:8px;align-items:center;flex-shrink:0}
 .vote-btn{
   background:none;border:1px solid var(--border);color:var(--muted);cursor:pointer;
-  font-size:.85em;padding:5px 12px;font-family:'Share Tech Mono',monospace;
+  font-size:.85em;padding:5px 12px;font-family:var(--et-font-mono);
 }
 button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
 .vote-btn.voted{border-color:var(--neon-yellow);color:var(--neon-yellow)}
@@ -171,13 +170,13 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
 .er-title{flex:1;min-width:0;font-weight:700;color:var(--neon-cyan);font-size:.95em}
 .er-row button{
   background:none;border:1px solid var(--border);color:var(--muted);cursor:pointer;
-  font-size:.72em;padding:4px 9px;font-family:inherit;text-transform:uppercase;
+  font-size:.72em;padding:4px 9px;font-family:inherit;text-transform:var(--et-title-case);
 }
 .er-row button:hover{border-color:var(--neon-cyan);color:var(--neon-cyan)}
 .er-row button.er-danger:hover{border-color:var(--neon-magenta);color:var(--neon-magenta)}
 .er-hint{color:var(--muted);font-size:.8em;margin-top:8px}
 .rq-h{
-  color:var(--neon-magenta);text-transform:uppercase;letter-spacing:1px;font-size:.9em;
+  color:var(--neon-magenta);text-transform:var(--et-title-case);letter-spacing:var(--et-title-spacing);font-size:.9em;
   margin:18px 0 8px;border-bottom:1px solid var(--border);padding-bottom:5px;
 }
 .rq-h:first-child{margin-top:0}
@@ -203,14 +202,13 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
 }
 .modal-close:hover{background:var(--neon-magenta);color:#fff}
 .field{margin-bottom:14px}
-.field label{display:block;font-size:.8em;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.field label{display:block;font-size:.8em;color:var(--muted);text-transform:var(--et-title-case);letter-spacing:.5px;margin-bottom:4px}
 .field input[type=text],.field input[type=datetime-local],.field textarea,.field select{
   width:100%;padding:9px 12px;border:1px solid var(--border);
   background:var(--bg);color:var(--text);font-family:inherit;font-size:1em;
 }
-/* native picker popup + segment text follow the site theme */
-.field input[type=datetime-local]{color-scheme:dark}
-html.light .field input[type=datetime-local]{color-scheme:light}
+/* native picker popup + segment text follow the stamped mode via the
+   :root[data-mode] color-scheme rules in estate-theme.css */
 .field input:focus,.field textarea:focus,.field select:focus{outline:none;border-color:var(--neon-cyan)}
 .field textarea{resize:vertical;min-height:80px}
 .field-inline{display:flex;align-items:center;gap:8px}
@@ -227,7 +225,7 @@ html.light .field input[type=datetime-local]{color-scheme:light}
 #picked-book img{width:44px;height:auto;border:1px solid var(--border)}
 #picked-book .pb-title{font-weight:700;color:var(--neon-cyan)}
 #picked-book .pb-sub{font-size:.85em;color:var(--muted)}
-#ms-preview{font-size:.85em;color:var(--muted);font-family:'Share Tech Mono',monospace;line-height:1.7;margin-top:6px}
+#ms-preview{font-size:.85em;color:var(--muted);font-family:var(--et-font-mono);line-height:1.7;margin-top:6px}
 .form-error{color:var(--neon-magenta);font-size:.9em;min-height:1.2em;margin-bottom:8px}
 .notice{
   padding:10px 14px;border:1px solid var(--neon-yellow);background:var(--bg);
@@ -254,21 +252,40 @@ html.light .field input[type=datetime-local]{color-scheme:light}
 .identity-bar__google-btn:disabled{opacity:.6;cursor:wait}
 .identity-bar__logout-btn{
   background:none;border:1px solid var(--border,#2a2a3a);color:var(--muted,#8a8f98);cursor:pointer;
-  font-size:.75em;padding:4px 10px;font-family:inherit;text-transform:uppercase;letter-spacing:.5px;
+  font-size:.75em;padding:4px 10px;font-family:inherit;text-transform:var(--et-title-case);letter-spacing:.5px;
 }
 .identity-bar__logout-btn:hover{border-color:var(--neon-magenta,#ff2a6d);color:var(--neon-magenta,#ff2a6d)}
 
 .nav-link.active{border-color:var(--neon-cyan,#05d9e8);color:var(--neon-yellow,#fcee0a)}
 
-/* Light theme: html.light overrides the palette vars site-wide */
-html.light{
-  --bg:#eef0f5; --bg-2:#ffffff; --text:#16161e; --muted:#5c6270; --border:#c9cdd9;
-  --neon-yellow:#9a7b00; --neon-cyan:#00798f; --neon-magenta:#c31e58;
-}
-html.light body{background-image:none}
 </style>
 </head>
 <body>
+<!-- Estate settings cog: theme + light/dark. static/js/theme.js wires this
+     standard markup (select#hg-theme-select, [data-hg-mode]) automatically. -->
+<button id="hg-cog" class="hg-cog" type="button" aria-expanded="false" aria-controls="hg-cog-panel" aria-label="Display settings">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.56-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.09a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.09a1.7 1.7 0 0 0 1.56 1.03H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1.03z"/></svg>
+</button>
+<div id="hg-cog-panel" class="hg-cog-panel" hidden>
+  <div class="hg-row">
+    <label class="hg-label" for="hg-theme-select">Theme</label>
+    <select id="hg-theme-select">
+      <option value="cyberpunk">Cyberpunk</option>
+      <option value="apple">Apple</option>
+      <option value="retro">Retro</option>
+    </select>
+  </div>
+  <div class="hg-row">
+    <span class="hg-label" id="hg-mode-label">Appearance</span>
+    <div class="hg-mode-group" role="group" aria-labelledby="hg-mode-label">
+      <button type="button" data-hg-mode="auto" aria-pressed="true">Auto</button>
+      <button type="button" data-hg-mode="light" aria-pressed="false">Light</button>
+      <button type="button" data-hg-mode="dark" aria-pressed="false">Dark</button>
+    </div>
+  </div>
+  <p class="hg-cog-note">Your choice is remembered on this site only — each catalogue keeps its own look until you change it there.</p>
+</div>
+
 <div id="wrap">
   <div class="nav-row">
     <a href="index.html" class="nav-link">Catalog</a>
@@ -285,7 +302,7 @@ html.light body{background-image:none}
 <div id="read-modal">
   <div class="modal-panel">
     <button class="modal-close" id="read-close">X</button>
-    <h2 style="margin-top:0;color:var(--neon-yellow);text-transform:uppercase;letter-spacing:1px">Start a Read</h2>
+    <h2 style="margin-top:0;color:var(--neon-yellow);text-transform:var(--et-title-case);letter-spacing:var(--et-title-spacing)">Start a Read</h2>
     <div class="field">
       <label for="book-search">Pick a book from the catalog</label>
       <input id="book-search" type="text" placeholder="Search by title or author..." autocomplete="off" />
@@ -315,7 +332,7 @@ html.light body{background-image:none}
 <div id="edit-modal">
   <div class="modal-panel">
     <button class="modal-close" id="edit-close">X</button>
-    <h2 style="margin-top:0;color:var(--neon-yellow);text-transform:uppercase;letter-spacing:1px">Edit Club</h2>
+    <h2 style="margin-top:0;color:var(--neon-yellow);text-transform:var(--et-title-case);letter-spacing:var(--et-title-spacing)">Edit Club</h2>
     <div class="field">
       <label for="edit-name">Club name</label>
       <input id="edit-name" type="text" maxlength="40" />
@@ -360,7 +377,7 @@ html.light body{background-image:none}
 <div id="suggest-modal">
   <div class="modal-panel">
     <button class="modal-close" id="suggest-close">X</button>
-    <h2 style="margin-top:0;color:var(--neon-yellow);text-transform:uppercase;letter-spacing:1px">Suggest a Book</h2>
+    <h2 style="margin-top:0;color:var(--neon-yellow);text-transform:var(--et-title-case);letter-spacing:var(--et-title-spacing)">Suggest a Book</h2>
     <div class="field">
       <label for="suggest-search">Search the catalog</label>
       <input id="suggest-search" type="text" placeholder="Search by title or author..." autocomplete="off" />
@@ -374,7 +391,7 @@ html.light body{background-image:none}
 <div id="rate-modal">
   <div class="modal-panel">
     <button class="modal-close" id="rate-close">X</button>
-    <h2 style="margin-top:0;color:var(--neon-yellow);text-transform:uppercase;letter-spacing:1px">Rate This Book</h2>
+    <h2 style="margin-top:0;color:var(--neon-yellow);text-transform:var(--et-title-case);letter-spacing:var(--et-title-spacing)">Rate This Book</h2>
     <div id="rate-book-title" style="color:var(--neon-cyan);font-weight:700;margin-bottom:12px"></div>
     <div class="field">
       <label for="rate-stars">Your rating</label>

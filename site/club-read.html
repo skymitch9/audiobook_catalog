@@ -1,61 +1,60 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-default-theme="cyberpunk">
 <head>
-<script>if(localStorage.getItem("ab_theme")==="light")document.documentElement.classList.add("light");</script>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<!-- Estate theme system: token contract + pre-paint switcher. Fonts are
+     self-hosted under static/fonts/ (no third-party requests). theme.js is
+     synchronous on purpose so the stored theme/mode land on <html> before
+     first paint; it also migrates the legacy ab_theme key once. -->
+<link rel="stylesheet" href="static/css/estate-theme.css">
+<link rel="stylesheet" href="static/css/ab-bridge.css">
+<script src="static/js/theme.js"></script>
 <title>Club Read - Audiobook Catalog</title>
 <link rel="icon" type="image/png" href="static/img/favicon.png">
 <style>
-:root{
-  --bg:#0a0a12; --bg-2:#12121f;
-  --text:#e8e6e3; --muted:#8a8f98;
-  --border:#2a2a3a;
-  --neon-yellow:#fcee0a;
-  --neon-cyan:#05d9e8;
-  --neon-magenta:#ff2a6d;
-}
+/* Palette lives in static/css/estate-theme.css (the --et-* token contract:
+   cyberpunk / apple / retro, each light + dark) with ab-bridge.css aliasing
+   this page's legacy names (--bg, --neon-*, …) onto it. theme.js stamps
+   data-theme/data-mode on <html>; the old html.light mechanism is gone. */
 *{box-sizing:border-box}
 body{
   margin:0; padding:20px;
-  font-family:'Rajdhani','Segoe UI',system-ui,sans-serif;
-  background:var(--bg); color:var(--text);
-  background-image:
-    radial-gradient(ellipse at 20% 50%, rgba(252,238,10,.03) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 20%, rgba(5,217,232,.03) 0%, transparent 50%);
   min-height:100vh;
 }
+/* Keep the fixed estate cog clear of the nav/identity row */
+.nav-row{padding-right:56px}
 #wrap{max-width:820px;margin:0 auto}
 .nav-row{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
 .nav-link{
   display:inline-block;padding:8px 14px;background:var(--bg-2);color:var(--neon-cyan);
   text-decoration:none;border:1px solid var(--border);font-weight:700;font-size:.85em;
-  text-transform:uppercase;letter-spacing:.5px;transition:all .2s;cursor:pointer;font-family:inherit;
+  text-transform:var(--et-title-case);letter-spacing:.5px;transition:all .2s;cursor:pointer;font-family:inherit;
 }
-.nav-link:hover{border-color:var(--neon-cyan);box-shadow:0 0 8px rgba(5,217,232,.2)}
+.nav-link:hover{border-color:var(--neon-cyan);box-shadow: var(--et-glow)}
 .club-back{display:inline-flex;align-items:center;gap:6px;margin-bottom:14px;padding:7px 13px;
   background:var(--bg-2);color:var(--neon-cyan);text-decoration:none;border:1px solid var(--border);
-  font-weight:700;font-size:.8em;text-transform:uppercase;letter-spacing:.5px;transition:all .2s}
-.club-back:hover{border-color:var(--neon-cyan);box-shadow:0 0 8px rgba(5,217,232,.2)}
+  font-weight:700;font-size:.8em;text-transform:var(--et-title-case);letter-spacing:.5px;transition:all .2s}
+.club-back:hover{border-color:var(--neon-cyan);box-shadow: var(--et-glow)}
 .read-header{
   background:var(--bg-2);border:1px solid var(--border);padding:20px;margin-bottom:16px;
   display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;
-  clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,14px 100%,0 calc(100% - 14px));
+  clip-path:var(--et-clip-panel);
 }
 .read-cover{width:90px;height:auto;border:1px solid var(--border);flex-shrink:0}
 .read-title{
-  color:var(--neon-yellow);text-transform:uppercase;letter-spacing:1px;margin:0 0 4px;
-  text-shadow:0 0 10px rgba(252,238,10,.3);font-size:1.35em;font-weight:700;
+  color:var(--neon-yellow);text-transform:var(--et-title-case);letter-spacing:var(--et-title-spacing);margin:0 0 4px;
+  text-shadow:var(--et-glow-title);font-size:1.35em;font-weight:700;
+  font-family:var(--et-font-display);
 }
 .read-author{color:var(--muted);margin:0 0 10px}
-.read-club{font-size:.85em;font-family:'Share Tech Mono',monospace}
+.read-club{font-size:.85em;font-family:var(--et-font-mono)}
 .read-club a{color:var(--neon-cyan);text-decoration:none}
 .progress-row{
   background:var(--bg-2);border:1px solid var(--border);padding:14px 18px;margin-bottom:16px;
   display:flex;gap:12px;align-items:center;flex-wrap:wrap;
 }
-.progress-row label{font-size:.85em;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.progress-row label{font-size:.85em;color:var(--muted);text-transform:var(--et-title-case);letter-spacing:.5px}
 .progress-row select{
   padding:7px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);
   font-family:inherit;font-size:.95em;
@@ -63,14 +62,14 @@ body{
 .progress-row select:focus{outline:none;border-color:var(--neon-cyan)}
 .finish-me{
   padding:7px 14px;background:none;border:1px solid var(--neon-yellow);color:var(--neon-yellow);
-  cursor:pointer;font-weight:700;text-transform:uppercase;font-size:.75em;letter-spacing:.5px;
+  cursor:pointer;font-weight:700;text-transform:var(--et-title-case);font-size:.75em;letter-spacing:.5px;
   font-family:inherit;
 }
-.finish-me:hover{background:var(--neon-yellow);color:#141406}
+.finish-me:hover{background:var(--neon-yellow);color:var(--et-btn-fg)}
 .member-progress{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
 .mp-chip{
   font-size:.75em;padding:2px 8px;border:1px solid var(--border);color:var(--muted);
-  font-family:'Share Tech Mono',monospace;
+  font-family:var(--et-font-mono);
 }
 .mp-chip strong{color:var(--neon-cyan);font-weight:700}
 .mp-chip.done{border-color:var(--neon-yellow);color:var(--neon-yellow)}
@@ -81,13 +80,13 @@ details.milestone{
   background:var(--bg-2);border:1px solid var(--border);margin-bottom:10px;
 }
 details.milestone summary{
-  padding:14px 18px;cursor:pointer;font-weight:700;text-transform:uppercase;
+  padding:14px 18px;cursor:pointer;font-weight:700;text-transform:var(--et-title-case);
   letter-spacing:.5px;color:var(--neon-cyan);list-style:none;display:flex;gap:10px;align-items:center;
 }
 details.milestone summary::-webkit-details-marker{display:none}
 details.milestone summary::before{content:'▸';transition:transform .15s}
 details[open].milestone summary::before{transform:rotate(90deg)}
-.ms-count{margin-left:auto;font-size:.8em;color:var(--muted);font-family:'Share Tech Mono',monospace;font-weight:400}
+.ms-count{margin-left:auto;font-size:.8em;color:var(--muted);font-family:var(--et-font-mono);font-weight:400}
 .ms-body{padding:0 18px 16px}
 .locked{
   background:var(--bg-2);border:1px dashed var(--border);margin-bottom:10px;
@@ -104,21 +103,21 @@ details[open].milestone summary::before{transform:rotate(90deg)}
 }
 .bot-badge{
   font-size:.7em;padding:1px 6px;border:1px solid var(--neon-magenta);color:var(--neon-magenta);
-  font-family:'Share Tech Mono',monospace;text-transform:uppercase;letter-spacing:.5px;
+  font-family:var(--et-font-mono);text-transform:var(--et-title-case);letter-spacing:.5px;
 }
-.c-date{font-size:.75em;color:var(--muted);font-family:'Share Tech Mono',monospace}
+.c-date{font-size:.75em;color:var(--muted);font-family:var(--et-font-mono)}
 .c-text{margin:4px 0 6px;white-space:pre-wrap;word-break:break-word}
 .c-actions{display:flex;gap:10px}
 .c-actions button{
   background:none;border:none;color:var(--muted);cursor:pointer;font-size:.75em;
-  text-transform:uppercase;padding:0;font-family:inherit;letter-spacing:.5px;
+  text-transform:var(--et-title-case);padding:0;font-family:inherit;letter-spacing:.5px;
 }
 .c-actions button:hover{color:var(--neon-cyan)}
 .c-actions button.danger:hover{color:var(--neon-magenta)}
 .rx-row{display:flex;gap:6px;flex-wrap:wrap;margin:2px 0 6px;align-items:center}
 .rx-chip{
   background:var(--bg);border:1px solid var(--border);color:var(--text);cursor:pointer;
-  font-size:.8em;padding:2px 8px;font-family:'Share Tech Mono',monospace;
+  font-size:.8em;padding:2px 8px;font-family:var(--et-font-mono);
 }
 button.rx-chip:hover{border-color:var(--neon-yellow)}
 .rx-chip.mine{border-color:var(--neon-yellow);color:var(--neon-yellow)}
@@ -128,10 +127,10 @@ button.rx-chip:hover{border-color:var(--neon-yellow)}
   padding:2px 6px;
 }
 .rx-picker button:hover{border-color:var(--neon-cyan)}
-.pin-badge{font-size:.72em;color:var(--neon-yellow);text-transform:uppercase;letter-spacing:.5px}
+.pin-badge{font-size:.72em;color:var(--neon-yellow);text-transform:var(--et-title-case);letter-spacing:.5px}
 .ch-chip{
   font-size:.72em;color:var(--neon-magenta);border:1px solid var(--neon-magenta);
-  padding:1px 6px;font-family:'Share Tech Mono',monospace;
+  padding:1px 6px;font-family:var(--et-font-mono);
 }
 .spoiler-box{
   display:flex;gap:10px;align-items:center;flex-wrap:wrap;color:var(--muted);
@@ -139,7 +138,7 @@ button.rx-chip:hover{border-color:var(--neon-yellow)}
 }
 .spoiler-box button{
   background:none;border:1px solid var(--border);color:var(--muted);cursor:pointer;
-  font-size:.75em;padding:3px 9px;font-family:inherit;text-transform:uppercase;
+  font-size:.75em;padding:3px 9px;font-family:inherit;text-transform:var(--et-title-case);
 }
 .spoiler-box button:hover{border-color:var(--neon-magenta);color:var(--neon-magenta)}
 .ch-tag{
@@ -155,29 +154,29 @@ button.rx-chip:hover{border-color:var(--neon-yellow)}
 .composer textarea:focus{outline:none;border-color:var(--neon-cyan)}
 .composer-row{display:flex;gap:10px;align-items:center}
 .composer button{
-  padding:7px 16px;background:var(--neon-cyan);color:#04121a;border:none;font-weight:700;
-  cursor:pointer;text-transform:uppercase;font-size:.8em;letter-spacing:.5px;font-family:inherit;
+  padding:7px 16px;background:var(--neon-cyan);color:var(--et-accent-fg);border:none;font-weight:700;
+  cursor:pointer;text-transform:var(--et-title-case);font-size:.8em;letter-spacing:.5px;font-family:inherit;
 }
 .composer button:disabled{opacity:.4;cursor:default}
-.char-count{font-size:.75em;color:var(--muted);font-family:'Share Tech Mono',monospace}
+.char-count{font-size:.75em;color:var(--muted);font-family:var(--et-font-mono)}
 .view-switch{display:flex;gap:4px;margin-bottom:10px}
 .view-switch .tab{
   padding:8px 16px;background:var(--bg-2);border:1px solid var(--border);
-  color:var(--muted);cursor:pointer;font-weight:700;text-transform:uppercase;
+  color:var(--muted);cursor:pointer;font-weight:700;text-transform:var(--et-title-case);
   letter-spacing:.5px;font-size:.8em;font-family:inherit;
 }
 .view-switch .tab.active{color:var(--neon-cyan);border-color:var(--neon-cyan)}
 .quote-card{background:var(--bg-2);border:1px solid var(--border);padding:16px 18px;margin-bottom:10px}
 .quote-card blockquote{margin:0 0 8px;font-size:1.1em;line-height:1.5;font-style:italic}
-.quote-meta{display:flex;gap:10px;align-items:center;font-size:.8em;color:var(--muted);font-family:'Share Tech Mono',monospace}
-.quote-meta button{background:none;border:none;color:var(--muted);cursor:pointer;font-size:1em;text-transform:uppercase;padding:0;font-family:inherit}
+.quote-meta{display:flex;gap:10px;align-items:center;font-size:.8em;color:var(--muted);font-family:var(--et-font-mono)}
+.quote-meta button{background:none;border:none;color:var(--muted);cursor:pointer;font-size:1em;text-transform:var(--et-title-case);padding:0;font-family:inherit}
 .quote-meta button:hover{color:var(--neon-magenta)}
 .mention{color:var(--neon-cyan);font-weight:700}
 .mention-me{color:var(--neon-yellow)}
 .comment.mentions-me{border-left:2px solid var(--neon-yellow);padding-left:10px}
 .new-dot{width:8px;height:8px;border-radius:50%;background:var(--neon-yellow);display:inline-block}
 .new-count{color:var(--neon-yellow)}
-.comment.linked{background:rgba(5,217,232,.07);outline:1px solid var(--neon-cyan);padding:10px}
+.comment.linked{background:color-mix(in srgb, var(--et-accent) 8%, transparent);outline:1px solid var(--neon-cyan);padding:10px}
 .cw-notes{
   background:var(--bg-2);border:1px solid var(--border);padding:10px 16px;margin-bottom:16px;
   color:var(--muted);font-size:.92em;
@@ -200,12 +199,12 @@ button.rx-chip:hover{border-color:var(--neon-yellow)}
 }
 .starter-q button{
   background:none;border:1px solid var(--border);color:var(--muted);cursor:pointer;
-  font-size:.72em;padding:3px 9px;font-family:inherit;text-transform:uppercase;
+  font-size:.72em;padding:3px 9px;font-family:inherit;text-transform:var(--et-title-case);
 }
 .starter-q button:hover{border-color:var(--neon-cyan);color:var(--neon-cyan)}
 details.chapters-wrap{border:1px solid var(--border);background:var(--bg);margin-top:14px}
 details.chapters-wrap > summary{
-  padding:10px 14px;cursor:pointer;color:var(--muted);font-size:.85em;text-transform:uppercase;
+  padding:10px 14px;cursor:pointer;color:var(--muted);font-size:.85em;text-transform:var(--et-title-case);
   letter-spacing:.5px;list-style:none;display:flex;gap:10px;align-items:center;
 }
 details.chapters-wrap > summary::-webkit-details-marker{display:none}
@@ -219,7 +218,7 @@ details.milestone.ch-section summary{padding:10px 14px;font-size:.85em;color:var
   padding:12px 16px;border:1px solid var(--neon-yellow);background:var(--bg-2);
   color:var(--neon-yellow);margin-bottom:16px;font-size:.95em;
 }
-.loading,.empty{text-align:center;padding:30px;color:var(--muted);font-family:'Share Tech Mono',monospace}
+.loading,.empty{text-align:center;padding:30px;color:var(--muted);font-family:var(--et-font-mono)}
 .error-box{
   padding:12px 16px;border:1px solid var(--neon-magenta);background:var(--bg-2);
   color:var(--neon-magenta);margin-bottom:16px;
@@ -249,21 +248,40 @@ details.milestone.ch-section summary{padding:10px 14px;font-size:.85em;color:var
 .identity-bar__google-btn:disabled{opacity:.6;cursor:wait}
 .identity-bar__logout-btn{
   background:none;border:1px solid var(--border,#2a2a3a);color:var(--muted,#8a8f98);cursor:pointer;
-  font-size:.75em;padding:4px 10px;font-family:inherit;text-transform:uppercase;letter-spacing:.5px;
+  font-size:.75em;padding:4px 10px;font-family:inherit;text-transform:var(--et-title-case);letter-spacing:.5px;
 }
 .identity-bar__logout-btn:hover{border-color:var(--neon-magenta,#ff2a6d);color:var(--neon-magenta,#ff2a6d)}
 
 .nav-link.active{border-color:var(--neon-cyan,#05d9e8);color:var(--neon-yellow,#fcee0a)}
 
-/* Light theme: html.light overrides the palette vars site-wide */
-html.light{
-  --bg:#eef0f5; --bg-2:#ffffff; --text:#16161e; --muted:#5c6270; --border:#c9cdd9;
-  --neon-yellow:#9a7b00; --neon-cyan:#00798f; --neon-magenta:#c31e58;
-}
-html.light body{background-image:none}
 </style>
 </head>
 <body>
+<!-- Estate settings cog: theme + light/dark. static/js/theme.js wires this
+     standard markup (select#hg-theme-select, [data-hg-mode]) automatically. -->
+<button id="hg-cog" class="hg-cog" type="button" aria-expanded="false" aria-controls="hg-cog-panel" aria-label="Display settings">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.56-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.09a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.09a1.7 1.7 0 0 0 1.56 1.03H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1.03z"/></svg>
+</button>
+<div id="hg-cog-panel" class="hg-cog-panel" hidden>
+  <div class="hg-row">
+    <label class="hg-label" for="hg-theme-select">Theme</label>
+    <select id="hg-theme-select">
+      <option value="cyberpunk">Cyberpunk</option>
+      <option value="apple">Apple</option>
+      <option value="retro">Retro</option>
+    </select>
+  </div>
+  <div class="hg-row">
+    <span class="hg-label" id="hg-mode-label">Appearance</span>
+    <div class="hg-mode-group" role="group" aria-labelledby="hg-mode-label">
+      <button type="button" data-hg-mode="auto" aria-pressed="true">Auto</button>
+      <button type="button" data-hg-mode="light" aria-pressed="false">Light</button>
+      <button type="button" data-hg-mode="dark" aria-pressed="false">Dark</button>
+    </div>
+  </div>
+  <p class="hg-cog-note">Your choice is remembered on this site only — each catalogue keeps its own look until you change it there.</p>
+</div>
+
 <div id="wrap">
   <div class="nav-row">
     <a href="index.html" class="nav-link">Catalog</a>
@@ -281,9 +299,9 @@ html.light body{background-image:none}
 <div id="cr-rate-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;align-items:center;justify-content:center;padding:16px">
   <div style="background:var(--bg-2);border:1px solid var(--neon-yellow);max-width:440px;width:100%;padding:20px;position:relative;box-sizing:border-box">
     <button id="cr-rate-close" style="position:absolute;top:8px;right:10px;background:none;border:none;color:var(--muted);font-size:1.4em;line-height:1;cursor:pointer">×</button>
-    <h2 style="margin:0 0 4px;color:var(--neon-yellow);text-transform:uppercase;letter-spacing:1px;font-size:1.1em">You finished it! Rate this book</h2>
+    <h2 style="margin:0 0 4px;color:var(--neon-yellow);text-transform:var(--et-title-case);letter-spacing:var(--et-title-spacing);font-size:1.1em">You finished it! Rate this book</h2>
     <div id="cr-rate-title" style="color:var(--neon-cyan);font-weight:700;margin-bottom:14px"></div>
-    <label for="cr-rate-stars" style="display:block;font-size:.8em;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Your rating</label>
+    <label for="cr-rate-stars" style="display:block;font-size:.8em;color:var(--muted);text-transform:var(--et-title-case);letter-spacing:.5px;margin-bottom:4px">Your rating</label>
     <select id="cr-rate-stars" style="width:100%;padding:8px;background:var(--bg);color:var(--text);border:1px solid var(--border);margin-bottom:14px;box-sizing:border-box">
       <option value="5">★★★★★ (5)</option>
       <option value="4.5">4.5</option>
@@ -296,11 +314,11 @@ html.light body{background-image:none}
       <option value="1">★ (1)</option>
       <option value="0.5">0.5</option>
     </select>
-    <label for="cr-rate-text" style="display:block;font-size:.8em;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Review (optional — posts to the catalog's reviews)</label>
+    <label for="cr-rate-text" style="display:block;font-size:.8em;color:var(--muted);text-transform:var(--et-title-case);letter-spacing:.5px;margin-bottom:4px">Review (optional — posts to the catalog's reviews)</label>
     <textarea id="cr-rate-text" maxlength="1000" rows="3" style="width:100%;padding:8px;background:var(--bg);color:var(--text);border:1px solid var(--border);margin-bottom:12px;box-sizing:border-box;font-family:inherit"></textarea>
     <div id="cr-rate-existing" style="display:none;color:var(--muted);font-size:.85em;margin-bottom:8px"></div>
     <div id="cr-rate-error" style="color:var(--neon-magenta);font-size:.85em;margin-bottom:8px"></div>
-    <button id="cr-rate-submit" class="nav-link" style="width:100%;background:var(--neon-cyan);color:#04121a;border:none;font-weight:700">Submit Rating</button>
+    <button id="cr-rate-submit" class="nav-link" style="width:100%;background:var(--neon-cyan);color:var(--et-accent-fg);border:none;font-weight:700">Submit Rating</button>
     <button id="cr-rate-later" class="nav-link" style="width:100%;margin-top:8px">Maybe later</button>
   </div>
 </div>
