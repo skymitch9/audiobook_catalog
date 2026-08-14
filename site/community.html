@@ -151,6 +151,21 @@ h1{
 
 .nav-link.active{border-color:var(--neon-cyan,#05d9e8);color:var(--neon-yellow,#fcee0a)}
 
+
+/* =============== CYBERPUNK IDENTITY RESTORES ===============
+   Owner, 2026-08-14: "/dev/ and the existing page don't look the same."
+   Pre-theme literals (a202f4a), verbatim, scoped to the default theme so
+   the other themes keep their honest token rendering. */
+html[data-theme="cyberpunk"] h1{letter-spacing:2px}
+html[data-theme="cyberpunk"] .nav-link:hover{box-shadow:0 0 8px rgba(5,217,232,.2)}
+html[data-theme="cyberpunk"] .cb-title{letter-spacing:1.5px}
+html[data-theme="cyberpunk"] .um-name{letter-spacing:1px}
+/* Cards/modal drop their clips on small screens (base rules above, by order);
+   these higher-specificity restores must not undo that. */
+@media(min-width:601px){
+  html[data-theme="cyberpunk"] .user-card{clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px))}
+  html[data-theme="cyberpunk"] .user-modal-panel{clip-path:polygon(0 0,calc(100% - 16px) 0,100% 16px,100% 100%,16px 100%,0 calc(100% - 16px))}
+}
 </style>
 </head>
 <body>
