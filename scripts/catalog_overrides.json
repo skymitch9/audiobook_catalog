@@ -1038,6 +1038,918 @@
           "the owner, 2026-08-11: 'yes I own Tamer twice with different narration'"
         ]
       }
+    },
+    {
+      "book": "Demonic Devourer: Book 2: Demonic Devourer Series - Aaron Shih",
+      "match": {
+        "author": "Aaron Shih",
+        "title": "Demonic Devourer: Book 2: Demonic Devourer Series"
+      },
+      "set": {
+        "series": "Demonic Devourer",
+        "series_index": "2"
+      },
+      "added": "2026-08-14",
+      "evidence": {
+        "series": "title reads 'Demonic Devourer: Book 2: Demonic Devourer Series' - the series names itself twice; the catalog was deriving the broken 'Demonic Devourer: Book'",
+        "series_index": "'Book 2' in the title; book 1 in the library is tagged Demonic Devourer #1",
+        "tags_read": {
+          "©nam": "Demonic Devourer: Book 2: Demonic Devourer Series",
+          "©alb": "Demonic Devourer: Book 2: Demonic Devourer Series",
+          "©ART": "Aaron Shih",
+          "©wrt": "Aven Shore",
+          "©day": "2024",
+          "©gen": "Audiobook",
+          "trkn": "absent",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "Demonic Devourer- Book 2",
+        "sources": []
+      }
+    },
+    {
+      "book": "Demonic Devourer: Book 3: Demonic Devourer Series - Aaron Shih",
+      "match": {
+        "author": "Aaron Shih",
+        "title": "Demonic Devourer: Book 3: Demonic Devourer Series"
+      },
+      "set": {
+        "series": "Demonic Devourer",
+        "series_index": "3"
+      },
+      "added": "2026-08-14",
+      "evidence": {
+        "series": "title reads 'Demonic Devourer: Book 3: Demonic Devourer Series' - the series names itself twice; the catalog was deriving the broken 'Demonic Devourer: Book'",
+        "series_index": "'Book 3' in the title; book 1 in the library is tagged Demonic Devourer #1",
+        "tags_read": {
+          "©nam": "Demonic Devourer: Book 3: Demonic Devourer Series",
+          "©alb": "Demonic Devourer: Book 3: Demonic Devourer Series",
+          "©ART": "Aaron Shih",
+          "©wrt": "Aven Shore",
+          "©day": "2024",
+          "©gen": "Audiobook",
+          "trkn": "absent",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "Demonic Devourer- Book 3",
+        "sources": []
+      }
+    },
+    {
+      "book": "The Gender Game 2: The Gender Secret - Bella Forrest",
+      "match": {
+        "asin": "B06ZYBB7F3"
+      },
+      "set": {
+        "series": "The Gender Game",
+        "series_index": "2"
+      },
+      "added": "2026-08-14",
+      "evidence": {
+        "series": "title 'The Gender Game 2: The Gender Secret' states series and volume; the numbered-title pattern holds across the owned run 2-7",
+        "series_index": "the 2 in the title; trkn=1 here means track 1 of 1, not volume",
+        "tags_read": {
+          "©nam": "The Gender Game 2: The Gender Secret",
+          "©alb": "The Gender Game 2: The Gender Secret",
+          "©ART": "Bella Forrest",
+          "©wrt": "Jason Clarke, Elizabeth Evans, Rebecca Soler",
+          "©day": "2017-04-18",
+          "©gen": "Audiobook",
+          "trkn": "(1, 0)",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "B06ZYBB7F3"
+        },
+        "filename_said": "The Gender Game 2- The Gender Secret",
+        "sources": []
+      }
+    },
+    {
+      "book": "The Gender Game 3: The Gender Lie - Bella Forrest",
+      "match": {
+        "asin": "B071CFLWZR"
+      },
+      "set": {
+        "series": "The Gender Game",
+        "series_index": "3"
+      },
+      "added": "2026-08-14",
+      "evidence": {
+        "series": "title 'The Gender Game 3: The Gender Lie' states series and volume; the numbered-title pattern holds across the owned run 2-7",
+        "series_index": "the 3 in the title; trkn=1 here means track 1 of 1, not volume",
+        "tags_read": {
+          "©nam": "The Gender Game 3: The Gender Lie",
+          "©alb": "The Gender Game 3: The Gender Lie",
+          "©ART": "Bella Forrest",
+          "©wrt": "Rebecca Soler, Jason Clarke",
+          "©day": "2017-04-18",
+          "©gen": "Audiobook",
+          "trkn": "(1, 0)",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "B071CFLWZR"
+        },
+        "filename_said": "The Gender Game 3- The Gender Lie",
+        "sources": []
+      }
+    },
+    {
+      "book": "The Gender Game 4: The Gender War - Bella Forrest",
+      "match": {
+        "asin": "B06ZZH3JD6"
+      },
+      "set": {
+        "series": "The Gender Game",
+        "series_index": "4"
+      },
+      "added": "2026-08-14",
+      "evidence": {
+        "series": "title 'The Gender Game 4: The Gender War' states series and volume; the numbered-title pattern holds across the owned run 2-7",
+        "series_index": "the 4 in the title; trkn=1 here means track 1 of 1, not volume",
+        "tags_read": {
+          "©nam": "The Gender Game 4: The Gender War",
+          "©alb": "The Gender Game 4: The Gender War",
+          "©ART": "Bella Forrest",
+          "©wrt": "Rebecca Soler, Jason Clarke",
+          "©day": "2017-04-18",
+          "©gen": "Teen & Young Adult:Science Fiction & Fantasy:Fantasy",
+          "trkn": "(1, 0)",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "B06ZZH3JD6"
+        },
+        "filename_said": "The Gender Game 4- The Gender War",
+        "sources": []
+      }
+    },
+    {
+      "book": "The Gender Game 6: The Gender Plan - Bella Forrest",
+      "match": {
+        "asin": "B071GM2Q85"
+      },
+      "set": {
+        "series": "The Gender Game",
+        "series_index": "6"
+      },
+      "added": "2026-08-14",
+      "evidence": {
+        "series": "title 'The Gender Game 6: The Gender Plan' states series and volume; the numbered-title pattern holds across the owned run 2-7",
+        "series_index": "the 6 in the title; trkn=1 here means track 1 of 1, not volume",
+        "tags_read": {
+          "©nam": "The Gender Game 6: The Gender Plan",
+          "©alb": "The Gender Game 6: The Gender Plan",
+          "©ART": "Bella Forrest",
+          "©wrt": "Rebecca Soler, Jason Clarke",
+          "©day": "2017-06-09",
+          "©gen": "Romance:Science Fiction",
+          "trkn": "(1, 0)",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "B071GM2Q85"
+        },
+        "filename_said": "The Gender Game 6- The Gender Plan",
+        "sources": []
+      }
+    },
+    {
+      "book": "The Gender Game 7: The Gender End - Bella Forrest",
+      "match": {
+        "asin": "B0758TS5FP"
+      },
+      "set": {
+        "series": "The Gender Game",
+        "series_index": "7"
+      },
+      "added": "2026-08-14",
+      "evidence": {
+        "series": "title 'The Gender Game 7: The Gender End' states series and volume; the numbered-title pattern holds across the owned run 2-7",
+        "series_index": "the 7 in the title; trkn=1 here means track 1 of 1, not volume",
+        "tags_read": {
+          "©nam": "The Gender Game 7: The Gender End",
+          "©alb": "The Gender Game 7: The Gender End",
+          "©ART": "Bella Forrest",
+          "©wrt": "Rebecca Soler, Jason Clarke",
+          "©day": "2017-08-28",
+          "©gen": "Romance:Science Fiction",
+          "trkn": "(1, 0)",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "B0758TS5FP"
+        },
+        "filename_said": "The Gender Game 7- The Gender End",
+        "sources": []
+      }
+    },
+    {
+      "book": "Feet in the Fire: The Redemption of Howard Marsh 3 (The Jubal County Saga, Book 3) - Bob Mcgough",
+      "match": {
+        "author": "Bob Mcgough",
+        "title": "Feet in the Fire: The Redemption of Howard Marsh 3 (The Jubal County Saga, Book 3)"
+      },
+      "set": {
+        "series": "The Jubal County Saga",
+        "series_index": "3"
+      },
+      "added": "2026-08-14",
+      "evidence": {
+        "series": "title carries '(The Jubal County Saga, Book 3)' verbatim",
+        "series_index": "'Book 3' verbatim in the title, agreeing with 'The Redemption of Howard Marsh 3'",
+        "tags_read": {
+          "©nam": "Feet in the Fire: The Redemption of Howard Marsh 3 (The Jubal County Saga, Book 3)",
+          "©alb": "Feet in the Fire: The Redemption of Howard Marsh 3 (The Jubal County Saga, Book 3)",
+          "©ART": "Bob McGough",
+          "©wrt": "John Solo",
+          "©day": "2025",
+          "©gen": "Audiobook",
+          "trkn": "absent",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "Feet in the Fire",
+        "sources": []
+      }
+    },
+    {
+      "book": "The Depth of the Water: The Redemption of Howard Marsh 2 (The Jubal County Saga) - Bob Mcgough",
+      "match": {
+        "author": "Bob Mcgough",
+        "title": "The Depth of the Water: The Redemption of Howard Marsh 2 (The Jubal County Saga)"
+      },
+      "set": {
+        "series": "The Jubal County Saga",
+        "series_index": "2"
+      },
+      "added": "2026-08-14",
+      "evidence": {
+        "series": "title carries '(The Jubal County Saga)' and the catalog had split it into series 'The Jubal' volume 'County Saga'",
+        "series_index": "subtitle 'The Redemption of Howard Marsh 2' numbers the book; sibling 'Feet in the Fire' says 'Book 3' outright",
+        "tags_read": {
+          "©nam": "The Depth of the Water: The Redemption of Howard Marsh 2 (The Jubal County Saga)",
+          "©alb": "The Depth of the Water: The Redemption of Howard Marsh 2 (The Jubal County Saga)",
+          "©ART": "Bob McGough",
+          "©wrt": "John Solo",
+          "©day": "2024",
+          "©gen": "Audiobook",
+          "trkn": "absent",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "The Depth of the Water",
+        "sources": []
+      }
+    },
+    {
+      "book": "Praying the Day's Not Poison: The Redemption of Howard Marsh 4 (The Jubal County Saga) - Bob Mcgough",
+      "match": {
+        "author": "Bob Mcgough",
+        "title": "Praying the Day's Not Poison: The Redemption of Howard Marsh 4 (The Jubal County Saga)"
+      },
+      "set": {
+        "series": "The Jubal County Saga",
+        "series_index": "4"
+      },
+      "added": "2026-08-14",
+      "evidence": {
+        "series": "title carries '(The Jubal County Saga)' and the catalog had split it into series 'The Jubal' volume 'County Saga'",
+        "series_index": "subtitle 'The Redemption of Howard Marsh 4' numbers the book, continuing the 2-3-4 run",
+        "tags_read": {
+          "©nam": "Praying the Day's Not Poison: The Redemption of Howard Marsh 4 (The Jubal County Saga)",
+          "©alb": "Praying the Day's Not Poison: The Redemption of Howard Marsh 4 (The Jubal County Saga)",
+          "©ART": "Bob McGough",
+          "©wrt": "John Solo",
+          "©day": "2026",
+          "©gen": "Audiobook",
+          "trkn": "absent",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "Praying the Day's Not Poison",
+        "sources": []
+      }
+    },
+    {
+      "book": "The Great Cleric: Volume 1 - Broccoli Lion, Matthew Jackson - Translator - Translator",
+      "match": {
+        "author": "Broccoli Lion, Matthew Jackson - Translator - Translator",
+        "title": "The Great Cleric: Volume 1"
+      },
+      "set": {
+        "series": "The Great Cleric",
+        "series_index": "1"
+      },
+      "added": "2026-08-14",
+      "evidence": {
+        "series": "title 'The Great Cleric: Volume 1' states both; entry recorded so the curated sweep can write the absent SRNM/SRSQ",
+        "series_index": "'Volume 1' in the title",
+        "tags_read": {
+          "©nam": "The Great Cleric: Volume 1",
+          "©alb": "The Great Cleric: Volume 1",
+          "©ART": "Broccoli Lion, Matthew Jackson - Translator - translator",
+          "©wrt": "Dillon Sickels",
+          "©day": "2025",
+          "©gen": "Audiobook",
+          "trkn": "absent",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "The Great Cleric- Volume 1",
+        "sources": []
+      }
+    },
+    {
+      "book": "Skeleton Knight in Another World, Vol. 6: Light Novel - Ennki Hakari",
+      "match": {
+        "author": "Ennki Hakari",
+        "title": "Skeleton Knight in Another World, Vol. 6: Light Novel"
+      },
+      "set": {
+        "series": "Skeleton Knight in Another World",
+        "series_index": "6"
+      },
+      "added": "2026-08-14",
+      "evidence": {
+        "series": "title 'Skeleton Knight in Another World, Vol. 6: Light Novel'; the catalog was deriving the broken 'Skeleton Knight in Another World, Vol.'",
+        "series_index": "'Vol. 6' in the title",
+        "tags_read": {
+          "©nam": "Skeleton Knight in Another World, Vol. 6: Light Novel",
+          "©alb": "Skeleton Knight in Another World, Vol. 6: Light Novel",
+          "©ART": "Ennki Hakari",
+          "©wrt": "Fred Berman",
+          "©day": "2026",
+          "©gen": "Audiobook",
+          "trkn": "absent",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "Skeleton Knight in Another World, Vol. 6",
+        "sources": []
+      }
+    },
+    {
+      "book": "Empire of the Vampire: Book One - Jay Kristoff, Bon Orthwick",
+      "match": {
+        "author": "Jay Kristoff, Bon Orthwick",
+        "title": "Empire of the Vampire: Book One"
+      },
+      "set": {
+        "series": "Empire of the Vampire",
+        "series_index": "1"
+      },
+      "added": "2026-08-14",
+      "evidence": {
+        "series": "title 'Empire of the Vampire: Book One'; entry recorded so the curated sweep can write the absent SRNM/SRSQ",
+        "series_index": "'Book One' in the title",
+        "tags_read": {
+          "©nam": "Empire of the Vampire: Book One",
+          "©alb": "Empire of the Vampire: Book One",
+          "©ART": "Jay Kristoff, Bon Orthwick",
+          "©wrt": "Damian Lynch",
+          "©day": "2021",
+          "©gen": "Audiobook",
+          "trkn": "absent",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "Empire of the Vampire",
+        "sources": []
+      }
+    },
+    {
+      "book": "Didn’t I Say to Make My Abilities Average in the Next Life?!, Vol. 2: Light Novel - Funa",
+      "match": {
+        "author": "Funa",
+        "title": "Didn’t I Say to Make My Abilities Average in the Next Life?!, Vol. 2: Light Novel"
+      },
+      "set": {
+        "series": "Didn’t I Say to Make My Abilities Average in the Next Life?!",
+        "series_index": "2"
+      },
+      "added": "2026-08-14",
+      "evidence": {
+        "series": "title '... in the Next Life?!, Vol. 2: Light Novel'; the catalog was deriving the broken series ending in ', Vol.'",
+        "series_index": "'Vol. 2' in the title",
+        "tags_read": {
+          "©nam": "Didn’t I Say to Make My Abilities Average in the Next Life?!, Vol. 2: Light Novel",
+          "©alb": "Didn’t I Say to Make My Abilities Average in the Next Life?!, Vol. 2: Light Novel",
+          "©ART": "Funa",
+          "©wrt": "Kara Oates",
+          "©day": "2026",
+          "©gen": "Audiobook",
+          "trkn": "absent",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "Didn’t I Say to Make My Abilities Average in the Next Life-!, Vol. 2",
+        "sources": []
+      }
+    },
+    {
+      "book": "Harry Potter and the Goblet of Fire (Full-Cast Edition) - J.k. Rowling",
+      "match": {
+        "author": "J.k. Rowling",
+        "title": "Harry Potter and the Goblet of Fire (Full-Cast Edition)"
+      },
+      "set": {
+        "series": "Harry Potter (Full-Cast Editions)",
+        "series_index": "4"
+      },
+      "added": "2026-08-14",
+      "evidence": {
+        "series": "the library's own series for these editions is 'Harry Potter (Full-Cast Editions)' and its run shows exactly volume 4 missing; the title-parser had read series 'Full' volume 'Cast Edition'",
+        "series_index": "Goblet of Fire is Harry Potter book 4; the survey's gap report lists [4] as the missing volume in this series",
+        "tags_read": {
+          "©nam": "Harry Potter and the Goblet of Fire (Full-Cast Edition)",
+          "©alb": "Harry Potter and the Goblet of Fire (Full-Cast Edition)",
+          "©ART": "J.K. Rowling",
+          "©wrt": "Hugh Laurie, James McAvoy, Ruth Wilson, Michelle Gomez, Riz Ahmed, Ṣọpẹ́ Dìrísù, Leo Woodall, Alex Hassell, Simon Pegg, Mark Addy, Daniel Mays, Cush Jumbo, Jaxon Knopf, Rhys Mulligan, Nina Barker-Francis",
+          "©day": "2026-02-10",
+          "©gen": "Children's Audiobooks:Growing Up & Facts of Life",
+          "trkn": "(1, 0)",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "Harry Potter and the Goblet of Fire (Full-Cast Edition)",
+        "sources": []
+      }
+    },
+    {
+      "book": "Binding - J.l.mullins",
+      "match": {
+        "author": "J.l.mullins",
+        "title": "Binding"
+      },
+      "set": {
+        "series": "Millennial Mage",
+        "series_index": "3"
+      },
+      "added": "2026-08-14",
+      "evidence": {
+        "series": "Millennial Mage #1 Mageling and #2 Mage are curated siblings; Binding is the third book of the same run, and this filename's series slot carries the book title instead (the known damaged-filename pattern in this author folder)",
+        "series_index": "trkn=3 and the filename says '[Binding - 3]'; two independent in-file sources agree",
+        "tags_read": {
+          "©nam": "Binding",
+          "©alb": "Binding",
+          "©ART": "J.L.Mullins",
+          "©wrt": "Tess Irondale",
+          "©day": "2023",
+          "©gen": "Fantasy",
+          "trkn": "(3, 0)",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "J.L.Mullins - [Binding - 3] - Binding (Tess Irondale)",
+        "sources": []
+      }
+    },
+    {
+      "book": "Bunny Girl Evolution 2: A Monster Evolution LitRPG - Sir Bedivere The Mad",
+      "match": {
+        "author": "Sir Bedivere The Mad",
+        "title": "Bunny Girl Evolution 2: A Monster Evolution LitRPG"
+      },
+      "set": {
+        "series": "Bunny Girl Evolution",
+        "series_index": "2"
+      },
+      "added": "2026-08-14",
+      "evidence": {
+        "series": "title 'Bunny Girl Evolution 2: A Monster Evolution LitRPG' states series and volume",
+        "series_index": "the 2 in the title",
+        "tags_read": {
+          "©nam": "Bunny Girl Evolution 2: A Monster Evolution LitRPG",
+          "©alb": "Bunny Girl Evolution 2: A Monster Evolution LitRPG",
+          "©ART": "Sir Bedivere the Mad",
+          "©wrt": "Dorrie Sacks, Justin Thomas James, Jeff Hays, Jack Fields, Tess Irondale, Jessica Threet",
+          "©day": "2026",
+          "©gen": "Audiobook",
+          "trkn": "absent",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "Bunny Girl Evolution 2",
+        "sources": []
+      }
+    },
+    {
+      "book": "Bunny Girl Evolution 3: A Monster Evolution LitRPG - Sir Bedivere The Mad",
+      "match": {
+        "author": "Sir Bedivere The Mad",
+        "title": "Bunny Girl Evolution 3: A Monster Evolution LitRPG"
+      },
+      "set": {
+        "series": "Bunny Girl Evolution",
+        "series_index": "3"
+      },
+      "added": "2026-08-14",
+      "evidence": {
+        "series": "title 'Bunny Girl Evolution 3: A Monster Evolution LitRPG' states series and volume",
+        "series_index": "the 3 in the title",
+        "tags_read": {
+          "©nam": "Bunny Girl Evolution 3: A Monster Evolution LitRPG",
+          "©alb": "Bunny Girl Evolution 3: A Monster Evolution LitRPG",
+          "©ART": "Sir Bedivere the Mad",
+          "©wrt": "Dorrie Sacks, Jack Fields, Jessica Threet, Tess Irondale, Justin Thomas James, Jeff Hays",
+          "©day": "2026",
+          "©gen": "Audiobook",
+          "trkn": "absent",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "Bunny Girl Evolution 3",
+        "sources": []
+      }
+    },
+    {
+      "book": "Beyond Respawn: A Gamer's Rebirth (Volume 1) - Invayne _",
+      "match": {
+        "asin": "B0CYCGY7PZ"
+      },
+      "set": {
+        "series": "Beyond Respawn: A Gamer's Rebirth",
+        "series_index": "1"
+      },
+      "added": "2026-08-14",
+      "evidence": {
+        "series": "series name is the title minus its '(Volume N)' marker, stated mechanically by the title itself",
+        "series_index": "'(Volume 1)' in the title",
+        "tags_read": {
+          "©nam": "Beyond Respawn: A Gamer's Rebirth (Volume 1)",
+          "©alb": "Beyond Respawn: A Gamer's Rebirth (Volume 1)",
+          "©ART": "invayne _",
+          "©wrt": "Virtual Voice",
+          "©day": "2024-08-01",
+          "©gen": "Science Fiction & Fantasy:Fantasy",
+          "trkn": "(1, 0)",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "B0CYCGY7PZ"
+        },
+        "filename_said": "Beyond Respawn- A Gamer's Rebirth (Volume 1)",
+        "sources": []
+      }
+    },
+    {
+      "book": "Beyond Respawn: A Gamer's Rebirth (Volume 2) - Invayne _",
+      "match": {
+        "asin": "B0D2N4J3N1"
+      },
+      "set": {
+        "series": "Beyond Respawn: A Gamer's Rebirth",
+        "series_index": "2"
+      },
+      "added": "2026-08-14",
+      "evidence": {
+        "series": "series name is the title minus its '(Volume N)' marker, stated mechanically by the title itself",
+        "series_index": "'(Volume 2)' in the title",
+        "tags_read": {
+          "©nam": "Beyond Respawn: A Gamer's Rebirth (Volume 2)",
+          "©alb": "Beyond Respawn: A Gamer's Rebirth (Volume 2)",
+          "©ART": "invayne _",
+          "©wrt": "Virtual Voice",
+          "©day": "2024-09-30",
+          "©gen": "Science Fiction & Fantasy:Fantasy",
+          "trkn": "(1, 0)",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "B0D2N4J3N1"
+        },
+        "filename_said": "Beyond Respawn- A Gamer's Rebirth (Volume 2)",
+        "sources": []
+      }
+    },
+    {
+      "book": "Beyond Respawn: A Gamer's Rebirth (Volume 3) - Invayne _",
+      "match": {
+        "asin": "B0F5QNWGQC"
+      },
+      "set": {
+        "series": "Beyond Respawn: A Gamer's Rebirth",
+        "series_index": "3"
+      },
+      "added": "2026-08-14",
+      "evidence": {
+        "series": "series name is the title minus its '(Volume N)' marker, stated mechanically by the title itself",
+        "series_index": "'(Volume 3)' in the title",
+        "tags_read": {
+          "©nam": "Beyond Respawn: A Gamer's Rebirth (Volume 3)",
+          "©alb": "Beyond Respawn: A Gamer's Rebirth (Volume 3)",
+          "©ART": "invayne _",
+          "©wrt": "Virtual Voice",
+          "©day": "2025-04-21",
+          "©gen": "Science Fiction & Fantasy:Fantasy",
+          "trkn": "(1, 0)",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "B0F5QNWGQC"
+        },
+        "filename_said": "Beyond Respawn- A Gamer's Rebirth (Volume 3)",
+        "sources": []
+      }
+    },
+    {
+      "book": "Legend Of Yuki: The Wrath Of The Tailed Asura (Volume 1) - Invayne _",
+      "match": {
+        "asin": "B0CYBJR891"
+      },
+      "set": {
+        "series": "Legend Of Yuki: The Wrath Of The Tailed Asura",
+        "series_index": "1"
+      },
+      "added": "2026-08-14",
+      "evidence": {
+        "series": "series name is the title minus its '(Volume N)' marker, stated mechanically by the title itself",
+        "series_index": "'(Volume 1)' in the title",
+        "tags_read": {
+          "©nam": "Legend Of Yuki: The Wrath Of The Tailed Asura (Volume 1)",
+          "©alb": "Legend Of Yuki: The Wrath Of The Tailed Asura (Volume 1)",
+          "©ART": "Invayne _",
+          "©wrt": "Virtual Voice",
+          "©day": "2024-04-17",
+          "©gen": "LGBTQ+:Romance",
+          "trkn": "(1, 0)",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "B0CYBJR891"
+        },
+        "filename_said": "Legend Of Yuki- The Wrath Of The Tailed Asura (Volume 1)",
+        "sources": []
+      }
+    },
+    {
+      "book": "Monster Academy: Rise of the Card Master (Volume 1) - Invayne _",
+      "match": {
+        "asin": "B0F5QTSGX5"
+      },
+      "set": {
+        "series": "Monster Academy: Rise of the Card Master",
+        "series_index": "1"
+      },
+      "added": "2026-08-14",
+      "evidence": {
+        "series": "series name is the title minus its '(Volume N)' marker, stated mechanically by the title itself",
+        "series_index": "'(Volume 1)' in the title",
+        "tags_read": {
+          "©nam": "Monster Academy: Rise of the Card Master (Volume 1)",
+          "©alb": "Monster Academy: Rise of the Card Master (Volume 1)",
+          "©ART": "invayne _",
+          "©wrt": "Virtual Voice",
+          "©day": "2025-04-21",
+          "©gen": "Science Fiction & Fantasy:Fantasy",
+          "trkn": "(1, 0)",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "B0F5QTSGX5"
+        },
+        "filename_said": "Monster Academy- Rise of the Card Master (Volume 1)",
+        "sources": []
+      }
+    },
+    {
+      "book": "Rebirth: How To Make A Villainess (Volume 1) - Invayne _",
+      "match": {
+        "asin": "B0DS6CZ92D"
+      },
+      "set": {
+        "series": "Rebirth: How To Make A Villainess",
+        "series_index": "1"
+      },
+      "added": "2026-08-14",
+      "evidence": {
+        "series": "series name is the title minus its '(Volume N)' marker, stated mechanically by the title itself",
+        "series_index": "'(Volume 1)' in the title",
+        "tags_read": {
+          "©nam": "Rebirth: How To Make A Villainess (Volume 1)",
+          "©alb": "Rebirth: How To Make A Villainess (Volume 1)",
+          "©ART": "invayne _",
+          "©wrt": "Virtual Voice",
+          "©day": "2025-01-03",
+          "©gen": "Teen & Young Adult:Literature & Fiction",
+          "trkn": "(1, 0)",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "B0DS6CZ92D"
+        },
+        "filename_said": "Rebirth- How To Make A Villainess (Volume 1)",
+        "sources": []
+      }
+    },
+    {
+      "book": "Threads of Fate: Book 1 - Invayne _",
+      "match": {
+        "asin": "B0FPBKSZBD"
+      },
+      "set": {
+        "series": "Threads of Fate",
+        "series_index": "1"
+      },
+      "added": "2026-08-14",
+      "evidence": {
+        "series": "title 'Threads of Fate: Book 1' states both. NOTE for the owner: Reincarnation.m4b also claims Threads of Fate #1 (DUPLICATE_VOLUME) - possibly the same book on disk twice; this entry corrects only this file",
+        "series_index": "'Book 1' in the title",
+        "tags_read": {
+          "©nam": "Threads of Fate: Book 1",
+          "©alb": "Threads of Fate: Book 1",
+          "©ART": "invayne _",
+          "©wrt": "Virtual Voice",
+          "©day": "2025-08-31",
+          "©gen": "Science Fiction & Fantasy:Fantasy",
+          "trkn": "(1, 0)",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "B0FPBKSZBD"
+        },
+        "filename_said": "Threads of Fate- Book 1",
+        "sources": []
+      }
+    },
+    {
+      "book": "The Dragon Girl’s Ascension (Volume 1) - Invayne _",
+      "match": {
+        "asin": "B0CYB61VC4"
+      },
+      "set": {
+        "series": "The Dragon Girl’s Ascension",
+        "series_index": "1"
+      },
+      "added": "2026-08-14",
+      "evidence": {
+        "series": "series name is the title minus its '(Volume N)' marker, stated mechanically by the title itself",
+        "series_index": "'(Volume 1)' in the title",
+        "tags_read": {
+          "©nam": "The Dragon Girl’s Ascension (Volume 1)",
+          "©alb": "The Dragon Girl’s Ascension (Volume 1)",
+          "©ART": "Invayne _",
+          "©wrt": "Virtual Voice",
+          "©day": "2024-04-17",
+          "©gen": "Teen & Young Adult:Literature & Fiction",
+          "trkn": "(1, 0)",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "B0CYB61VC4"
+        },
+        "filename_said": "The Dragon Girl’s Ascension (Volume 1)",
+        "sources": []
+      }
+    },
+    {
+      "book": "The Dragon Girl’s Ascension (Volume 2) - Invayne _",
+      "match": {
+        "asin": "B0CY93BN42"
+      },
+      "set": {
+        "series": "The Dragon Girl’s Ascension",
+        "series_index": "2"
+      },
+      "added": "2026-08-14",
+      "evidence": {
+        "series": "series name is the title minus its '(Volume N)' marker, stated mechanically by the title itself",
+        "series_index": "'(Volume 2)' in the title",
+        "tags_read": {
+          "©nam": "The Dragon Girl’s Ascension (Volume 2)",
+          "©alb": "The Dragon Girl’s Ascension (Volume 2)",
+          "©ART": "invayne _",
+          "©wrt": "Virtual Voice",
+          "©day": "2024-04-17",
+          "©gen": "Science Fiction & Fantasy:Fantasy",
+          "trkn": "(1, 0)",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "B0CY93BN42"
+        },
+        "filename_said": "The Dragon Girl’s Ascension (Volume 2)",
+        "sources": []
+      }
+    },
+    {
+      "book": "The Dragon Girl’s Ascension (Volume 3) - Invayne _",
+      "match": {
+        "asin": "B0CY922NVJ"
+      },
+      "set": {
+        "series": "The Dragon Girl’s Ascension",
+        "series_index": "3"
+      },
+      "added": "2026-08-14",
+      "evidence": {
+        "series": "series name is the title minus its '(Volume N)' marker, stated mechanically by the title itself",
+        "series_index": "'(Volume 3)' in the title",
+        "tags_read": {
+          "©nam": "The Dragon Girl’s Ascension (Volume 3)",
+          "©alb": "The Dragon Girl’s Ascension (Volume 3)",
+          "©ART": "invayne _",
+          "©wrt": "Virtual Voice",
+          "©day": "2024-07-27",
+          "©gen": "Science Fiction & Fantasy:Fantasy",
+          "trkn": "(1, 0)",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "B0CY922NVJ"
+        },
+        "filename_said": "The Dragon Girl’s Ascension (Volume 3)",
+        "sources": []
+      }
+    },
+    {
+      "book": "The Dragon Girl’s Ascension (Volume 4) - Invayne _",
+      "match": {
+        "asin": "B0DNLL1TRK"
+      },
+      "set": {
+        "series": "The Dragon Girl’s Ascension",
+        "series_index": "4"
+      },
+      "added": "2026-08-14",
+      "evidence": {
+        "series": "series name is the title minus its '(Volume N)' marker, stated mechanically by the title itself",
+        "series_index": "'(Volume 4)' in the title",
+        "tags_read": {
+          "©nam": "The Dragon Girl’s Ascension (Volume 4)",
+          "©alb": "The Dragon Girl’s Ascension (Volume 4)",
+          "©ART": "invayne _",
+          "©wrt": "Virtual Voice",
+          "©day": "2024-11-20",
+          "©gen": "Science Fiction & Fantasy:Fantasy",
+          "trkn": "(1, 0)",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "B0DNLL1TRK"
+        },
+        "filename_said": "The Dragon Girl’s Ascension (Volume 4)",
+        "sources": []
+      }
+    },
+    {
+      "book": "The Dragon Girl’s Ascension (Volume 5) - Invayne _",
+      "match": {
+        "asin": "B0D2BPWWCG"
+      },
+      "set": {
+        "series": "The Dragon Girl’s Ascension",
+        "series_index": "5"
+      },
+      "added": "2026-08-14",
+      "evidence": {
+        "series": "series name is the title minus its '(Volume N)' marker, stated mechanically by the title itself",
+        "series_index": "'(Volume 5)' in the title",
+        "tags_read": {
+          "©nam": "The Dragon Girl’s Ascension (Volume 5)",
+          "©alb": "The Dragon Girl’s Ascension (Volume 5)",
+          "©ART": "invayne _",
+          "©wrt": "Virtual Voice",
+          "©day": "2025-03-16",
+          "©gen": "Science Fiction & Fantasy:Fantasy",
+          "trkn": "(1, 0)",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "B0D2BPWWCG"
+        },
+        "filename_said": "The Dragon Girl’s Ascension (Volume 5)",
+        "sources": []
+      }
+    },
+    {
+      "book": "The Dragon Girl’s Ascension (Volume 6) - Invayne _",
+      "match": {
+        "asin": "B0F47JVSNV"
+      },
+      "set": {
+        "series": "The Dragon Girl’s Ascension",
+        "series_index": "6"
+      },
+      "added": "2026-08-14",
+      "evidence": {
+        "series": "series name is the title minus its '(Volume N)' marker, stated mechanically by the title itself",
+        "series_index": "'(Volume 6)' in the title",
+        "tags_read": {
+          "©nam": "The Dragon Girl’s Ascension (Volume 6)",
+          "©alb": "The Dragon Girl’s Ascension (Volume 6)",
+          "©ART": "invayne _",
+          "©wrt": "Virtual Voice",
+          "©day": "2025-08-01",
+          "©gen": "Science Fiction & Fantasy:Fantasy",
+          "trkn": "(1, 0)",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "B0F47JVSNV"
+        },
+        "filename_said": "The Dragon Girl’s Ascension (Volume 6)",
+        "sources": []
+      }
     }
   ],
   "_not_corrected_on_purpose": {
