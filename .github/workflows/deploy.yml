@@ -169,6 +169,27 @@ jobs:
           --branch=main
           --commit-dirty=true
 
+    # ---- Shared cross-catalog index push -----------------------------------
+    # catalog-platform index-worker design §5 / §7 step 4: after the catalog
+    # ships, push the committed snapshot (main-src/site/catalog.csv — the same
+    # file the dev lane just published) to PUT /api/push/audiobook.
+    #
+    # Soft everywhere, on purpose: the runner exits 0 with one log line while
+    # the INDEX_PUSH_TOKEN secret does not exist yet, and `continue-on-error`
+    # keeps a real push failure (index down, 422) from failing a deploy that
+    # already succeeded — snapshot-replace means the previous snapshot stands
+    # and a missed push costs freshness only.
+    # Secret to create: `gh secret set INDEX_PUSH_TOKEN` (value = the index
+    # Worker's INDEX_PUSH_TOKEN_AUDIOBOOK secret). INDEX_URL is a plain env;
+    # the repo variable INDEX_URL overrides the default if ever needed.
+    - name: 🔗 Push catalog snapshot to shared index
+      continue-on-error: true
+      working-directory: main-src
+      env:
+        INDEX_URL: ${{ vars.INDEX_URL || 'https://index.heygabi.ai' }}
+        INDEX_PUSH_TOKEN: ${{ secrets.INDEX_PUSH_TOKEN }}
+      run: python -m app.index_push
+
     - name: ⚠️ Cloudflare publish failed (GitHub Pages unaffected)
       if: env.CF_CONFIGURED == 'true' && steps.cf_pages.outcome == 'failure'
       run: |

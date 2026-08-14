@@ -117,6 +117,17 @@ def main() -> None:
     except Exception as e:
         print(f"[WARN] Failed to generate statistics page: {e}", file=sys.stderr)
 
+    # 5) Push the projection to the shared cross-catalog index
+    #    (catalog-platform index-worker design §5 / §7 step 4). Soft on
+    #    purpose: unset INDEX_URL / INDEX_PUSH_TOKEN logs one line inside, and
+    #    a failed push warns without failing the build — the index replaces
+    #    snapshots wholesale, so a missed push costs freshness only.
+    from app.index_push import push_after_build
+    try:
+        push_after_build(rows)
+    except Exception as e:  # noqa: BLE001 — the index must never stall this pipeline
+        print(f"[WARN] Index push failed (site build unaffected): {e}", file=sys.stderr)
+
     print("Done.")
 
 
