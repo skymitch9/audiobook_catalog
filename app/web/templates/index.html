@@ -1337,6 +1337,7 @@ function toggleDarkMode(isDark){
 <script type="module">
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
   import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+  import { coverUrl } from './covers-base.js';
   import { getSession, signInWithGoogle, signOutGoogle, register, login, logout, validateDisplayName, validatePassphrase, isAdmin, handleRedirectResult } from './identity.js';
   import { submitReview, getReviews, renderStars, bookIdFromTitle, computeAverageRating, formatDate } from './reviews.js';
   import { addUserWarning, getUserWarnings, deleteUserWarning, requestWarningCheck, getWarningRequest } from './user-warnings.js';
@@ -1592,7 +1593,7 @@ function toggleDarkMode(isDark){
 
       function renderBookWithCover(title, cover) {
         if (!title) return '';
-        const img = cover ? '<img src="' + cover + '" style="width:36px;height:auto;border-radius:2px;border:1px solid var(--border)">' : '';
+        const img = cover ? '<img src="' + coverUrl(cover) + '" style="width:36px;height:auto;border-radius:2px;border:1px solid var(--border)">' : '';
         return img + '<span style="font-size:.85em">' + title + '</span>';
       }
 
@@ -1630,8 +1631,8 @@ function toggleDarkMode(isDark){
           return;
         }
         favList.innerHTML = favorites.map((title, idx) => {
-          const cover = favCovers[title] || '';
-          const img = cover ? '<img src="' + cover + '" style="width:40px;height:auto;border-radius:2px;border:1px solid var(--border)">' : '';
+          const cover = coverUrl(favCovers[title] || '');
+          const img = cover ? '<img src="' + coverUrl(cover) + '" style="width:40px;height:auto;border-radius:2px;border:1px solid var(--border)">' : '';
           return '<div style="position:relative;display:inline-block">' + img +
             '<button data-idx="' + idx + '" style="position:absolute;top:-4px;right:-4px;background:var(--neon-magenta);color:#fff;border:none;border-radius:50%;width:16px;height:16px;font-size:10px;cursor:pointer;line-height:1">×</button>' +
             (!img ? '<div style="width:40px;height:55px;background:var(--border);display:flex;align-items:center;justify-content:center;font-size:.6em;text-align:center;padding:2px">' + title.slice(0,15) + '</div>' : '') +

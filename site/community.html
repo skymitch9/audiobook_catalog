@@ -204,6 +204,7 @@ html.light body{background-image:none}
   import { getSession, slugifyName} from './identity.js';
   import { mountAccountModal } from './account-modal.js';
   import { clubActivity } from './club-notify.js';
+  import { coverUrl } from './covers-base.js';
 
   // "N new" on the Clubs banner: unread club posts for the signed-in user
   // setTimeout defers past the module body so initializeApp below has run.
@@ -369,12 +370,12 @@ html.light body{background-image:none}
         : `<div class="user-avatar" style="display:flex;align-items:center;justify-content:center;background:var(--border);font-size:1.2em">${u.displayName.charAt(0).toUpperCase()}</div>`;
 
       const reading = u.currentlyReading
-        ? `<div class="user-reading"><strong>Reading:</strong> <span style="display:inline-flex;align-items:center;gap:6px">${u.currentlyReadingCover ? '<a href="index.html#q=' + encodeURIComponent(u.currentlyReading) + '"><img src="' + u.currentlyReadingCover + '"></a>' : ''}${u.currentlyReading}</span></div>`
+        ? `<div class="user-reading"><strong>Reading:</strong> <span style="display:inline-flex;align-items:center;gap:6px">${u.currentlyReadingCover ? '<a href="index.html#q=' + encodeURIComponent(u.currentlyReading) + '"><img src="' + coverUrl(u.currentlyReadingCover) + '"></a>' : ''}${u.currentlyReading}</span></div>`
         : '';
 
       const favs = u.favorites.length > 0
         ? `<div class="user-favs">${u.favorites.map(f => {
-            const cover = u.favCovers[f] || '';
+            const cover = coverUrl(u.favCovers[f] || '');
             return cover
               ? '<a href="index.html#q=' + encodeURIComponent(f) + '"><img src="' + cover + '" title="' + f + '"></a>'
               : '<span class="fav-chip">' + f + '</span>';
@@ -432,7 +433,7 @@ html.light body{background-image:none}
       ? `<div class="um-section">
           <div class="um-section-title">Currently Reading</div>
           <div style="display:flex;align-items:center;gap:12px">
-            ${user.currentlyReadingCover ? '<a href="index.html#q=' + encodeURIComponent(user.currentlyReading) + '"><img src="' + user.currentlyReadingCover + '" style="width:56px;height:auto;border-radius:3px;border:1px solid var(--border)"></a>' : ''}
+            ${user.currentlyReadingCover ? '<a href="index.html#q=' + encodeURIComponent(user.currentlyReading) + '"><img src="' + coverUrl(user.currentlyReadingCover) + '" style="width:56px;height:auto;border-radius:3px;border:1px solid var(--border)"></a>' : ''}
             <span style="font-size:1.05em">${user.currentlyReading}</span>
           </div>
         </div>` : '';
@@ -441,7 +442,7 @@ html.light body{background-image:none}
       ? `<div class="um-section">
           <div class="um-section-title">Favorite Books</div>
           <div class="um-favs">${user.favorites.map(f => {
-            const cover = user.favCovers[f] || '';
+            const cover = coverUrl(user.favCovers[f] || '');
             return cover
               ? '<a href="index.html#q=' + encodeURIComponent(f) + '"><img src="' + cover + '" title="' + f + '"></a>'
               : '<span class="fav-chip" style="padding:4px 8px;border:1px solid var(--border);font-size:.85em">' + f + '</span>';
@@ -472,7 +473,7 @@ html.light body{background-image:none}
           <div class="um-section-title">Book Clubs</div>
           <div class="um-clubs">${user.clubs.map(c => `
             <a class="um-club" href="club.html?id=${encodeURIComponent(c.id)}">
-              ${c.cover ? `<img src="${c.cover}" alt="" onerror="this.remove()">` : `<span class="um-club-emoji">${c.emoji}</span>`}
+              ${c.cover ? `<img src="${coverUrl(c.cover)}" alt="" onerror="this.remove()">` : `<span class="um-club-emoji">${c.emoji}</span>`}
               <span>${c.name.replace(/</g, '&lt;')}</span>
             </a>`).join('')}</div>
         </div>` : ''}

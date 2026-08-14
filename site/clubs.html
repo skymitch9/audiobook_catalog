@@ -182,6 +182,7 @@ html.light body{background-image:none}
 <script type="module">
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
   import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+  import { coverUrl } from './covers-base.js';
   import { getSession, slugifyName} from './identity.js';
   import { mountAccountModal } from './account-modal.js';
   import { createClub, getAllClubs, getMyClubs } from './clubs.js?v=20260714';
@@ -213,7 +214,7 @@ html.light body{background-image:none}
     return `
       <a class="club-card" data-club-id="${escapeHtml(club.id)}" href="club.html?id=${encodeURIComponent(club.id)}">
         ${club.avatarCoverHref
-          ? `<img class="club-cover" src="${escapeHtml(club.avatarCoverHref)}" alt="" onerror="this.remove()">`
+          ? `<img class="club-cover" src="${escapeHtml(coverUrl(club.avatarCoverHref))}" alt="" onerror="this.remove()">`
           : `<span class="club-emoji">${escapeHtml(club.emoji || '📚')}</span>`}
         <span class="club-name">${escapeHtml(club.name)}</span>
         <span class="new-badge" style="display:none"></span>

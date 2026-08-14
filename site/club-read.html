@@ -308,6 +308,7 @@ html.light body{background-image:none}
 <script type="module">
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
   import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+  import { coverUrl } from './covers-base.js';
   import { getSession, slugifyName} from './identity.js';
   import { mountAccountModal } from './account-modal.js';
   import { getClub, getMembers } from './clubs.js?v=20260714';
@@ -577,7 +578,7 @@ html.light body{background-image:none}
 
   function render() {
     const cover = read.coverHref
-      ? `<img class="read-cover" src="${escapeHtml(read.coverHref)}" alt="" onerror="this.remove()">` : '';
+      ? `<img class="read-cover" src="${escapeHtml(coverUrl(read.coverHref))}" alt="" onerror="this.remove()">` : '';
     // One chip per club member (not just those who set progress), furthest
     // along first, with an explicit Finished state.
     const lastPos = hasChapters() ? chapterTitles().length - 1

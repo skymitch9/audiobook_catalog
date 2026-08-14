@@ -9,6 +9,7 @@
 
 import { doc, getDoc, setDoc, collection, getDocs, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 import { getSession, signInWithGoogle, signOutGoogle, logout, isAdmin, handleRedirectResult } from './identity.js';
+import { coverUrl } from './covers-base.js';
 import { col } from './fb-env.js';
 import { loadCatalogBooks } from './club-reads.js';
 
@@ -285,7 +286,7 @@ export function mountAccountModal(db, app, containerEl) {
 
       function renderBookWithCover(title, cover) {
         if (!title) return '';
-        const img = cover ? '<img src="' + cover + '" style="width:36px;height:auto;border-radius:2px;border:1px solid var(--border,#2a2a3a)">' : '';
+        const img = cover ? '<img src="' + coverUrl(cover) + '" style="width:36px;height:auto;border-radius:2px;border:1px solid var(--border,#2a2a3a)">' : '';
         return img + '<span style="font-size:.85em">' + title + '</span>';
       }
 
@@ -317,8 +318,8 @@ export function mountAccountModal(db, app, containerEl) {
           return;
         }
         favList.innerHTML = favorites.map((title, idx) => {
-          const cover = favCovers[title] || '';
-          const img = cover ? '<img src="' + cover + '" style="width:40px;height:auto;border-radius:2px;border:1px solid var(--border,#2a2a3a)">' : '';
+          const cover = coverUrl(favCovers[title] || '');
+          const img = cover ? '<img src="' + coverUrl(cover) + '" style="width:40px;height:auto;border-radius:2px;border:1px solid var(--border,#2a2a3a)">' : '';
           return '<div style="position:relative;display:inline-block">' + img +
             '<button data-idx="' + idx + '" style="position:absolute;top:-4px;right:-4px;background:var(--neon-magenta,#ff2a6d);color:#fff;border:none;border-radius:50%;width:16px;height:16px;font-size:10px;cursor:pointer;line-height:1">×</button>' +
             (!img ? '<div style="width:40px;height:55px;background:var(--border,#2a2a3a);display:flex;align-items:center;justify-content:center;font-size:.6em;text-align:center;padding:2px">' + title.slice(0, 15) + '</div>' : '') +
