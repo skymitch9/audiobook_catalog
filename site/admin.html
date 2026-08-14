@@ -103,6 +103,15 @@
 
   <div id="identity-bar"></div>
 
+  <!-- Site role (rules-enforced site_roles/{uid}; see checkAccess()).
+       Browsers may read ONLY their own doc — no listing — so this shows the
+       signed-in person's own role status. A full roster of who holds roles
+       is a server-side concern (Firebase console / service account). -->
+  <section class="pl-section" id="site-role-section" hidden>
+    <h2>🔐 Site role</h2>
+    <div class="pl-card" id="site-role-card"><div class="loading">Checking…</div></div>
+  </section>
+
   <!-- Populated only for the admin; see checkAccess() below. -->
   <section class="pl-section" id="pipeline-section" hidden>
     <h2>📡 Sync pipeline</h2>
@@ -131,7 +140,7 @@
 <script type="module">
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
   import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
-  import { renderIdentityBar, getSession, isAdmin, handleRedirectResult } from './identity.js';
+  import { renderIdentityBar, getSession, isAdmin, handleRedirectResult, getSiteRole } from './identity.js';
   import {
     watchStatus, loadHistory, requestRun, getToken, setToken,
   } from './pipeline-status.js';
@@ -165,11 +174,39 @@
     if (!isAdmin(session)) {
       content.innerHTML = '<div class="denied">⛔ Access denied. Sign in as admin.</div>';
       document.getElementById('pipeline-section').hidden = true;
+      document.getElementById('site-role-section').hidden = true;
       return;
     }
 
     content.innerHTML = '';
     initPipelinePanel(session);
+    initSiteRolePanel();
+  }
+
+  // Site role: the OWN doc from the rules-enforced site_roles collection.
+  // Unlike the isAdmin() gate above (client-side presentation), this answer
+  // is enforced end to end — the same doc powers the site-admin clause in
+  // firestore.rules. Browsers cannot list the collection (own-doc reads
+  // only), so a full roster stays a server-side concern; this panel is
+  // honest about that.
+  async function initSiteRolePanel() {
+    const section = document.getElementById('site-role-section');
+    const card = document.getElementById('site-role-card');
+    if (!db || !app) return;
+    section.hidden = false;
+    const role = await getSiteRole(db, app);
+    if (role && role.role === 'admin') {
+      card.innerHTML = '<div><strong style="color:#48bb78">admin</strong> — rules-enforced '
+        + '(<code>site_roles/' + role.uid + '</code>). Club pages show host/mod controls on every club, '
+        + 'and Firestore accepts your manager-gated club writes.</div>'
+        + '<p class="pl-hint">Only your own role is readable from a browser; the full roster lives '
+        + 'server-side (Firebase console / scripts/seed_site_admin.py).</p>';
+    } else {
+      card.innerHTML = '<div>No rules-enforced site role for this Google account.</div>'
+        + '<p class="pl-hint">Roles are seeded server-side (scripts/seed_site_admin.py) — the browser '
+        + 'cannot grant them. A live Google sign-in is required for the check; the legacy session '
+        + 'fallback has no verifiable identity.</p>';
+    }
   }
 
   let unsubscribeStatus = null;

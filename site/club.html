@@ -377,6 +377,11 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
         <option value="application">By application — host approves requests</option>
       </select>
     </div>
+    <!-- Read-only roster of rules-bound manager accounts (managerUids). -->
+    <div class="field" id="edit-roster-field" style="display:none">
+      <label>Secured manager accounts</label>
+      <div id="edit-roster-list" style="color:var(--muted);font-size:.85em"></div>
+    </div>
     <div id="edit-error" class="form-error"></div>
     <button id="edit-submit" class="nav-link btn-primary" style="width:100%">Save Changes</button>
   </div>
@@ -433,7 +438,7 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
   import { getFirestore, collection, getDocs } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
   import { coverUrl } from './covers-base.js';
   import { col } from './fb-env.js';
-  import { getSession, slugifyName} from './identity.js';
+  import { getSession, slugifyName, getLiveUser, getSiteRole } from './identity.js';
   import { mountAccountModal } from './account-modal.js';
   import { bookIdFromTitle, submitReview, renderStars } from './reviews.js';
   import {
@@ -442,14 +447,15 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
     updateClubDetails, requestToJoin, getRequests, acceptRequest, rejectRequest, inviteMember,
     acceptInvite, declineInvite, dismissRateNudge,
     clubFeatureEnabled, isValidDiscordWebhook, setClubDiscordWebhook, clearClubDiscordWebhook,
-  } from './clubs.js?v=20260814b';
+    isClubClaimed, isManagerUid, canManageClub, claimManagerRole,
+  } from './clubs.js?v=20260814c';
   import {
     getReads, startRead, removeRead, finishRead, getComments, updateReadLabel, splitByDuration, parseManualMilestones,
     loadCatalogBooks, MAX_ACTIVE_READS, groupChapters,
     getBookChapters, wholeBookMilestones, formatHhmm,
     getTbr, addTbrItem, removeTbrItem, toggleTbrVote, getMyProgress,
     hasSchedule, nextDueMilestone, formatDueDate,
-  } from './club-reads.js?v=20260814b';
+  } from './club-reads.js?v=20260814c';
   import { loadSeen, syncSeen } from './club-notify.js';
 
   const firebaseConfig = {
@@ -468,6 +474,17 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
   const mySlug = session ? slugifyName(session.displayName) : null;
   const clubId = new URLSearchParams(window.location.search).get('id');
   const contentEl = document.getElementById('content');
+
+  // Enforced identity (uid + site role) resolves async after the Firebase
+  // SDK restores the session; re-render when it lands so the admin badge /
+  // claim banner appear. Legacy sessions resolve null and change nothing.
+  let liveUid = null;   // Firebase Auth uid, or null (signed out / legacy)
+  let siteRole = null;  // own site_roles doc, or null
+  Promise.all([getLiveUser(app), getSiteRole(db, app)]).then(([user, role]) => {
+    liveUid = user ? user.uid : null;
+    siteRole = role;
+    if (club) render();
+  }).catch(() => { /* no enforced identity — presentation stays as-is */ });
 
   let club = null;
   let members = [];
@@ -496,13 +513,20 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
     if (!m) return null;
     return m.status === 'invited' ? 'invited' : m.role;
   };
-  const isHost = () => myRole() === 'host';
+  // The site admin (rules-enforced site_roles doc) gets every host/mod
+  // control on ANY club without joining it — the owner's break-glass. The
+  // admin badge in the header says why the controls are there.
+  const isSiteAdminViewer = () => !!siteRole && siteRole.role === 'admin';
+  const isHost = () => myRole() === 'host' || isSiteAdminViewer();
   const isMod = () => isHost() || myRole() === 'moderator';
   const isMember = () => myRole() !== null && myRole() !== 'invited';
   const activeMembers = () => members.filter(m => m.status !== 'invited');
 
   function render() {
-    const roleBadge = myRole() ? `<span class="badge badge-role">${escapeHtml(myRole())}</span>` : '';
+    const roleBadge = (myRole() ? `<span class="badge badge-role">${escapeHtml(myRole())}</span>` : '')
+      + (isSiteAdminViewer()
+        ? '<span class="badge badge-role" style="border-color:var(--neon-yellow);color:var(--neon-yellow)" title="Rules-enforced site admin (site_roles) — host/mod controls are shown on every club">site admin</span>'
+        : '');
 
     contentEl.innerHTML = `
       <a href="clubs.html" class="club-back">&larr; All Clubs</a>
@@ -519,9 +543,10 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
           <span>${club.memberCount || 0} member${(club.memberCount || 0) !== 1 ? 's' : ''}</span>
           <span>Host: ${escapeHtml(club.hostDisplayName)}</span>
           <span>${club.joinMode === 'application' ? 'Join by application' : 'Open join'}</span>
-          ${myRole() && myRole() !== 'invited' ? '<button id="edit-club-btn" class="nav-link" style="padding:4px 10px;font-size:.75em">Edit Club</button>' : ''}
+          ${(myRole() && myRole() !== 'invited') || isSiteAdminViewer() ? '<button id="edit-club-btn" class="nav-link" style="padding:4px 10px;font-size:.75em">Edit Club</button>' : ''}
         </div>
         ${renderNextMeeting()}
+        ${renderClaimBanner()}
       </div>
 
       <div class="tabs">
@@ -536,6 +561,25 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
       <div class="footer-actions" id="footer-actions">${renderFooterActions()}</div>
     `;
     wireEvents();
+  }
+
+  // "Secure your role" banner — the uid-claim migration path. Shown only to
+  // a host/moderator (by display name, as the UI has always decided it) who
+  // has a LIVE Google session whose uid is not yet in the club's manager
+  // roster. First claim on an unclaimed club is trust-on-first-use; on a
+  // claimed club the direct write would be denied by rules, so the banner
+  // turns into guidance instead of a button.
+  function renderClaimBanner() {
+    const uiRole = myRole();
+    if (!liveUid || !['host', 'moderator'].includes(uiRole)) return '';
+    if (isManagerUid(club, liveUid)) return '';
+    if (canManageClub(club, liveUid, isSiteAdminViewer())) {
+      return `<div class="next-meeting" id="claim-banner">🔐 Club permissions now bind to Google accounts.
+        <strong>Secure your ${escapeHtml(uiRole)} role</strong> so only your account can change club settings.
+        <button id="claim-role-btn" class="nav-link btn-primary" style="padding:4px 10px;font-size:.8em;margin-left:8px">Secure my role</button></div>`;
+    }
+    return `<div class="next-meeting">🔐 This club's settings are secured to specific Google accounts,
+      and yours isn't bound yet. Ask a bound host/mod (or the site admin) to add you.</div>`;
   }
 
   // Optional next-meeting banner: renders only when a meeting is set and less
@@ -917,6 +961,14 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
     const editBtn = document.getElementById('edit-club-btn');
     if (editBtn) editBtn.addEventListener('click', openEditModal);
 
+    const claimBtn = document.getElementById('claim-role-btn');
+    if (claimBtn) claimBtn.addEventListener('click', async () => {
+      claimBtn.disabled = true;
+      const uiRole = myRole() === 'moderator' ? 'moderator' : 'host';
+      const r = await claimManagerRole(db, clubId, liveUid, session, uiRole);
+      if (r.success) reload(); else { claimBtn.disabled = false; showError(r.error); }
+    });
+
     contentEl.querySelectorAll('[data-edit-label]').forEach(btn =>
       btn.addEventListener('click', async (e) => {
         e.preventDefault();
@@ -1297,6 +1349,21 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
     const jmField = document.getElementById('edit-joinmode-field');
     jmField.style.display = isHost() ? 'block' : 'none';
     document.getElementById('edit-joinmode').value = club.joinMode === 'application' ? 'application' : 'open';
+
+    // Which Google accounts are rules-bound as managers (read-only here;
+    // claiming happens via the banner on the club page, repairs via the
+    // site admin). Hidden while the club is unclaimed.
+    const rosterField = document.getElementById('edit-roster-field');
+    if (isMod() && isClubClaimed(club)) {
+      rosterField.style.display = 'block';
+      document.getElementById('edit-roster-list').innerHTML =
+        Object.entries(club.managerUids).map(([uid, m]) =>
+          `<div>${escapeHtml((m && m.displayName) || uid)} — ${escapeHtml((m && m.role) || 'host')}${uid === liveUid ? ' (you)' : ''}</div>`
+        ).join('')
+        + '<div style="margin-top:4px">Only these accounts (and the site admin) can change club settings, schedules and reads.</div>';
+    } else {
+      rosterField.style.display = 'none';
+    }
 
     // Next meeting (hosts/mods): schedule is club-level, like read management.
     const meetingField = document.getElementById('edit-meeting-field');

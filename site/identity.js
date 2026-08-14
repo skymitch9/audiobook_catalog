@@ -29,7 +29,7 @@
 //   - The passphrase system is retired. Its users were the owner and one
 //     retired account; nobody migrates, the paths simply end.
 
-import { doc, setDoc, getFirestore } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+import { doc, getDoc, setDoc, getFirestore } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 import { getAuth, signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 import { col, IS_DEV_LANE } from './fb-env.js';
 
@@ -342,6 +342,56 @@ function liveUser(app) {
       resolve(null);
     }
   });
+}
+
+/**
+ * Public access to the live Firebase user (or null). The mirror
+ * (getSession) has no uid on purpose — it is synchronous presentation. Any
+ * caller that needs the ENFORCED identity (club manager claims, site-role
+ * lookups) must go through here and handle null: a legacy or stub session
+ * resolves null, because nothing verifiable stands behind it.
+ * @returns {Promise<{uid: string, email: string|null, displayName: string|null}|null>}
+ */
+export async function getLiveUser(app) {
+  const user = await liveUser(app);
+  return user && user.uid
+    ? { uid: user.uid, email: user.email || null, displayName: user.displayName || null }
+    : null;
+}
+
+// ==================== Site roles (rules-enforced admin) ====================
+//
+// site_roles/{uid} is the site's first REAL role: written only server-side
+// (scripts/seed_site_admin.py via the service account; browsers are denied
+// all writes), readable only as your own doc (rules: doc id must equal
+// request.auth.uid; no listing). So unlike isAdmin() above — presentation
+// only, spoofable from devtools — a site_roles answer is enforced end to
+// end: the same doc gates club-manager writes inside firestore.rules.
+//
+// ⚠️ The collection is UNSUFFIXED on both lanes (like pipeline_*): a role
+// belongs to the person, not the data lane. Do not wrap it in col().
+
+/**
+ * The signed-in person's own site-role doc, or null (signed out, legacy
+ * session, no role granted, or the read failed). Never throws.
+ * @returns {Promise<{uid: string, role: string}|null>}
+ */
+export async function getSiteRole(db, app) {
+  try {
+    const user = await liveUser(app);
+    if (!user || !user.uid) return null;
+    const snap = await getDoc(doc(db, 'site_roles', user.uid));
+    if (!snap.exists()) return null;
+    return { uid: user.uid, ...snap.data() };
+  } catch (e) {
+    return null; // no answer is "no role" — the gate stays closed
+  }
+}
+
+/** Is the signed-in person the rules-enforced site admin? */
+export async function isSiteAdmin(db, app) {
+  const role = await getSiteRole(db, app);
+  return !!role && role.role === 'admin';
 }
 
 /**

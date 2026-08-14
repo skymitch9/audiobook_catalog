@@ -3,28 +3,42 @@ rules_version = '2';
 // ============================================================================
 // TRUST MODEL — read this before tightening anything.
 //
-// This site is auth-free by design. The browser writes to Firestore directly
-// and `request.auth` is ALWAYS null: site/identity.js signs out of Firebase
-// Auth the moment it has captured the Google profile. identity.js isAdmin() is
-// presentation only and says so in its own comment. So these rules can enforce
-// document SHAPE and nothing else — they can never tell one visitor from
-// another.
+// Until 2026-08-14 this site was auth-free: identity.js v1 signed out of
+// Firebase Auth immediately after capturing the Google profile, request.auth
+// was ALWAYS null, and these rules could enforce document SHAPE and nothing
+// else. identity v2 (2026-08-14) keeps the Firebase session LIVE, so
+// request.auth now carries a real uid for signed-in Google users — and these
+// rules use it in EXACTLY ONE PLACE: club manager enforcement (see the
+// "Club manager enforcement" helpers below) plus the site_roles admin doc.
 //
-// The line, therefore, is impersonation and destruction, not writing:
-//   - reviews, club comments, quotes, TBR, warnings and profiles are MEANT to
-//     be writable by anyone who can load the page. That openness is the design;
-//     do not "fix" it.
-//   - credential overwrite is not (see /users), and neither is a wipe that no
-//     client ever needed (see /reviews delete).
+// Everything else keeps the shape-only model on purpose:
+//   - reviews, club comments, quotes, TBR, progress, warnings and profiles
+//     are MEANT to be writable by anyone who can load the page — including
+//     legacy v1 sessions and server-side tools that call the REST API with
+//     the public web key (request.auth null). Do not "fix" that openness.
+//   - credential overwrite is not open (see /users), and neither is a wipe
+//     that no client ever needed (see /reviews delete).
 //
-// Deletes that a normal member action performs (clubs, members, club content,
+// ⚠️ TRANSITION SAFETY (the reason the club enforcement is claim-gated):
+// rules are PROJECT-WIDE the moment they deploy — there is no dev lane for
+// enforcement — while UI changes ride /dev/ until promoted. So every club
+// clause below only enforces uids on clubs whose doc carries a NON-EMPTY
+// managerUids map ("claimed" clubs). Clubs without one — every prod club
+// today, and anything the old prod UI creates — behave exactly as before.
+// Claiming is trust-on-first-use: while a club is unclaimed its doc update
+// stays open (as it always was), so the first signed-in host stamps their
+// own uid; abuse of that window is no worse than the status quo (anyone
+// could already edit or delete the club), and the site admin is the repair
+// path. The FUTURE tightening step (require claiming / gate more fields) is
+// a separate deliberate deploy — see docs/TODO.md.
+//
+// Deletes that a normal member action performs (members, club content,
 // reading lists, user warnings, cw_requests) stay open because no rule can
-// distinguish the author from a passer-by. That is an accepted, documented
-// residual risk of the auth-free design, not an oversight. Closing it needs
-// Firebase Auth kept alive plus request.auth checks — a different project.
+// bind a display name to a person. Accepted, documented residual risk.
 //
-// Audited end to end 2026-08-10 against every writer in site/*.js, site/*.html
-// and app/tools/*.py. Prod and *_dev rules must always stay in step.
+// Audited end to end 2026-08-10; club/uid layer added 2026-08-14 against
+// every writer in site/*.js, site/*.html, app/*.py and app/tools/*.py.
+// Prod and *_dev rules must always stay in step.
 // ============================================================================
 
 service cloud.firestore {
@@ -85,6 +99,80 @@ service cloud.firestore {
              && request.resource.data.webhookUrl.size() <= 300
              && request.resource.data.webhookUrl.matches('https://(discord|discordapp)\\.com/api/webhooks/[0-9]+/[A-Za-z0-9_-]+')
              && request.resource.data.updatedBy is string;
+    }
+
+    // ---- Club manager enforcement (uid layer, 2026-08-14) ----
+    //
+    // The club doc may carry `managerUids`: a map of Firebase Auth uid ->
+    // { role: 'host'|'moderator', displayName, claimedAt } recorded BESIDE
+    // the display-name fields (hostSlug / members/{slug}.role), which remain
+    // the presentation layer. A club with a non-empty map is "claimed" and
+    // its manager-only writes require request.auth.uid in the map, or the
+    // site admin. An unclaimed club behaves exactly as before the uid layer
+    // existed — that is the migration path (see the header).
+
+    function clubClaimed(club) {
+      return ('managerUids' in club)
+             && club.managerUids is map
+             && club.managerUids.size() > 0;
+    }
+
+    function isClubManager(club) {
+      return request.auth != null
+             && clubClaimed(club)
+             && request.auth.uid in club.managerUids;
+    }
+
+    // site_roles/{uid} — the site-wide admin role, deliberately UNSUFFIXED
+    // (one collection for both lanes, like pipeline_*): a role belongs to
+    // the person, not the data lane. Seeded server-side only
+    // (scripts/seed_site_admin.py); browsers can never write it.
+    function isSiteAdmin() {
+      return request.auth != null
+             && exists(/databases/$(database)/documents/site_roles/$(request.auth.uid))
+             && get(/databases/$(database)/documents/site_roles/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // The one gate every manager-only club write goes through:
+    // unclaimed club -> open (transition safety), else manager uid or admin.
+    function canManageClub(club) {
+      return !clubClaimed(club) || isClubManager(club) || isSiteAdmin();
+    }
+
+    // Parent club doc for subcollection rules. clubCol is 'clubs' or
+    // 'clubs_dev' so prod and dev blocks share one implementation.
+    function parentClub(clubCol, clubId) {
+      return get(/databases/$(database)/documents/$(clubCol)/$(clubId)).data;
+    }
+
+    function validManagerUids() {
+      return !('managerUids' in request.resource.data)
+             || request.resource.data.managerUids is map;
+    }
+
+    // Club-doc fields only a manager may change once the club is claimed.
+    // ⚠️ Keep this list in step with MANAGED_CLUB_FIELDS in site/clubs.js.
+    // Everything else stays writable exactly as before, because member (and
+    // legacy/anonymous) actions write the club doc too: joins/leaves touch
+    // memberSlugs/invitedSlugs/memberCount, host-leave transfers touch
+    // hostSlug/hostDisplayName/archived, reads touch activeSlots and the
+    // avatar fields, and the Edit modal lets ANY member change
+    // name/description/emoji/promptsEnabled. Those stay display-layer.
+    function clubManagedFieldsChanged() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny(
+        ['joinMode', 'nextMeetingAt', 'nextMeetingNotes', 'features',
+         'discordWebhookMask', 'managerUids']);
+    }
+
+    // Read-doc fields only a manager may change once the club is claimed:
+    // the reading schedule (milestones carry dueAt) and the club-level
+    // lifecycle (finish/abandon). commentCount (bumped by every commenter)
+    // and slotLabel (member-editable) stay open, as does CREATE — starting
+    // a read is a member action.
+    // ⚠️ Keep this list in step with MANAGED_READ_FIELDS in site/clubs.js.
+    function readManagedFieldsChanged() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny(
+        ['milestones', 'scheduleUpdatedAt', 'status', 'finishedAt', 'slot']);
     }
 
     function validClubComment() {
@@ -208,23 +296,39 @@ service cloud.firestore {
 
     match /clubs/{clubId} {
       allow read: if true;
-      allow create: if validClub();
-      // Was `allow update: if true` — the same create-validated /
-      // update-unvalidated split that made /users exploitable. Any visitor
-      // could blank a club's name and host or stuff it with arbitrary data.
-      // Hardening, not a hole closure: `allow delete: if true` below still lets
-      // anyone remove a club outright, and cannot be tightened without auth
-      // (deleteClub in clubs.js is a normal member action).
+      // A club may be BORN claimed: the new UI stamps the creator's own uid
+      // into managerUids at create when a live session exists. A roster on
+      // create may only contain the caller's own uid; rosterless creates
+      // (old prod UI, legacy sessions) keep working unchanged.
+      allow create: if validClub() && validManagerUids()
+                    && (!('managerUids' in request.resource.data)
+                        || request.resource.data.managerUids.size() == 0
+                        || (request.auth != null
+                            && request.resource.data.managerUids.keys().hasOnly([request.auth.uid])));
+      // Shape validation (was `if true` before 2026-08-10; see /users for the
+      // create/update split story) PLUS, since 2026-08-14, the uid layer:
+      // manager-only fields (clubManagedFieldsChanged) require
+      // canManageClub — which is open while the club is unclaimed, so every
+      // write path of the pre-uid UI still succeeds on legacy clubs.
       //
       // Safe for every write path: on an update request.resource.data is the
       // POST-merge document, and every writer is a partial update
       // (updateDoc / tx.update in clubs.js + club-reads.js) or a full-fields
       // replace (app/tools/migrate_club.py put_doc), so name and
-      // hostDisplayName survive. Verified against all live docs — 3 clubs and
-      // 3 clubs_dev, all with a 9–12 char name and a string hostDisplayName.
-      allow update: if validClub();
-      allow delete: if true;
+      // hostDisplayName survive.
+      allow update: if validClub() && validManagerUids()
+                    && (!clubManagedFieldsChanged() || canManageClub(resource.data));
+      // Open on unclaimed clubs (deleteClub was always a UI-gated member
+      // action no rule could check); once claimed, only a manager uid or the
+      // site admin may delete the club doc.
+      allow delete: if canManageClub(resource.data);
 
+      // ⚠️ Member-doc writes stay shape-only ON PURPOSE, including the role
+      // field. Rules trust ONLY the club doc's managerUids for enforcement;
+      // members/{slug}.role is presentation (it always was). Gating role
+      // writes here would break the host-leave transfer (leaveClub tx.sets
+      // the successor's member doc to role 'host', and the successor's uid
+      // is unknowable at that moment) for no enforcement gain.
       match /members/{memberId} {
         allow read: if true;
         allow write: if validClubMember();
@@ -247,15 +351,17 @@ service cloud.firestore {
       // ⚠️ `allow read: if false` is the security control, not an oversight —
       // same pattern as pipeline_requests. This doc holds the club's Discord
       // webhook URL, which is a CAPABILITY: anyone reading it can post to the
-      // club's channel. Browsers write it (managers, UI-enforced) and never
-      // read it back; the club doc carries only a masked tail
-      // (discordWebhookMask) for display. The server-side Discord notifier
-      // reads it via the service account, which bypasses rules. Delete stays
-      // open like every member-action delete in this trust model.
+      // club's channel. Browsers write it (managers) and never read it back;
+      // the club doc carries only a masked tail (discordWebhookMask) for
+      // display. The server-side Discord notifier and the announcements
+      // engine read/write here via the service account, which bypasses
+      // rules. Since 2026-08-14 writes and deletes are also uid-gated once
+      // the club is claimed (webhook save/clear are manager actions).
       match /settings/{settingId} {
         allow read: if false;
-        allow create, update: if validClubSettings();
-        allow delete: if true;
+        allow create, update: if validClubSettings()
+                              && canManageClub(parentClub('clubs', clubId));
+        allow delete: if canManageClub(parentClub('clubs', clubId));
       }
 
       match /reads/{readId}/quotes/{quoteId} {
@@ -269,8 +375,17 @@ service cloud.firestore {
 
       match /reads/{readId} {
         allow read: if true;
-        allow write: if validClubRead();
-        allow delete: if true;
+        // Create stays open: starting a read is a member action. Updates to
+        // schedule/lifecycle fields (readManagedFieldsChanged) are manager
+        // actions once the club is claimed; commentCount bumps and slot
+        // labels stay open for every member write path.
+        allow create: if validClubRead();
+        allow update: if validClubRead()
+                      && (!readManagedFieldsChanged()
+                          || canManageClub(parentClub('clubs', clubId)));
+        // Removing a read deletes discussions — manager UI action; gated
+        // once the club is claimed, open (as it always was) before that.
+        allow delete: if canManageClub(parentClub('clubs', clubId));
 
         match /comments/{commentId} {
           allow read: if true;
@@ -335,11 +450,18 @@ service cloud.firestore {
       allow delete: if true;
     }
 
+    // Mirrors /clubs — see every note there, uid layer included. The
+    // site_roles admin check is shared (one unsuffixed collection).
     match /clubs_dev/{clubId} {
       allow read: if true;
-      allow create: if validClub();
-      allow update: if validClub();   // mirrors /clubs
-      allow delete: if true;
+      allow create: if validClub() && validManagerUids()
+                    && (!('managerUids' in request.resource.data)
+                        || request.resource.data.managerUids.size() == 0
+                        || (request.auth != null
+                            && request.resource.data.managerUids.keys().hasOnly([request.auth.uid])));
+      allow update: if validClub() && validManagerUids()
+                    && (!clubManagedFieldsChanged() || canManageClub(resource.data));
+      allow delete: if canManageClub(resource.data);
 
       match /members/{memberId} {
         allow read: if true;
@@ -363,8 +485,9 @@ service cloud.firestore {
       // Mirrors /clubs/{clubId}/settings — see the capability note there.
       match /settings/{settingId} {
         allow read: if false;
-        allow create, update: if validClubSettings();
-        allow delete: if true;
+        allow create, update: if validClubSettings()
+                              && canManageClub(parentClub('clubs_dev', clubId));
+        allow delete: if canManageClub(parentClub('clubs_dev', clubId));
       }
 
       match /reads/{readId}/quotes/{quoteId} {
@@ -378,8 +501,11 @@ service cloud.firestore {
 
       match /reads/{readId} {
         allow read: if true;
-        allow write: if validClubRead();
-        allow delete: if true;
+        allow create: if validClubRead();
+        allow update: if validClubRead()
+                      && (!readManagedFieldsChanged()
+                          || canManageClub(parentClub('clubs_dev', clubId)));
+        allow delete: if canManageClub(parentClub('clubs_dev', clubId));
 
         match /comments/{commentId} {
           allow read: if true;
@@ -393,6 +519,25 @@ service cloud.firestore {
                        || request.resource.data.chapterIndex is number;
         }
       }
+    }
+
+    // ---- Site roles (the owner's break-glass admin; 2026-08-14) ----
+    //
+    // site_roles/{uid} = { role: 'admin', email, displayName, grantedAt }.
+    // ONE unsuffixed collection for both lanes (like pipeline_*): a role
+    // belongs to the person, not the data lane, and the isSiteAdmin() helper
+    // above reads it for prod and _dev club clauses alike.
+    //
+    //   get   — only your OWN doc (doc id == request.auth.uid), so the UI
+    //           can show "you are the site admin" without exposing a roster.
+    //   list  — nobody. Enumerating who holds roles is a server-side concern
+    //           (Firebase console / service account).
+    //   write — nobody from a browser. Seeded by scripts/seed_site_admin.py
+    //           through the service account, which bypasses these rules.
+    match /site_roles/{uid} {
+      allow get: if request.auth != null && request.auth.uid == uid;
+      allow list: if false;
+      allow write: if false;
     }
 
     // ---- Pipeline status & remote trigger (prod + _dev) ----

@@ -33,12 +33,19 @@ export function validateClubDescription(description) {
 
 /**
  * Create a club. The creator becomes the host and first member.
+ *
+ * When the creator has a LIVE Firebase session, pass their auth uid as
+ * `uid`: the club is then born CLAIMED — managerUids is stamped at create,
+ * so rules enforce its manager writes from day one. Without a uid (legacy
+ * session) the club is created unclaimed, exactly as before the uid layer.
+ *
  * @param {object} db
  * @param {{name: string, description?: string, emoji?: string}} input
  * @param {{displayName: string}} session
+ * @param {string|null} [uid] the creator's Firebase Auth uid, when live
  * @returns {Promise<{success: boolean, clubId?: string, error?: string}>}
  */
-export async function createClub(db, input, session) {
+export async function createClub(db, input, session, uid = null) {
   if (!session || !session.displayName) {
     return { success: false, error: 'Sign in to create a club.' };
   }
@@ -50,7 +57,7 @@ export async function createClub(db, input, session) {
   const slug = slugifyName(session.displayName);
   const clubRef = doc(collection(db, col('clubs')));
   try {
-    await setDoc(clubRef, {
+    const clubDoc = {
       name: input.name.trim(),
       description: (input.description || '').trim(),
       emoji: input.emoji || '📚',
@@ -63,7 +70,13 @@ export async function createClub(db, input, session) {
       invitedSlugs: [],
       memberCount: 1,
       createdAt: serverTimestamp(),
-    });
+    };
+    if (uid) {
+      clubDoc.managerUids = {
+        [uid]: { role: 'host', displayName: session.displayName, claimedAt: Date.now() },
+      };
+    }
+    await setDoc(clubRef, clubDoc);
     await setDoc(doc(db, col('clubs'), clubRef.id, 'members', slug), {
       displayName: session.displayName,
       role: 'host',
@@ -133,6 +146,92 @@ export function clubFeatureEnabled(club, key) {
   const map = club && club.features;
   if (map && typeof map === 'object' && key in map) return !!map[key];
   return !!FEATURE_DEFAULTS[key];
+}
+
+// ==================== Manager uid roster (enforced permissions) ====================
+//
+// Since 2026-08-14 the club doc may carry `managerUids`: a map of Firebase
+// Auth uid -> { role: 'host'|'moderator', displayName, claimedAt }, recorded
+// BESIDE the display-name roles (hostSlug, members/{slug}.role), which stay
+// the presentation layer. firestore.rules enforces manager-only writes
+// against this map — the FIRST rules clauses on this site that use
+// request.auth. A club with no roster ("unclaimed") behaves exactly as
+// before: that is the migration path for legacy clubs, not an oversight.
+// Claiming is trust-on-first-use — while unclaimed, the first signed-in
+// host/mod stamps their own uid — and the site admin (site_roles/{uid},
+// see identity.js getSiteRole) is the repair path if the window is abused.
+
+/**
+ * Club-doc fields that rules gate behind the manager roster once a club is
+ * claimed. ⚠️ MUST match clubManagedFieldsChanged() in firestore.rules —
+ * the test suite pins this list as the contract.
+ */
+export const MANAGED_CLUB_FIELDS = [
+  'joinMode', 'nextMeetingAt', 'nextMeetingNotes', 'features',
+  'discordWebhookMask', 'managerUids',
+];
+
+/**
+ * Read-doc fields rules gate the same way (schedule + club-level
+ * lifecycle). ⚠️ MUST match readManagedFieldsChanged() in firestore.rules.
+ */
+export const MANAGED_READ_FIELDS = [
+  'milestones', 'scheduleUpdatedAt', 'status', 'finishedAt', 'slot',
+];
+
+/** Does this club have a non-empty manager-uid roster? */
+export function isClubClaimed(club) {
+  const m = club && club.managerUids;
+  return !!(m && typeof m === 'object' && Object.keys(m).length > 0);
+}
+
+/** Is this uid in the club's manager roster? */
+export function isManagerUid(club, uid) {
+  const m = club && club.managerUids;
+  return !!(uid && m && typeof m === 'object'
+            && Object.prototype.hasOwnProperty.call(m, uid));
+}
+
+/**
+ * Mirror of the firestore.rules gate: may this uid perform manager-gated
+ * writes on this club? Unclaimed clubs are open (migration path); site
+ * admin is the break-glass.
+ */
+export function canManageClub(club, uid, siteAdmin = false) {
+  return !isClubClaimed(club) || !!siteAdmin || isManagerUid(club, uid);
+}
+
+/**
+ * Stamp the caller's uid into the club's manager roster ("secure your
+ * role"). On an unclaimed club this is the trust-on-first-use claim and
+ * rules allow it for anyone signed in; on a claimed club rules only allow
+ * it for an existing manager uid or the site admin — so a moderator on an
+ * already-claimed club needs a bound manager (or the admin) to do this for
+ * them, which the caller should surface as guidance, not retry.
+ */
+export async function claimManagerRole(db, clubId, uid, session, role) {
+  if (!uid) {
+    return { success: false, error: 'Sign in with Google to secure your role.' };
+  }
+  const r = role === 'moderator' ? 'moderator' : 'host';
+  try {
+    await updateDoc(doc(db, col('clubs'), clubId), {
+      ['managerUids.' + uid]: {
+        role: r,
+        displayName: session && session.displayName ? session.displayName : '',
+        claimedAt: Date.now(),
+      },
+    });
+    return { success: true };
+  } catch (e) {
+    if (e && (e.code === 'permission-denied' || /permission/i.test(e.message || ''))) {
+      return {
+        success: false,
+        error: 'This club is already secured. Ask a bound host/mod (or the site admin) to add your account.',
+      };
+    }
+    return { success: false, error: e.message };
+  }
 }
 
 // ==================== Per-club Discord webhook ====================

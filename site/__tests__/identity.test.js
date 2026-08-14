@@ -65,6 +65,7 @@ import {
   validateDisplayName, getSession, logout, isAdmin, slugifyName,
   signInWithGoogle, signOutGoogle, handleRedirectResult, renderIdentityBar,
   getEstateStatus, isEstateApproved, renderDevSiteLink,
+  getLiveUser, getSiteRole, isSiteAdmin,
 } from '../identity.js';
 
 const fakeApp = {};
@@ -550,6 +551,60 @@ describe('Estate approval gate — the dev-site link', () => {
     authCallback(fakeUser('uid-pending-dom'));
     await new Promise((r) => setTimeout(r, 0));
     expect(slot.innerHTML).toBe('');
+  });
+});
+
+describe('Site roles (rules-enforced admin) + getLiveUser', () => {
+  const ADMIN_UID = 'tX912OtdBheUhIe4kLDsGuJwE3D2';
+
+  it('getLiveUser resolves the live Firebase user once auth state publishes', async () => {
+    const p = getLiveUser(fakeApp);
+    authCallback({ uid: ADMIN_UID, displayName: 'Skylar', email: 'nbaslamking@gmail.com' });
+    const user = await p;
+    expect(user).toEqual({ uid: ADMIN_UID, email: 'nbaslamking@gmail.com', displayName: 'Skylar' });
+  });
+
+  it('getLiveUser resolves null for a signed-out (or legacy) session — no verifiable identity', async () => {
+    const p = getLiveUser(fakeApp);
+    authCallback(null);
+    expect(await p).toBeNull();
+  });
+
+  it('getSiteRole reads the OWN site_roles doc — unsuffixed collection, keyed by uid', async () => {
+    mockStore[`site_roles/${ADMIN_UID}`] = { role: 'admin', email: 'nbaslamking@gmail.com' };
+    const p = getSiteRole({}, fakeApp);
+    authCallback({ uid: ADMIN_UID });
+    const role = await p;
+    expect(role).toEqual({ uid: ADMIN_UID, role: 'admin', email: 'nbaslamking@gmail.com' });
+  });
+
+  it('getSiteRole returns null when no role doc exists, and isSiteAdmin follows it', async () => {
+    const p1 = getSiteRole({}, fakeApp);
+    authCallback({ uid: 'uid-nobody' });
+    expect(await p1).toBeNull();
+
+    const p2 = isSiteAdmin({}, fakeApp);
+    authCallback({ uid: 'uid-nobody' });
+    expect(await p2).toBe(false);
+
+    mockStore[`site_roles/${ADMIN_UID}`] = { role: 'admin' };
+    const p3 = isSiteAdmin({}, fakeApp);
+    authCallback({ uid: ADMIN_UID });
+    expect(await p3).toBe(true);
+  });
+
+  it('a non-admin role value is not admin (future roles stay non-privileged by default)', async () => {
+    mockStore['site_roles/uid-mod'] = { role: 'moderator' };
+    const p = isSiteAdmin({}, fakeApp);
+    authCallback({ uid: 'uid-mod' });
+    expect(await p).toBe(false);
+  });
+
+  it('getSiteRole never throws when the read fails — the gate just stays closed', async () => {
+    // No live user at all (auth publishes null) + no doc: both paths null.
+    const p = getSiteRole({}, fakeApp);
+    authCallback(null);
+    expect(await p).toBeNull();
   });
 });
 
