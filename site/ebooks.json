@@ -1,8 +1,107 @@
 {
-  "generated_at": "2026-08-10T16:38:33.201603Z",
+  "generated_at": "2026-08-14T12:09:39.251070Z",
   "root": "C:/Users/nbasl/OpenAudible/books",
-  "count": 147,
+  "count": 156,
   "ebooks": [
+    {
+      "path": "All The Skills 3- A Deckbuilding LitRPG - Honour Rae.epub",
+      "filename": "All The Skills 3- A Deckbuilding LitRPG - Honour Rae.epub",
+      "format": "epub",
+      "title": "All The Skills 3: A Deckbuilding LitRPG",
+      "author": "Honour Rae",
+      "source": "opf",
+      "beside_audiobook": null,
+      "size_bytes": 2148336,
+      "modified": "2026-08-14T04:15:15.525540Z"
+    },
+    {
+      "path": "All the Skills- A Deck-Building LitRPG - Honour Rae.epub",
+      "filename": "All the Skills- A Deck-Building LitRPG - Honour Rae.epub",
+      "format": "epub",
+      "title": "All the Skills: A Deck-Building LitRPG",
+      "author": "Honour Rae",
+      "source": "opf",
+      "beside_audiobook": null,
+      "size_bytes": 3791179,
+      "modified": "2026-08-14T04:15:26.712186Z"
+    },
+    {
+      "path": "All The Skills- Book 2- A Deck-Building LitRPG - Honour Rae.epub",
+      "filename": "All The Skills- Book 2- A Deck-Building LitRPG - Honour Rae.epub",
+      "format": "epub",
+      "title": "All The Skills: Book 2: A Deck-Building LitRPG",
+      "author": "Honour Rae",
+      "source": "opf",
+      "beside_audiobook": null,
+      "size_bytes": 3868815,
+      "modified": "2026-08-14T04:15:19.521876Z"
+    },
+    {
+      "path": "All The Skills- Book 4- A Deck-Building LitRPG - Honour Rae.epub",
+      "filename": "All The Skills- Book 4- A Deck-Building LitRPG - Honour Rae.epub",
+      "format": "epub",
+      "title": "All The Skills: Book 4: A Deck-Building LitRPG",
+      "author": "Honour Rae",
+      "source": "opf",
+      "beside_audiobook": null,
+      "size_bytes": 3707420,
+      "modified": "2026-08-14T04:15:30.391520Z"
+    },
+    {
+      "path": "All The Skills- Book 6- A Deck-Building LitRPG - Honour Rae.epub",
+      "filename": "All The Skills- Book 6- A Deck-Building LitRPG - Honour Rae.epub",
+      "format": "epub",
+      "title": "All The Skills: Book 6: A Deck-Building LitRPG",
+      "author": "Honour Rae",
+      "source": "opf",
+      "beside_audiobook": null,
+      "size_bytes": 3566655,
+      "modified": "2026-08-14T04:15:23.039627Z"
+    },
+    {
+      "path": "Beneath the Dragoneye Moons- Immortal War - Selkie Myth.epub",
+      "filename": "Beneath the Dragoneye Moons- Immortal War - Selkie Myth.epub",
+      "format": "epub",
+      "title": "Beneath the Dragoneye Moons: Immortal War",
+      "author": "Selkie Myth",
+      "source": "opf",
+      "beside_audiobook": null,
+      "size_bytes": 4781397,
+      "modified": "2026-08-14T04:19:27.232505Z"
+    },
+    {
+      "path": "Beneath the Dragoneye Moons- Mandate of Heaven - Selkie Myth.epub",
+      "filename": "Beneath the Dragoneye Moons- Mandate of Heaven - Selkie Myth.epub",
+      "format": "epub",
+      "title": "Beneath the Dragoneye Moons: Mandate of Heaven",
+      "author": "Selkie Myth",
+      "source": "opf",
+      "beside_audiobook": null,
+      "size_bytes": 5219581,
+      "modified": "2026-08-14T04:19:23.681014Z"
+    },
+    {
+      "path": "Beneath the Dragoneye Moons- New Horizons - Selkie Myth.epub",
+      "filename": "Beneath the Dragoneye Moons- New Horizons - Selkie Myth.epub",
+      "format": "epub",
+      "title": "Beneath the Dragoneye Moons: New Horizons",
+      "author": "Selkie Myth",
+      "source": "opf",
+      "beside_audiobook": null,
+      "size_bytes": 5014483,
+      "modified": "2026-08-14T04:19:18.142321Z"
+    },
+    {
+      "path": "Beneath the Dragoneye Moons- Return to Remus - Selkie Myth.epub",
+      "filename": "Beneath the Dragoneye Moons- Return to Remus - Selkie Myth.epub",
+      "format": "epub",
+      "title": "Beneath the Dragoneye Moons: Return to Remus",
+      "author": "Selkie Myth",
+      "source": "opf",
+      "beside_audiobook": null,
+      "size_bytes": 4773583,
+      "modified": "2026-08-14T04:19:12.469595Z"
+    },
     {
       "path": "Brandon Sanderson/Defiant.pdf",
       "filename": "Defiant.pdf",
