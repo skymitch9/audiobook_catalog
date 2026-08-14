@@ -155,6 +155,13 @@ export const FEATURE_DEFAULTS = {
   // feature — see the "Meeting RSVP" section of club-reads.js and
   // site/ics.js for the data shape and calendar-file builder).
   meetingRsvp: false,
+  // Buddy-read pace graph (backlog #6): a per-member progress-over-time line
+  // chart on the read page, plus the schedule's expected-pace line when one
+  // is set. OFF by default. See the "Buddy-read pace graph" section of
+  // club-reads.js for the append-only progress-history shape (no new
+  // subcollection, no rules change) and the pure derivation/scaling helpers
+  // club-read.html turns into hand-built SVG.
+  paceGraph: false,
 };
 
 /** Is a feature enabled for this club? Falls back to FEATURE_DEFAULTS. */

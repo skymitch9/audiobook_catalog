@@ -867,6 +867,12 @@ export async function getComments(db, clubId, readId) {
 /**
  * Record how far a member has gotten. position -1 = not started;
  * otherwise the highest milestone position they have finished.
+ *
+ * Also grows the pace-graph history (see "Buddy-read pace graph" below):
+ * reads the prior doc to append a point rather than clobbering it, since
+ * this is a full setDoc. The extra getDoc costs one read per progress
+ * update — the same trade the poll-vote / rating writes already make for
+ * their own guard reads.
  */
 export async function setProgress(db, clubId, readId, position, session, finished = false) {
   if (!session || !session.displayName) {
@@ -874,11 +880,17 @@ export async function setProgress(db, clubId, readId, position, session, finishe
   }
   try {
     const slug = slugifyName(session.displayName);
-    await setDoc(doc(db, col('clubs'), clubId, 'reads', readId, 'progress', slug), {
+    const ref = doc(db, col('clubs'), clubId, 'reads', readId, 'progress', slug);
+    const prevSnap = await getDoc(ref);
+    const history = appendPaceHistory(
+      prevSnap.exists() ? prevSnap.data().history : null,
+      buildHistoryPoint(position, finished));
+    await setDoc(ref, {
       displayName: session.displayName,
       milestonePosition: position,
       finished,
       updatedAt: serverTimestamp(),
+      history,
     });
     return { success: true };
   } catch (e) {
@@ -889,7 +901,7 @@ export async function setProgress(db, clubId, readId, position, session, finishe
 /**
  * Record chapter-level progress ("I'm at chapter N"). -1 = not started.
  * Used for reads whose book has chapter data; drives per-comment spoilers
- * and chapter-mapped section locks.
+ * and chapter-mapped section locks. Grows pace-graph history — see setProgress.
  */
 export async function setChapterProgress(db, clubId, readId, chapterIndex, session, finished = false) {
   if (!session || !session.displayName) {
@@ -897,11 +909,17 @@ export async function setChapterProgress(db, clubId, readId, chapterIndex, sessi
   }
   try {
     const slug = slugifyName(session.displayName);
-    await setDoc(doc(db, col('clubs'), clubId, 'reads', readId, 'progress', slug), {
+    const ref = doc(db, col('clubs'), clubId, 'reads', readId, 'progress', slug);
+    const prevSnap = await getDoc(ref);
+    const history = appendPaceHistory(
+      prevSnap.exists() ? prevSnap.data().history : null,
+      buildHistoryPoint(chapterIndex, finished));
+    await setDoc(ref, {
       displayName: session.displayName,
       chapterIndex,
       finished,
       updatedAt: serverTimestamp(),
+      history,
     });
     return { success: true };
   } catch (e) {
@@ -921,6 +939,242 @@ export async function getMyProgress(db, clubId, readId, slug) {
     const snap = await getDoc(doc(db, col('clubs'), clubId, 'reads', readId, 'progress', slug));
     return snap.exists() ? { slug, ...snap.data() } : null;
   } catch { return null; }
+}
+
+// ==================== Buddy-read pace graph (backlog #6) ====================
+//
+// Progress-over-time lines, one per member, feature-gated by clubs.js
+// FEATURE_DEFAULTS.paceGraph (default OFF, checkbox in club.html's Edit
+// Club modal). The progress subcollection above stores ONLY a member's
+// CURRENT position — setProgress/setChapterProgress are full setDoc calls,
+// so the prior value (and its updatedAt) is gone the instant a new one
+// lands. No time series exists there today.
+//
+// Shape decision: rather than add a brand-new history subcollection (its
+// own rules block on both `clubs` and `clubs_dev`, its own deploy + REST
+// smoke-test cycle, its own read/write pair per data point), the SAME
+// progress doc grows one more field: an append-only `history` array,
+// `{ position, finished, at }[]`, written alongside milestonePosition/
+// chapterIndex in the same setDoc (see setProgress/setChapterProgress
+// above). This is the "needs NO backfill and degrades gracefully" shape the
+// brief asks for: a progress doc written before this feature shipped simply
+// has no `history` field (`appendPaceHistory` treats that as an empty
+// list), so the graph starts accumulating from the first progress write
+// after paceGraph existed — exactly "starts from feature-enable day", no
+// migration required.
+//
+// ⚠️ NO RULES CHANGE was needed. `firestore.rules`' progress write rule
+// (both lanes) only requires `milestonePosition` or `chapterIndex` to be a
+// number and places no restriction on any other field on the doc — so
+// `history` rides the exact same open, member-level write every other
+// progress field (displayName, finished, updatedAt) already uses. Capping
+// growth (MAX_PACE_HISTORY_POINTS) is enforced client-side only, same trust
+// tier as everything else in this open-write model (poll votes, ratings,
+// rsvps: "no rule can bind a display name to a person").
+//
+// Points are recorded on every REAL change only (see appendPaceHistory's
+// dedupe) — repeatedly saving the same spot doesn't grow the array, so in
+// practice most reads stay far under the cap without ever thinning.
+//
+// Spoiler care: the graph plots POSITIONS on a numeric/percent axis only
+// (see paceAxisLabel) — it never renders a milestone/section TITLE, on
+// either axis or in tooltips, so there is no new spoiler surface and no
+// title-locking convention (the polls/comments pattern) is needed at all —
+// this is the "safest" option the brief names, taken deliberately instead
+// of building a locking mechanism for an axis that doesn't need one.
+
+export const MAX_PACE_HISTORY_POINTS = 100;
+
+/** One pace-history point. `at` defaults to Date.now() (epoch millis, the
+ * same client-stamped-instant convention as dueAt/meetingAt/nextMeetingAt —
+ * serverTimestamp() sentinels aren't usable inside array elements). */
+export function buildHistoryPoint(position, finished, nowMs = Date.now()) {
+  return { position, finished: !!finished, at: nowMs };
+}
+
+/**
+ * Append a pace-history point. A write that repeats the immediately-prior
+ * point's position + finished state is a no-op (no new point) — re-saving
+ * the same spot shouldn't grow the array. Thins down to the cap afterward.
+ */
+export function appendPaceHistory(history, point, maxPoints = MAX_PACE_HISTORY_POINTS) {
+  const list = Array.isArray(history) ? history : [];
+  const lastPt = list[list.length - 1];
+  if (lastPt && lastPt.position === point.position && !!lastPt.finished === !!point.finished) {
+    return list;
+  }
+  return thinPaceHistory([...list, point], maxPoints);
+}
+
+/**
+ * Cap a history array at `maxPoints`, thinning the OLDEST points first.
+ * Repeatedly drops the entry at index 1 (never index 0) until back at the
+ * cap, so the very FIRST point ever recorded always survives as a
+ * start-of-history anchor, and the most recent (maxPoints - 1) points stay
+ * fully dense — recent pace matters most for "are we on track today"; the
+ * far past only needs to show where a member started, not every step.
+ */
+export function thinPaceHistory(history, maxPoints = MAX_PACE_HISTORY_POINTS) {
+  const list = Array.isArray(history) ? history : [];
+  if (list.length <= maxPoints) return list;
+  const out = [...list];
+  while (out.length > maxPoints) out.splice(1, 1);
+  return out;
+}
+
+/**
+ * A history point's position normalized onto the SAME 0..last milestone
+ * scale memberSchedulePosition (and the reading schedule) already use.
+ * Reuses that function directly by rebuilding the progress-doc shape it
+ * expects — one stored raw `position` value covers both the chaptered and
+ * milestone-based read cases, since only one of chapterIndex/milestonePosition
+ * is ever consulted (memberSchedulePosition picks by `chaptered`).
+ */
+export function pacePosition(point, milestones, chaptered) {
+  return memberSchedulePosition(
+    milestones,
+    { chapterIndex: point.position, milestonePosition: point.position, finished: point.finished },
+    chaptered);
+}
+
+/**
+ * One member's pace-graph line: history points normalized + sorted by time,
+ * with "not started" (-1) points dropped (the graph plots real forward
+ * movement, not its absence) and consecutive duplicate positions collapsed.
+ * @returns {Array<{atMs: number, position: number}>}
+ */
+export function paceSeriesForMember(history, milestones, chaptered) {
+  const sorted = (Array.isArray(history) ? [...history] : []).sort((a, b) => a.at - b.at);
+  const out = [];
+  for (const pt of sorted) {
+    const position = pacePosition(pt, milestones, chaptered);
+    if (position < 0) continue;
+    const prev = out[out.length - 1];
+    if (prev && prev.position === position) continue;
+    out.push({ atMs: pt.at, position });
+  }
+  return out;
+}
+
+/**
+ * The schedule's expected-pace reference line: one {atMs, position} per
+ * dated milestone, in position order. Callers gate on hasSchedule(milestones)
+ * before drawing it — empty here just means "nothing dated".
+ * @returns {Array<{atMs: number, position: number}>}
+ */
+export function expectedPaceLine(milestones) {
+  return (milestones || [])
+    .filter(m => typeof m.dueAt === 'number' && Number.isFinite(m.dueAt))
+    .sort((a, b) => a.position - b.position)
+    .map(m => ({ atMs: m.dueAt, position: m.position }));
+}
+
+/** The graph's y-axis ceiling: the highest milestone position. */
+export function paceAxisMax(milestones) {
+  const list = milestones || [];
+  return list.length ? Math.max(...list.map(m => m.position)) : 0;
+}
+
+/** Numeric/percent y-axis tick label — NEVER a milestone title (spoiler care). */
+export function paceAxisLabel(position, maxPosition) {
+  if (!(maxPosition > 0)) return '0%';
+  return `${Math.round((Math.max(0, position) / maxPosition) * 100)}%`;
+}
+
+/** True when at least one member has at least one plottable pace point. */
+export function hasPaceData(seriesByMember) {
+  return Object.values(seriesByMember || {}).some(s => Array.isArray(s) && s.length > 0);
+}
+
+/**
+ * The graph's x-axis end instant: "now" for an active read, so the line
+ * keeps drawing toward today; the read's finish time (falling back to its
+ * last data point) for a finished/abandoned read, so the graph FREEZES
+ * instead of drifting toward an ever-later "today" that no longer means
+ * anything once the read is closed.
+ */
+export function paceAxisEndMs(isActive, finishedAtMs, seriesTimesMs, nowMs = Date.now()) {
+  if (isActive) return nowMs;
+  if (typeof finishedAtMs === 'number' && Number.isFinite(finishedAtMs)) return finishedAtMs;
+  const times = seriesTimesMs || [];
+  return times.length ? Math.max(...times) : nowMs;
+}
+
+/**
+ * Deterministic member -> {color, dashed} assignment for the pace lines.
+ * `slugsSorted` should be in a stable, caller-chosen order (e.g. by display
+ * name) so the mapping doesn't shuffle between renders. The 8 colors are
+ * this estate's validated categorical palette (dataviz skill default
+ * instance — fixed hue order, CVD-checked); legible up to 8 distinct hues.
+ * Members 9-12 recycle hues 1-4 with a dashed stroke as a second, non-color
+ * channel, so a repeated hue is still visually distinct from its twin —
+ * identity is never color-alone here anyway, since the legend always shows
+ * the name too.
+ */
+export const PACE_PALETTE = [
+  'var(--pace-c1)', 'var(--pace-c2)', 'var(--pace-c3)', 'var(--pace-c4)',
+  'var(--pace-c5)', 'var(--pace-c6)', 'var(--pace-c7)', 'var(--pace-c8)',
+];
+
+export function assignPaceColors(slugsSorted) {
+  const map = {};
+  (slugsSorted || []).forEach((slug, i) => {
+    map[slug] = {
+      color: PACE_PALETTE[i % PACE_PALETTE.length],
+      dashed: i >= PACE_PALETTE.length,
+    };
+  });
+  return map;
+}
+
+/**
+ * Assemble everything the read page needs to draw the Pace panel from live
+ * progress docs + the read's milestones, in one pure call — series per
+ * member, the expected-schedule reference line, and the shared time/
+ * position domain — so club-read.html's rendering code only turns numbers
+ * into hand-built SVG.
+ * @param {Array<{slug: string, history?: Array}>} progressAll
+ * @param {Array} milestones
+ * @param {boolean} chaptered
+ * @param {{status: string, finishedAtMs: number|null}} readMeta
+ * @param {number} [nowMs]
+ */
+export function computePaceGraphModel(progressAll, milestones, chaptered, readMeta, nowMs = Date.now()) {
+  const maxPosition = paceAxisMax(milestones);
+  const seriesByMember = {};
+  for (const p of progressAll || []) {
+    seriesByMember[p.slug] = paceSeriesForMember(p.history, milestones, chaptered);
+  }
+  const expected = hasSchedule(milestones) ? expectedPaceLine(milestones) : [];
+  const isActive = !readMeta || readMeta.status === 'active';
+  const allTimesMs = [
+    ...Object.values(seriesByMember).flat().map(pt => pt.atMs),
+    ...expected.map(pt => pt.atMs),
+  ];
+  const endMs = paceAxisEndMs(isActive, readMeta && readMeta.finishedAtMs, allTimesMs, nowMs);
+  const startMs = allTimesMs.length ? Math.min(...allTimesMs) : endMs;
+  return {
+    empty: !hasPaceData(seriesByMember),
+    maxPosition,
+    seriesByMember,
+    expected,
+    startMs,
+    endMs,
+    frozen: !isActive,
+    todayMs: isActive ? nowMs : null,
+  };
+}
+
+/** Linear time -> x pixel scale for the hand-built SVG. */
+export function paceScaleX(atMs, minMs, maxMs, width) {
+  if (!(maxMs > minMs)) return 0;
+  return ((atMs - minMs) / (maxMs - minMs)) * width;
+}
+
+/** Linear position -> y pixel scale (0 at the bottom) for the hand-built SVG. */
+export function paceScaleY(position, maxPosition, height) {
+  if (!(maxPosition > 0)) return height;
+  return height - (Math.max(0, position) / maxPosition) * height;
 }
 
 // ==================== Club polls (backlog #3) ====================

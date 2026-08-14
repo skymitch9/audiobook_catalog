@@ -379,6 +379,42 @@ html[data-theme="cyberpunk"] .club-back:hover{box-shadow:0 0 8px rgba(5,217,232,
 html[data-theme="cyberpunk"] .read-title{letter-spacing:1px}
 html[data-theme="cyberpunk"] .finish-me:hover{color:#141406}
 html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
+
+/* ===== Buddy-read pace graph (backlog #6) =====
+   A member-identity color needs more distinct hues than this page's 3-role
+   --neon-* vocabulary (cyan/yellow/magenta only, aliased onto --et-accent/
+   --et-accent-2/--et-danger — see ab-bridge.css) can offer, so the pace
+   lines get their OWN small categorical palette: the dataviz skill's
+   validated 8-hue default instance (fixed order, CVD-checked in both
+   modes), light values here and dark values under the same
+   :not([data-mode="light"]) guard ab-bridge.css itself uses for its
+   cyberpunk dark-by-default literals. */
+:root{
+  --pace-c1:#2a78d6; --pace-c2:#eb6834; --pace-c3:#1baf7a; --pace-c4:#eda100;
+  --pace-c5:#e87ba4; --pace-c6:#008300; --pace-c7:#4a3aa7; --pace-c8:#e34948;
+}
+:root:not([data-mode="light"]){
+  --pace-c1:#3987e5; --pace-c2:#d95926; --pace-c3:#199e70; --pace-c4:#c98500;
+  --pace-c5:#d55181; --pace-c6:#008300; --pace-c7:#9085e9; --pace-c8:#e66767;
+}
+.pace-panel{background:var(--bg-2);border:1px solid var(--border);padding:16px 18px;margin-bottom:16px}
+.pace-title{margin:0 0 10px;font-size:1em;text-transform:var(--et-title-case);letter-spacing:.5px;color:var(--neon-yellow)}
+.pace-frozen{color:var(--muted);font-weight:400;font-size:.85em;text-transform:none;letter-spacing:0}
+.pace-empty{color:var(--muted);font-size:.9em;padding:14px 0;text-align:center;font-family:var(--et-font-mono)}
+.pace-svg-wrap{width:100%;overflow-x:auto}
+.pace-svg-wrap svg{width:100%;height:auto;display:block;min-width:320px}
+.pace-grid{stroke:var(--border);stroke-width:1}
+.pace-axis-label{fill:var(--muted);font-size:9px;font-family:var(--et-font-mono)}
+.pace-expected{fill:none;stroke:var(--muted);stroke-width:1.5;stroke-dasharray:2,3}
+.pace-today{stroke:var(--neon-magenta);stroke-width:1;stroke-dasharray:3,3}
+.pace-line{transition:opacity .15s}
+.pace-legend{display:flex;gap:6px 14px;flex-wrap:wrap;margin-top:10px}
+.pace-legend-item{
+  display:inline-flex;align-items:center;gap:6px;background:none;border:none;color:var(--muted);
+  cursor:pointer;font-family:var(--et-font-mono);font-size:.78em;padding:2px 0;
+}
+.pace-legend-item:hover,.pace-legend-item.active{color:var(--text)}
+.pace-swatch{width:10px;height:10px;border-radius:50%;display:inline-block;flex-shrink:0}
 </style>
 </head>
 <body>
@@ -466,7 +502,7 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
   import { coverUrl } from './covers-base.js';
   import { getSession, slugifyName, getSiteRole } from './identity.js';
   import { mountAccountModal } from './account-modal.js';
-  import { getClub, getMembers, clubFeatureEnabled } from './clubs.js?v=20260814g';
+  import { getClub, getMembers, clubFeatureEnabled } from './clubs.js?v=20260814h';
   import {
     getRead, getComments, addComment, deleteComment,
     toggleReaction, togglePin, REACTION_EMOJI,
@@ -483,7 +519,8 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
     rateBook, revealRatings, getRatings, ratingsAreRevealed, deleteRating,
     tallyRatings, isRatingAfterReveal, sortRatingsForReveal, getMyStoredRating,
     MAX_RATING_COMMENT_LENGTH,
-  } from './club-reads.js?v=20260814g';
+    computePaceGraphModel, paceAxisLabel, paceScaleX, paceScaleY, assignPaceColors,
+  } from './club-reads.js?v=20260814h';
   import { addUserWarning, getUserWarnings, deleteUserWarning } from './user-warnings.js';
   import { markReadSeen } from './club-notify.js';
   import { submitReview, bookIdFromTitle, getReviews, renderStars } from './reviews.js';
@@ -515,7 +552,8 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
   let bookPrompts = null;   // AI starter questions for hosts (toggleable per club)
   let bookWarnings = null;  // published content warnings with sources
   let userWarnings = [];    // reader-added warnings from this site
-  let view = 'discussions'; // 'discussions' | 'quotes'
+  let view = 'discussions'; // 'discussions' | 'quotes' | 'pace'
+  let pacePinned = null;    // legend-pinned member slug on the Pace tab (click/tap to highlight)
   let lastSeenTs = 0;       // seconds; comments newer than this get a NEW dot
   let firstRender = true;
   const openSections = new Set([GENERAL_MILESTONE]);
@@ -589,6 +627,19 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
   // localStorage mirror instead.
   const blindRatingsOn = () => !!club && clubFeatureEnabled(club, 'blindRatings');
   const ratingTimestampMs = (ts) => (ts && typeof ts.toMillis === 'function' ? ts.toMillis() : null);
+
+  // Buddy-read pace graph (feature-gated; see clubs.js FEATURE_DEFAULTS.paceGraph
+  // and the "Buddy-read pace graph" section of club-reads.js for the
+  // history-shape and rendering-model rationale). The expected-pace
+  // reference line reuses read.milestones[].dueAt directly (hasSchedule),
+  // independent of whether the readingSchedule TOGGLE is currently on for
+  // this club — same "reuse the underlying data, not the feature flag"
+  // precedent as the poll spoiler gate.
+  const paceGraphOn = () => !!club && clubFeatureEnabled(club, 'paceGraph');
+  const memberName = (slug) => {
+    const m = members.find(x => x.slug === slug);
+    return (m && m.displayName) || slug;
+  };
 
   // Bucket key for a comment on a chapter-based read:
   // 'general' | 'p<partIdx>' (part-level) | 'c<chapterIdx>' (chapter-level).
@@ -905,6 +956,7 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
   }
 
   function render() {
+    if (view === 'pace' && !paceGraphOn()) view = 'discussions'; // feature turned off mid-session
     const cover = read.coverHref
       ? `<img class="read-cover" src="${escapeHtml(coverUrl(read.coverHref))}" alt="" onerror="this.remove()">` : '';
     // One chip per club member (not just those who set progress), furthest
@@ -990,12 +1042,14 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
       <div class="view-switch">
         <button class="tab ${view === 'discussions' ? 'active' : ''}" data-view="discussions">Discussions</button>
         <button class="tab ${view === 'quotes' ? 'active' : ''}" data-view="quotes">Quotes (${quotes.length})</button>
+        ${paceGraphOn() ? `<button class="tab ${view === 'pace' ? 'active' : ''}" data-view="pace">Pace</button>` : ''}
       </div>
-      ${view === 'quotes' ? renderQuotes() : (hasChapters() ? renderPartsHierarchy() : `
+      ${view === 'quotes' ? renderQuotes() : view === 'pace' ? paceGraphHtml() : (hasChapters() ? renderPartsHierarchy() : `
       ${sectionHtml(GENERAL_MILESTONE, 'General (no spoilers)', -1)}
       ${read.milestones.map(m => sectionHtml(m.id, m.label, m.position)).join('')}`)}
     `;
     wireEvents();
+    if (view === 'pace') wirePaceEvents();
   }
 
   // Schedule banner: next due section + the viewer's own verdict. Renders
@@ -1145,6 +1199,110 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
       ${cards || '<div class="empty">No quotes saved yet — drop the lines that hit.</div>'}
       ${composer}
     `;
+  }
+
+  // Buddy-read pace graph (backlog #6). Hand-built inline SVG — no charting
+  // library, matching the rest of this no-build-step site. All the geometry
+  // (series, expected-schedule line, shared time/position domain) comes
+  // from computePaceGraphModel() in club-reads.js; this function only turns
+  // that data into markup. Axis is numeric/percent only — see the spoiler
+  // note on the "Buddy-read pace graph" section in club-reads.js for why no
+  // section title ever appears here.
+  const PACE_W = 640, PACE_H = 220, PACE_PAD_L = 34, PACE_PAD_R = 12, PACE_PAD_T = 10, PACE_PAD_B = 22;
+  function paceGraphHtml() {
+    const finishedAtMs = ratingTimestampMs(read.finishedAt);
+    const model = computePaceGraphModel(
+      progressAll, read.milestones, hasChapters(),
+      { status: read.status, finishedAtMs }, Date.now());
+
+    if (model.empty) {
+      return `<div class="pace-panel">
+        <h3 class="pace-title">Pace</h3>
+        <div class="pace-empty">No progress recorded yet — this fills in as members update where they are.</div>
+      </div>`;
+    }
+
+    const plotW = PACE_W - PACE_PAD_L - PACE_PAD_R;
+    const plotH = PACE_H - PACE_PAD_T - PACE_PAD_B;
+    const x = (ms) => PACE_PAD_L + paceScaleX(ms, model.startMs, model.endMs, plotW);
+    const y = (pos) => PACE_PAD_T + paceScaleY(pos, model.maxPosition, plotH);
+
+    const memberSlugs = Object.keys(model.seriesByMember).sort((a, b) => memberName(a).localeCompare(memberName(b)));
+    const colors = assignPaceColors(memberSlugs);
+
+    const gridLines = [0, .25, .5, .75, 1].map(f => {
+      const yy = PACE_PAD_T + plotH * (1 - f);
+      const label = paceAxisLabel(Math.round(f * model.maxPosition), model.maxPosition);
+      return `<line class="pace-grid" x1="${PACE_PAD_L}" x2="${PACE_W - PACE_PAD_R}" y1="${yy.toFixed(1)}" y2="${yy.toFixed(1)}"/>` +
+        `<text class="pace-axis-label" x="${PACE_PAD_L - 6}" y="${(yy + 3).toFixed(1)}" text-anchor="end">${label}</text>`;
+    }).join('');
+
+    const expectedLine = model.expected.length > 1
+      ? `<polyline class="pace-expected" points="${model.expected.map(pt => `${x(pt.atMs).toFixed(1)},${y(pt.position).toFixed(1)}`).join(' ')}"/>`
+      : '';
+
+    const lines = memberSlugs.filter(slug => model.seriesByMember[slug].length).map(slug => {
+      const series = model.seriesByMember[slug];
+      const c = colors[slug];
+      const pts = series.map(pt => `${x(pt.atMs).toFixed(1)},${y(pt.position).toFixed(1)}`).join(' ');
+      const dash = c.dashed ? ' stroke-dasharray="6,4"' : '';
+      const last = series[series.length - 1];
+      const name = escapeHtml(memberName(slug));
+      const markers = series.map(pt =>
+        `<circle cx="${x(pt.atMs).toFixed(1)}" cy="${y(pt.position).toFixed(1)}" r="8" fill="transparent">` +
+        `<title>${name} — ${paceAxisLabel(pt.position, model.maxPosition)} — ${escapeHtml(new Date(pt.atMs).toLocaleDateString())}</title></circle>`
+      ).join('');
+      return `<g class="pace-line" data-member="${escapeHtml(slug)}">
+        <polyline points="${pts}" fill="none" stroke="${c.color}" stroke-width="2"${dash}/>
+        <circle cx="${x(last.atMs).toFixed(1)}" cy="${y(last.position).toFixed(1)}" r="3.5" fill="${c.color}"/>
+        ${markers}
+      </g>`;
+    }).join('');
+
+    const todayLine = model.todayMs != null
+      ? `<line class="pace-today" x1="${x(model.todayMs).toFixed(1)}" x2="${x(model.todayMs).toFixed(1)}" y1="${PACE_PAD_T}" y2="${PACE_H - PACE_PAD_B}"/>` +
+        `<text class="pace-axis-label" x="${x(model.todayMs).toFixed(1)}" y="${PACE_H - 6}" text-anchor="middle">today</text>`
+      : '';
+
+    const legend = memberSlugs.map(slug => {
+      const c = colors[slug];
+      return `<button type="button" class="pace-legend-item${pacePinned === slug ? ' active' : ''}" data-pace-legend="${escapeHtml(slug)}">` +
+        `<span class="pace-swatch" style="background:${c.color}${c.dashed ? ';border:1px dashed var(--muted)' : ''}"></span>${escapeHtml(memberName(slug))}</button>`;
+    }).join('');
+
+    return `<div class="pace-panel">
+      <h3 class="pace-title">Pace${model.frozen ? ' <span class="pace-frozen">(finished — frozen)</span>' : ''}</h3>
+      <div class="pace-svg-wrap">
+        <svg viewBox="0 0 ${PACE_W} ${PACE_H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Member progress over time">
+          ${gridLines}${expectedLine}${lines}${todayLine}
+        </svg>
+      </div>
+      <div class="pace-legend">${legend}</div>
+    </div>`;
+  }
+
+  // Legend hover highlights a member's line; click/tap pins it (so touch
+  // devices, which don't reliably fire hover, still get the "highlight one
+  // member" interaction the brief asks for).
+  function wirePaceEvents() {
+    const panel = contentEl.querySelector('.pace-panel');
+    if (!panel) return;
+    const setActive = (slug) => {
+      panel.querySelectorAll('.pace-line').forEach(g => {
+        g.style.opacity = (!slug || g.dataset.member === slug) ? '1' : '.18';
+      });
+      panel.querySelectorAll('.pace-legend-item').forEach(b => {
+        b.classList.toggle('active', !!slug && b.dataset.paceLegend === slug);
+      });
+    };
+    panel.querySelectorAll('[data-pace-legend]').forEach(btn => {
+      btn.addEventListener('mouseenter', () => { if (!pacePinned) setActive(btn.dataset.paceLegend); });
+      btn.addEventListener('mouseleave', () => { if (!pacePinned) setActive(pacePinned); });
+      btn.addEventListener('click', () => {
+        pacePinned = pacePinned === btn.dataset.paceLegend ? null : btn.dataset.paceLegend;
+        setActive(pacePinned);
+      });
+    });
   }
 
   function wireEvents() {
