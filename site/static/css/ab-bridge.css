@@ -54,6 +54,27 @@
   --radius: var(--et-radius);
 }
 
+/* CYBERPUNK IDENTITY LITERALS (owner, 2026-08-14: /dev/ in its default theme
+   must be indistinguishable from the pre-theme site). The token roles land
+   close to the old dark palette but not byte-for-byte — the old controls were
+   a shade lighter than the surface (#1a1a2e vs #12121f) with a violet-tinged
+   border, and the row hover was a purple wash, not a cyan one. In cyberpunk
+   the original literals win; other themes keep the token mapping above.
+   Precedent: the .game-btn gradient restore in index.html. */
+:root[data-theme="cyberpunk"]:not([data-mode="light"]) {
+  --chip: #1a1a2e;
+  --btn-bg: #1a1a2e;
+  --btn-bg-active: #2a1a3e;
+  --btn-border: #3a2a4a;
+  --row-alt: #0e0e1a;
+  --row-hover: #1a1028;
+  --overlay: rgba(0, 0, 0, .85);
+}
+/* Both modes: index/stats always used 4px control corners. */
+:root[data-theme="cyberpunk"] {
+  --radius: 4px;
+}
+
 /* The shared ground: every page used to paint its own background + neon haze
    and declare Rajdhani by name. The tokens own all of that now — cyberpunk
    keeps its haze via --et-bg-texture, apple gets clean ground, retro gets its

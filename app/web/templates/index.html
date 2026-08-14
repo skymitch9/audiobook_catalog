@@ -29,8 +29,12 @@ body{
   margin:0; padding:var(--pad);
 }
 #wrap{max-width:1100px;margin:0 auto}
-/* Keep the fixed estate cog clear of the header/identity row */
-#wrap > div:first-child{padding-right:56px}
+/* Keep the fixed estate cog clear of the header/identity row — but only when
+   the viewport is narrow enough for them to collide. On wider screens the cog
+   floats in the margin and the header must sit exactly where prod puts it. */
+@media (max-width: 1220px){
+  #wrap > div:first-child{padding-right:56px}
+}
 h1{
   margin:0 0 8px 0;
   font-weight:700;
@@ -101,7 +105,7 @@ html[data-theme="cyberpunk"] .game-btn{
   box-shadow: 0 0 15px rgba(255,42,109,.4), 0 0 30px rgba(123,97,255,.2);
 }
 html[data-theme="cyberpunk"] .game-btn:hover{
-  box-shadow: 0 0 18px rgba(255,42,109,.5), 0 0 34px rgba(123,97,255,.3);
+  box-shadow: 0 0 20px rgba(255,42,109,.6), 0 0 40px rgba(123,97,255,.3);
 }
 .game-btn::before{
   content: '';
@@ -374,6 +378,73 @@ body:not(.cards) #ab-table{display:table}
 }
 .identity-bar__google-btn:hover{ border-color:var(--neon-cyan); }
 .identity-bar__google-btn:disabled{ opacity:.6; cursor:wait; }
+
+/* =============== CYBERPUNK IDENTITY RESTORES ===============
+   Owner, 2026-08-14: "/dev/ and the existing page don't look the same."
+   Everything below is the pre-theme page's own CSS (a202f4a), verbatim,
+   scoped to the default theme so apple/retro/classic keep their honest
+   token rendering. Precedent: the .game-btn gradient restore above. */
+html[data-theme="cyberpunk"] h1{
+  letter-spacing:2px;
+  text-shadow: 0 0 10px rgba(252,238,10,.4), 0 0 40px rgba(252,238,10,.1);
+}
+html[data-theme="cyberpunk"] input#ab-search:focus,
+html[data-theme="cyberpunk"] select#ab-sort:focus,
+html[data-theme="cyberpunk"] select#ab-page-size:focus{
+  box-shadow: 0 0 8px rgba(5,217,232,.3), inset 0 0 4px rgba(5,217,232,.1);
+}
+html[data-theme="cyberpunk"] button.btn{
+  clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
+}
+html[data-theme="cyberpunk"] button.btn:hover{
+  color:#0a0a12;
+  box-shadow: 0 0 12px rgba(252,238,10,.4);
+}
+html[data-theme="cyberpunk"] .game-btn{
+  clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
+  border-radius: 0 !important;
+  letter-spacing: 1px;
+}
+html[data-theme="cyberpunk"] .switch input:checked + .track .thumb{ box-shadow:0 0 6px rgba(5,217,232,.5); }
+html[data-theme="cyberpunk"] th{ letter-spacing:1px; }
+html[data-theme="cyberpunk"] img.cover:hover{ box-shadow:0 0 8px rgba(5,217,232,.4); }
+html[data-theme="cyberpunk"] .ab-card{
+  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+}
+html[data-theme="cyberpunk"] .ab-card:hover{ box-shadow: 0 0 12px rgba(255,42,109,.2); }
+html[data-theme="cyberpunk"] .page-btn.active,
+html[data-theme="cyberpunk"] .page-btn:disabled{
+  color:#0a0a12;
+  box-shadow:0 0 8px rgba(252,238,10,.3);
+}
+html[data-theme="cyberpunk"] #modal .close{ border-radius:0; }
+html[data-theme="cyberpunk"] #modal .close:hover{ box-shadow:0 0 10px rgba(255,42,109,.4); }
+html[data-theme="cyberpunk"] a.link-btn{ border-radius:0; }
+html[data-theme="cyberpunk"] a.link-btn:hover{ box-shadow:0 0 8px rgba(5,217,232,.3); }
+/* Section panels carry tokenised inline styles; the identity notch (10px, not
+   the panel token's 14px) has to out-rank them, hence !important. */
+html[data-theme="cyberpunk"] #book-of-day,
+html[data-theme="cyberpunk"] #recently-added{
+  border-radius:0 !important;
+  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px)) !important;
+}
+html[data-theme="cyberpunk"] #book-of-day h2,
+html[data-theme="cyberpunk"] #recently-added h2{ letter-spacing:1px !important; }
+/* The modal/auth panels drop their clips on small screens (the base rules
+   above do it by order; these higher-specificity restores must not undo it). */
+@media (min-width: 601px){
+  html[data-theme="cyberpunk"] #modal .panel{
+    border-radius:0;
+    box-shadow: 0 0 20px rgba(5,217,232,.2), 0 0 60px rgba(5,217,232,.05);
+    clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 20px 100%, 0 calc(100% - 20px));
+  }
+  html[data-theme="cyberpunk"] .auth-modal-panel{
+    clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px));
+  }
+}
+@media (max-width: 600px){
+  html[data-theme="cyberpunk"] h1{ letter-spacing:1px; }
+}
 </style>
 
 <!-- Author → Drive map loaded from external JSON file -->
