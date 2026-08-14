@@ -1,5 +1,22 @@
 // @vitest-environment jsdom
-// Feature: book-reviews-and-user-identity
+// @vitest-environment-options { "url": "https://audiobooks.heygabi.ai/" }
+//
+// Feature: estate identity (v2, 2026-08-14) — live Firebase sessions.
+//
+// The v1 model (capture identity → sign out immediately → localStorage
+// session, with a passphrase fallback) retired when the site was brought in
+// line with estate auth. These tests pin the v2 contract:
+//   - TRUTH is the Firebase Auth session; the ab_identity_* keys are a
+//     synchronous MIRROR written only from auth state (marker ab_identity_live)
+//   - a mirror row WITHOUT the marker is a legacy v1 capture: never wiped by
+//     the auth listener, surfaced as session.legacy for the one-time upgrade
+//   - sign-in KEEPS the session (no signOut after popup success)
+//   - the passphrase paths (register/login/reset) no longer exist
+//
+// ⚠️ The URL override above matters twice: signInWithGoogle uses the popup
+// path only off-localhost, and fb-env's IS_DEV_LANE must be false so col()
+// resolves unsuffixed names in the profile-write assertions.
+
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as fc from 'fast-check';
 
@@ -17,46 +34,62 @@ vi.mock('firebase/firestore', () => {
       };
     },
     setDoc: async (ref, data) => {
-      mockStore[ref._path] = { ...data };
+      mockStore[ref._path] = { ...(mockStore[ref._path] || {}), ...data };
     },
+    getFirestore: () => ({}),
     serverTimestamp: () => ({ _type: 'serverTimestamp' }),
   };
 });
 
-import { validateDisplayName, validatePassphrase, getSession, logout, register, login, renderIdentityBar, isAdmin } from '../identity.js';
+// --- Controllable Firebase Auth mock ---
+// authCallback is the listener identity.js attaches; driving it simulates
+// Firebase publishing auth state. signInWithPopupMock is per-test.
+let authCallback = null;
+const signOutSpy = vi.fn(async () => {});
+const signInWithPopupMock = vi.fn();
+const signInWithRedirectMock = vi.fn(async () => {});
 
-// Generators for valid display names (alphanumeric, 2-20 chars) and valid passphrases (4+ chars)
-const alphanumChars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-const validDisplayName = fc.array(
-  fc.constantFrom(...alphanumChars.split('')),
-  { minLength: 2, maxLength: 20 }
-).map(arr => arr.join(''));
-const validPassphrase = fc.array(
-  fc.constantFrom(...(alphanumChars + '!@#$%').split('')),
-  { minLength: 4, maxLength: 30 }
-).map(arr => arr.join(''));
+vi.mock('firebase/auth', () => {
+  return {
+    getAuth: () => ({ currentUser: null }),
+    onAuthStateChanged: (auth, cb) => { authCallback = cb; return () => {}; },
+    signInWithPopup: (...args) => signInWithPopupMock(...args),
+    signInWithRedirect: (...args) => signInWithRedirectMock(...args),
+    getRedirectResult: async () => null,
+    GoogleAuthProvider: class GoogleAuthProvider {},
+    signOut: (...args) => signOutSpy(...args),
+  };
+});
 
-const fakeDb = {};
+import {
+  validateDisplayName, getSession, logout, isAdmin, slugifyName,
+  signInWithGoogle, signOutGoogle, handleRedirectResult,
+} from '../identity.js';
 
-describe('Property 2: Identity input validation', () => {
-  // **Validates: Requirements 1.3, 1.4**
+const fakeApp = {};
 
+function setLegacyMirror(name, method = 'google', email = '') {
+  localStorage.setItem('ab_identity_name', name);
+  localStorage.setItem('ab_identity_session', 'active');
+  localStorage.setItem('ab_identity_method', method);
+  if (email) localStorage.setItem('ab_identity_email', email);
+  // no ab_identity_live marker — that is what makes it legacy
+}
+
+beforeEach(() => {
+  localStorage.clear();
+  mockStore = {};
+  signOutSpy.mockClear();
+  signInWithPopupMock.mockReset();
+  signInWithRedirectMock.mockClear();
+});
+
+describe('Input validation', () => {
   it('validateDisplayName returns true iff string length is between 2 and 20 inclusive', () => {
     fc.assert(
       fc.property(fc.string(), (s) => {
         const result = validateDisplayName(s);
         const expected = s.length >= 2 && s.length <= 20;
-        expect(result).toBe(expected);
-      }),
-      { numRuns: 100 }
-    );
-  });
-
-  it('validatePassphrase returns true iff string length is at least 4', () => {
-    fc.assert(
-      fc.property(fc.string(), (s) => {
-        const result = validatePassphrase(s);
-        const expected = s.length >= 4;
         expect(result).toBe(expected);
       }),
       { numRuns: 100 }
@@ -70,23 +103,14 @@ describe('Property 2: Identity input validation', () => {
     }
   });
 
-  it('validatePassphrase rejects non-string inputs', () => {
-    const nonStrings = [null, undefined, 42, true, {}, []];
-    for (const val of nonStrings) {
-      expect(validatePassphrase(val)).toBe(false);
-    }
+  it('slugifyName lowercases — the profile/review doc-id convention', () => {
+    expect(slugifyName('Skylar')).toBe('skylar');
+    expect(slugifyName('!Sky')).toBe('!sky');
   });
 });
 
-describe('Property 5: Session persistence round-trip', () => {
-  // **Validates: Requirements 3.1, 3.2**
-
-  beforeEach(() => {
-    localStorage.removeItem('ab_identity_name');
-    localStorage.removeItem('ab_identity_session');
-  });
-
-  it('getSession() returns the display name after storing a valid session', () => {
+describe('Session mirror round-trip', () => {
+  it('getSession() returns the display name after a mirror row is present', () => {
     fc.assert(
       fc.property(
         fc.string({ minLength: 2, maxLength: 20 }),
@@ -110,13 +134,13 @@ describe('Property 5: Session persistence round-trip', () => {
         (displayName) => {
           localStorage.setItem('ab_identity_name', displayName);
           localStorage.setItem('ab_identity_session', 'active');
+          localStorage.setItem('ab_identity_live', '1');
 
-          // Verify session exists first
           expect(getSession()).not.toBeNull();
-
           logout();
-
           expect(getSession()).toBeNull();
+          // logout clears the live marker too — no half-cleared mirrors
+          expect(localStorage.getItem('ab_identity_live')).toBeNull();
         }
       ),
       { numRuns: 100 }
@@ -142,169 +166,146 @@ describe('Property 5: Session persistence round-trip', () => {
   });
 });
 
-
-// Feature: book-reviews-and-user-identity, Property 1: Registration and login round-trip
-describe('Property 1: Registration and login round-trip', () => {
-  // **Validates: Requirements 1.1, 1.5, 1.6, 2.1, 2.2**
-
-  beforeEach(() => {
-    mockStore = {};
-    localStorage.removeItem('ab_identity_name');
-    localStorage.removeItem('ab_identity_session');
+describe('Legacy detection — v1 captures vs live-backed mirrors', () => {
+  it('a mirror without the live marker is a legacy session', () => {
+    setLegacyMirror('OldTimer');
+    const s = getSession();
+    expect(s).not.toBeNull();
+    expect(s.legacy).toBe(true);
   });
 
-  it('register then login with same credentials succeeds and getSession() returns the display name', async () => {
-    await fc.assert(
-      fc.asyncProperty(validDisplayName, validPassphrase, async (name, pass) => {
-        // Clear state between iterations
-        mockStore = {};
-        localStorage.removeItem('ab_identity_name');
-        localStorage.removeItem('ab_identity_session');
+  it('a mirror with the live marker is not legacy', () => {
+    localStorage.setItem('ab_identity_name', 'Fresh');
+    localStorage.setItem('ab_identity_session', 'active');
+    localStorage.setItem('ab_identity_live', '1');
+    expect(getSession().legacy).toBe(false);
+  });
 
-        const regResult = await register(name, pass, fakeDb);
-        expect(regResult.success).toBe(true);
-
-        // Session should be set after registration
-        const sessionAfterReg = getSession();
-        expect(sessionAfterReg).not.toBeNull();
-        expect(sessionAfterReg.displayName).toBe(name);
-
-        // Logout, then login with same credentials
-        logout();
-        expect(getSession()).toBeNull();
-
-        const loginResult = await login(name, pass, fakeDb);
-        expect(loginResult.success).toBe(true);
-
-        const sessionAfterLogin = getSession();
-        expect(sessionAfterLogin).not.toBeNull();
-        expect(sessionAfterLogin.displayName).toBe(name);
-      }),
-      { numRuns: 100 }
-    );
+  it('the dev-lane stub marker also counts as live', () => {
+    localStorage.setItem('ab_identity_name', 'Stubbed');
+    localStorage.setItem('ab_identity_session', 'active');
+    localStorage.setItem('ab_identity_live', 'stub');
+    expect(getSession().legacy).toBe(false);
   });
 });
 
-// Feature: book-reviews-and-user-identity, Property 3: Duplicate display name rejection
-describe('Property 3: Duplicate display name rejection', () => {
-  // **Validates: Requirements 1.2**
+describe('Auth mirror — session state comes from onAuthStateChanged', () => {
+  it('a published user writes the mirror with the live marker', async () => {
+    await handleRedirectResult(fakeApp); // attaches the listener
+    expect(authCallback).toBeTypeOf('function');
 
-  beforeEach(() => {
-    mockStore = {};
-    localStorage.removeItem('ab_identity_name');
-    localStorage.removeItem('ab_identity_session');
+    authCallback({ displayName: 'Skylar', email: 'nbaslamking@gmail.com', photoURL: 'https://p/x.png' });
+
+    const s = getSession();
+    expect(s).not.toBeNull();
+    expect(s.displayName).toBe('Skylar');
+    expect(s.email).toBe('nbaslamking@gmail.com');
+    expect(s.photoURL).toBe('https://p/x.png');
+    expect(s.method).toBe('google');
+    expect(s.legacy).toBe(false);
   });
 
-  it('registering the same display name twice (case-insensitive) fails the second time', async () => {
-    await fc.assert(
-      fc.asyncProperty(validDisplayName, validPassphrase, validPassphrase, async (name, pass1, pass2) => {
-        mockStore = {};
-        localStorage.removeItem('ab_identity_name');
-        localStorage.removeItem('ab_identity_session');
-
-        const first = await register(name, pass1, fakeDb);
-        expect(first.success).toBe(true);
-
-        // Try registering again with same name (same case)
-        const second = await register(name, pass2, fakeDb);
-        expect(second.success).toBe(false);
-        expect(second.error).toBe('That display name is already taken.');
-      }),
-      { numRuns: 100 }
-    );
+  it('a user with no displayName falls back to email', async () => {
+    await handleRedirectResult(fakeApp);
+    authCallback({ displayName: '', email: 'plain@example.com', photoURL: '' });
+    expect(getSession().displayName).toBe('plain@example.com');
   });
 
-  it('registering with a case-variant of an existing name fails', async () => {
-    await fc.assert(
-      fc.asyncProperty(validDisplayName, validPassphrase, validPassphrase, async (name, pass1, pass2) => {
-        mockStore = {};
-        localStorage.removeItem('ab_identity_name');
-        localStorage.removeItem('ab_identity_session');
+  it('a published null clears a live-backed mirror (signed out for real)', async () => {
+    await handleRedirectResult(fakeApp);
+    authCallback({ displayName: 'Skylar', email: 'e@x.com', photoURL: '' });
+    expect(getSession()).not.toBeNull();
 
-        const first = await register(name, pass1, fakeDb);
-        expect(first.success).toBe(true);
+    authCallback(null);
+    expect(getSession()).toBeNull();
+  });
 
-        // Flip case of the name
-        const flipped = name.split('').map(c =>
-          c === c.toUpperCase() ? c.toLowerCase() : c.toUpperCase()
-        ).join('');
+  it('⚠️ a published null NEVER wipes a legacy v1 capture', async () => {
+    // The migration promise: Firebase reporting "no user" says nothing about
+    // a v1 capture, which never had a live session behind it. Wiping it here
+    // would silently strand a signed-in-looking person.
+    setLegacyMirror('OldTimer', 'passphrase');
+    await handleRedirectResult(fakeApp);
 
-        // Only test if flipped is still a valid display name (2-20 chars)
-        if (flipped.length >= 2 && flipped.length <= 20) {
-          const second = await register(flipped, pass2, fakeDb);
-          expect(second.success).toBe(false);
-          expect(second.error).toBe('That display name is already taken.');
-        }
-      }),
-      { numRuns: 100 }
-    );
+    authCallback(null);
+
+    const s = getSession();
+    expect(s).not.toBeNull();
+    expect(s.displayName).toBe('OldTimer');
+    expect(s.legacy).toBe(true);
   });
 });
 
-// Feature: book-reviews-and-user-identity, Property 4: Generic error for invalid credentials
-describe('Property 4: Generic error for invalid credentials', () => {
-  // **Validates: Requirements 2.3, 2.4**
+describe('signInWithGoogle — the session is KEPT', () => {
+  it('popup success mirrors the user, writes the profile, and does NOT sign out', async () => {
+    signInWithPopupMock.mockResolvedValue({
+      user: { displayName: 'Skylar', email: 'nbaslamking@gmail.com', photoURL: 'https://p/x.png' },
+    });
 
-  beforeEach(() => {
-    mockStore = {};
-    localStorage.removeItem('ab_identity_name');
-    localStorage.removeItem('ab_identity_session');
+    const result = await signInWithGoogle(fakeApp);
+
+    expect(result.success).toBe(true);
+    expect(result.displayName).toBe('Skylar');
+    // v1 signed out here on purpose; v2 must not — this is the inversion
+    expect(signOutSpy).not.toHaveBeenCalled();
+
+    const s = getSession();
+    expect(s.displayName).toBe('Skylar');
+    expect(s.legacy).toBe(false);
+
+    // ensureProfile merge-write landed on the v1 doc id (slugified name),
+    // so the returning account keeps its Community presence
+    expect(mockStore['profiles/skylar']).toMatchObject({
+      displayName: 'Skylar',
+      photoURL: 'https://p/x.png',
+    });
   });
 
-  it('login with wrong passphrase returns same generic error as non-existent name', async () => {
-    await fc.assert(
-      fc.asyncProperty(
-        validDisplayName,
-        validPassphrase,
-        validPassphrase,
-        validDisplayName,
-        async (name, correctPass, wrongPass, nonExistentName) => {
-          mockStore = {};
-          localStorage.removeItem('ab_identity_name');
-          localStorage.removeItem('ab_identity_session');
+  it('a closed popup is a cancellation, not an error state', async () => {
+    signInWithPopupMock.mockRejectedValue({ code: 'auth/popup-closed-by-user' });
+    const result = await signInWithGoogle(fakeApp);
+    expect(result.success).toBe(false);
+    expect(result.error).toBe('Sign-in cancelled.');
+    expect(getSession()).toBeNull();
+    expect(signInWithRedirectMock).not.toHaveBeenCalled();
+  });
 
-          // Register a user
-          await register(name, correctPass, fakeDb);
+  it('popup-unavailable codes fall back to redirect; other errors do not', async () => {
+    signInWithPopupMock.mockRejectedValue({ code: 'auth/popup-blocked' });
+    const r1 = await signInWithGoogle(fakeApp);
+    expect(signInWithRedirectMock).toHaveBeenCalledTimes(1);
+    expect(r1.success).toBe(false);
 
-          // Ensure wrongPass differs from correctPass
-          const actualWrongPass = wrongPass === correctPass ? wrongPass + 'x' : wrongPass;
-
-          // Ensure nonExistentName differs from registered name (case-insensitive)
-          const actualNonExistent = nonExistentName.toLowerCase() === name.toLowerCase()
-            ? nonExistentName + 'zz'
-            : nonExistentName;
-
-          // Login with wrong passphrase
-          const wrongPassResult = await login(name, actualWrongPass, fakeDb);
-          expect(wrongPassResult.success).toBe(false);
-
-          // Login with non-existent name
-          const noUserResult = await login(actualNonExistent, correctPass, fakeDb);
-          expect(noUserResult.success).toBe(false);
-
-          // Both should return the same generic error message
-          expect(wrongPassResult.error).toBe('Invalid display name or passphrase.');
-          expect(noUserResult.error).toBe('Invalid display name or passphrase.');
-          expect(wrongPassResult.error).toBe(noUserResult.error);
-        }
-      ),
-      { numRuns: 100 }
-    );
+    signInWithRedirectMock.mockClear();
+    signInWithPopupMock.mockRejectedValue({ code: 'auth/network-request-failed' });
+    const r2 = await signInWithGoogle(fakeApp);
+    expect(signInWithRedirectMock).not.toHaveBeenCalled();
+    expect(r2.success).toBe(false);
+    expect(r2.error).toBe('Sign-in failed. Try again.');
   });
 });
 
+describe('signOutGoogle', () => {
+  it('ends the Firebase session and clears the mirror', async () => {
+    localStorage.setItem('ab_identity_name', 'Skylar');
+    localStorage.setItem('ab_identity_session', 'active');
+    localStorage.setItem('ab_identity_live', '1');
 
-// Feature: book-reviews-and-user-identity — renderIdentityBar unit tests
-// **Validates: Requirements 1.3, 1.4, 3.3, 8.5**
-// SKIPPED: these tests target the pre-Google-SSO identity bar UI (inline
-// name/passphrase form, "Welcome, X" greeting) and were silently dead until
-// the firebase-auth vitest alias was added — the suite could not even load.
-// Rewrite them against the current SSO-first UI to re-enable.
+    await signOutGoogle(fakeApp);
 
+    expect(signOutSpy).toHaveBeenCalled();
+    expect(getSession()).toBeNull();
+  });
+
+  it('also clears a legacy session (absent-session signOut is a no-op)', async () => {
+    setLegacyMirror('OldTimer', 'passphrase');
+    await signOutGoogle(fakeApp);
+    expect(getSession()).toBeNull();
+  });
+});
 
 describe('isAdmin', () => {
-  beforeEach(() => localStorage.clear());
-
+  // PRESENTATION ONLY — see the isAdmin docblock; rules are shape-only (§4a)
   it('accepts the Google account by email, whatever the display name is', () => {
     expect(isAdmin({ displayName: 'Skylar', email: 'nbaslamking@gmail.com' })).toBe(true);
     // Renaming the Google profile must not silently drop admin
@@ -315,7 +316,7 @@ describe('isAdmin', () => {
     expect(isAdmin({ displayName: 'x', email: '  NBaslamKing@Gmail.com ' })).toBe(true);
   });
 
-  it('still accepts the passphrase admin name', () => {
+  it('still accepts the retired passphrase admin name (legacy sessions)', () => {
     expect(isAdmin({ displayName: '!Sky', email: '' })).toBe(true);
   });
 
@@ -339,5 +340,17 @@ describe('isAdmin', () => {
     localStorage.setItem('ab_identity_email', 'nope@example.com');
     localStorage.setItem('ab_identity_name', 'Nope');
     expect(isAdmin()).toBe(false);
+  });
+});
+
+describe('Retired passphrase surface', () => {
+  it('register/login/adminResetPassword/validatePassphrase are gone from the module', async () => {
+    const mod = await import('../identity.js');
+    expect(mod.register).toBeUndefined();
+    expect(mod.login).toBeUndefined();
+    expect(mod.adminResetPassword).toBeUndefined();
+    expect(mod.setNewPassphrase).toBeUndefined();
+    expect(mod.validatePassphrase).toBeUndefined();
+    expect(mod.hashPassphrase).toBeUndefined();
   });
 });
