@@ -444,6 +444,10 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
         <input id="feat-discord" type="checkbox" />
         <label for="feat-discord" style="margin:0;text-transform:none">Discord announcements — schedule changes, due-date nudges, read start/finish posted to your webhook</label>
       </div>
+      <div class="field-inline" id="feat-discord-polls-row" style="margin-left:26px">
+        <input id="feat-discord-polls" type="checkbox" />
+        <label for="feat-discord-polls" style="margin:0;text-transform:none">↳ Poll results — also announce when a poll closes</label>
+      </div>
       <div class="field-inline">
         <input id="feat-polls" type="checkbox" />
         <label for="feat-polls" style="margin:0;text-transform:none">Polls — free-form club polls, optionally tagged to a spoiler-gated section</label>
@@ -581,7 +585,7 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
     acceptInvite, declineInvite, dismissRateNudge,
     clubFeatureEnabled, isValidDiscordWebhook, setClubDiscordWebhook, clearClubDiscordWebhook,
     isClubClaimed, isManagerUid, canManageClub, canOperateClub, claimManagerRole,
-  } from './clubs.js?v=20260814i';
+  } from './clubs.js?v=20260814j';
   import {
     getReads, startRead, removeRead, finishRead, getComments, updateReadLabel, splitByDuration, parseManualMilestones,
     loadCatalogBooks, MAX_ACTIVE_READS, groupChapters,
@@ -593,7 +597,7 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
     isNextBookPoll, pollOptionContentHtml, pollWinnerIndex, POLL_TYPE_FREEFORM, POLL_TYPE_NEXT_BOOK,
     MIN_POLL_OPTIONS, MAX_POLL_OPTIONS, MAX_POLL_OPTION_LENGTH,
     RSVP_RESPONSES, getRsvps, castRsvp, currentRsvps, tallyRsvps, myRsvpResponse,
-  } from './club-reads.js?v=20260814i';
+  } from './club-reads.js?v=20260814j';
   import { loadSeen, syncSeen } from './club-notify.js';
   import { buildMeetingIcs, icsFilename, downloadIcsFile } from './ics.js?v=20260814g';
 
@@ -1643,6 +1647,20 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
 
   // --- Edit Club modal (static DOM, wired once) ---
   const editModal = document.getElementById('edit-modal');
+
+  // Poll announcements (backlog #2c) are a sub-toggle of Discord
+  // announcements — visually greyed out and unusable while the parent
+  // toggle is off, though the saved value is untouched either way (a
+  // manager who unchecks the parent and re-checks it later gets their poll
+  // preference back rather than losing it).
+  function syncDiscordPollsRow() {
+    const on = document.getElementById('feat-discord').checked;
+    const row = document.getElementById('feat-discord-polls-row');
+    document.getElementById('feat-discord-polls').disabled = !on;
+    row.style.opacity = on ? '1' : '.5';
+  }
+  document.getElementById('feat-discord').addEventListener('change', syncDiscordPollsRow);
+
   // millis -> datetime-local input value in the viewer's local time
   function toDatetimeLocal(ms) {
     const d = new Date(ms);
@@ -1702,6 +1720,8 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
     if (isMod()) {
       document.getElementById('feat-schedule').checked = clubFeatureEnabled(club, 'readingSchedule');
       document.getElementById('feat-discord').checked = clubFeatureEnabled(club, 'discordAnnouncements');
+      document.getElementById('feat-discord-polls').checked = clubFeatureEnabled(club, 'discordPollAnnouncements');
+      syncDiscordPollsRow();
       document.getElementById('feat-polls').checked = clubFeatureEnabled(club, 'polls');
       document.getElementById('feat-blind-ratings').checked = clubFeatureEnabled(club, 'blindRatings');
       document.getElementById('feat-meeting-rsvp').checked = clubFeatureEnabled(club, 'meetingRsvp');
@@ -1789,6 +1809,7 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
         ...(club.features || {}),
         readingSchedule: document.getElementById('feat-schedule').checked,
         discordAnnouncements: document.getElementById('feat-discord').checked,
+        discordPollAnnouncements: document.getElementById('feat-discord-polls').checked,
         polls: document.getElementById('feat-polls').checked,
         blindRatings: document.getElementById('feat-blind-ratings').checked,
         meetingRsvp: document.getElementById('feat-meeting-rsvp').checked,

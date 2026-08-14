@@ -139,6 +139,13 @@ export const FEATURE_DEFAULTS = {
   // due-date nudges and read start/finish to the club's own webhook. OFF by
   // default so no channel hears anything until a manager opts in.
   discordAnnouncements: false,
+  // Poll-closed (and future poll-posted) embeds — backlog #2c. A SEPARATE
+  // opt-in from discordAnnouncements above: a club can want meeting/due
+  // nudges without poll chatter. OFF by default; the engine still checks
+  // discordAnnouncements FIRST as the master gate (see
+  // app/club_announcements.py feature_enabled/POLL_FEATURE_KEY) — this key
+  // only matters once that master toggle is already on.
+  discordPollAnnouncements: false,
   // Free-form, chapter-taggable polls (backlog #3). OFF by default like every
   // other opt-in feature; see the "Club polls" section of club-reads.js for
   // the data shape and spoiler-gating logic.

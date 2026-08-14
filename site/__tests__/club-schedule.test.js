@@ -358,12 +358,35 @@ describe('club feature toggles', () => {
     expect(clubFeatureEnabled({ features: { readingSchedule: true } }, 'polls')).toBe(false);
   });
 
+  it('discordPollAnnouncements defaults OFF independently of discordAnnouncements', () => {
+    expect(FEATURE_DEFAULTS.discordPollAnnouncements).toBe(false);
+    expect(clubFeatureEnabled({ name: 'Old Club' }, 'discordPollAnnouncements')).toBe(false);
+    // The master toggle being on does not imply the poll sub-toggle is on.
+    expect(clubFeatureEnabled(
+      { features: { discordAnnouncements: true } }, 'discordPollAnnouncements'
+    )).toBe(false);
+    expect(clubFeatureEnabled(
+      { features: { discordAnnouncements: true, discordPollAnnouncements: true } },
+      'discordPollAnnouncements'
+    )).toBe(true);
+  });
+
   it('updateClubDetails saves a cleaned features map (unknown keys dropped)', async () => {
     const r = await updateClubDetails(fakeDb, 'club1', {
       features: { readingSchedule: true, evilKey: 'payload' },
     });
     expect(r.success).toBe(true);
     expect(mockStore[CLUB_PATH].features).toEqual({ readingSchedule: true });
+  });
+
+  it('updateClubDetails keeps discordPollAnnouncements through the cleaning pass', async () => {
+    const r = await updateClubDetails(fakeDb, 'club1', {
+      features: { discordAnnouncements: true, discordPollAnnouncements: true, evilKey: 'payload' },
+    });
+    expect(r.success).toBe(true);
+    expect(mockStore[CLUB_PATH].features).toEqual({
+      discordAnnouncements: true, discordPollAnnouncements: true,
+    });
   });
 
   it('updateClubDetails rejects a non-object features value', async () => {

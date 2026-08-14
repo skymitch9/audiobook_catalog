@@ -11,6 +11,7 @@ from app.club_announcements import (
     EVENT_PRIORITY,
     FEATURE_KEY,
     MAX_EMBEDS_PER_RUN,
+    POLL_FEATURE_KEY,
     REMINDER_WINDOW_MS,
     baseline_entry,
     build_embed,
@@ -129,6 +130,16 @@ class TestHelpers(unittest.TestCase):
         self.assertFalse(feature_enabled({"features": {FEATURE_KEY: False}}))
         self.assertTrue(feature_enabled({"features": {FEATURE_KEY: True}}))
         self.assertFalse(feature_enabled({"features": {"readingSchedule": True}}))
+
+    def test_poll_feature_key_defaults_off_independent_of_master(self):
+        """backlog #2c: the poll sub-toggle defaults OFF and does not follow
+        the master discordAnnouncements flag either way."""
+        self.assertFalse(feature_enabled({}, POLL_FEATURE_KEY))
+        self.assertFalse(feature_enabled({"features": {FEATURE_KEY: True}}, POLL_FEATURE_KEY))
+        self.assertFalse(feature_enabled({"features": {POLL_FEATURE_KEY: False}}, POLL_FEATURE_KEY))
+        self.assertTrue(feature_enabled(
+            {"features": {FEATURE_KEY: True, POLL_FEATURE_KEY: True}}, POLL_FEATURE_KEY
+        ))
 
     def test_club_page_url_lanes(self):
         self.assertEqual(
@@ -713,7 +724,9 @@ class TestPlanAndRunNewEvents(unittest.TestCase):
         self.assertEqual(state["tbrLeaderId"], "t1")
 
     def test_poll_closed_posts_and_advances_marker(self):
-        club = self.enabled_club()
+        """Both flags on (backlog #2c: the master toggle alone is not enough
+        — see test_poll_closed_suppressed_without_poll_flag below)."""
+        club = self.enabled_club(features={FEATURE_KEY: True, POLL_FEATURE_KEY: True})
         source = FakeSource(
             [club],
             webhooks={"c1": "https://discord.com/api/webhooks/1/tok"},
@@ -727,6 +740,51 @@ class TestPlanAndRunNewEvents(unittest.TestCase):
         self.assertEqual(len(posts[0][1]), 1)
         self.assertIn("Poll closed", posts[0][1][0]["title"])
         self.assertEqual(source.saved_states["c1"]["polls"]["p1"]["status"], "closed")
+
+    def test_poll_closed_suppressed_without_poll_flag(self):
+        """backlog #2c: discordAnnouncements alone (no discordPollAnnouncements)
+        must NOT announce a poll closing — the marker still advances so a
+        later flag flip doesn't retroactively spam this transition."""
+        club = self.enabled_club()  # master flag only, poll sub-toggle absent
+        source = FakeSource(
+            [club],
+            webhooks={"c1": "https://discord.com/api/webhooks/1/tok"},
+            states={"c1": self.base_state(polls={"p1": {"status": "open"}})},
+            polls={"c1": [{"id": "p1", "question": "Next?", "options": ["A", "B"], "status": "closed"}]},
+            poll_votes={("c1", "p1"): [{"optionIndex": 0}]},
+        )
+        posts = []
+        run(source, now_ms=NOW, poster=lambda url, embeds: posts.append((url, embeds)))
+        self.assertEqual(posts, [])
+        self.assertEqual(source.saved_states["c1"]["polls"]["p1"]["status"], "closed")
+
+    def test_poll_closed_suppressed_when_poll_flag_explicitly_off(self):
+        club = self.enabled_club(features={FEATURE_KEY: True, POLL_FEATURE_KEY: False})
+        source = FakeSource(
+            [club],
+            webhooks={"c1": "https://discord.com/api/webhooks/1/tok"},
+            states={"c1": self.base_state(polls={"p1": {"status": "open"}})},
+            polls={"c1": [{"id": "p1", "question": "Next?", "options": ["A", "B"], "status": "closed"}]},
+            poll_votes={("c1", "p1"): [{"optionIndex": 0}]},
+        )
+        posts = []
+        run(source, now_ms=NOW, poster=lambda url, embeds: posts.append((url, embeds)))
+        self.assertEqual(posts, [])
+
+    def test_poll_flag_flipped_on_later_does_not_replay_old_closes(self):
+        """The marker already recorded 'closed' while the sub-toggle was off
+        (previous run); enabling it now must not retroactively announce."""
+        club = self.enabled_club(features={FEATURE_KEY: True, POLL_FEATURE_KEY: True})
+        source = FakeSource(
+            [club],
+            webhooks={"c1": "https://discord.com/api/webhooks/1/tok"},
+            states={"c1": self.base_state(polls={"p1": {"status": "closed"}})},
+            polls={"c1": [{"id": "p1", "question": "Next?", "options": ["A", "B"], "status": "closed"}]},
+            poll_votes={("c1", "p1"): [{"optionIndex": 0}]},
+        )
+        posts = []
+        run(source, now_ms=NOW, poster=lambda url, embeds: posts.append((url, embeds)))
+        self.assertEqual(posts, [])
 
     def test_ratings_revealed_posts(self):
         club = self.enabled_club()
@@ -816,7 +874,9 @@ class TestPlanAndRunNewEvents(unittest.TestCase):
     def test_priority_cap_keeps_higher_tiers(self):
         """due > ratings_revealed > poll_closed > meeting > (started/finished/
         schedule/tbr) when more events fire than MAX_EMBEDS_PER_RUN allows."""
-        club = self.enabled_club(nextMeetingAt=NOW + 2 * DAY)
+        club = self.enabled_club(
+            nextMeetingAt=NOW + 2 * DAY, features={FEATURE_KEY: True, POLL_FEATURE_KEY: True}
+        )
         reads = [make_read(read_id="rdue", milestones=[ms(0, NOW - DAY)]),
                  make_read(read_id="rnew", status="active")]  # 'started' — lowest tier
         prior_reads = {

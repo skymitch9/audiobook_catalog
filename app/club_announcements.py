@@ -23,9 +23,19 @@ embeds to the CLUB'S OWN webhook:
                      announces the question + winning option(s), tallied from
                      the poll's `votes` subcollection. Options are plain
                      strings today (backlog #3); backlog #3b (next-book
-                     polls, not yet shipped) will add book-ref options, so
+                     polls, shipped 2026-08-14) added book-ref options, so
                      the winner line is decoded defensively for BOTH shapes
-                     (see `_poll_option_text`).
+                     (see `_poll_option_text`). Poll events are ADDITIONALLY
+                     gated by their own per-club sub-toggle,
+                     `discordPollAnnouncements` (backlog #2c, default OFF) —
+                     a club can want meeting/due nudges without poll chatter.
+                     The master `discordAnnouncements` flag still gates the
+                     whole engine; the sub-toggle only controls whether poll
+                     events specifically get an embed once the engine already
+                     runs for that club. Transitions are still TRACKED in the
+                     state doc even while the sub-toggle is off, so turning it
+                     on later never floods the channel with poll history that
+                     already happened (see `plan_club`).
   - ratings reveal : a read's `ratingsRevealed` flips true — announces the
                      book + average + count from the now-readable `ratings`
                      subcollection (unreadable by rules while blind, exactly
@@ -115,6 +125,10 @@ from typing import Any, Dict, List, Optional, Tuple
 DEFAULT_SITE_URL = "https://audiobooks.heygabi.ai/"
 
 FEATURE_KEY = "discordAnnouncements"   # mirrors site/clubs.js FEATURE_DEFAULTS (default OFF)
+# backlog #2c: poll chatter's own opt-in sub-toggle, checked ON TOP OF
+# FEATURE_KEY (which still master-gates the whole engine) — see the "poll
+# closed" bullet in the module docstring above.
+POLL_FEATURE_KEY = "discordPollAnnouncements"  # mirrors site/clubs.js FEATURE_DEFAULTS (default OFF)
 STATE_DOC_ID = "announceState"         # clubs/{id}/settings/announceState — browser-unreadable
 WEBHOOK_DOC_ID = "discord"             # clubs/{id}/settings/discord — {webhookUrl, ...}
 
@@ -165,11 +179,15 @@ def ts_millis(value: Any) -> Optional[int]:
     return None
 
 
-def feature_enabled(club: Dict[str, Any]) -> bool:
-    """Python mirror of site/clubs.js clubFeatureEnabled() for THIS key (default OFF)."""
+def feature_enabled(club: Dict[str, Any], key: str = FEATURE_KEY) -> bool:
+    """
+    Python mirror of site/clubs.js clubFeatureEnabled() (default OFF).
+    `key` defaults to the master FEATURE_KEY; pass POLL_FEATURE_KEY for the
+    backlog #2c poll-chatter sub-toggle.
+    """
     feats = club.get("features")
-    if isinstance(feats, dict) and FEATURE_KEY in feats:
-        return bool(feats[FEATURE_KEY])
+    if isinstance(feats, dict) and key in feats:
+        return bool(feats[key])
     return False
 
 
@@ -843,12 +861,18 @@ def plan_club(source: FirestoreClubs, club: Dict[str, Any], now_ms: int,
     # Reads deleted from Firestore fall out of the state doc naturally.
 
     # ---- polls: open -> closed ----
+    # Transitions are tracked in new_polls_state regardless of the backlog
+    # #2c sub-toggle below, so flipping discordPollAnnouncements on later
+    # never retroactively announces a poll that closed while it was off.
     polls_tracked = "polls" in prior_state
     prior_polls = prior_state.get("polls") or {}
+    poll_announcements_on = feature_enabled(club, POLL_FEATURE_KEY)
     new_polls_state: Dict[str, Any] = {}
     for poll in source.polls(club_id):
         events, entry = detect_poll_events(poll, prior_polls.get(poll["id"]), polls_tracked)
         new_polls_state[poll["id"]] = entry
+        if not poll_announcements_on:
+            continue
         for event in events:
             event["votes"] = source.poll_votes(club_id, poll["id"])
             pending.append((EVENT_PRIORITY["poll_closed"], build_poll_embed(event, club, link)))
