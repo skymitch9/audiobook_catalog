@@ -128,6 +128,17 @@ def main() -> None:
     except Exception as e:  # noqa: BLE001 — the index must never stall this pipeline
         print(f"[WARN] Index push failed (site build unaffected): {e}", file=sys.stderr)
 
+    # 6) Club Discord announcements (backlog #2): schedule changes, due-date
+    #    nudges, read started/finished — posted to each club's OWN webhook
+    #    (clubs/{id}/settings/discord, service-account read). Soft on purpose:
+    #    no credentials logs one line inside, and any failure warns without
+    #    failing the build. Manual check: python -m app.club_announcements --dry-run
+    from app.club_announcements import announce_after_build
+    try:
+        announce_after_build()
+    except Exception as e:  # noqa: BLE001 — announcements must never stall this pipeline
+        print(f"[WARN] Club announcements failed (site build unaffected): {e}", file=sys.stderr)
+
     print("Done.")
 
 

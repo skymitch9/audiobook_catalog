@@ -122,6 +122,10 @@ export async function getMyClubs(db, displayName) {
 // UI change for existing clubs until a manager opts in.
 export const FEATURE_DEFAULTS = {
   readingSchedule: false,   // due dates on sections + on-track/behind chips
+  // Server-side pipeline (app/club_announcements.py) posts schedule changes,
+  // due-date nudges and read start/finish to the club's own webhook. OFF by
+  // default so no channel hears anything until a manager opts in.
+  discordAnnouncements: false,
 };
 
 /** Is a feature enabled for this club? Falls back to FEATURE_DEFAULTS. */
