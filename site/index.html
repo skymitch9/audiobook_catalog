@@ -41521,7 +41521,7 @@ function wireAppearance(container){
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
   import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
   import { coverUrl } from './covers-base.js';
-  import { getSession, signInWithGoogle, signOutGoogle, register, login, logout, validateDisplayName, validatePassphrase, isAdmin, handleRedirectResult } from './identity.js';
+  import { getSession, signInWithGoogle, signOutGoogle, isAdmin, handleRedirectResult } from './identity.js';
   import { submitReview, getReviews, renderStars, bookIdFromTitle, computeAverageRating, formatDate } from './reviews.js';
   import { addUserWarning, getUserWarnings, deleteUserWarning, requestWarningCheck, getWarningRequest } from './user-warnings.js';
   import { col } from './fb-env.js';
@@ -41624,8 +41624,13 @@ function wireAppearance(container){
       <div style="text-align:center;padding:10px 0">
         ${photo}
         <div style="margin-top:8px;font-size:1.2em;font-weight:700;color:var(--neon-cyan);text-transform:var(--et-title-case)">${session.displayName}</div>
-        <div style="color:var(--muted);font-size:.75em;margin-top:2px">${session.method === 'google' ? 'Google Account' : 'Passphrase Account'}</div>
+        <div style="color:var(--muted);font-size:.75em;margin-top:2px">${session.legacy ? 'Legacy session' : 'Google Account'}</div>
       </div>
+      ${session.legacy ? `
+      <div style="border:1px solid var(--border);padding:10px;margin:10px 0;font-size:.8em;color:var(--muted)">
+        The site now uses live Google sign-in. Sign in once to carry this account forward — your reviews and favorites stay put.
+        <button id="auth-legacy-upgrade" class="identity-bar__google-btn" style="width:100%;margin-top:8px;justify-content:center;padding:8px 12px">Continue with Google</button>
+      </div>` : ''}
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0;text-align:center">
         <div style="background:var(--bg);border:1px solid var(--border);padding:10px">
@@ -41675,16 +41680,29 @@ function wireAppearance(container){
     // Appearance controls (theme + mode)
     wireAppearance(container);
 
-    // Logout
+    // Logout — ends the live Firebase session and clears the mirror; also
+    // the right call for a legacy session (absent-session signOut is a no-op)
     container.querySelector('#auth-logout-btn').addEventListener('click', async () => {
-      if (session.method === 'google') {
-        await signOutGoogle(app);
-      } else {
-        logout();
-      }
+      await signOutGoogle(app);
       _updateAuthButton(authBtn);
       document.getElementById('auth-modal').classList.remove('open');
     });
+
+    // Legacy v1 capture: one-time upgrade into a live Google session
+    const legacyUpgradeBtn = container.querySelector('#auth-legacy-upgrade');
+    if (legacyUpgradeBtn) {
+      legacyUpgradeBtn.addEventListener('click', async () => {
+        legacyUpgradeBtn.disabled = true; legacyUpgradeBtn.textContent = 'Signing in...';
+        const result = await signInWithGoogle(app);
+        if (result.success) {
+          _updateAuthButton(authBtn);
+          document.getElementById('auth-modal').classList.remove('open');
+        } else {
+          legacyUpgradeBtn.disabled = false;
+          legacyUpgradeBtn.textContent = 'Continue with Google';
+        }
+      });
+    }
 
     // Admin link
     if (isAdmin(session)) {

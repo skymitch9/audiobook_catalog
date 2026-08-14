@@ -8,7 +8,7 @@
 // catalog.csv (index.html scrapes its own table instead; same data).
 
 import { doc, getDoc, setDoc, collection, getDocs, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
-import { getSession, signInWithGoogle, signOutGoogle, logout, isAdmin, handleRedirectResult } from './identity.js';
+import { getSession, signInWithGoogle, signOutGoogle, isAdmin, handleRedirectResult } from './identity.js';
 import { coverUrl } from './covers-base.js';
 import { col } from './fb-env.js';
 import { loadCatalogBooks } from './club-reads.js';
@@ -224,8 +224,13 @@ export function mountAccountModal(db, app, containerEl) {
       <div style="text-align:center;padding:10px 0">
         ${photo}
         <div style="margin-top:8px;font-size:1.2em;font-weight:700;color:var(--neon-cyan,#05d9e8);text-transform:var(--et-title-case)">${session.displayName}</div>
-        <div style="color:var(--muted,#8a8f98);font-size:.75em;margin-top:2px">${session.method === 'google' ? 'Google Account' : 'Passphrase Account'}</div>
+        <div style="color:var(--muted,#8a8f98);font-size:.75em;margin-top:2px">${session.legacy ? 'Legacy session' : 'Google Account'}</div>
       </div>
+      ${session.legacy ? `
+      <div style="border:1px solid var(--border,#2a2a3a);padding:10px;margin:10px 0;font-size:.8em;color:var(--muted,#8a8f98)">
+        The site now uses live Google sign-in. Sign in once to carry this account forward — your reviews and favorites stay put.
+        <button id="am-legacy-upgrade" style="width:100%;margin-top:8px;justify-content:center;padding:8px 12px;display:inline-flex;align-items:center;border:1px solid var(--border,#2a2a3a);background:var(--bg,#0a0a12);color:var(--text,#e8e6e3);font-weight:700;cursor:pointer;font-family:inherit">${GOOGLE_SVG}Continue with Google</button>
+      </div>` : ''}
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0;text-align:center">
         <div class="am-stat"><div class="v" id="am-review-count">...</div><div class="l">Reviews</div></div>
         <div class="am-stat"><div class="v" id="am-avg-rating">...</div><div class="l">Avg Rating</div></div>
@@ -273,10 +278,24 @@ export function mountAccountModal(db, app, containerEl) {
     wireAppearance(container);
 
     container.querySelector('#am-logout-btn').addEventListener('click', async () => {
-      if (session.method === 'google') await signOutGoogle(app);
-      else logout();
+      await signOutGoogle(app);
       location.reload();
     });
+
+    // Legacy v1 capture: one-time upgrade into a live Google session.
+    const upgradeBtn = container.querySelector('#am-legacy-upgrade');
+    if (upgradeBtn) {
+      upgradeBtn.addEventListener('click', async () => {
+        upgradeBtn.disabled = true; upgradeBtn.textContent = 'Signing in...';
+        const result = await signInWithGoogle(app);
+        if (result.success) {
+          location.reload();
+        } else {
+          upgradeBtn.disabled = false;
+          upgradeBtn.innerHTML = `${GOOGLE_SVG}Continue with Google`;
+        }
+      });
+    }
 
     // Review stats
     (async () => {
