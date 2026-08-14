@@ -74,6 +74,9 @@ h1{
 .user-reading strong{color:var(--neon-magenta)}
 .user-reading img{width:36px;height:auto;border-radius:2px;border:1px solid var(--border)}
 .user-favs{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap}
+/* Owner-only estate-admin entry point — quiet by design */
+.estate-admin-link{display:inline-block;margin-top:8px;font-size:.82em;color:var(--muted);text-decoration:none}
+.estate-admin-link:hover{color:var(--neon-cyan);text-decoration:underline}
 .user-favs img{width:44px;height:auto;border-radius:2px;border:1px solid var(--border)}
 .fav-chip{
   display:inline-block;padding:3px 8px;margin:2px;font-size:.8em;
@@ -242,6 +245,18 @@ html[data-theme="cyberpunk"] .um-name{letter-spacing:1px}
   const searchInput = document.getElementById('search-input');
   const userCountEl = document.getElementById('user-count');
 
+  // "Estate admin" entry point, shown to the owner only. A convenience link,
+  // NOT access control — heygabi.ai/admin is its own gate (and the identity
+  // mirror is spoofable by design; see isAdmin's warning in identity.js).
+  // Community users are display-name-only, so there is no email to carry in
+  // a #member fragment; the link lands on the directory itself.
+  const _session = getSession();
+  const viewerIsOwner =
+    !!_session && (_session.email || '').trim().toLowerCase() === 'nbaslamking@gmail.com';
+  const estateAdminLink = viewerIsOwner
+    ? '<a class="estate-admin-link" href="https://heygabi.ai/admin" target="_blank" rel="noreferrer">Estate admin →</a>'
+    : '';
+
   let allUsers = [];
 
   async function loadCommunity() {
@@ -405,6 +420,7 @@ html[data-theme="cyberpunk"] .um-name{letter-spacing:1px}
           </div>
           ${reading}
           ${favs}
+          ${estateAdminLink}
         </div>`;
     }).join('');
   }
@@ -485,6 +501,7 @@ html[data-theme="cyberpunk"] .um-name{letter-spacing:1px}
         </div>` : ''}
       ${reading}
       ${favs}
+      ${estateAdminLink ? `<div style="text-align:center;margin-top:10px">${estateAdminLink}</div>` : ''}
     `;
     userModal.classList.add('open');
   }
