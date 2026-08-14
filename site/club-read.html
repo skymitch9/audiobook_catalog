@@ -466,7 +466,7 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
   import { coverUrl } from './covers-base.js';
   import { getSession, slugifyName, getSiteRole } from './identity.js';
   import { mountAccountModal } from './account-modal.js';
-  import { getClub, getMembers, clubFeatureEnabled } from './clubs.js?v=20260814e';
+  import { getClub, getMembers, clubFeatureEnabled } from './clubs.js?v=20260814f';
   import {
     getRead, getComments, addComment, deleteComment,
     toggleReaction, togglePin, REACTION_EMOJI,
@@ -480,10 +480,10 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
     getPolls, getPollVotes, createPoll, setPollStatus, deletePoll, castVote,
     tallyPollVotes, myPollVote, pollResultsVisible, isPollLocked,
     MIN_POLL_OPTIONS, MAX_POLL_OPTIONS, MAX_POLL_OPTION_LENGTH,
-    rateBook, revealRatings, getRatings, ratingsAreRevealed,
+    rateBook, revealRatings, getRatings, ratingsAreRevealed, deleteRating,
     tallyRatings, isRatingAfterReveal, sortRatingsForReveal, getMyStoredRating,
     MAX_RATING_COMMENT_LENGTH,
-  } from './club-reads.js?v=20260814e';
+  } from './club-reads.js?v=20260814f';
   import { addUserWarning, getUserWarnings, deleteUserWarning } from './user-warnings.js';
   import { markReadSeen } from './club-notify.js';
   import { submitReview, bookIdFromTitle, getReviews, renderStars } from './reviews.js';
@@ -531,13 +531,18 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
 
   const myRole = () => (members.find(m => m.slug === mySlug) || {}).role || null;
   // Site admin (rules-enforced site_roles doc) gets the host/mod controls on
-  // every read — same break-glass as club.html. Resolves async; re-render.
+  // every read — same break-glass as club.html. The site MODERATOR
+  // (three-tier model) gets the OPERATIONAL subset: content deletes,
+  // schedule, polls — never the reveal flip or the AI-prompt/pin host
+  // tools. Resolves async; re-render.
   let siteRole = null;
   getSiteRole(db, app).then((role) => {
     if (role) { siteRole = role; if (read) render(); }
   }).catch(() => {});
   const isMod = () => ['host', 'moderator'].includes(myRole())
     || (!!siteRole && siteRole.role === 'admin');
+  // The operational gate — mirrors canOperateClub in clubs.js/firestore.rules.
+  const canOperate = () => isMod() || (!!siteRole && siteRole.role === 'moderator');
   const myProgress = () => {
     const p = progressAll.find(p => p.slug === mySlug);
     return p ? p.milestonePosition : -1;
@@ -641,7 +646,9 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
     const repliesFor = id => comments.filter(c => c.parentId === id)
       .sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
 
-    const canDelete = c => session && (c.slug === mySlug || isMod());
+    // Comment removal is a moderation power (three-tier model): own comment,
+    // club host/mod, site admin, or site moderator.
+    const canDelete = c => session && (c.slug === mySlug || canOperate());
 
     const reactionChips = (c) => {
       const reactions = c.reactions || {};
@@ -766,7 +773,7 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
     }
     const votes = pollVotes[poll.id] || [];
     const myVote = myPollVote(votes, mySlug);
-    const showResults = pollResultsVisible(poll, myVote !== null, isMod());
+    const showResults = pollResultsVisible(poll, myVote !== null, canOperate());
     const { counts, total } = tallyPollVotes(poll.options, votes);
     const canVote = session && myRole() && poll.status === 'open' && !isArchived();
     const optionsHtml = poll.options.map((opt, i) => {
@@ -787,7 +794,7 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
         <div class="poll-q">📊 ${escapeHtml(poll.question)}${poll.status === 'closed' ? ' <span class="poll-closed-tag">Closed</span>' : ''}</div>
         <div class="poll-options">${optionsHtml}</div>
         ${showResults ? `<div class="poll-total">${total} vote${total !== 1 ? 's' : ''}</div>` : ''}
-        ${isMod() ? `
+        ${canOperate() ? `
           <div class="poll-admin">
             <button data-poll-toggle="${poll.id}" data-status="${poll.status}">${poll.status === 'open' ? 'Close poll' : 'Reopen poll'}</button>
             <button class="danger" data-poll-del="${poll.id}">Delete</button>
@@ -799,7 +806,7 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
   // when the feature is off, matching schedBannerHtml's pattern.
   function pollBannerHtml() {
     if (!pollsOn() || isArchived()) return '';
-    const newBtn = isMod() ? '<button class="poll-new-btn" id="poll-new-btn">+ New Poll</button>' : '';
+    const newBtn = canOperate() ? '<button class="poll-new-btn" id="poll-new-btn">+ New Poll</button>' : '';
     if (!polls.length && !newBtn) return '';
     return `<div class="poll-banner">📊 ${polls.length} poll${polls.length !== 1 ? 's' : ''} in this read<span style="margin-left:auto">${newBtn}</span></div>`;
   }
@@ -849,9 +856,15 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
     const revealedAtMs = ratingTimestampMs(read.revealedAt);
     const cards = sortRatingsForReveal(ratings).map(r => {
       const after = isRatingAfterReveal(ratingTimestampMs(r.createdAt), revealedAtMs);
+      // Rating removal is a moderation power (three-tier model), POST-REVEAL
+      // only: while blind nobody (moderators included) can even read the
+      // subcollection, so no affordance exists to show.
+      const delBtn = canOperate()
+        ? ` <button class="danger" data-rating-del="${escapeHtml(r.slug)}" data-name="${escapeHtml(r.displayName)}" title="Remove this rating (moderation)" style="margin-left:auto;background:none;border:1px solid var(--border);color:var(--neon-magenta);cursor:pointer;font-size:.7em;padding:2px 6px">Remove</button>`
+        : '';
       return `
         <div class="rate-card${r.slug === mySlug ? ' mine' : ''}">
-          <div class="rate-card-head"><strong>${escapeHtml(r.displayName)}</strong>${after ? ' <span class="rate-after-tag">after reveal</span>' : ''}</div>
+          <div class="rate-card-head" style="display:flex;align-items:center;gap:6px"><strong>${escapeHtml(r.displayName)}</strong>${after ? ' <span class="rate-after-tag">after reveal</span>' : ''}${delBtn}</div>
           ${renderStars(r.rating)}
           ${r.comment ? `<div class="rate-card-comment">"${escapeHtml(r.comment)}"</div>` : ''}
         </div>`;
@@ -991,7 +1004,8 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
   function schedBannerHtml() {
     if (!schedOn() || isArchived()) return '';
     const scheduled = hasSchedule(read.milestones);
-    const editBtn = isMod()
+    // Schedule editing is OPERATIONAL — the site moderator gets it too.
+    const editBtn = canOperate()
       ? `<button class="sched-edit-btn" id="sched-edit-btn">${scheduled ? 'Edit schedule' : 'Set a reading schedule'}</button>`
       : '';
     if (!scheduled) {
@@ -1098,7 +1112,7 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
   }
 
   function renderQuotes() {
-    const canDeleteQuote = q => session && (q.slug === mySlug || isMod());
+    const canDeleteQuote = q => session && (q.slug === mySlug || canOperate());
     const cards = quotes.map(q => {
       const spoiler = !isArchived() && hasChapters()
         && isCommentSpoiler(q.chapterIndex, myChapter()) && !revealedSpoilers.has(q.id);
@@ -1320,6 +1334,13 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
       const r = await revealRatings(db, clubId, readId);
       if (r.success) reload(); else showError(r.error);
     });
+
+    contentEl.querySelectorAll('[data-rating-del]').forEach(btn =>
+      btn.addEventListener('click', async () => {
+        if (!confirm(`Remove ${btn.dataset.name}'s rating? This is a moderation action and cannot be undone.`)) return;
+        const r = await deleteRating(db, clubId, readId, btn.dataset.ratingDel);
+        if (r.success) reload(); else showError(r.error);
+      }));
   }
 
   function showError(msg) {

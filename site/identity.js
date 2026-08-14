@@ -395,6 +395,17 @@ export async function isSiteAdmin(db, app) {
 }
 
 /**
+ * Is the signed-in person the rules-enforced site MODERATOR (three-tier
+ * model, 2026-08-14)? Moderators get the operational subset across all
+ * clubs — schedule, polls, next meeting, membership ops, content deletes —
+ * never structural settings or site-wide powers.
+ */
+export async function isSiteModerator(db, app) {
+  const role = await getSiteRole(db, app);
+  return !!role && role.role === 'moderator';
+}
+
+/**
  * The estate's answer about the current signed-in person, or null when there
  * is no live session or the answer cannot be had. Never throws.
  * @returns {Promise<{status: string|null, is_approver: boolean, visibility: string[]}|null>}

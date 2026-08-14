@@ -65,7 +65,7 @@ import {
   validateDisplayName, getSession, logout, isAdmin, slugifyName,
   signInWithGoogle, signOutGoogle, handleRedirectResult, renderIdentityBar,
   getEstateStatus, isEstateApproved, renderDevSiteLink,
-  getLiveUser, getSiteRole, isSiteAdmin,
+  getLiveUser, getSiteRole, isSiteAdmin, isSiteModerator,
 } from '../identity.js';
 
 const fakeApp = {};
@@ -598,6 +598,28 @@ describe('Site roles (rules-enforced admin) + getLiveUser', () => {
     const p = isSiteAdmin({}, fakeApp);
     authCallback({ uid: 'uid-mod' });
     expect(await p).toBe(false);
+  });
+
+  it('isSiteModerator answers true only for role moderator (three-tier model)', async () => {
+    mockStore['site_roles/uid-mod'] = { role: 'moderator' };
+    const p1 = isSiteModerator({}, fakeApp);
+    authCallback({ uid: 'uid-mod' });
+    expect(await p1).toBe(true);
+
+    // Admin is NOT the moderator role — the tiers are distinct answers;
+    // callers that want "either" ask getSiteRole and check both.
+    mockStore[`site_roles/${ADMIN_UID}`] = { role: 'admin' };
+    const p2 = isSiteModerator({}, fakeApp);
+    authCallback({ uid: ADMIN_UID });
+    expect(await p2).toBe(false);
+
+    const p3 = isSiteModerator({}, fakeApp);
+    authCallback({ uid: 'uid-nobody' });
+    expect(await p3).toBe(false);
+
+    const p4 = isSiteModerator({}, fakeApp);
+    authCallback(null); // legacy/signed-out — no verifiable identity
+    expect(await p4).toBe(false);
   });
 
   it('getSiteRole never throws when the read fails — the gate just stays closed', async () => {

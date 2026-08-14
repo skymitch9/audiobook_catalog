@@ -1,11 +1,20 @@
-"""Seed (or verify) the site's rules-enforced admin role: site_roles/{uid}.
+"""Seed (or verify) a rules-enforced site role: site_roles/{uid}.
+
+⚠️ BREAK-GLASS ONLY since the three-tier model (2026-08-14): the normal
+grant path is the heygabi.ai/admin page's audiobook role dropdown, backed by
+the estate auth Worker's POST /api/estate/site-roles (catalog-platform,
+apps/auth-worker). Use this script when that path is down.
 
 Browsers can NEVER write site_roles (firestore.rules: allow write: if false)
 and can read only their own doc — so granting a role is strictly a
 server-side act, done here through the Firebase service account, which
-bypasses rules. This is the owner's break-glass for club surgery: the club
-clauses in firestore.rules accept a manager-gated write from any uid whose
-site_roles doc says role == 'admin'.
+bypasses rules. Two roles exist (owner matrix):
+
+    admin     — everything: any club setting, roster, deletes, member ops,
+                content removal in any club, site-wide review removal.
+    moderator — the operational subset across ALL clubs: schedule, polls,
+                next-meeting fields, membership ops, ratings/comments
+                removal. Never structural settings or site-wide powers.
 
 The uid is NEVER passed by hand. It is resolved from the email via the
 Firebase Auth Admin API at run time, so a typo'd uid cannot be seeded, and
@@ -15,8 +24,8 @@ Usage (from the repo root; needs scripts/firebase_service_account.json or
 $FIREBASE_SERVICE_ACCOUNT, same plumbing as app/pipeline_status.py):
 
     python scripts/seed_site_admin.py --dry-run          # resolve + show only
-    python scripts/seed_site_admin.py                    # seed the owner
-    python scripts/seed_site_admin.py --email who@x.com  # seed someone else
+    python scripts/seed_site_admin.py                    # seed the owner (admin)
+    python scripts/seed_site_admin.py --email who@x.com --role moderator
     python scripts/seed_site_admin.py --revoke           # delete the role doc
 
 The collection is deliberately UNSUFFIXED (no *_dev twin, like pipeline_*):
@@ -59,7 +68,9 @@ def _admin_app():
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--email", default=OWNER_EMAIL,
-                        help=f"Google account to grant admin (default: {OWNER_EMAIL})")
+                        help=f"Google account to grant the role (default: {OWNER_EMAIL})")
+    parser.add_argument("--role", default="admin", choices=["admin", "moderator"],
+                        help="site role to grant (default: admin)")
     parser.add_argument("--dry-run", action="store_true",
                         help="resolve the uid and show what would be written, write nothing")
     parser.add_argument("--revoke", action="store_true",
@@ -94,7 +105,7 @@ def main() -> int:
         return 0
 
     doc = {
-        "role": "admin",
+        "role": args.role,
         "email": args.email,
         "displayName": user.display_name or "",
         "grantedAt": firestore.SERVER_TIMESTAMP,

@@ -41512,8 +41512,8 @@ function wireAppearance(container){
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
   import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
   import { coverUrl } from './covers-base.js';
-  import { getSession, signInWithGoogle, signOutGoogle, isAdmin, handleRedirectResult, renderDevSiteLink } from './identity.js';
-  import { submitReview, getReviews, renderStars, bookIdFromTitle, computeAverageRating, formatDate } from './reviews.js';
+  import { getSession, signInWithGoogle, signOutGoogle, isAdmin, handleRedirectResult, renderDevSiteLink, getSiteRole } from './identity.js';
+  import { submitReview, getReviews, renderStars, bookIdFromTitle, computeAverageRating, formatDate, deleteReview } from './reviews.js';
   import { addUserWarning, getUserWarnings, deleteUserWarning, requestWarningCheck, getWarningRequest } from './user-warnings.js';
   import { col } from './fb-env.js';
 
@@ -41534,6 +41534,15 @@ function wireAppearance(container){
     db = getFirestore(app);
   } catch (e) {
     console.warn('[Firebase] Init failed:', e);
+  }
+
+  // Rules-enforced site role (three-tier model, 2026-08-14): resolves async
+  // once the Firebase SDK restores the session. role 'admin' is the ONLY
+  // tier that gets the review-removal affordance below — firestore.rules
+  // enforces the same (site moderators' sweep is clubs-only, owner matrix).
+  let _siteRole = null;
+  if (db && app) {
+    getSiteRole(db, app).then((r) => { _siteRole = r; }).catch(() => {});
   }
 
   // Collect a redirect sign-in on the way back from Google.
@@ -42199,11 +42208,17 @@ function wireAppearance(container){
       for (const r of reviews) {
         const isOwn = currentUser && r.displayName.toLowerCase() === currentUser.toLowerCase();
         const editBtn = isOwn ? `<button class="edit-review-btn" style="background:none;border:none;cursor:pointer;color:var(--neon-cyan);font-size:1em;padding:2px 4px" title="Edit your review">&#9998;</button>` : '';
+        // Site-ADMIN-only review removal (three-tier model): the affordance
+        // renders only for a rules-enforced site_roles 'admin', and
+        // firestore.rules denies the delete to everyone else anyway.
+        const adminDelBtn = (_siteRole && _siteRole.role === 'admin')
+          ? `<button class="admin-del-review-btn" data-review-name="${r.displayName.replace(/"/g, '&quot;')}" style="background:none;border:none;cursor:pointer;color:var(--neon-magenta);font-size:.95em;padding:2px 4px" title="Remove this review (site admin)">&#128465;</button>`
+          : '';
         const textHtml = r.text ? `<div style="margin-top:4px; font-size:.95em; white-space:pre-wrap;">${r.text}</div>` : '';
         html += `
           <div class="review-item" style="padding:8px 0; border-bottom:1px solid var(--border);">
             <div style="display:flex; justify-content:space-between; align-items:center;">
-              <span><strong>${r.displayName}</strong> ${editBtn}</span>
+              <span><strong>${r.displayName}</strong> ${editBtn}${adminDelBtn}</span>
               <span style="font-size:.85em; color:var(--muted);">${formatDate(r.createdAt)}</span>
             </div>
             <div>${renderStars(r.rating)}</div>
@@ -42300,6 +42315,24 @@ function wireAppearance(container){
             form.style.display = '';
             form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             reviewsContainer.querySelector('#review-text')?.focus();
+          }
+        });
+      });
+
+      // Site-admin review removal (rules-enforced: /reviews delete is
+      // isSiteAdmin()-only in firestore.rules).
+      reviewsContainer.querySelectorAll('.admin-del-review-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const who = btn.dataset.reviewName;
+          if (!confirm(`Remove ${who}'s review of this book? This is a site-admin moderation action and cannot be undone.`)) return;
+          btn.disabled = true;
+          const res = await deleteReview(db, bookId, who);
+          if (res.success) {
+            _updateTableRating(bookTitle, bookId);
+            renderReviewSection(bookTitle);
+          } else {
+            btn.disabled = false;
+            alert(res.error || 'Could not remove the review.');
           }
         });
       });

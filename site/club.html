@@ -508,8 +508,8 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
     updateClubDetails, requestToJoin, getRequests, acceptRequest, rejectRequest, inviteMember,
     acceptInvite, declineInvite, dismissRateNudge,
     clubFeatureEnabled, isValidDiscordWebhook, setClubDiscordWebhook, clearClubDiscordWebhook,
-    isClubClaimed, isManagerUid, canManageClub, claimManagerRole,
-  } from './clubs.js?v=20260814d';
+    isClubClaimed, isManagerUid, canManageClub, canOperateClub, claimManagerRole,
+  } from './clubs.js?v=20260814f';
   import {
     getReads, startRead, removeRead, finishRead, getComments, updateReadLabel, splitByDuration, parseManualMilestones,
     loadCatalogBooks, MAX_ACTIVE_READS, groupChapters,
@@ -519,7 +519,7 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
     getPolls, getPollVotes, createPoll, setPollStatus, deletePoll, castVote,
     tallyPollVotes, myPollVote, pollResultsVisible,
     MIN_POLL_OPTIONS, MAX_POLL_OPTIONS, MAX_POLL_OPTION_LENGTH,
-  } from './club-reads.js?v=20260814d';
+  } from './club-reads.js?v=20260814f';
   import { loadSeen, syncSeen } from './club-notify.js';
 
   const firebaseConfig = {
@@ -581,10 +581,17 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
   };
   // The site admin (rules-enforced site_roles doc) gets every host/mod
   // control on ANY club without joining it — the owner's break-glass. The
-  // admin badge in the header says why the controls are there.
+  // site MODERATOR (three-tier model) gets the OPERATIONAL subset on any
+  // club: membership ops, content deletes, polls, schedule, next meeting —
+  // never features/webhook/identity/roster/deletes. Badges in the header
+  // say why the controls are there.
   const isSiteAdminViewer = () => !!siteRole && siteRole.role === 'admin';
+  const isSiteModViewer = () => !!siteRole && siteRole.role === 'moderator';
   const isHost = () => myRole() === 'host' || isSiteAdminViewer();
   const isMod = () => isHost() || myRole() === 'moderator';
+  // The operational gate: club host/mod, site admin (via isMod) or site
+  // moderator. Mirrors canOperateClub in clubs.js / firestore.rules.
+  const canOperate = () => isMod() || isSiteModViewer();
   const isMember = () => myRole() !== null && myRole() !== 'invited';
   const activeMembers = () => members.filter(m => m.status !== 'invited');
 
@@ -592,6 +599,9 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
     const roleBadge = (myRole() ? `<span class="badge badge-role">${escapeHtml(myRole())}</span>` : '')
       + (isSiteAdminViewer()
         ? '<span class="badge badge-role" style="border-color:var(--neon-yellow);color:var(--neon-yellow)" title="Rules-enforced site admin (site_roles) — host/mod controls are shown on every club">site admin</span>'
+        : '')
+      + (isSiteModViewer()
+        ? '<span class="badge badge-role" style="border-color:var(--neon-cyan);color:var(--neon-cyan)" title="Rules-enforced site moderator (site_roles) — membership, content moderation, schedule, polls and meeting controls are shown on every club">site moderator</span>'
         : '');
 
     contentEl.innerHTML = `
@@ -609,7 +619,7 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
           <span>${club.memberCount || 0} member${(club.memberCount || 0) !== 1 ? 's' : ''}</span>
           <span>Host: ${escapeHtml(club.hostDisplayName)}</span>
           <span>${club.joinMode === 'application' ? 'Join by application' : 'Open join'}</span>
-          ${(myRole() && myRole() !== 'invited') || isSiteAdminViewer() ? '<button id="edit-club-btn" class="nav-link" style="padding:4px 10px;font-size:.75em">Edit Club</button>' : ''}
+          ${(myRole() && myRole() !== 'invited') || isSiteAdminViewer() || isSiteModViewer() ? '<button id="edit-club-btn" class="nav-link" style="padding:4px 10px;font-size:.75em">Edit Club</button>' : ''}
         </div>
         ${renderNextMeeting()}
         ${renderClaimBanner()}
@@ -621,7 +631,7 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
         <button class="tab ${activeTab === 'history' ? 'active' : ''}" data-tab="history">History</button>
         ${clubFeatureEnabled(club, 'polls') ? `<button class="tab ${activeTab === 'polls' ? 'active' : ''}" data-tab="polls">Polls (${clubPolls().length})</button>` : ''}
         <button class="tab ${activeTab === 'stats' ? 'active' : ''}" data-tab="stats">Stats</button>
-        <button class="tab ${activeTab === 'members' ? 'active' : ''}" data-tab="members">Members (${activeMembers().length})${isMod() && requests.length ? ` · ${requests.length} pending` : ''}</button>
+        <button class="tab ${activeTab === 'members' ? 'active' : ''}" data-tab="members">Members (${activeMembers().length})${canOperate() && requests.length ? ` · ${requests.length} pending` : ''}</button>
       </div>
       <div class="tab-panel" id="tab-panel">${renderTab()}</div>
 
@@ -685,14 +695,14 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
       .map(pollCardHtml).join('');
     return `
       ${cards || '<div class="stub"><div class="stub-title">No polls yet</div>Ask the club something — free-form question, 2-10 options.</div>'}
-      ${isMod() ? '<div style="margin-top:14px"><button id="poll-new-btn" class="nav-link btn-primary">+ New Poll</button></div>' : ''}
+      ${canOperate() ? '<div style="margin-top:14px"><button id="poll-new-btn" class="nav-link btn-primary">+ New Poll</button></div>' : ''}
     `;
   }
 
   function pollCardHtml(poll) {
     const votes = pollVotes[poll.id] || [];
     const myVote = myPollVote(votes, mySlug);
-    const showResults = pollResultsVisible(poll, myVote !== null, isMod());
+    const showResults = pollResultsVisible(poll, myVote !== null, canOperate());
     const { counts, total } = tallyPollVotes(poll.options, votes);
     const canVote = session && isMember() && poll.status === 'open';
     const optionsHtml = poll.options.map((opt, i) => {
@@ -713,7 +723,7 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
         <div class="poll-q">📊 ${escapeHtml(poll.question)}${poll.status === 'closed' ? ' <span class="poll-closed-tag">Closed</span>' : ''}</div>
         <div class="poll-options">${optionsHtml}</div>
         ${showResults ? `<div class="poll-total">${total} vote${total !== 1 ? 's' : ''}</div>` : ''}
-        ${isMod() ? `
+        ${canOperate() ? `
           <div class="poll-admin">
             <button data-poll-toggle="${poll.id}" data-status="${poll.status}">${poll.status === 'open' ? 'Close poll' : 'Reopen poll'}</button>
             <button class="danger" data-poll-del="${poll.id}">Delete</button>
@@ -1010,7 +1020,10 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
   }
 
   function renderMembers() {
-    if (!isMod()) {
+    // Membership ops are OPERATIONAL (three-tier model): club host/mod,
+    // site admin, or site moderator — approve/deny requests, remove
+    // members, add manually. Promote/demote stays host-only (memberRows).
+    if (!canOperate()) {
       if (!members.length) return '<div class="empty">No members.</div>';
       return memberRows(false);
     }
@@ -1511,18 +1524,21 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
       rosterField.style.display = 'none';
     }
 
-    // Next meeting (hosts/mods): schedule is club-level, like read management.
+    // Next meeting: OPERATIONAL (three-tier model) — hosts/mods, site admin
+    // AND site moderator. Rules gate these fields with canOperateClub.
     const meetingField = document.getElementById('edit-meeting-field');
-    meetingField.style.display = isMod() ? 'block' : 'none';
-    if (isMod()) {
+    meetingField.style.display = canOperate() ? 'block' : 'none';
+    if (canOperate()) {
       const at = club.nextMeetingAt;
       document.getElementById('edit-meeting-at').value = at ? toDatetimeLocal(at) : '';
       document.getElementById('edit-meeting-notes').value = club.nextMeetingNotes || '';
     }
 
-    // Feature toggles + Discord webhook (hosts/mods). The webhook input is
-    // never prefilled — the full URL is write-only by design; only the masked
-    // tail on the club doc says whether one is set.
+    // Feature toggles + Discord webhook: STRUCTURAL — hosts/club-mods and
+    // the site admin only, NEVER the site moderator (owner matrix; rules
+    // enforce the same split via clubStructuralFieldsChanged). The webhook
+    // input is never prefilled — the full URL is write-only by design; only
+    // the masked tail on the club doc says whether one is set.
     document.getElementById('edit-features-field').style.display = isMod() ? 'block' : 'none';
     document.getElementById('edit-webhook-field').style.display = isMod() ? 'block' : 'none';
     if (isMod()) {

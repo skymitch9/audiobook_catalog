@@ -198,14 +198,21 @@
     if (role && role.role === 'admin') {
       card.innerHTML = '<div><strong style="color:#48bb78">admin</strong> — rules-enforced '
         + '(<code>site_roles/' + role.uid + '</code>). Club pages show host/mod controls on every club, '
-        + 'and Firestore accepts your manager-gated club writes.</div>'
+        + 'Firestore accepts your manager-gated club writes, and you can remove any review site-wide.</div>'
         + '<p class="pl-hint">Only your own role is readable from a browser; the full roster lives '
-        + 'server-side (Firebase console / scripts/seed_site_admin.py).</p>';
+        + 'server-side (heygabi.ai/admin role dropdown / scripts/seed_site_admin.py as break-glass).</p>';
+    } else if (role && role.role === 'moderator') {
+      card.innerHTML = '<div><strong style="color:#4fd1c5">moderator</strong> — rules-enforced '
+        + '(<code>site_roles/' + role.uid + '</code>). Club pages show the operational controls on every '
+        + 'club: membership, content removal, schedule, polls and meetings. Structural settings '
+        + '(features/webhook/identity/roster/deletes) and site-wide review removal stay admin-only.</div>'
+        + '<p class="pl-hint">Only your own role is readable from a browser; the full roster lives '
+        + 'server-side (heygabi.ai/admin role dropdown / scripts/seed_site_admin.py as break-glass).</p>';
     } else {
       card.innerHTML = '<div>No rules-enforced site role for this Google account.</div>'
-        + '<p class="pl-hint">Roles are seeded server-side (scripts/seed_site_admin.py) — the browser '
-        + 'cannot grant them. A live Google sign-in is required for the check; the legacy session '
-        + 'fallback has no verifiable identity.</p>';
+        + '<p class="pl-hint">Roles are granted at heygabi.ai/admin (or scripts/seed_site_admin.py as '
+        + 'break-glass) — the browser cannot grant them. A live Google sign-in is required for the '
+        + 'check; the legacy session fallback has no verifiable identity.</p>';
     }
   }
 

@@ -172,22 +172,44 @@ export function clubFeatureEnabled(club, key) {
 
 /**
  * Club-doc fields that rules gate behind the manager roster once a club is
- * claimed. ⚠️ MUST match clubManagedFieldsChanged() in firestore.rules —
- * the test suite pins this list as the contract.
+ * claimed, SPLIT by tier (three-tier model, 2026-08-14):
+ *   STRUCTURAL — canManageClub only (roster uid or site admin).
+ *   OPERATIONAL — canOperateClub (adds the site moderator).
+ * ⚠️ MUST match clubStructuralFieldsChanged() / clubOperationalFieldsChanged()
+ * in firestore.rules — the test suite pins these lists as the contract.
  */
+export const STRUCTURAL_CLUB_FIELDS = [
+  'joinMode', 'features', 'discordWebhookMask', 'managerUids',
+];
+
+export const OPERATIONAL_CLUB_FIELDS = [
+  'nextMeetingAt', 'nextMeetingNotes',
+];
+
+/** The union — every manager-gated club-doc field, whichever tier. */
 export const MANAGED_CLUB_FIELDS = [
-  'joinMode', 'nextMeetingAt', 'nextMeetingNotes', 'features',
-  'discordWebhookMask', 'managerUids',
+  ...STRUCTURAL_CLUB_FIELDS, ...OPERATIONAL_CLUB_FIELDS,
 ];
 
 /**
- * Read-doc fields rules gate the same way (schedule + club-level
- * lifecycle, plus the blind-ratings reveal flip). ⚠️ MUST match
- * readManagedFieldsChanged() in firestore.rules.
+ * Read-doc fields rules gate the same way, split by tier:
+ *   STRUCTURAL — club-level lifecycle (finish/abandon), slot, the
+ *     blind-ratings reveal flip: canManageClub only.
+ *   OPERATIONAL — the reading schedule: canOperateClub (site moderator too).
+ * ⚠️ MUST match readStructuralFieldsChanged() / readOperationalFieldsChanged()
+ * in firestore.rules.
  */
+export const STRUCTURAL_READ_FIELDS = [
+  'status', 'finishedAt', 'slot', 'ratingsRevealed', 'revealedAt',
+];
+
+export const OPERATIONAL_READ_FIELDS = [
+  'milestones', 'scheduleUpdatedAt',
+];
+
+/** The union — every manager-gated read-doc field, whichever tier. */
 export const MANAGED_READ_FIELDS = [
-  'milestones', 'scheduleUpdatedAt', 'status', 'finishedAt', 'slot',
-  'ratingsRevealed', 'revealedAt',
+  ...STRUCTURAL_READ_FIELDS, ...OPERATIONAL_READ_FIELDS,
 ];
 
 /** Does this club have a non-empty manager-uid roster? */
@@ -204,12 +226,23 @@ export function isManagerUid(club, uid) {
 }
 
 /**
- * Mirror of the firestore.rules gate: may this uid perform manager-gated
- * writes on this club? Unclaimed clubs are open (migration path); site
- * admin is the break-glass.
+ * Mirror of the firestore.rules STRUCTURAL gate: may this uid perform
+ * manager-gated writes on this club? Unclaimed clubs are open (migration
+ * path); site admin is the break-glass.
  */
 export function canManageClub(club, uid, siteAdmin = false) {
   return !isClubClaimed(club) || !!siteAdmin || isManagerUid(club, uid);
+}
+
+/**
+ * Mirror of the firestore.rules OPERATIONAL gate (three-tier model):
+ * everything canManageClub admits, plus the site MODERATOR — reading
+ * schedule, polls management, next-meeting fields, membership ops and
+ * content deletes, across every club. `siteRole` is the site_roles doc's
+ * role string ('admin' | 'moderator') or null.
+ */
+export function canOperateClub(club, uid, siteRole = null) {
+  return canManageClub(club, uid, siteRole === 'admin') || siteRole === 'moderator';
 }
 
 /**

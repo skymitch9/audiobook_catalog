@@ -73,7 +73,9 @@ vi.mock('firebase/auth', () => ({
 
 import {
   MANAGED_CLUB_FIELDS, MANAGED_READ_FIELDS,
-  isClubClaimed, isManagerUid, canManageClub,
+  STRUCTURAL_CLUB_FIELDS, OPERATIONAL_CLUB_FIELDS,
+  STRUCTURAL_READ_FIELDS, OPERATIONAL_READ_FIELDS,
+  isClubClaimed, isManagerUid, canManageClub, canOperateClub,
   claimManagerRole, createClub,
 } from '../clubs.js';
 import { col } from '../fb-env.js';
@@ -95,20 +97,55 @@ beforeEach(() => { mockStore = {}; });
 
 describe('rules contract — the field lists rules gate behind the roster', () => {
   // ⚠️ These arrays are duplicated in firestore.rules
-  // (clubManagedFieldsChanged / readManagedFieldsChanged) because rules
-  // cannot import JS. This test is the tripwire that keeps them in step.
-  it('MANAGED_CLUB_FIELDS pins the manager-only club-doc fields', () => {
-    expect([...MANAGED_CLUB_FIELDS].sort()).toEqual([
+  // (clubStructuralFieldsChanged / clubOperationalFieldsChanged /
+  // readStructuralFieldsChanged / readOperationalFieldsChanged) because
+  // rules cannot import JS. These tests are the tripwire that keeps them
+  // in step — including the three-tier split (2026-08-14).
+  it('STRUCTURAL_CLUB_FIELDS pins the manager/admin-only club-doc fields', () => {
+    expect([...STRUCTURAL_CLUB_FIELDS].sort()).toEqual([
       'discordWebhookMask', 'features', 'joinMode', 'managerUids',
+    ]);
+  });
+
+  it('OPERATIONAL_CLUB_FIELDS pins the moderator-reachable club-doc fields', () => {
+    expect([...OPERATIONAL_CLUB_FIELDS].sort()).toEqual([
       'nextMeetingAt', 'nextMeetingNotes',
     ]);
   });
 
-  it('MANAGED_READ_FIELDS pins the manager-only read-doc fields', () => {
+  it('MANAGED_CLUB_FIELDS is exactly the union of the two tiers', () => {
+    expect([...MANAGED_CLUB_FIELDS].sort()).toEqual([
+      'discordWebhookMask', 'features', 'joinMode', 'managerUids',
+      'nextMeetingAt', 'nextMeetingNotes',
+    ]);
+    expect([...MANAGED_CLUB_FIELDS].sort()).toEqual(
+      [...STRUCTURAL_CLUB_FIELDS, ...OPERATIONAL_CLUB_FIELDS].sort());
+  });
+
+  it('STRUCTURAL_READ_FIELDS pins lifecycle + the reveal flip as manager/admin-only', () => {
+    expect([...STRUCTURAL_READ_FIELDS].sort()).toEqual([
+      'finishedAt', 'ratingsRevealed', 'revealedAt', 'slot', 'status',
+    ]);
+  });
+
+  it('OPERATIONAL_READ_FIELDS pins the reading schedule as moderator-reachable', () => {
+    expect([...OPERATIONAL_READ_FIELDS].sort()).toEqual([
+      'milestones', 'scheduleUpdatedAt',
+    ]);
+  });
+
+  it('MANAGED_READ_FIELDS is exactly the union of the two tiers', () => {
     expect([...MANAGED_READ_FIELDS].sort()).toEqual([
       'finishedAt', 'milestones', 'ratingsRevealed', 'revealedAt',
       'scheduleUpdatedAt', 'slot', 'status',
     ]);
+    expect([...MANAGED_READ_FIELDS].sort()).toEqual(
+      [...STRUCTURAL_READ_FIELDS, ...OPERATIONAL_READ_FIELDS].sort());
+  });
+
+  it('no field sits in both tiers — a field has exactly one gate', () => {
+    for (const f of STRUCTURAL_CLUB_FIELDS) expect(OPERATIONAL_CLUB_FIELDS).not.toContain(f);
+    for (const f of STRUCTURAL_READ_FIELDS) expect(OPERATIONAL_READ_FIELDS).not.toContain(f);
   });
 
   it('member-action fields are NOT manager-gated (joins/leaves/comments must keep working)', () => {
@@ -156,6 +193,37 @@ describe('gate logic — the client mirror of the rules gate', () => {
   it('a malformed managerUids (not a map) counts as unclaimed, not as a lockout', () => {
     expect(isClubClaimed({ managerUids: 'oops' })).toBe(false);
     expect(canManageClub({ managerUids: 42 }, OTHER)).toBe(true);
+  });
+});
+
+describe('canOperateClub — the OPERATIONAL gate (three-tier model)', () => {
+  const claimed = { managerUids: { [UID]: { role: 'host' } } };
+
+  it('admits everyone canManageClub admits (roster uid, site admin, unclaimed)', () => {
+    expect(canOperateClub(claimed, UID)).toBe(true);              // roster uid
+    expect(canOperateClub(claimed, OTHER, 'admin')).toBe(true);   // site admin
+    expect(canOperateClub({}, null)).toBe(true);                  // unclaimed (migration)
+  });
+
+  it('admits the site MODERATOR on a claimed club they do not manage', () => {
+    expect(canOperateClub(claimed, OTHER, 'moderator')).toBe(true);
+    expect(canOperateClub(claimed, null, 'moderator')).toBe(true);
+  });
+
+  it('refuses a plain signed-in user (and legacy sessions) on a claimed club', () => {
+    expect(canOperateClub(claimed, OTHER)).toBe(false);
+    expect(canOperateClub(claimed, OTHER, null)).toBe(false);
+    expect(canOperateClub(claimed, null)).toBe(false);
+  });
+
+  it('an unknown role string grants nothing', () => {
+    expect(canOperateClub(claimed, OTHER, 'overlord')).toBe(false);
+  });
+
+  it('the moderator does NOT pass the STRUCTURAL gate (canManageClub)', () => {
+    // The distinction that IS the three-tier model: moderator operates,
+    // never manages — features/webhook/identity/roster/deletes stay closed.
+    expect(canManageClub(claimed, OTHER, false)).toBe(false);
   });
 });
 

@@ -82,7 +82,7 @@ const {
   validateRatingValue, validateRatingComment, ratingsAreRevealed,
   tallyRatings, isRatingAfterReveal, sortRatingsForReveal,
   myRatingStorageKey, storeMyRatingLocally, getMyStoredRating,
-  rateBook, revealRatings, getRatings,
+  rateBook, revealRatings, getRatings, deleteRating,
 } = await import('../club-reads.js');
 const { getDoc: mockedGetDoc, getDocs: mockedGetDocs } = await import('firebase/firestore');
 
@@ -320,5 +320,20 @@ describe('getRatings', () => {
 
   it('returns an empty list for a read nobody has rated', async () => {
     expect(await getRatings(fakeDb, 'club1', 'read1')).toEqual([]);
+  });
+});
+
+describe('deleteRating — moderation removal (three-tier model)', () => {
+  it('removes the target slug doc and decrements ratingCount', async () => {
+    await rateBook(fakeDb, 'club1', 'read1', 5, '', jane);
+    await rateBook(fakeDb, 'club1', 'read1', 2.5, 'meh', bob);
+    expect(mockStore[READ_PATH].ratingCount).toBe(2);
+
+    const r = await deleteRating(fakeDb, 'club1', 'read1', 'bob');
+    expect(r.success).toBe(true);
+    expect(mockStore[`${READ_PATH}/ratings/bob`]).toBeUndefined();
+    // Jane's rating is untouched; the open counter stays honest.
+    expect(mockStore[`${READ_PATH}/ratings/jane doe`]).toBeDefined();
+    expect(mockStore[READ_PATH].ratingCount).toBe(1);
   });
 });

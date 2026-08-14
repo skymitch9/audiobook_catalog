@@ -1364,3 +1364,23 @@ export async function getRatings(db, clubId, readId) {
   const snap = await getDocs(collection(db, col('clubs'), clubId, 'reads', readId, 'ratings'));
   return snap.docs.map(d => ({ slug: d.id, ...d.data() }));
 }
+
+/**
+ * Remove one member's rating (moderation action — three-tier model:
+ * club host/mod, site moderator or site admin; the UI shows the affordance
+ * post-reveal only). Also decrements the read's open ratingCount so the
+ * "N members rated" line stays honest. The delete itself is open in rules
+ * (removeRead's cleanup loop depends on that) — the UI gate is the control,
+ * same as every deleteComment-style moderation affordance on this site.
+ */
+export async function deleteRating(db, clubId, readId, slug) {
+  try {
+    await deleteDoc(doc(db, col('clubs'), clubId, 'reads', readId, 'ratings', slug));
+    await updateDoc(doc(db, col('clubs'), clubId, 'reads', readId), {
+      ratingCount: increment(-1),
+    });
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}

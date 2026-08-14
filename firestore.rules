@@ -8,8 +8,9 @@ rules_version = '2';
 // was ALWAYS null, and these rules could enforce document SHAPE and nothing
 // else. identity v2 (2026-08-14) keeps the Firebase session LIVE, so
 // request.auth now carries a real uid for signed-in Google users — and these
-// rules use it in EXACTLY ONE PLACE: club manager enforcement (see the
-// "Club manager enforcement" helpers below) plus the site_roles admin doc.
+// rules use it in exactly TWO places: club manager/moderator enforcement
+// (see the "Club manager enforcement" helpers below, incl. the three-tier
+// site_roles model) and the site-admin-only /reviews delete.
 //
 // Everything else keeps the shape-only model on purpose:
 //   - reviews, club comments, quotes, TBR, progress, warnings and profiles
@@ -123,20 +124,45 @@ service cloud.firestore {
              && request.auth.uid in club.managerUids;
     }
 
-    // site_roles/{uid} — the site-wide admin role, deliberately UNSUFFIXED
+    // site_roles/{uid} — the site-wide roles, deliberately UNSUFFIXED
     // (one collection for both lanes, like pipeline_*): a role belongs to
-    // the person, not the data lane. Seeded server-side only
-    // (scripts/seed_site_admin.py); browsers can never write it.
-    function isSiteAdmin() {
+    // the person, not the data lane. Written server-side only (the estate
+    // auth Worker's site-roles endpoints, or scripts/seed_site_admin.py as
+    // break-glass); browsers can never write it.
+    //
+    // THREE-tier model (owner matrix, 2026-08-14):
+    //   'admin'     — everything: any club setting, roster, deletes, plus
+    //                 site-wide review removal (see /reviews).
+    //   'moderator' — the OPERATIONAL subset across ALL clubs: reading
+    //                 schedule, polls management, next-meeting fields,
+    //                 membership ops and content deletes. NOT features/
+    //                 webhook/identity/roster/club-or-read deletes/site-wide.
+    //   (club mods  — managerUids on the club doc, full powers there.)
+    function siteRoleIs(r) {
       return request.auth != null
              && exists(/databases/$(database)/documents/site_roles/$(request.auth.uid))
-             && get(/databases/$(database)/documents/site_roles/$(request.auth.uid)).data.role == 'admin';
+             && get(/databases/$(database)/documents/site_roles/$(request.auth.uid)).data.role == r;
     }
 
-    // The one gate every manager-only club write goes through:
+    function isSiteAdmin() {
+      return siteRoleIs('admin');
+    }
+
+    function isSiteModerator() {
+      return siteRoleIs('moderator');
+    }
+
+    // The gate every STRUCTURAL manager-only club write goes through:
     // unclaimed club -> open (transition safety), else manager uid or admin.
     function canManageClub(club) {
       return !clubClaimed(club) || isClubManager(club) || isSiteAdmin();
+    }
+
+    // The OPERATIONAL gate: everything canManageClub admits, plus the site
+    // moderator — people + content flow across all clubs (schedule, polls,
+    // next meeting), never the structural fields below.
+    function canOperateClub(club) {
+      return canManageClub(club) || isSiteModerator();
     }
 
     // Parent club doc for subcollection rules. clubCol is 'clubs' or
@@ -150,33 +176,51 @@ service cloud.firestore {
              || request.resource.data.managerUids is map;
     }
 
-    // Club-doc fields only a manager may change once the club is claimed.
-    // ⚠️ Keep this list in step with MANAGED_CLUB_FIELDS in site/clubs.js.
+    // Club-doc fields only a manager may change once the club is claimed,
+    // SPLIT by tier (2026-08-14 three-tier model):
+    //   STRUCTURAL — canManageClub only (roster uid or site admin):
+    //     joinMode, features, discordWebhookMask, managerUids.
+    //   OPERATIONAL — canOperateClub (adds the site moderator):
+    //     nextMeetingAt, nextMeetingNotes.
+    // ⚠️ Keep these lists in step with STRUCTURAL_CLUB_FIELDS /
+    // OPERATIONAL_CLUB_FIELDS in site/clubs.js (MANAGED_CLUB_FIELDS is
+    // their union; the test suite pins all three).
     // Everything else stays writable exactly as before, because member (and
     // legacy/anonymous) actions write the club doc too: joins/leaves touch
     // memberSlugs/invitedSlugs/memberCount, host-leave transfers touch
     // hostSlug/hostDisplayName/archived, reads touch activeSlots and the
     // avatar fields, and the Edit modal lets ANY member change
     // name/description/emoji/promptsEnabled. Those stay display-layer.
-    function clubManagedFieldsChanged() {
+    function clubStructuralFieldsChanged() {
       return request.resource.data.diff(resource.data).affectedKeys().hasAny(
-        ['joinMode', 'nextMeetingAt', 'nextMeetingNotes', 'features',
-         'discordWebhookMask', 'managerUids']);
+        ['joinMode', 'features', 'discordWebhookMask', 'managerUids']);
     }
 
-    // Read-doc fields only a manager may change once the club is claimed:
-    // the reading schedule (milestones carry dueAt), the club-level
-    // lifecycle (finish/abandon), and the blind-ratings reveal flip
-    // (ratingsRevealed/revealedAt — see the ratings subcollection below).
+    function clubOperationalFieldsChanged() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny(
+        ['nextMeetingAt', 'nextMeetingNotes']);
+    }
+
+    // Read-doc fields gated the same way, split by tier:
+    //   STRUCTURAL — club-level lifecycle (finish/abandon), slot, and the
+    //     blind-ratings reveal flip (ratingsRevealed/revealedAt — see the
+    //     ratings subcollection below): canManageClub only.
+    //   OPERATIONAL — the reading schedule (milestones carry dueAt,
+    //     scheduleUpdatedAt): canOperateClub, i.e. site moderator included.
     // commentCount (bumped by every commenter), slotLabel (member-editable)
     // and ratingCount (bumped by every rater, same open pattern as
     // commentCount) stay open, as does CREATE — starting a read is a
     // member action.
-    // ⚠️ Keep this list in step with MANAGED_READ_FIELDS in site/clubs.js.
-    function readManagedFieldsChanged() {
+    // ⚠️ Keep these lists in step with STRUCTURAL_READ_FIELDS /
+    // OPERATIONAL_READ_FIELDS in site/clubs.js.
+    function readStructuralFieldsChanged() {
       return request.resource.data.diff(resource.data).affectedKeys().hasAny(
-        ['milestones', 'scheduleUpdatedAt', 'status', 'finishedAt', 'slot',
-         'ratingsRevealed', 'revealedAt']);
+        ['status', 'finishedAt', 'slot', 'ratingsRevealed', 'revealedAt']);
+    }
+
+    function readOperationalFieldsChanged() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny(
+        ['milestones', 'scheduleUpdatedAt']);
     }
 
     // clubs/{id}/reads/{readId}/ratings/* — blind ratings reveal (backlog
@@ -333,11 +377,13 @@ service cloud.firestore {
       // unambiguous — the semantics of create/update are unchanged.
       allow create, update: if validReview();
       // Was `allow delete: if true`, i.e. any visitor could wipe all ~300
-      // reviews with a loop. Nothing needs it: no deleteDoc() against reviews
-      // exists in site/*.js or site/*.html, and the only server-side REST
-      // deleter (app/tools/fetch_content_warnings.py) touches cw_requests only.
-      // Moderation happens in the Firebase console, which bypasses rules.
-      allow delete: if false;
+      // reviews with a loop, then `if false` (2026-08-10). Since the
+      // three-tier model (2026-08-14) the SITE ADMIN — and only the site
+      // admin, never the moderator, whose sweep is clubs-only by the owner's
+      // matrix — may remove a review from the UI (reviews.js deleteReview).
+      // Everyone else still cannot delete; the wipe-loop hole stays closed
+      // because isSiteAdmin() requires a live uid with a site_roles doc.
+      allow delete: if isSiteAdmin();
     }
 
     match /user_content_warnings/{docId} {
@@ -386,9 +432,10 @@ service cloud.firestore {
                             && request.resource.data.managerUids.keys().hasOnly([request.auth.uid])));
       // Shape validation (was `if true` before 2026-08-10; see /users for the
       // create/update split story) PLUS, since 2026-08-14, the uid layer:
-      // manager-only fields (clubManagedFieldsChanged) require
-      // canManageClub — which is open while the club is unclaimed, so every
-      // write path of the pre-uid UI still succeeds on legacy clubs.
+      // structural fields require canManageClub, operational fields (next
+      // meeting) accept the site moderator too — both open while the club is
+      // unclaimed, so every write path of the pre-uid UI still succeeds on
+      // legacy clubs.
       //
       // Safe for every write path: on an update request.resource.data is the
       // POST-merge document, and every writer is a partial update
@@ -396,7 +443,8 @@ service cloud.firestore {
       // replace (app/tools/migrate_club.py put_doc), so name and
       // hostDisplayName survive.
       allow update: if validClub() && validManagerUids()
-                    && (!clubManagedFieldsChanged() || canManageClub(resource.data));
+                    && (!clubStructuralFieldsChanged() || canManageClub(resource.data))
+                    && (!clubOperationalFieldsChanged() || canOperateClub(resource.data));
       // Open on unclaimed clubs (deleteClub was always a UI-gated member
       // action no rule could check); once claimed, only a manager uid or the
       // site admin may delete the club doc.
@@ -446,11 +494,13 @@ service cloud.firestore {
       // Untagged (club-wide) or read-section-tagged (see validPoll's caller,
       // site/club-reads.js createPoll) — either way lives directly under the
       // club, not nested under a read, since untagged polls have no read.
+      // Polls management is OPERATIONAL (three-tier model): the site
+      // moderator may create/close/delete polls in any club.
       match /polls/{pollId} {
         allow read: if true;
-        allow create: if validPoll() && canManageClub(parentClub('clubs', clubId));
-        allow update: if validPoll() && canManageClub(parentClub('clubs', clubId));
-        allow delete: if canManageClub(parentClub('clubs', clubId));
+        allow create: if validPoll() && canOperateClub(parentClub('clubs', clubId));
+        allow update: if validPoll() && canOperateClub(parentClub('clubs', clubId));
+        allow delete: if canOperateClub(parentClub('clubs', clubId));
 
         match /votes/{userId} {
           allow read: if true;
@@ -470,16 +520,20 @@ service cloud.firestore {
 
       match /reads/{readId} {
         allow read: if true;
-        // Create stays open: starting a read is a member action. Updates to
-        // schedule/lifecycle fields (readManagedFieldsChanged) are manager
-        // actions once the club is claimed; commentCount bumps and slot
-        // labels stay open for every member write path.
+        // Create stays open: starting a read is a member action. Lifecycle
+        // fields (readStructuralFieldsChanged) are manager actions once the
+        // club is claimed; the reading schedule (operational) accepts the
+        // site moderator too; commentCount bumps and slot labels stay open
+        // for every member write path.
         allow create: if validClubRead();
         allow update: if validClubRead()
-                      && (!readManagedFieldsChanged()
-                          || canManageClub(parentClub('clubs', clubId)));
+                      && (!readStructuralFieldsChanged()
+                          || canManageClub(parentClub('clubs', clubId)))
+                      && (!readOperationalFieldsChanged()
+                          || canOperateClub(parentClub('clubs', clubId)));
         // Removing a read deletes discussions — manager UI action; gated
         // once the club is claimed, open (as it always was) before that.
+        // Deliberately NOT canOperateClub: read deletes are structural.
         allow delete: if canManageClub(parentClub('clubs', clubId));
 
         match /comments/{commentId} {
@@ -524,7 +578,7 @@ service cloud.firestore {
     match /reviews_dev/{reviewId} {
       allow read: if true;
       allow create, update: if validReview();
-      allow delete: if false;   // mirrors /reviews
+      allow delete: if isSiteAdmin();   // mirrors /reviews
     }
 
     match /user_content_warnings_dev/{docId} {
@@ -566,7 +620,8 @@ service cloud.firestore {
                         || (request.auth != null
                             && request.resource.data.managerUids.keys().hasOnly([request.auth.uid])));
       allow update: if validClub() && validManagerUids()
-                    && (!clubManagedFieldsChanged() || canManageClub(resource.data));
+                    && (!clubStructuralFieldsChanged() || canManageClub(resource.data))
+                    && (!clubOperationalFieldsChanged() || canOperateClub(resource.data));
       allow delete: if canManageClub(resource.data);
 
       match /members/{memberId} {
@@ -599,9 +654,9 @@ service cloud.firestore {
       // Mirrors /clubs/{clubId}/polls — see the capability/gating note there.
       match /polls/{pollId} {
         allow read: if true;
-        allow create: if validPoll() && canManageClub(parentClub('clubs_dev', clubId));
-        allow update: if validPoll() && canManageClub(parentClub('clubs_dev', clubId));
-        allow delete: if canManageClub(parentClub('clubs_dev', clubId));
+        allow create: if validPoll() && canOperateClub(parentClub('clubs_dev', clubId));
+        allow update: if validPoll() && canOperateClub(parentClub('clubs_dev', clubId));
+        allow delete: if canOperateClub(parentClub('clubs_dev', clubId));
 
         match /votes/{userId} {
           allow read: if true;
@@ -623,8 +678,10 @@ service cloud.firestore {
         allow read: if true;
         allow create: if validClubRead();
         allow update: if validClubRead()
-                      && (!readManagedFieldsChanged()
-                          || canManageClub(parentClub('clubs_dev', clubId)));
+                      && (!readStructuralFieldsChanged()
+                          || canManageClub(parentClub('clubs_dev', clubId)))
+                      && (!readOperationalFieldsChanged()
+                          || canOperateClub(parentClub('clubs_dev', clubId)));
         allow delete: if canManageClub(parentClub('clubs_dev', clubId));
 
         match /comments/{commentId} {
@@ -649,19 +706,23 @@ service cloud.firestore {
       }
     }
 
-    // ---- Site roles (the owner's break-glass admin; 2026-08-14) ----
+    // ---- Site roles (three-tier model; 2026-08-14) ----
     //
-    // site_roles/{uid} = { role: 'admin', email, displayName, grantedAt }.
-    // ONE unsuffixed collection for both lanes (like pipeline_*): a role
-    // belongs to the person, not the data lane, and the isSiteAdmin() helper
-    // above reads it for prod and _dev club clauses alike.
+    // site_roles/{uid} = { role: 'admin'|'moderator', email, displayName,
+    // grantedAt }. ONE unsuffixed collection for both lanes (like
+    // pipeline_*): a role belongs to the person, not the data lane, and the
+    // siteRoleIs() helpers above read it for prod and _dev clauses alike.
     //
     //   get   — only your OWN doc (doc id == request.auth.uid), so the UI
-    //           can show "you are the site admin" without exposing a roster.
+    //           can show "you are the site admin/moderator" without
+    //           exposing a roster.
     //   list  — nobody. Enumerating who holds roles is a server-side concern
-    //           (Firebase console / service account).
-    //   write — nobody from a browser. Seeded by scripts/seed_site_admin.py
-    //           through the service account, which bypasses these rules.
+    //           (the estate auth Worker's GET /api/estate/site-roles, which
+    //           reads via the service account and gates on approver).
+    //   write — nobody from a browser. Written by the estate auth Worker's
+    //           POST /api/estate/site-roles (the UI grant path) or
+    //           scripts/seed_site_admin.py (break-glass), both through the
+    //           service account, which bypasses these rules.
     match /site_roles/{uid} {
       allow get: if request.auth != null && request.auth.uid == uid;
       allow list: if false;

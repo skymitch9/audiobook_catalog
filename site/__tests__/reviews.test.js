@@ -30,6 +30,16 @@ vi.mock('firebase/firestore', () => {
         mockStore[ref._path] = { ...data };
       }
     },
+    // Test seam: a doc seeded with __denyDelete simulates the firestore.rules
+    // PERMISSION_DENIED every non-site-admin caller gets on /reviews delete.
+    deleteDoc: async (ref) => {
+      if (mockStore[ref._path] && mockStore[ref._path].__denyDelete) {
+        const e = new Error('Missing or insufficient permissions.');
+        e.code = 'permission-denied';
+        throw e;
+      }
+      delete mockStore[ref._path];
+    },
     serverTimestamp: () => ({ seconds: ++timestampCounter }),
     collection: (db, name) => ({ _collectionName: name }),
     query: (collectionRef, ...constraints) => ({
@@ -76,7 +86,7 @@ vi.mock('firebase/firestore', () => {
   };
 });
 
-import { bookIdFromTitle, computeAverageRating, submitReview, getReviews, renderStars, renderReviewSection, formatDate } from '../reviews.js';
+import { bookIdFromTitle, computeAverageRating, submitReview, getReviews, renderStars, renderReviewSection, formatDate, deleteReview } from '../reviews.js';
 import { col } from '../fb-env.js';
 
 const fakeDb = {};
@@ -435,5 +445,30 @@ describe('Property 11: Review display contains all required fields', () => {
       ),
       { numRuns: 100 }
     );
+  });
+});
+
+describe('deleteReview — site-ADMIN-only removal (three-tier model)', () => {
+  it('deletes the composite-id doc when rules allow (site admin)', async () => {
+    await submitReview(fakeDb, 'some-book', 'Jane Doe', 4, 'fine');
+    const key = `${col('reviews')}/some-book_jane doe`;
+    expect(mockStore[key]).toBeDefined();
+
+    const r = await deleteReview(fakeDb, 'some-book', 'Jane Doe');
+    expect(r.success).toBe(true);
+    expect(mockStore[key]).toBeUndefined();
+  });
+
+  it('maps the rules PERMISSION_DENIED onto an honest admin-only error', async () => {
+    // firestore.rules: allow delete: if isSiteAdmin() — everyone else
+    // (moderators included; their sweep is clubs-only) is denied. The
+    // __denyDelete seam makes the mock behave like Firestore does then.
+    const key = `${col('reviews')}/some-book_bob`;
+    mockStore[key] = { bookId: 'some-book', displayName: 'Bob', rating: 1, __denyDelete: true };
+
+    const r = await deleteReview(fakeDb, 'some-book', 'Bob');
+    expect(r.success).toBe(false);
+    expect(r.error).toMatch(/site admin/i);
+    expect(mockStore[key]).toBeDefined(); // nothing was removed
   });
 });

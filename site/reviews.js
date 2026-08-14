@@ -1,7 +1,7 @@
 // reviews.js — Book review system for the audiobook catalog
 // ES module, browser-native (no build step)
 
-import { doc, setDoc, getDoc, serverTimestamp, collection, getDocs } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+import { doc, setDoc, getDoc, deleteDoc, serverTimestamp, collection, getDocs } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 import { col } from './fb-env.js';
 
 /**
@@ -70,6 +70,28 @@ export async function submitReview(db, bookId, displayName, rating, text) {
 
     return { success: true };
   } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * Remove a review — SITE ADMIN ONLY, and rules-enforced (three-tier model,
+ * 2026-08-14): firestore.rules allows a /reviews delete only when the
+ * caller's live Firebase uid holds site_roles role 'admin'. Everyone else
+ * (moderators included — the owner scoped their sweep to clubs) gets
+ * PERMISSION_DENIED, so this function is safe to ship in a public module:
+ * the rule, not the UI, is the control. Doc id is the same composite
+ * submitReview writes: `{bookId}_{displayNameLower}`.
+ */
+export async function deleteReview(db, bookId, displayName) {
+  const docId = `${bookId}_${(displayName || '').toLowerCase()}`;
+  try {
+    await deleteDoc(doc(db, col('reviews'), docId));
+    return { success: true };
+  } catch (e) {
+    if (e && (e.code === 'permission-denied' || /permission/i.test(e.message || ''))) {
+      return { success: false, error: 'Only the site admin can remove reviews.' };
+    }
     return { success: false, error: e.message };
   }
 }
