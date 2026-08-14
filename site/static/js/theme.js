@@ -3,38 +3,48 @@
  * synchronously in <head> right after estate-theme.css so the persisted
  * theme/mode land on <html> before first paint (no flash of the wrong theme).
  *
- * What it does:
- *   - reads localStorage `hg_theme` ('apple'|'cyberpunk'|'retro') and
- *     `hg_mode` ('auto'|'light'|'dark'); origin-scoped, so each site keeps
- *     its own choice for free;
- *   - stamps <html data-theme="…" data-mode="light|dark"> — data-mode is
- *     always the RESOLVED mode ('auto' is resolved against
- *     prefers-color-scheme and re-resolved live when the OS flips);
- *   - exposes window.estateTheme { get, setTheme, setMode, themes, modes }
- *     and fires 'hg-themechange' on document — this API is how a consumer
- *     site's EXISTING settings cog integrates (docs/info/estate-themes.md);
- *   - wires the standard cog UI if the page carries the #hg-cog markup
- *     (button#hg-cog + div#hg-cog-panel with select#hg-theme-select and
- *     [data-hg-mode] buttons). Pages without the markup get the API only.
+ * Vendored from catalog-platform (canonical v2, commit 90c9703) with THREE
+ * marked SITE-LOCAL ADDITIONS for the audiobook catalog — preserve them on
+ * every re-vendor: (1) ab_theme migrate-once, (2) data-default-mode support
+ * (identity: first visit boots dark, as prod always has), (3) theme-color
+ * meta sync. This site carries NO #hg-cog markup — the appearance controls
+ * live in the account modal (account-modal.js and index.html's inline modal)
+ * and drive the window.estateTheme API; the cog wiring below simply no-ops.
  *
- * The per-site DEFAULT is identity (owner, 2026-08-13): a site declares its
- * classic look via <html data-default-theme="…"> — apex + library 'apple',
- * audiobooks 'cyberpunk', games 'retro'. Unset falls back to 'apple'.
+ * v2 (2026-08-13): themes persist PER PAGE. The owner: "let me set a theme per
+ * page and it persist, sometimes i want different looks and feel for all my
+ * pages." Resolution order, first hit wins:
+ *
+ *   1. this page's override — localStorage `hg_theme_page`, a JSON object
+ *      keyed by normalised location.pathname (trailing slash and /index.html
+ *      stripped, so /admin, /admin/ and /admin/index.html are ONE page);
+ *   2. the site default the person chose — localStorage `hg_theme`;
+ *   3. the site's identity — <html data-default-theme="…">;
+ *   4. 'apple'.
+ *
+ * setTheme() writes the PAGE override; setSiteTheme() is the "apply to all
+ * pages" lever — it writes `hg_theme` and DELETES the whole override map,
+ * because "all pages" means what it says (docs/info/estate-themes.md §2a).
+ * MODE stays site-wide (`hg_mode`) on purpose: per-page dark/light is chaos.
+ *
+ * ⚠️ SPA note: "the page" is location.pathname at the moment of boot or of a
+ * setTheme() call. Client-side navigation does not re-resolve.
  */
 
 (function () {
   'use strict';
 
   var docEl = document.documentElement;
-  var THEMES = ['apple', 'cyberpunk', 'retro', 'classic'];
+  var THEMES = ['classic', 'apple', 'cyberpunk', 'retro'];
   var MODES = ['auto', 'light', 'dark'];
   var DEFAULT_THEME = docEl.getAttribute('data-default-theme') || 'apple';
   // SITE-LOCAL ADDITION (identity, owner 2026-08-14: "/dev/ must look like
   // the existing page"): the pre-theme site booted DARK for every first-time
   // visitor regardless of OS preference. data-default-mode="dark" preserves
   // that — an unset hg_mode means dark here, not auto. Picking Auto in the
-  // cog still stores 'auto' and follows the OS from then on.
+  // modal still stores 'auto' and follows the OS from then on.
   var DEFAULT_MODE = docEl.getAttribute('data-default-mode') || 'auto';
+  var PAGE_MAP_KEY = 'hg_theme_page';
   var media = window.matchMedia('(prefers-color-scheme: dark)');
 
   function read(key) {
@@ -42,6 +52,9 @@
   }
   function write(key, value) {
     try { localStorage.setItem(key, value); } catch (e) { /* private mode etc. — selection just won't persist */ }
+  }
+  function remove(key) {
+    try { localStorage.removeItem(key); } catch (e) { /* same */ }
   }
 
   // SITE-LOCAL ADDITION (audiobook catalog): migrate-once from the legacy
@@ -54,10 +67,43 @@
     if (legacyMode === 'dark' || legacyMode === 'light') write('hg_mode', legacyMode);
   }
 
-  var storedTheme = read('hg_theme');
+  function validTheme(t) {
+    return THEMES.indexOf(t) >= 0 ? t : null;
+  }
+
+  // One page, one key: strip /index.html and any trailing slash so a page
+  // reached three ways cannot accumulate three overrides.
+  function pageKey() {
+    var p = location.pathname || '/';
+    p = p.replace(/\/index\.html?$/i, '/');
+    if (p.length > 1) p = p.replace(/\/+$/, '');
+    return p === '' ? '/' : p;
+  }
+
+  // The override map. Corrupt JSON or a non-object reads as "no overrides";
+  // unknown theme values are dropped rather than stamped.
+  function readOverrides() {
+    var raw = read(PAGE_MAP_KEY);
+    if (!raw) return {};
+    try {
+      var parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object' || Object.prototype.toString.call(parsed) !== '[object Object]') return {};
+      var clean = {};
+      for (var k in parsed) {
+        if (Object.prototype.hasOwnProperty.call(parsed, k) && validTheme(parsed[k])) clean[k] = parsed[k];
+      }
+      return clean;
+    } catch (e) { return {}; }
+  }
+
+  var overrides = readOverrides();
+  var siteTheme = validTheme(read('hg_theme')) || DEFAULT_THEME;
   var storedMode = read('hg_mode');
+  var bootOverride = validTheme(overrides[pageKey()]);
+
   var state = {
-    theme: THEMES.indexOf(storedTheme) >= 0 ? storedTheme : DEFAULT_THEME,
+    theme: bootOverride || siteTheme,
+    scope: bootOverride ? 'page' : 'site',
     mode: MODES.indexOf(storedMode) >= 0 ? storedMode : DEFAULT_MODE,
   };
 
@@ -70,7 +116,13 @@
     docEl.setAttribute('data-mode', resolvedMode());
     try {
       document.dispatchEvent(new CustomEvent('hg-themechange', {
-        detail: { theme: state.theme, mode: state.mode, resolvedMode: resolvedMode() },
+        detail: {
+          theme: state.theme,
+          mode: state.mode,
+          resolvedMode: resolvedMode(),
+          scope: state.scope,
+          siteTheme: siteTheme,
+        },
       }));
     } catch (e) { /* CustomEvent should exist everywhere we run; stay quiet if not */ }
   }
@@ -105,10 +157,34 @@
   window.estateTheme = {
     themes: THEMES.slice(),
     modes: MODES.slice(),
-    get: function () { return { theme: state.theme, mode: state.mode, resolvedMode: resolvedMode() }; },
+    get: function () {
+      return {
+        theme: state.theme,
+        mode: state.mode,
+        resolvedMode: resolvedMode(),
+        scope: state.scope,
+        siteTheme: siteTheme,
+      };
+    },
+    /** Theme for THIS PAGE — writes the per-path override. */
     setTheme: function (t) {
-      if (THEMES.indexOf(t) < 0) return;
+      if (!validTheme(t)) return;
       state.theme = t;
+      state.scope = 'page';
+      overrides[pageKey()] = t;
+      write(PAGE_MAP_KEY, JSON.stringify(overrides));
+      apply();
+    },
+    /** Theme for ALL pages — writes the site default and clears EVERY page
+     *  override, this page's and every other's. "All pages" means all pages;
+     *  this is also the only reset lever, on purpose (estate-themes.md §2a). */
+    setSiteTheme: function (t) {
+      if (!validTheme(t)) return;
+      siteTheme = t;
+      state.theme = t;
+      state.scope = 'site';
+      overrides = {};
+      remove(PAGE_MAP_KEY);
       write('hg_theme', t);
       apply();
     },
@@ -121,6 +197,8 @@
   };
 
   // ---- the cog UI (only when the page carries the markup) ------------------
+  // This site ships no cog markup (appearance lives in the account modal);
+  // kept verbatim from canonical so re-vendors stay a clean diff.
 
   function wireCog() {
     var cog = document.getElementById('hg-cog');
@@ -128,10 +206,13 @@
     if (!cog || !panel) return;
 
     var themeSelect = document.getElementById('hg-theme-select');
+    var applyAll = document.getElementById('hg-apply-all');
+    var scopeNote = document.getElementById('hg-scope-note');
     var modeButtons = panel.querySelectorAll('[data-hg-mode]');
 
     function sync() {
       if (themeSelect) themeSelect.value = state.theme;
+      if (scopeNote) scopeNote.hidden = state.scope !== 'page';
       for (var i = 0; i < modeButtons.length; i++) {
         var b = modeButtons[i];
         b.setAttribute('aria-pressed', b.getAttribute('data-hg-mode') === state.mode ? 'true' : 'false');
@@ -164,6 +245,11 @@
     if (themeSelect) {
       themeSelect.addEventListener('change', function () {
         window.estateTheme.setTheme(themeSelect.value);
+      });
+    }
+    if (applyAll) {
+      applyAll.addEventListener('click', function () {
+        window.estateTheme.setSiteTheme(state.theme);
       });
     }
     for (var i = 0; i < modeButtons.length; i++) {

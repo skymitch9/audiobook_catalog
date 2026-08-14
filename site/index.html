@@ -29,12 +29,6 @@ body{
   margin:0; padding:var(--pad);
 }
 #wrap{max-width:1100px;margin:0 auto}
-/* Keep the fixed estate cog clear of the header/identity row — but only when
-   the viewport is narrow enough for them to collide. On wider screens the cog
-   floats in the margin and the header must sit exactly where prod puts it. */
-@media (max-width: 1220px){
-  #wrap > div:first-child{padding-right:56px}
-}
 h1{
   margin:0 0 8px 0;
   font-weight:700;
@@ -136,6 +130,15 @@ html[data-theme="cyberpunk"] .game-btn:hover{
 }
 .switch input:checked + .track .thumb{ left:23px; background:var(--neon-cyan); box-shadow: var(--et-glow); }
 .switch input:checked + .track{ background:var(--bg-2); border-color:var(--neon-cyan); }
+/* Appearance controls in the account modal (theme + mode — the cog's options,
+   modal-native; owner 2026-08-14) */
+.am-select{padding:6px 8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:inherit;font-size:.85em;cursor:pointer}
+.am-seg{display:inline-flex;border:1px solid var(--border)}
+.am-seg button{padding:6px 12px;border:none;background:var(--bg);color:var(--muted);font-family:inherit;font-size:.8em;text-transform:var(--et-title-case);letter-spacing:.5px;cursor:pointer}
+.am-seg button + button{border-left:1px solid var(--border)}
+.am-seg button.on{background:var(--neon-cyan);color:#04121a;font-weight:700}
+.am-applyall{background:none;border:1px solid var(--border);color:var(--neon-cyan);padding:4px 10px;font-size:.72em;cursor:pointer;font-family:inherit;text-transform:var(--et-title-case);letter-spacing:.5px}
+.am-applyall:hover{border-color:var(--neon-cyan)}
 
 /* Table — cyberpunk grid */
 table{border-collapse:collapse;width:100%}
@@ -500,31 +503,6 @@ html[data-theme="cyberpunk"] #recently-added h2{ letter-spacing:1px !important; 
 </head>
 
 <body>
-<!-- Estate settings cog: theme + light/dark. static/js/theme.js wires this
-     standard markup (select#hg-theme-select, [data-hg-mode]) automatically. -->
-<button id="hg-cog" class="hg-cog" type="button" aria-expanded="false" aria-controls="hg-cog-panel" aria-label="Display settings">
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.56-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.09a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.09a1.7 1.7 0 0 0 1.56 1.03H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1.03z"/></svg>
-</button>
-<div id="hg-cog-panel" class="hg-cog-panel" hidden>
-  <div class="hg-row">
-    <label class="hg-label" for="hg-theme-select">Theme</label>
-    <select id="hg-theme-select">
-      <option value="cyberpunk">Cyberpunk</option>
-      <option value="apple">Apple</option>
-      <option value="retro">Retro</option><option value="classic">Classic</option>
-    </select>
-  </div>
-  <div class="hg-row">
-    <span class="hg-label" id="hg-mode-label">Appearance</span>
-    <div class="hg-mode-group" role="group" aria-labelledby="hg-mode-label">
-      <button type="button" data-hg-mode="auto" aria-pressed="true">Auto</button>
-      <button type="button" data-hg-mode="light" aria-pressed="false">Light</button>
-      <button type="button" data-hg-mode="dark" aria-pressed="false">Dark</button>
-    </div>
-  </div>
-  <p class="hg-cog-note">Your choice is remembered on this site only — each catalogue keeps its own look until you change it there.</p>
-</div>
-
 <div id="wrap">
   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap:wrap; gap:12px;">
     <h1 style="margin: 0;">Audiobook Catalog</h1>
@@ -40756,14 +40734,63 @@ A Macmillan Audio production from Tor Books"><img class="cover-inline" src="http
   if (window.matchMedia("(max-width: 820px)").matches){ document.body.classList.add("cards"); }
 })();
 
-/* Dark-mode bridge for the account modal — delegates to the estate switcher
-   (hg_mode on <html data-mode>). The legacy ab_theme key is migrated once by
-   theme.js and never written again. */
-function toggleDarkMode(isDark){
-  if (window.estateTheme) window.estateTheme.setMode(isDark ? "dark" : "light");
+/* Appearance controls for the account modal — the estate cog's options,
+   modal-native (owner, 2026-08-14: the floating cog leaves the pages; theme +
+   mode live HERE, replacing the old dark-mode switch). Drives
+   window.estateTheme: setTheme = this page, setSiteTheme = all pages,
+   setMode = site-wide. The scope row surfaces only when this page carries its
+   own theme override. */
+function appearanceHTML(){
+  var themes = window.estateTheme ? window.estateTheme.themes : ["cyberpunk", "apple", "retro", "classic"];
+  var options = themes.map(function(t){
+    return '<option value="' + t + '">' + t.charAt(0).toUpperCase() + t.slice(1) + '</option>';
+  }).join('');
+  return '' +
+    '<div style="padding:10px 0;border-top:1px solid var(--border);margin-top:8px">' +
+      '<div style="font-size:.8em;color:var(--neon-cyan);text-transform:var(--et-title-case);letter-spacing:.5px;margin-bottom:8px">Appearance</div>' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px">' +
+        '<span style="font-size:.85em;color:var(--muted)">Theme</span>' +
+        '<select id="am-theme-select" class="am-select" aria-label="Theme">' + options + '</select>' +
+      '</div>' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px">' +
+        '<span style="font-size:.85em;color:var(--muted)">Mode</span>' +
+        '<div class="am-seg" role="group" aria-label="Light or dark mode">' +
+          '<button type="button" data-am-mode="auto">Auto</button>' +
+          '<button type="button" data-am-mode="light">Light</button>' +
+          '<button type="button" data-am-mode="dark">Dark</button>' +
+        '</div>' +
+      '</div>' +
+      '<div id="am-scope-row" style="display:none;align-items:center;justify-content:space-between;gap:10px;margin-top:8px">' +
+        '<span style="font-size:.72em;color:var(--muted)">Theme set for this page only</span>' +
+        '<button type="button" id="am-apply-all" class="am-applyall">Apply to all pages</button>' +
+      '</div>' +
+    '</div>';
 }
-function isDarkMode(){
-  return document.documentElement.getAttribute("data-mode") !== "light";
+function wireAppearance(container){
+  var et = window.estateTheme;
+  var sel = container.querySelector('#am-theme-select');
+  var seg = container.querySelectorAll('[data-am-mode]');
+  var scopeRow = container.querySelector('#am-scope-row');
+  var applyAll = container.querySelector('#am-apply-all');
+  function sync(){
+    if (!et) return;
+    var s = et.get();
+    if (sel) sel.value = s.theme;
+    seg.forEach(function(b){
+      var on = b.getAttribute('data-am-mode') === s.mode;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    if (scopeRow) scopeRow.style.display = (s.scope === 'page') ? 'flex' : 'none';
+  }
+  if (sel) sel.addEventListener('change', function(){ if (et) et.setTheme(sel.value); });
+  seg.forEach(function(b){ b.addEventListener('click', function(){ if (et) et.setMode(b.getAttribute('data-am-mode')); }); });
+  if (applyAll) applyAll.addEventListener('click', function(){ if (et && et.setSiteTheme) et.setSiteTheme(et.get().theme); });
+  // One document-level listener at a time — re-renders must not accumulate.
+  if (wireAppearance._sync) document.removeEventListener('hg-themechange', wireAppearance._sync);
+  wireAppearance._sync = sync;
+  document.addEventListener('hg-themechange', sync);
+  sync();
 }
 
 /* ===== App logic ===== */
@@ -41585,7 +41612,6 @@ function isDarkMode(){
   function _renderLoggedInModal(container, db, authBtn) {
     const session = getSession();
     const photo = session.photoURL ? `<img src="${session.photoURL}" style="width:56px;height:56px;border-radius:50%;border:2px solid var(--neon-cyan)">` : '';
-    const isDark = isDarkMode();
 
     // Get game stats from localStorage
     const prefix = `guessGame_${session.displayName}_`;
@@ -41620,13 +41646,7 @@ function isDarkMode(){
         </div>
       </div>
 
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-top:1px solid var(--border);margin-top:8px">
-        <span style="font-size:.85em;color:var(--muted)">Dark Mode</span>
-        <label class="switch" style="margin:0">
-          <input id="modal-dark-toggle" type="checkbox" ${isDark ? 'checked' : ''} />
-          <span class="track"><span class="thumb"></span></span>
-        </label>
-      </div>
+      ${appearanceHTML()}
 
       <button id="auth-logout-btn" class="btn" style="width:100%;margin-top:10px;background:var(--neon-magenta);color:#fff;border:none;padding:10px">Logout</button>
       <a id="auth-admin-link" href="admin.html" style="display:none;text-align:center;margin-top:10px;padding:10px;border:1px solid var(--border);text-decoration:none;color:var(--neon-cyan);font-weight:700;font-size:.9em">🔧 Admin Portal</a>
@@ -41652,10 +41672,8 @@ function isDarkMode(){
       </div>
     `;
 
-    // Dark toggle in modal
-    container.querySelector('#modal-dark-toggle').addEventListener('change', function() {
-      toggleDarkMode(this.checked);
-    });
+    // Appearance controls (theme + mode)
+    wireAppearance(container);
 
     // Logout
     container.querySelector('#auth-logout-btn').addEventListener('click', async () => {
@@ -41830,18 +41848,11 @@ function isDarkMode(){
           Continue with Google
         </button>
         <div id="auth-error" style="color:var(--neon-magenta);font-size:.8em;margin-top:8px;display:none"></div>
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-top:1px solid var(--border);margin-top:12px">
-          <span style="font-size:.85em;color:var(--muted)">Dark Mode</span>
-          <label class="switch" style="margin:0">
-            <input id="modal-dark-toggle-out" type="checkbox" ${isDarkMode() ? 'checked' : ''} />
-            <span class="track"><span class="thumb"></span></span>
-          </label>
-        </div>
+        ${appearanceHTML()}
       </div>`;
 
-    // Dark toggle for logged-out modal
-    const darkToggleOut = container.querySelector('#modal-dark-toggle-out');
-    if(darkToggleOut) darkToggleOut.addEventListener('change', function(){ toggleDarkMode(this.checked); });
+    // Appearance controls (theme + mode)
+    wireAppearance(container);
 
     // Google SSO handler
     container.querySelector('#auth-google-btn').addEventListener('click', async () => {

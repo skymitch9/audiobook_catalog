@@ -26,11 +26,6 @@
             padding: 20px;
         }
         /* Keep the fixed estate cog clear of the nav/identity row */
-        /* Cog clearance — only where the fixed cog can actually collide
-           with the nav; wider screens sit exactly where prod puts them. */
-        @media (max-width: 760px) {
-            .nav-row { padding-right: 56px; }
-        }
         #wrap { max-width: 640px; margin: 0 auto; }
         .nav-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:16px; }
 
@@ -370,31 +365,6 @@ html[data-theme="cyberpunk"] #guess-section > span{color:#666}
 </style>
 </head>
 <body>
-<!-- Estate settings cog: theme + light/dark. static/js/theme.js wires this
-     standard markup (select#hg-theme-select, [data-hg-mode]) automatically. -->
-<button id="hg-cog" class="hg-cog" type="button" aria-expanded="false" aria-controls="hg-cog-panel" aria-label="Display settings">
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.56-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.09a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.09a1.7 1.7 0 0 0 1.56 1.03H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1.03z"/></svg>
-</button>
-<div id="hg-cog-panel" class="hg-cog-panel" hidden>
-  <div class="hg-row">
-    <label class="hg-label" for="hg-theme-select">Theme</label>
-    <select id="hg-theme-select">
-      <option value="cyberpunk">Cyberpunk</option>
-      <option value="apple">Apple</option>
-      <option value="retro">Retro</option><option value="classic">Classic</option>
-    </select>
-  </div>
-  <div class="hg-row">
-    <span class="hg-label" id="hg-mode-label">Appearance</span>
-    <div class="hg-mode-group" role="group" aria-labelledby="hg-mode-label">
-      <button type="button" data-hg-mode="auto" aria-pressed="true">Auto</button>
-      <button type="button" data-hg-mode="light" aria-pressed="false">Light</button>
-      <button type="button" data-hg-mode="dark" aria-pressed="false">Dark</button>
-    </div>
-  </div>
-  <p class="hg-cog-note">Your choice is remembered on this site only — each catalogue keeps its own look until you change it there.</p>
-</div>
-
     <div id="wrap">
     <div class="nav-row">
     <a href="index.html" class="nav-link">Catalog</a>

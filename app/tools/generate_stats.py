@@ -132,62 +132,6 @@ def calculate_stats(csv_path: Path) -> Dict[str, Any]:
     }
 
 
-# The estate settings cog (theme + light/dark), inserted after <body>.
-# theme.js wires this standard markup automatically. Kept out of the
-# big f-string so no source line breaks the linter.
-_COG_HTML = (
-    '<!-- Estate settings cog: theme + light/dark. static/js/them'
-    'e.js wires this\n'
-    '     standard markup (select#hg-theme-select, [data-hg-mode]'
-    ') automatically. -->\n'
-    '<button id="hg-cog" class="hg-cog" type="button" aria-expand'
-    'ed="false" aria-controls="hg-cog-panel" aria-label="Display '
-    'settings">\n'
-    '  <svg width="20" height="20" viewBox="0 0 24 24" fill="none'
-    '" stroke="currentColor" stroke-width="1.8" stroke-linecap="r'
-    'ound" stroke-linejoin="round" aria-hidden="true"><circle cx='
-    '"12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.'
-    '87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.3'
-    '4 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 '
-    '0-1.11-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.8'
-    '3l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1.03H3a2'
-    ' 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.56-1.11 1.7 1.7 0 0 0-.34-1'
-    '.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.3'
-    '4h.09a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 '
-    '0 0 1.03 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 '
-    '2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.09a1.7 1.7 0 0 0 1.56 1'
-    '.03H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1.03z"/></svg>\n'
-    '</button>\n'
-    '<div id="hg-cog-panel" class="hg-cog-panel" hidden>\n'
-    '  <div class="hg-row">\n'
-    '    <label class="hg-label" for="hg-theme-select">Theme</lab'
-    'el>\n'
-    '    <select id="hg-theme-select">\n'
-    '      <option value="cyberpunk">Cyberpunk</option>\n'
-    '      <option value="apple">Apple</option>\n'
-    '      <option value="retro">Retro</option><option value="classic">Classic</option>\n'
-    '    </select>\n'
-    '  </div>\n'
-    '  <div class="hg-row">\n'
-    '    <span class="hg-label" id="hg-mode-label">Appearance</sp'
-    'an>\n'
-    '    <div class="hg-mode-group" role="group" aria-labelledby='
-    '"hg-mode-label">\n'
-    '      <button type="button" data-hg-mode="auto" aria-pressed'
-    '="true">Auto</button>\n'
-    '      <button type="button" data-hg-mode="light" aria-presse'
-    'd="false">Light</button>\n'
-    '      <button type="button" data-hg-mode="dark" aria-pressed'
-    '="false">Dark</button>\n'
-    '    </div>\n'
-    '  </div>\n'
-    '  <p class="hg-cog-note">Your choice is remembered on this s'
-    'ite only — each catalogue keeps its own look until you chang'
-    'e it there.</p>\n'
-    '</div>\n'
-)
-
-
 def generate_stats_html(stats: Dict[str, Any], generated_at: str) -> str:
     """Generate HTML for the stats page"""
     
@@ -389,7 +333,6 @@ html[data-theme="cyberpunk"] .nav-link{{clip-path:polygon(6px 0, 100% 0, calc(10
 </style>
 </head>
 <body>
-{_COG_HTML}
 <div id="wrap">
   <h1>📊 Audiobook Statistics</h1>
 

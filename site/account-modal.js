@@ -59,17 +59,77 @@ const CSS = `
 }
 .am-results{background:var(--bg-2,#12121f);border:1px solid var(--border,#2a2a3a);max-height:200px;overflow-y:auto;display:none}
 .am-section-title{font-size:.8em;color:var(--neon-cyan,#05d9e8);text-transform:var(--et-title-case);letter-spacing:.5px;margin-bottom:8px}
+.am-select{padding:6px 8px;border:1px solid var(--border,#2a2a3a);background:var(--bg,#0a0a12);color:var(--text,#e8e6e3);font-family:inherit;font-size:.85em;cursor:pointer}
+.am-seg{display:inline-flex;border:1px solid var(--border,#2a2a3a)}
+.am-seg button{padding:6px 12px;border:none;background:var(--bg,#0a0a12);color:var(--muted,#8a8f98);font-family:inherit;font-size:.8em;text-transform:var(--et-title-case,uppercase);letter-spacing:.5px;cursor:pointer}
+.am-seg button + button{border-left:1px solid var(--border,#2a2a3a)}
+.am-seg button.on{background:var(--neon-cyan,#05d9e8);color:#04121a;font-weight:700}
+.am-applyall{background:none;border:1px solid var(--border,#2a2a3a);color:var(--neon-cyan,#05d9e8);padding:4px 10px;font-size:.72em;cursor:pointer;font-family:inherit;text-transform:var(--et-title-case,uppercase);letter-spacing:.5px}
+.am-applyall:hover{border-color:var(--neon-cyan,#05d9e8)}
 `;
 
-// Mode now lives with the estate theme switcher (static/js/theme.js): keys
-// hg_theme/hg_mode, stamped as data-theme/data-mode on <html>. The legacy
-// ab_theme key is migrated once by theme.js and never written again.
-function darkPref() {
-  if (window.estateTheme) return window.estateTheme.get().resolvedMode === 'dark';
-  return document.documentElement.getAttribute('data-mode') !== 'light';
+// Appearance controls — the estate cog's options, modal-native (owner,
+// 2026-08-14: the floating cog leaves the pages; theme + mode live HERE,
+// replacing the old dark-mode switch). Everything drives window.estateTheme
+// (static/js/theme.js): setTheme = this page, setSiteTheme = all pages,
+// setMode = site-wide. The scope row surfaces only when this page has its
+// own override, offering "apply to all pages".
+function appearanceHTML() {
+  const themes = (window.estateTheme ? window.estateTheme.themes : ['cyberpunk', 'apple', 'retro', 'classic']);
+  const options = themes.map(t =>
+    `<option value="${t}">${t.charAt(0).toUpperCase() + t.slice(1)}</option>`).join('');
+  return `
+      <div style="padding:10px 0;border-top:1px solid var(--border,#2a2a3a);margin-top:8px">
+        <div class="am-section-title">Appearance</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px">
+          <span style="font-size:.85em;color:var(--muted,#8a8f98)">Theme</span>
+          <select id="am-theme-select" class="am-select" aria-label="Theme">${options}</select>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+          <span style="font-size:.85em;color:var(--muted,#8a8f98)">Mode</span>
+          <div class="am-seg" role="group" aria-label="Light or dark mode">
+            <button type="button" data-am-mode="auto">Auto</button>
+            <button type="button" data-am-mode="light">Light</button>
+            <button type="button" data-am-mode="dark">Dark</button>
+          </div>
+        </div>
+        <div id="am-scope-row" style="display:none;align-items:center;justify-content:space-between;gap:10px;margin-top:8px">
+          <span style="font-size:.72em;color:var(--muted,#8a8f98)">Theme set for this page only</span>
+          <button type="button" id="am-apply-all" class="am-applyall">Apply to all pages</button>
+        </div>
+      </div>`;
 }
-function setDarkPref(on) {
-  if (window.estateTheme) window.estateTheme.setMode(on ? 'dark' : 'light');
+
+function wireAppearance(container) {
+  const et = window.estateTheme;
+  const sel = container.querySelector('#am-theme-select');
+  const seg = container.querySelectorAll('[data-am-mode]');
+  const scopeRow = container.querySelector('#am-scope-row');
+  const applyAll = container.querySelector('#am-apply-all');
+
+  function sync() {
+    if (!et) return;
+    const s = et.get();
+    if (sel) sel.value = s.theme;
+    seg.forEach(b => {
+      const on = b.getAttribute('data-am-mode') === s.mode;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    if (scopeRow) scopeRow.style.display = (s.scope === 'page') ? 'flex' : 'none';
+  }
+
+  if (sel) sel.addEventListener('change', () => { if (et) et.setTheme(sel.value); });
+  seg.forEach(b => b.addEventListener('click', () => { if (et) et.setMode(b.getAttribute('data-am-mode')); }));
+  if (applyAll) applyAll.addEventListener('click', () => {
+    if (et && et.setSiteTheme) et.setSiteTheme(et.get().theme);
+  });
+
+  // One document-level listener at a time — re-renders must not accumulate.
+  if (wireAppearance._sync) document.removeEventListener('hg-themechange', wireAppearance._sync);
+  wireAppearance._sync = sync;
+  document.addEventListener('hg-themechange', sync);
+  sync();
 }
 
 export function mountAccountModal(db, app, containerEl) {
@@ -132,7 +192,9 @@ export function mountAccountModal(db, app, containerEl) {
           ${GOOGLE_SVG}Continue with Google
         </button>
         <div id="am-auth-error" style="color:var(--neon-magenta,#ff2a6d);font-size:.8em;margin-top:8px;display:none"></div>
+        ${appearanceHTML()}
       </div>`;
+    wireAppearance(container);
     container.querySelector('#am-google-btn').addEventListener('click', async () => {
       const g = container.querySelector('#am-google-btn');
       g.disabled = true; g.textContent = 'Signing in...';
@@ -170,13 +232,7 @@ export function mountAccountModal(db, app, containerEl) {
         <div class="am-stat"><div class="v" style="color:var(--neon-magenta,#ff2a6d)">${gameStreak}</div><div class="l">Best Streak</div></div>
         <div class="am-stat"><div class="v" style="color:var(--neon-magenta,#ff2a6d)">${gameAccuracy}%</div><div class="l">Game Accuracy</div></div>
       </div>
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-top:1px solid var(--border,#2a2a3a);margin-top:8px">
-        <span style="font-size:.85em;color:var(--muted,#8a8f98)">Dark Mode</span>
-        <label class="am-switch" style="margin:0">
-          <input id="am-dark-toggle" type="checkbox" ${darkPref() ? 'checked' : ''} />
-          <span class="track"><span class="thumb"></span></span>
-        </label>
-      </div>
+      ${appearanceHTML()}
       <button id="am-logout-btn" style="width:100%;margin-top:10px;background:var(--neon-magenta,#ff2a6d);color:#fff;border:none;padding:10px;cursor:pointer;font-weight:700;font-family:inherit">Logout</button>
       <div style="border-top:1px solid var(--border,#2a2a3a);margin-top:12px;padding-top:12px">
         <div class="am-section-title">Currently Reading</div>
@@ -214,9 +270,7 @@ export function mountAccountModal(db, app, containerEl) {
       container.querySelector('#am-logout-btn').insertAdjacentElement('afterend', adminRow);
     }
 
-    container.querySelector('#am-dark-toggle').addEventListener('change', function () {
-      setDarkPref(this.checked);
-    });
+    wireAppearance(container);
 
     container.querySelector('#am-logout-btn').addEventListener('click', async () => {
       if (session.method === 'google') await signOutGoogle(app);
