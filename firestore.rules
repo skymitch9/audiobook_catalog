@@ -277,6 +277,31 @@ service cloud.firestore {
              && request.resource.data.displayName is string;
     }
 
+    // clubs/{id}/rsvps/{memberSlug} — meeting scheduler RSVP (backlog #5).
+    // One doc per member (doc id = slug, the progress/votes/ratings
+    // convention). Write is open MEMBER-level, like poll votes and progress
+    // — no rule here can bind a display name to a person, same residual-risk
+    // story as the rest of this trust model. Read is open too (tally +
+    // avatars render for everyone, like poll results).
+    //
+    // ⚠️ STALENESS: each response is stamped with `meetingAt` — the club's
+    // nextMeetingAt epoch it was made FOR. Rescheduling or clearing the
+    // meeting does NOT rewrite or delete existing rsvp docs (this trust
+    // model has no manager-only bulk-delete rule to grant safely, and a
+    // client-side loop over every member's doc would race the very read
+    // it's trying to keep honest). Instead, every reader filters on
+    // `meetingAt === club.nextMeetingAt` (site/club-reads.js
+    // isRsvpCurrent/currentRsvps) before tallying or looking up "my
+    // response" — a response for a stale instant simply never matches and
+    // can never be counted against the current meeting. `meetingAt` is
+    // therefore validated as a required number here so a forged doc can't
+    // skip the field and accidentally count as "current" via `undefined`.
+    function validRsvp() {
+      return request.resource.data.response in ['going', 'maybe', 'cant']
+             && request.resource.data.displayName is string
+             && request.resource.data.meetingAt is number;
+    }
+
     // Votes are refused once the poll is closed ("closing freezes it") —
     // one extra get() per vote write, same cost as the settings/reads
     // manager checks above.
@@ -509,6 +534,14 @@ service cloud.firestore {
         }
       }
 
+      // See validRsvp() above for the staleness design (meetingAt-stamped,
+      // filtered at read time — never rewritten on reschedule).
+      match /rsvps/{userId} {
+        allow read: if true;
+        allow create, update: if validRsvp();
+        allow delete: if true;
+      }
+
       match /reads/{readId}/quotes/{quoteId} {
         allow read: if true;
         allow write: if request.resource.data.text is string
@@ -663,6 +696,13 @@ service cloud.firestore {
           allow create, update: if validPollVote() && pollIsOpen('clubs_dev', clubId, pollId);
           allow delete: if true;
         }
+      }
+
+      // Mirrors /clubs/{clubId}/rsvps — see validRsvp() for the staleness design.
+      match /rsvps/{userId} {
+        allow read: if true;
+        allow create, update: if validRsvp();
+        allow delete: if true;
       }
 
       match /reads/{readId}/quotes/{quoteId} {

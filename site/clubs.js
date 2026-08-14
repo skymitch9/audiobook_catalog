@@ -148,6 +148,13 @@ export const FEATURE_DEFAULTS = {
   // default; see the "Blind ratings" section of club-reads.js for the
   // browser-unreadable subcollection design and its trust-model trade-off.
   blindRatings: false,
+  // Meeting scheduler RSVP + .ics download (backlog #5): members respond
+  // Going/Maybe/Can't to the club's nextMeetingAt, and anyone can download a
+  // client-generated calendar file for it. OFF by default; gates BOTH the
+  // RSVP row and the .ics download button (single key covers the whole
+  // feature — see the "Meeting RSVP" section of club-reads.js and
+  // site/ics.js for the data shape and calendar-file builder).
+  meetingRsvp: false,
 };
 
 /** Is a feature enabled for this club? Falls back to FEATURE_DEFAULTS. */

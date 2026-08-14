@@ -61,6 +61,27 @@ body{
   font-family:var(--et-font-mono);color:var(--text);
 }
 .next-meeting .nm-notes{color:var(--muted);white-space:pre-line}
+.rsvp-block{margin-top:10px;padding-top:10px;border-top:1px solid var(--border)}
+.rsvp-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.rsvp-btn{
+  padding:5px 14px;background:var(--bg);border:1px solid var(--border);color:var(--text);
+  cursor:pointer;font-family:inherit;font-size:.8em;text-transform:var(--et-title-case);
+}
+.rsvp-btn:hover:not(:disabled){border-color:var(--neon-cyan);color:var(--neon-cyan)}
+.rsvp-btn:disabled{cursor:default;opacity:.6}
+.rsvp-btn.mine{border-color:var(--neon-yellow);color:var(--neon-yellow)}
+.rsvp-hint{margin-top:6px;color:var(--muted);font-size:.78em}
+.rsvp-tally{display:flex;flex-wrap:wrap;gap:16px;margin-top:8px}
+.rsvp-group-label{color:var(--muted);font-family:var(--et-font-mono);font-size:.75em;text-transform:var(--et-title-case)}
+.rsvp-names{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}
+.rsvp-chip{
+  display:inline-flex;align-items:center;gap:4px;padding:2px 8px 2px 3px;
+  border:1px solid var(--border);border-radius:11px;font-size:.78em;background:var(--bg-2);
+}
+.rsvp-initial{
+  width:16px;height:16px;border-radius:50%;background:var(--border);color:var(--text);
+  display:inline-flex;align-items:center;justify-content:center;font-size:.85em;font-weight:700;
+}
 .badge{padding:1px 7px;border:1px solid var(--border);font-size:.85em;text-transform:var(--et-title-case)}
 .badge-role{color:var(--neon-yellow);border-color:var(--neon-yellow)}
 .tabs{display:flex;gap:4px;margin-bottom:0;flex-wrap:wrap}
@@ -401,6 +422,10 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
         <input id="feat-blind-ratings" type="checkbox" />
         <label for="feat-blind-ratings" style="margin:0;text-transform:none">Blind ratings — members rate privately, a host/mod reveals everyone's rating together</label>
       </div>
+      <div class="field-inline">
+        <input id="feat-meeting-rsvp" type="checkbox" />
+        <label for="feat-meeting-rsvp" style="margin:0;text-transform:none">Meeting RSVP — members respond Going/Maybe/Can't to the next meeting, plus a calendar (.ics) download</label>
+      </div>
     </div>
     <div class="field" id="edit-webhook-field" style="display:none">
       <label for="edit-webhook">Discord webhook (hosts/mods) — club reminders post to a channel you own</label>
@@ -509,7 +534,7 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
     acceptInvite, declineInvite, dismissRateNudge,
     clubFeatureEnabled, isValidDiscordWebhook, setClubDiscordWebhook, clearClubDiscordWebhook,
     isClubClaimed, isManagerUid, canManageClub, canOperateClub, claimManagerRole,
-  } from './clubs.js?v=20260814f';
+  } from './clubs.js?v=20260814g';
   import {
     getReads, startRead, removeRead, finishRead, getComments, updateReadLabel, splitByDuration, parseManualMilestones,
     loadCatalogBooks, MAX_ACTIVE_READS, groupChapters,
@@ -519,8 +544,10 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
     getPolls, getPollVotes, createPoll, setPollStatus, deletePoll, castVote,
     tallyPollVotes, myPollVote, pollResultsVisible,
     MIN_POLL_OPTIONS, MAX_POLL_OPTIONS, MAX_POLL_OPTION_LENGTH,
-  } from './club-reads.js?v=20260814f';
+    RSVP_RESPONSES, getRsvps, castRsvp, currentRsvps, tallyRsvps, myRsvpResponse,
+  } from './club-reads.js?v=20260814g';
   import { loadSeen, syncSeen } from './club-notify.js';
+  import { buildMeetingIcs, icsFilename, downloadIcsFile } from './ics.js?v=20260814g';
 
   const firebaseConfig = {
     apiKey: "AIzaSyDgAblkxzVxl7nFbd7jXOo6PpuNPsJw11Y",
@@ -557,6 +584,7 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
   let tbr = [];
   let polls = [];        // every poll for this club, tagged + untagged
   let pollVotes = {};    // pollId -> votes[] (untagged/club-wide polls only)
+  let rsvps = [];         // every rsvp doc for this club (current + stale — filter with currentRsvps)
   let promotingTbrId = null; // TBR item being promoted via the Start Read modal
   let allReviews = null;     // lazy one-shot scan of the reviews collection
   let clubStats = null;      // computed lazily for the Stats tab
@@ -672,7 +700,44 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
     });
     const notes = (club.nextMeetingNotes || '').trim();
     return `<div class="next-meeting">📅 Next meeting: <strong>${when}</strong>${
-      notes ? `<br><span class="nm-notes">${escapeHtml(notes)}</span>` : ''}</div>`;
+      notes ? `<br><span class="nm-notes">${escapeHtml(notes)}</span>` : ''}${renderMeetingRsvp(at)}</div>`;
+  }
+
+  const RSVP_LABELS = { going: 'Going', maybe: 'Maybe', cant: "Can't" };
+
+  // Meeting RSVP + .ics download (backlog #5), gated behind ONE feature key
+  // (meetingRsvp) that covers both — see the "Meeting RSVP" section of
+  // club-reads.js for the staleness design (rsvps are filtered to the
+  // CURRENT meeting instant via currentRsvps, never rewritten in place).
+  // `at` is the same nextMeetingAt renderNextMeeting already validated as
+  // set and not stale-hidden, so it's passed in rather than re-checked.
+  function renderMeetingRsvp(at) {
+    if (!clubFeatureEnabled(club, 'meetingRsvp')) return '';
+    const current = currentRsvps(rsvps, at);
+    const mine = session ? myRsvpResponse(current, mySlug) : null;
+    const { counts, byResponse } = tallyRsvps(current);
+    const canRsvp = session && isMember();
+    const group = (key, label) => {
+      const names = byResponse[key].map(r => r.displayName || r.slug);
+      return `
+        <div class="rsvp-group">
+          <span class="rsvp-group-label">${escapeHtml(label)} (${counts[key]})</span>
+          ${names.length ? `<div class="rsvp-names">${names.map(n =>
+            `<span class="rsvp-chip"><span class="rsvp-initial">${escapeHtml((n || '?').trim().charAt(0).toUpperCase() || '?')}</span>${escapeHtml(n)}</span>`
+          ).join('')}</div>` : ''}
+        </div>`;
+    };
+    return `
+      <div class="rsvp-block">
+        <div class="rsvp-row">
+          ${RSVP_RESPONSES.map(k =>
+            `<button class="rsvp-btn rsvp-${k}${mine === k ? ' mine' : ''}" data-rsvp="${k}"${canRsvp ? '' : ' disabled'}>${RSVP_LABELS[k]}${mine === k ? ' ✓' : ''}</button>`
+          ).join('')}
+          <button id="ics-download-btn" class="nav-link" style="padding:5px 12px;font-size:.8em">📅 Add to calendar</button>
+        </div>
+        ${!canRsvp ? '<div class="rsvp-hint">Join the club to RSVP — everyone can still download the calendar file.</div>' : ''}
+        <div class="rsvp-tally">${group('going', 'Going')}${group('maybe', 'Maybe')}${group('cant', "Can't")}</div>
+      </div>`;
   }
 
   function renderTab() {
@@ -1097,6 +1162,28 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
       if (r.success) reload(); else { claimBtn.disabled = false; showError(r.error); }
     });
 
+    // Meeting RSVP (backlog #5) — member-level, changeable (setDoc upsert).
+    contentEl.querySelectorAll('[data-rsvp]').forEach(btn =>
+      btn.addEventListener('click', async () => {
+        const r = await castRsvp(db, clubId, btn.dataset.rsvp, club.nextMeetingAt, session);
+        if (r.success) reload(); else showError(r.error);
+      }));
+
+    // .ics download — client-generated, no Firestore write, no reload.
+    const icsBtn = document.getElementById('ics-download-btn');
+    if (icsBtn) icsBtn.addEventListener('click', () => {
+      const active = reads.filter(r => r.status === 'active');
+      const ics = buildMeetingIcs({
+        clubId,
+        clubName: club.name,
+        meetingAt: club.nextMeetingAt,
+        notes: club.nextMeetingNotes || '',
+        bookTitle: active.map(r => r.bookTitle).filter(Boolean).join(', '),
+        clubUrl: `${window.location.origin}${window.location.pathname}?id=${clubId}`,
+      });
+      downloadIcsFile(icsFilename(club.name), ics);
+    });
+
     contentEl.querySelectorAll('[data-edit-label]').forEach(btn =>
       btn.addEventListener('click', async (e) => {
         e.preventDefault();
@@ -1307,9 +1394,10 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
 
   async function reload() {
     if (session) await syncSeen(db, mySlug).catch(() => {});
-    [club, members, reads, requests, tbr, polls] = await Promise.all([
+    [club, members, reads, requests, tbr, polls, rsvps] = await Promise.all([
       getClub(db, clubId), getMembers(db, clubId), getReads(db, clubId),
       getRequests(db, clubId), getTbr(db, clubId), getPolls(db, clubId),
+      getRsvps(db, clubId),
     ]);
     if (!club) {
       contentEl.innerHTML = '<a href="clubs.html" class="club-back">&larr; All Clubs</a><div class="empty">Club not found — it may have been deleted.</div>';
@@ -1546,6 +1634,7 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
       document.getElementById('feat-discord').checked = clubFeatureEnabled(club, 'discordAnnouncements');
       document.getElementById('feat-polls').checked = clubFeatureEnabled(club, 'polls');
       document.getElementById('feat-blind-ratings').checked = clubFeatureEnabled(club, 'blindRatings');
+      document.getElementById('feat-meeting-rsvp').checked = clubFeatureEnabled(club, 'meetingRsvp');
       const mask = club.discordWebhookMask || '';
       document.getElementById('edit-webhook').value = '';
       document.getElementById('edit-webhook-hint').textContent = mask
@@ -1631,6 +1720,7 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
         discordAnnouncements: document.getElementById('feat-discord').checked,
         polls: document.getElementById('feat-polls').checked,
         blindRatings: document.getElementById('feat-blind-ratings').checked,
+        meetingRsvp: document.getElementById('feat-meeting-rsvp').checked,
       };
     }
     // Webhook first, so a bad URL blocks the save with a visible error

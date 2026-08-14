@@ -1384,3 +1384,121 @@ export async function deleteRating(db, clubId, readId, slug) {
     return { success: false, error: e.message };
   }
 }
+
+// ==================== Meeting RSVP (backlog #5) ====================
+//
+// clubs/{id}/rsvps/{memberSlug}: one doc per member (doc id = slug, the
+// progress/votes/ratings convention), { displayName, response:
+// 'going'|'maybe'|'cant', meetingAt, updatedAt }. Feature-gated per club:
+// FEATURE_DEFAULTS key `meetingRsvp` in clubs.js (OFF by default, one Edit
+// Club checkbox) — the SAME key also gates the .ics download button, since
+// the spec treats RSVP + calendar file as one feature. Extends the
+// next-meeting field shipped 2026-07-14 (club.nextMeetingAt/
+// nextMeetingNotes); no new club-doc field, so no MANAGED_CLUB_FIELDS change.
+//
+// ⚠️ STALENESS DESIGN — read this before touching the tally/lookup helpers.
+// Responses are keyed by member slug, not by meeting instant, because the
+// spec calls for "one response per member (slug-keyed subcollection,
+// changeable)" — the same doc-per-member shape as polls/ratings/progress.
+// That means an old response document can OUTLIVE the meeting it was made
+// for: a manager reschedules or clears nextMeetingAt, and nothing rewrites
+// or deletes the member's existing rsvp doc (this trust model has no safe
+// manager-only bulk-delete to grant, and looping every member's doc on every
+// reschedule would race the very tally it's trying to keep honest).
+//
+// The shape that makes a stale response IMPOSSIBLE TO MISCOUNT: every
+// response is stamped with `meetingAt`, the exact epoch of the meeting it
+// answered. Every reader — the tally, "my response" lookup, everything —
+// filters on `meetingAt === club.nextMeetingAt` (see isRsvpCurrent /
+// currentRsvps below) before counting anything. A response for a meeting
+// that was later moved or cleared simply never matches the live epoch and
+// drops out of every calculation on its own, with no cleanup write, no
+// extra read, and no race: the SAME club doc snapshot that supplies
+// nextMeetingAt is what every caller already has in hand. When a member
+// RSVPs again for the new meeting time, setDoc upserts their one doc with
+// the new meetingAt — the old answer is simply superseded, not archived.
+
+export const RSVP_RESPONSES = ['going', 'maybe', 'cant'];
+
+/** Validate an RSVP response string. */
+export function validateRsvpResponse(response) {
+  return RSVP_RESPONSES.includes(response);
+}
+
+/**
+ * Is this RSVP response still relevant to the CURRENT meeting? See the
+ * staleness design note above — this exact-epoch comparison is the whole
+ * mechanism. A cleared meeting (nextMeetingAt null/undefined) makes every
+ * stored response stale, by construction (nothing is ever === a non-number).
+ */
+export function isRsvpCurrent(rsvp, meetingAt) {
+  return !!rsvp && Number.isFinite(meetingAt) && rsvp.meetingAt === meetingAt;
+}
+
+/** Filter a list of RSVP docs down to only those answering the club's
+ * CURRENT meeting instant. Callers should tally/display only this list. */
+export function currentRsvps(rsvps, meetingAt) {
+  return (rsvps || []).filter(r => isRsvpCurrent(r, meetingAt));
+}
+
+/**
+ * The caller's own response, or null if they haven't RSVP'd to the current
+ * meeting. Pass an already-`currentRsvps`-filtered list — same pattern as
+ * myPollVote, which trusts its caller to have filtered first.
+ */
+export function myRsvpResponse(rsvps, slug) {
+  const mine = (rsvps || []).find(r => r.slug === slug);
+  return mine && RSVP_RESPONSES.includes(mine.response) ? mine.response : null;
+}
+
+/**
+ * Tally an already-current-filtered RSVP list by response.
+ * @returns {{ counts: {going:number,maybe:number,cant:number}, byResponse: {going:Array,maybe:Array,cant:Array}, total:number }}
+ */
+export function tallyRsvps(rsvps) {
+  const byResponse = { going: [], maybe: [], cant: [] };
+  for (const r of rsvps || []) {
+    if (RSVP_RESPONSES.includes(r.response)) byResponse[r.response].push(r);
+  }
+  const counts = {
+    going: byResponse.going.length,
+    maybe: byResponse.maybe.length,
+    cant: byResponse.cant.length,
+  };
+  return { counts, byResponse, total: counts.going + counts.maybe + counts.cant };
+}
+
+/**
+ * Cast (or change) the caller's RSVP for the given meeting instant.
+ * setDoc upsert makes it changeable, per the spec — one doc per member.
+ */
+export async function castRsvp(db, clubId, response, meetingAt, session) {
+  if (!session || !session.displayName) {
+    return { success: false, error: 'Sign in to RSVP.' };
+  }
+  if (!validateRsvpResponse(response)) {
+    return { success: false, error: 'Invalid RSVP response.' };
+  }
+  if (!Number.isFinite(meetingAt)) {
+    return { success: false, error: 'No meeting is currently scheduled.' };
+  }
+  try {
+    const slug = slugifyName(session.displayName);
+    await setDoc(doc(db, col('clubs'), clubId, 'rsvps', slug), {
+      displayName: session.displayName,
+      response,
+      meetingAt,
+      updatedAt: serverTimestamp(),
+    });
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+/** Fetch every RSVP doc for a club (current AND stale — filter with
+ * currentRsvps before tallying or displaying). */
+export async function getRsvps(db, clubId) {
+  const snap = await getDocs(collection(db, col('clubs'), clubId, 'rsvps'));
+  return snap.docs.map(d => ({ slug: d.id, ...d.data() }));
+}
