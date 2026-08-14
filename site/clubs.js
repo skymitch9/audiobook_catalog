@@ -139,6 +139,10 @@ export const FEATURE_DEFAULTS = {
   // due-date nudges and read start/finish to the club's own webhook. OFF by
   // default so no channel hears anything until a manager opts in.
   discordAnnouncements: false,
+  // Free-form, chapter-taggable polls (backlog #3). OFF by default like every
+  // other opt-in feature; see the "Club polls" section of club-reads.js for
+  // the data shape and spoiler-gating logic.
+  polls: false,
 };
 
 /** Is a feature enabled for this club? Falls back to FEATURE_DEFAULTS. */

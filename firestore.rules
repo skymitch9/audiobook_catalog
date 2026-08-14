@@ -175,6 +175,39 @@ service cloud.firestore {
         ['milestones', 'scheduleUpdatedAt', 'status', 'finishedAt', 'slot']);
     }
 
+    // clubs/{id}/polls/* — free-form, optionally chapter-tagged polls
+    // (backlog #3). Creation/close/delete are manager actions (enforced in
+    // the UI, and on claimed clubs here too — same canManageClub gate as
+    // reads/settings); voting stays open like progress writes (no rule can
+    // bind a display name to a person, same residual-risk story as the rest
+    // of this trust model).
+    function validPoll() {
+      return request.resource.data.question is string
+             && request.resource.data.question.size() > 0
+             && request.resource.data.question.size() <= 200
+             && request.resource.data.options is list
+             && request.resource.data.options.size() >= 2
+             && request.resource.data.options.size() <= 10
+             && request.resource.data.status in ['open', 'closed'];
+    }
+
+    function validPollVote() {
+      return request.resource.data.optionIndex is int
+             && request.resource.data.optionIndex >= 0
+             && request.resource.data.displayName is string;
+    }
+
+    // Votes are refused once the poll is closed ("closing freezes it") —
+    // one extra get() per vote write, same cost as the settings/reads
+    // manager checks above.
+    function parentPoll(clubCol, clubId, pollId) {
+      return get(/databases/$(database)/documents/$(clubCol)/$(clubId)/polls/$(pollId)).data;
+    }
+
+    function pollIsOpen(clubCol, clubId, pollId) {
+      return parentPoll(clubCol, clubId, pollId).status == 'open';
+    }
+
     function validClubComment() {
       return request.resource.data.text is string
              && request.resource.data.text.size() > 0
@@ -364,6 +397,22 @@ service cloud.firestore {
         allow delete: if canManageClub(parentClub('clubs', clubId));
       }
 
+      // Untagged (club-wide) or read-section-tagged (see validPoll's caller,
+      // site/club-reads.js createPoll) — either way lives directly under the
+      // club, not nested under a read, since untagged polls have no read.
+      match /polls/{pollId} {
+        allow read: if true;
+        allow create: if validPoll() && canManageClub(parentClub('clubs', clubId));
+        allow update: if validPoll() && canManageClub(parentClub('clubs', clubId));
+        allow delete: if canManageClub(parentClub('clubs', clubId));
+
+        match /votes/{userId} {
+          allow read: if true;
+          allow create, update: if validPollVote() && pollIsOpen('clubs', clubId, pollId);
+          allow delete: if true;
+        }
+      }
+
       match /reads/{readId}/quotes/{quoteId} {
         allow read: if true;
         allow write: if request.resource.data.text is string
@@ -488,6 +537,20 @@ service cloud.firestore {
         allow create, update: if validClubSettings()
                               && canManageClub(parentClub('clubs_dev', clubId));
         allow delete: if canManageClub(parentClub('clubs_dev', clubId));
+      }
+
+      // Mirrors /clubs/{clubId}/polls — see the capability/gating note there.
+      match /polls/{pollId} {
+        allow read: if true;
+        allow create: if validPoll() && canManageClub(parentClub('clubs_dev', clubId));
+        allow update: if validPoll() && canManageClub(parentClub('clubs_dev', clubId));
+        allow delete: if canManageClub(parentClub('clubs_dev', clubId));
+
+        match /votes/{userId} {
+          allow read: if true;
+          allow create, update: if validPollVote() && pollIsOpen('clubs_dev', clubId, pollId);
+          allow delete: if true;
+        }
       }
 
       match /reads/{readId}/quotes/{quoteId} {

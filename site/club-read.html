@@ -245,6 +245,54 @@ details.chapters-wrap[open] > summary::before{transform:rotate(90deg)}
 details.milestone.ch-section{margin:6px 0;border-color:var(--border)}
 details.milestone.ch-section summary{padding:10px 14px;font-size:.85em;color:var(--text)}
 .locked-ch{margin:6px 0;padding:10px 14px;font-size:.85em}
+/* Club polls (feature-gated; see clubs.js FEATURE_DEFAULTS.polls) */
+.poll-banner{
+  background:var(--bg-2);border:1px solid var(--border);border-left:3px solid var(--neon-cyan);
+  padding:10px 16px;margin-bottom:16px;font-size:.9em;font-family:var(--et-font-mono);
+  display:flex;gap:12px;align-items:center;flex-wrap:wrap;
+}
+.poll-new-btn{
+  background:none;border:1px solid var(--border);color:var(--muted);cursor:pointer;
+  font-size:.78em;padding:4px 10px;font-family:inherit;text-transform:var(--et-title-case);letter-spacing:.5px;
+}
+.poll-new-btn:hover{border-color:var(--neon-cyan);color:var(--neon-cyan)}
+.poll-card{background:var(--bg);border:1px solid var(--border);padding:12px 14px;margin:10px 0}
+.poll-q{font-weight:700;color:var(--neon-cyan);margin-bottom:8px}
+.poll-closed-tag{font-size:.7em;color:var(--muted);border:1px solid var(--border);padding:1px 6px;margin-left:6px;text-transform:var(--et-title-case)}
+.poll-options{display:flex;flex-direction:column;gap:6px}
+.poll-opt{
+  text-align:left;padding:7px 11px;background:var(--bg-2);border:1px solid var(--border);color:var(--text);
+  cursor:pointer;font-family:inherit;font-size:.88em;
+}
+.poll-opt:hover{border-color:var(--neon-cyan);color:var(--neon-cyan)}
+.poll-result{position:relative;padding:6px 9px;border:1px solid var(--border);background:var(--bg-2);overflow:hidden;font-size:.88em;cursor:pointer}
+.poll-result.mine{border-color:var(--neon-yellow)}
+.poll-result-bar{position:absolute;inset:0 auto 0 0;background:color-mix(in srgb, var(--neon-cyan) 18%, transparent);z-index:0}
+.poll-result-label{position:relative;z-index:1}
+.poll-result-pct{position:relative;z-index:1;float:right;color:var(--muted);font-family:var(--et-font-mono);font-size:.85em}
+.poll-total{margin-top:6px;font-size:.78em;color:var(--muted);font-family:var(--et-font-mono)}
+.poll-admin{display:flex;gap:8px;margin-top:8px}
+.poll-admin button{
+  background:none;border:1px solid var(--border);color:var(--muted);cursor:pointer;
+  font-size:.7em;padding:3px 8px;font-family:inherit;text-transform:var(--et-title-case);
+}
+.poll-admin button:hover{border-color:var(--neon-cyan);color:var(--neon-cyan)}
+.poll-admin button.danger:hover{border-color:var(--neon-magenta);color:var(--neon-magenta)}
+.poll-locked{
+  background:var(--bg-2);border:1px dashed var(--border);margin:10px 0;
+  padding:10px 14px;color:var(--muted);font-size:.85em;
+}
+.poll-opt-row{display:flex;gap:6px;margin-bottom:6px}
+.poll-opt-row input{
+  flex:1;min-width:0;padding:6px 9px;background:var(--bg);color:var(--text);
+  border:1px solid var(--border);font-family:inherit;
+}
+.poll-opt-row input:focus{outline:none;border-color:var(--neon-cyan)}
+.poll-opt-remove{
+  background:none;border:1px solid var(--border);color:var(--muted);cursor:pointer;
+  width:28px;flex-shrink:0;font-weight:bold;
+}
+.poll-opt-remove:hover{border-color:var(--neon-magenta);color:var(--neon-magenta)}
 .archive-banner{
   padding:12px 16px;border:1px solid var(--neon-yellow);background:var(--bg-2);
   color:var(--neon-yellow);margin-bottom:16px;font-size:.95em;
@@ -357,13 +405,32 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
   </div>
 </div>
 
+<!-- New Poll editor (hosts/mods; feature-gated per club) — tagged to a
+     section of THIS read, spoiler-gated on the section like comments. -->
+<div id="poll-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;align-items:center;justify-content:center;padding:16px">
+  <div style="background:var(--bg-2);border:1px solid var(--neon-yellow);max-width:480px;width:100%;max-height:90vh;overflow-y:auto;padding:20px;position:relative;box-sizing:border-box">
+    <button id="poll-close" style="position:absolute;top:8px;right:10px;background:none;border:none;color:var(--muted);font-size:1.4em;line-height:1;cursor:pointer">×</button>
+    <h2 style="margin:0 0 4px;color:var(--neon-yellow);text-transform:var(--et-title-case);letter-spacing:var(--et-title-spacing);font-size:1.1em">New Poll</h2>
+    <p style="color:var(--muted);font-size:.85em;margin:0 0 12px">Tagged to a section — hidden (question and results both) from members who haven't reached it yet.</p>
+    <label for="poll-section" style="display:block;font-size:.8em;color:var(--muted);text-transform:var(--et-title-case);letter-spacing:.5px;margin-bottom:4px">Section</label>
+    <select id="poll-section" style="width:100%;padding:7px 9px;background:var(--bg);color:var(--text);border:1px solid var(--border);font-family:inherit;margin-bottom:12px;box-sizing:border-box"></select>
+    <label for="poll-question" style="display:block;font-size:.8em;color:var(--muted);text-transform:var(--et-title-case);letter-spacing:.5px;margin-bottom:4px">Question</label>
+    <textarea id="poll-question" maxlength="200" rows="2" style="width:100%;padding:8px;background:var(--bg);color:var(--text);border:1px solid var(--border);margin-bottom:12px;box-sizing:border-box;font-family:inherit" placeholder="Ask something about this section..."></textarea>
+    <label style="display:block;font-size:.8em;color:var(--muted);text-transform:var(--et-title-case);letter-spacing:.5px;margin-bottom:4px">Options (2-10)</label>
+    <div id="poll-options-list"></div>
+    <button type="button" id="poll-add-option" style="margin:2px 0 12px;padding:4px 10px;font-size:.75em;background:none;border:1px solid var(--border);color:var(--muted);cursor:pointer;font-family:inherit;text-transform:var(--et-title-case)">+ Add option</button>
+    <div id="poll-error" style="color:var(--neon-magenta);font-size:.85em;min-height:1.2em;margin-bottom:8px"></div>
+    <button id="poll-submit" class="nav-link" style="width:100%;background:var(--neon-cyan);color:var(--et-accent-fg);border:none;font-weight:700">Create Poll</button>
+  </div>
+</div>
+
 <script type="module">
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
   import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
   import { coverUrl } from './covers-base.js';
   import { getSession, slugifyName, getSiteRole } from './identity.js';
   import { mountAccountModal } from './account-modal.js';
-  import { getClub, getMembers, clubFeatureEnabled } from './clubs.js?v=20260814c';
+  import { getClub, getMembers, clubFeatureEnabled } from './clubs.js?v=20260814d';
   import {
     getRead, getComments, addComment, deleteComment,
     toggleReaction, togglePin, REACTION_EMOJI,
@@ -373,7 +440,11 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
     isMilestoneLocked, isCommentSpoiler, groupChapters, GENERAL_MILESTONE, MAX_COMMENT_LENGTH,
     hasSchedule, scheduleStatus, nextDueMilestone, formatDueDate,
     dueAtToDateInput, dateInputToDueAt, spreadScheduleDates, setReadSchedule,
-  } from './club-reads.js?v=20260814c';
+    memberSchedulePosition,
+    getPolls, getPollVotes, createPoll, setPollStatus, deletePoll, castVote,
+    tallyPollVotes, myPollVote, pollResultsVisible, isPollLocked,
+    MIN_POLL_OPTIONS, MAX_POLL_OPTIONS, MAX_POLL_OPTION_LENGTH,
+  } from './club-reads.js?v=20260814d';
   import { addUserWarning, getUserWarnings, deleteUserWarning } from './user-warnings.js';
   import { markReadSeen } from './club-notify.js';
   import { submitReview, bookIdFromTitle, getReviews } from './reviews.js';
@@ -399,6 +470,8 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
 
   let club = null, read = null, comments = [], progressAll = [], members = [];
   let quotes = [];
+  let polls = [];       // this read's tagged polls only (club-wide polls live on club.html)
+  let pollVotes = {};   // pollId -> votes[]
   let bookPrompts = null;   // AI starter questions for hosts (toggleable per club)
   let bookWarnings = null;  // published content warnings with sources
   let userWarnings = [];    // reader-added warnings from this site
@@ -452,6 +525,17 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
     return m && typeof m.dueAt === 'number' ? m.dueAt : null;
   };
   const dueTag = (dueAt) => dueAt ? `<span class="ms-due">due ${escapeHtml(formatDueDate(dueAt))}</span> · ` : '';
+
+  // Club polls (feature-gated; see clubs.js FEATURE_DEFAULTS.polls). Tagged
+  // polls store a cached milestonePosition at creation, so the spoiler gate
+  // is a plain number comparison against the SAME position the reading
+  // schedule already computes — no separate "poll progress" concept.
+  const pollsOn = () => !!club && clubFeatureEnabled(club, 'polls');
+  const myPollPosition = () => {
+    const p = progressAll.find(x => x.slug === mySlug);
+    return memberSchedulePosition(read.milestones, p, hasChapters());
+  };
+  const pollsForPosition = (pos) => polls.filter(p => p.milestonePosition === pos);
 
   // Bucket key for a comment on a chapter-based read:
   // 'general' | 'p<partIdx>' (part-level) | 'c<chapterIdx>' (chapter-level).
@@ -622,6 +706,56 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
       </div>`;
   }
 
+  // Poll card for one tagged poll. Locking mirrors the section lock right
+  // above it (isMilestoneLocked) but via isPollLocked/myPollPosition, since
+  // a chaptered read's sections don't use the abstract "position" number the
+  // way non-chaptered sections do — memberSchedulePosition bridges both.
+  function pollCardHtml(poll) {
+    const locked = !isArchived() && isPollLocked(poll, myPollPosition());
+    if (locked) {
+      const ms = (read.milestones || []).find(m => m.id === poll.milestoneId);
+      return `<div class="poll-locked">🔒 A poll unlocks at <strong>${escapeHtml(ms ? ms.label : 'a later section')}</strong></div>`;
+    }
+    const votes = pollVotes[poll.id] || [];
+    const myVote = myPollVote(votes, mySlug);
+    const showResults = pollResultsVisible(poll, myVote !== null, isMod());
+    const { counts, total } = tallyPollVotes(poll.options, votes);
+    const canVote = session && myRole() && poll.status === 'open' && !isArchived();
+    const optionsHtml = poll.options.map((opt, i) => {
+      const pct = total > 0 ? Math.round((counts[i] / total) * 100) : 0;
+      const mine = myVote === i;
+      if (canVote && !showResults) {
+        return `<button class="poll-opt" data-poll-vote="${poll.id}" data-opt="${i}">${escapeHtml(opt)}</button>`;
+      }
+      return `
+        <div class="poll-result${mine ? ' mine' : ''}"${canVote ? ` data-poll-vote="${poll.id}" data-opt="${i}" role="button" tabindex="0"` : ''}>
+          <div class="poll-result-bar" style="width:${pct}%"></div>
+          <span class="poll-result-label">${escapeHtml(opt)}${mine ? ' ✓' : ''}</span>
+          <span class="poll-result-pct">${showResults ? `${pct}% (${counts[i]})` : ''}</span>
+        </div>`;
+    }).join('');
+    return `
+      <div class="poll-card">
+        <div class="poll-q">📊 ${escapeHtml(poll.question)}${poll.status === 'closed' ? ' <span class="poll-closed-tag">Closed</span>' : ''}</div>
+        <div class="poll-options">${optionsHtml}</div>
+        ${showResults ? `<div class="poll-total">${total} vote${total !== 1 ? 's' : ''}</div>` : ''}
+        ${isMod() ? `
+          <div class="poll-admin">
+            <button data-poll-toggle="${poll.id}" data-status="${poll.status}">${poll.status === 'open' ? 'Close poll' : 'Reopen poll'}</button>
+            <button class="danger" data-poll-del="${poll.id}">Delete</button>
+          </div>` : ''}
+      </div>`;
+  }
+
+  // Entry point banner: poll count + "+ New Poll" for mods. Renders nothing
+  // when the feature is off, matching schedBannerHtml's pattern.
+  function pollBannerHtml() {
+    if (!pollsOn() || isArchived()) return '';
+    const newBtn = isMod() ? '<button class="poll-new-btn" id="poll-new-btn">+ New Poll</button>' : '';
+    if (!polls.length && !newBtn) return '';
+    return `<div class="poll-banner">📊 ${polls.length} poll${polls.length !== 1 ? 's' : ''} in this read<span style="margin-left:auto">${newBtn}</span></div>`;
+  }
+
   function sectionHtml(id, label, position) {
     const inSectionAll = comments.filter(c => (c.milestoneId || GENERAL_MILESTONE) === id);
     const count = inSectionAll.length;
@@ -645,7 +779,7 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
     return `
       <details class="milestone" data-ms-section="${escapeHtml(id)}" ${open}>
         <summary>${escapeHtml(label)}<span class="ms-count">${dueTag(due)}${newCount ? `<span class="new-count">${newCount} new</span> · ` : ''}${count} comment${count !== 1 ? 's' : ''}</span></summary>
-        <div class="ms-body">${starterQuestionHtml(id)}${commentThreadHtml(id)}</div>
+        <div class="ms-body">${pollsForPosition(position).map(pollCardHtml).join('')}${starterQuestionHtml(id)}${commentThreadHtml(id)}</div>
       </details>`;
   }
 
@@ -730,6 +864,7 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
         </div>` : `
         <div class="progress-row"><div class="member-progress" style="margin-left:0">${progressChips}</div></div>`}
       ${schedBannerHtml()}
+      ${pollBannerHtml()}
       <div class="view-switch">
         <button class="tab ${view === 'discussions' ? 'active' : ''}" data-view="discussions">Discussions</button>
         <button class="tab ${view === 'quotes' ? 'active' : ''}" data-view="quotes">Quotes (${quotes.length})</button>
@@ -829,6 +964,7 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
 
       const chCommentCount = chapterTops.reduce((s, l) => s + l.length, 0);
       const body = `
+        ${pollsForPosition(k).map(pollCardHtml).join('')}
         ${starterQuestionHtml(null, g, k)}
         ${commentThreadHtml(GENERAL_MILESTONE, partTop, { part: k })}
         <details class="chapters-wrap" ${openSections.has(`pch${k}`) ? 'open' : ''} data-ms-section="pch${k}">
@@ -1036,6 +1172,29 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
         const r = await togglePin(db, clubId, readId, btn.dataset.pin);
         if (r.success) reload(); else showError(r.error);
       }));
+
+    const pollNewBtn = document.getElementById('poll-new-btn');
+    if (pollNewBtn) pollNewBtn.addEventListener('click', openPollModal);
+
+    contentEl.querySelectorAll('[data-poll-vote]').forEach(el =>
+      el.addEventListener('click', async () => {
+        const r = await castVote(db, clubId, el.dataset.pollVote, parseInt(el.dataset.opt, 10), session);
+        if (r.success) reload(); else showError(r.error);
+      }));
+
+    contentEl.querySelectorAll('[data-poll-toggle]').forEach(btn =>
+      btn.addEventListener('click', async () => {
+        const next = btn.dataset.status === 'open' ? 'closed' : 'open';
+        const r = await setPollStatus(db, clubId, btn.dataset.pollToggle, next);
+        if (r.success) reload(); else showError(r.error);
+      }));
+
+    contentEl.querySelectorAll('[data-poll-del]').forEach(btn =>
+      btn.addEventListener('click', async () => {
+        if (!confirm('Delete this poll? Votes will be lost.')) return;
+        const r = await deletePoll(db, clubId, btn.dataset.pollDel);
+        if (r.success) reload(); else showError(r.error);
+      }));
   }
 
   function showError(msg) {
@@ -1063,6 +1222,16 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
     if (!club || !read) {
       contentEl.innerHTML = '<div class="empty">Read not found — it may have been removed.</div>';
       return;
+    }
+    // This read's tagged polls only (untagged/club-wide polls live on
+    // club.html). Votes are fetched for every poll, even locked ones —
+    // simpler than conditioning the fetch on the lock, and poll counts per
+    // read are small; the lock only affects what pollCardHtml renders.
+    polls = pollsOn() ? (await getPolls(db, clubId)).filter(p => p.readId === readId) : [];
+    pollVotes = {};
+    if (polls.length) {
+      const lists = await Promise.all(polls.map(p => getPollVotes(db, clubId, p.id)));
+      polls.forEach((p, i) => { pollVotes[p.id] = lists[i]; });
     }
     markReadSeen(db, mySlug, clubId, readId, read.commentCount || comments.length);
     const backLink = document.getElementById('back-link');
@@ -1151,6 +1320,70 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
       });
       const r = await setReadSchedule(db, clubId, readId, dueAts);
       if (r.success) { close(); reload(); } else errEl.textContent = r.error;
+    });
+  })();
+
+  // --- New Poll editor (hosts/mods; static DOM, wired once) ---------------
+  // Tagged to one of THIS read's real sections (never General — a poll
+  // needs a milestone position to be spoiler-gated against).
+  function pollOptionRowHtml() {
+    return `<div class="poll-opt-row">
+      <input type="text" maxlength="${MAX_POLL_OPTION_LENGTH}" placeholder="Option" />
+      <button type="button" class="poll-opt-remove" title="Remove option">&times;</button>
+    </div>`;
+  }
+
+  function wirePollOptionRemovers() {
+    document.querySelectorAll('#poll-options-list .poll-opt-remove').forEach(btn =>
+      btn.addEventListener('click', () => {
+        const list = document.getElementById('poll-options-list');
+        if (list.children.length > MIN_POLL_OPTIONS) btn.closest('.poll-opt-row').remove();
+      }));
+  }
+
+  function openPollModal() {
+    const sectionSel = document.getElementById('poll-section');
+    sectionSel.innerHTML = orderedMilestones()
+      .map(m => `<option value="${escapeHtml(m.id)}" data-pos="${m.position}">${escapeHtml(m.label)}</option>`)
+      .join('');
+    document.getElementById('poll-question').value = '';
+    document.getElementById('poll-error').textContent = '';
+    const list = document.getElementById('poll-options-list');
+    list.innerHTML = pollOptionRowHtml() + pollOptionRowHtml();
+    wirePollOptionRemovers();
+    document.getElementById('poll-modal').style.display = 'flex';
+  }
+
+  (function wirePollModal() {
+    const modal = document.getElementById('poll-modal');
+    if (!modal) return;
+    const close = () => { modal.style.display = 'none'; };
+    document.getElementById('poll-close').addEventListener('click', close);
+    modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+    document.getElementById('poll-add-option').addEventListener('click', () => {
+      const list = document.getElementById('poll-options-list');
+      if (list.children.length >= MAX_POLL_OPTIONS) return;
+      list.insertAdjacentHTML('beforeend', pollOptionRowHtml());
+      wirePollOptionRemovers();
+    });
+    document.getElementById('poll-submit').addEventListener('click', async () => {
+      const errEl = document.getElementById('poll-error');
+      errEl.textContent = '';
+      const sectionSel = document.getElementById('poll-section');
+      const opt = sectionSel.selectedOptions[0];
+      if (!opt) { errEl.textContent = 'This read has no sections to tag yet.'; return; }
+      const question = document.getElementById('poll-question').value;
+      const options = [...document.querySelectorAll('#poll-options-list input')].map(i => i.value);
+      const r = await createPoll(db, clubId, {
+        question,
+        options,
+        readId,
+        milestoneId: opt.value,
+        milestonePosition: parseInt(opt.dataset.pos, 10),
+      }, session);
+      if (!r.success) { errEl.textContent = r.error; return; }
+      close();
+      reload();
     });
   })();
 

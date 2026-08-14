@@ -159,6 +159,39 @@ body{
 }
 button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
 .vote-btn.voted{border-color:var(--neon-yellow);color:var(--neon-yellow)}
+.poll-card{background:var(--bg);border:1px solid var(--border);padding:14px 16px;margin-bottom:10px}
+.poll-q{font-weight:700;color:var(--neon-cyan);margin-bottom:10px}
+.poll-closed-tag{font-size:.7em;color:var(--muted);border:1px solid var(--border);padding:1px 6px;margin-left:6px;text-transform:var(--et-title-case)}
+.poll-options{display:flex;flex-direction:column;gap:6px}
+.poll-opt{
+  text-align:left;padding:8px 12px;background:var(--bg-2);border:1px solid var(--border);color:var(--text);
+  cursor:pointer;font-family:inherit;font-size:.9em;
+}
+.poll-opt:hover{border-color:var(--neon-cyan);color:var(--neon-cyan)}
+.poll-result{position:relative;padding:7px 10px;border:1px solid var(--border);background:var(--bg-2);overflow:hidden;font-size:.9em;cursor:pointer}
+.poll-result.mine{border-color:var(--neon-yellow)}
+.poll-result-bar{position:absolute;inset:0 auto 0 0;background:color-mix(in srgb, var(--neon-cyan) 18%, transparent);z-index:0}
+.poll-result-label{position:relative;z-index:1}
+.poll-result-pct{position:relative;z-index:1;float:right;color:var(--muted);font-family:var(--et-font-mono);font-size:.85em}
+.poll-total{margin-top:8px;font-size:.8em;color:var(--muted);font-family:var(--et-font-mono)}
+.poll-admin{display:flex;gap:8px;margin-top:10px}
+.poll-admin button{
+  background:none;border:1px solid var(--border);color:var(--muted);cursor:pointer;
+  font-size:.72em;padding:4px 9px;font-family:inherit;text-transform:var(--et-title-case);
+}
+.poll-admin button:hover{border-color:var(--neon-cyan);color:var(--neon-cyan)}
+.poll-admin button.danger:hover{border-color:var(--neon-magenta);color:var(--neon-magenta)}
+.poll-opt-row{display:flex;gap:6px;margin-bottom:6px}
+.poll-opt-row input{
+  flex:1;min-width:0;padding:7px 10px;background:var(--bg);color:var(--text);
+  border:1px solid var(--border);font-family:inherit;
+}
+.poll-opt-row input:focus{outline:none;border-color:var(--neon-cyan)}
+.poll-opt-remove{
+  background:none;border:1px solid var(--border);color:var(--muted);cursor:pointer;
+  width:30px;flex-shrink:0;font-weight:bold;
+}
+.poll-opt-remove:hover{border-color:var(--neon-magenta);color:var(--neon-magenta)}
 .rc-remove{
   background:none;border:1px solid var(--border);color:var(--muted);
   width:28px;height:28px;cursor:pointer;font-weight:bold;flex-shrink:0;
@@ -186,11 +219,11 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
 }
 .add-row input:focus{outline:none;border-color:var(--neon-cyan)}
 /* Start-read modal */
-#read-modal,#edit-modal,#suggest-modal,#rate-modal{
+#read-modal,#edit-modal,#suggest-modal,#rate-modal,#poll-modal{
   position:fixed;inset:0;display:none;align-items:center;justify-content:center;
   background:rgba(0,0,0,.85);z-index:9999;padding:20px;backdrop-filter:blur(4px);
 }
-#read-modal.open,#edit-modal.open,#suggest-modal.open,#rate-modal.open{display:flex}
+#read-modal.open,#edit-modal.open,#suggest-modal.open,#rate-modal.open,#poll-modal.open{display:flex}
 .modal-panel{
   background:var(--bg-2);border:1px solid var(--neon-cyan);
   width:min(540px,94vw);max-height:90vh;overflow-y:auto;padding:28px;position:relative;
@@ -360,6 +393,10 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
         <input id="feat-discord" type="checkbox" />
         <label for="feat-discord" style="margin:0;text-transform:none">Discord announcements — schedule changes, due-date nudges, read start/finish posted to your webhook</label>
       </div>
+      <div class="field-inline">
+        <input id="feat-polls" type="checkbox" />
+        <label for="feat-polls" style="margin:0;text-transform:none">Polls — free-form club polls, optionally tagged to a spoiler-gated section</label>
+      </div>
     </div>
     <div class="field" id="edit-webhook-field" style="display:none">
       <label for="edit-webhook">Discord webhook (hosts/mods) — club reminders post to a channel you own</label>
@@ -433,6 +470,26 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
   </div>
 </div>
 
+<!-- New Poll Modal (club-wide, untagged — tagged/spoiler-gated polls are
+     created from the read page instead; see club-reads.js "Club polls") -->
+<div id="poll-modal">
+  <div class="modal-panel">
+    <button class="modal-close" id="poll-close">X</button>
+    <h2 style="margin-top:0;color:var(--neon-yellow);text-transform:var(--et-title-case);letter-spacing:var(--et-title-spacing)">New Poll</h2>
+    <div class="field">
+      <label for="poll-question">Question</label>
+      <textarea id="poll-question" maxlength="200" rows="2" placeholder="Ask the club something..."></textarea>
+    </div>
+    <div class="field">
+      <label>Options (2-10)</label>
+      <div id="poll-options-list"></div>
+      <button type="button" id="poll-add-option" class="nav-link" style="margin-top:2px;padding:4px 10px;font-size:.75em">+ Add option</button>
+    </div>
+    <div id="poll-error" class="form-error"></div>
+    <button id="poll-submit" class="nav-link btn-primary" style="width:100%">Create Poll</button>
+  </div>
+</div>
+
 <script type="module">
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
   import { getFirestore, collection, getDocs } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
@@ -448,14 +505,17 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
     acceptInvite, declineInvite, dismissRateNudge,
     clubFeatureEnabled, isValidDiscordWebhook, setClubDiscordWebhook, clearClubDiscordWebhook,
     isClubClaimed, isManagerUid, canManageClub, claimManagerRole,
-  } from './clubs.js?v=20260814c';
+  } from './clubs.js?v=20260814d';
   import {
     getReads, startRead, removeRead, finishRead, getComments, updateReadLabel, splitByDuration, parseManualMilestones,
     loadCatalogBooks, MAX_ACTIVE_READS, groupChapters,
     getBookChapters, wholeBookMilestones, formatHhmm,
     getTbr, addTbrItem, removeTbrItem, toggleTbrVote, getMyProgress,
     hasSchedule, nextDueMilestone, formatDueDate,
-  } from './club-reads.js?v=20260814c';
+    getPolls, getPollVotes, createPoll, setPollStatus, deletePoll, castVote,
+    tallyPollVotes, myPollVote, pollResultsVisible,
+    MIN_POLL_OPTIONS, MAX_POLL_OPTIONS, MAX_POLL_OPTION_LENGTH,
+  } from './club-reads.js?v=20260814d';
   import { loadSeen, syncSeen } from './club-notify.js';
 
   const firebaseConfig = {
@@ -491,6 +551,8 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
   let reads = [];
   let requests = [];
   let tbr = [];
+  let polls = [];        // every poll for this club, tagged + untagged
+  let pollVotes = {};    // pollId -> votes[] (untagged/club-wide polls only)
   let promotingTbrId = null; // TBR item being promoted via the Start Read modal
   let allReviews = null;     // lazy one-shot scan of the reviews collection
   let clubStats = null;      // computed lazily for the Stats tab
@@ -553,6 +615,7 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
         <button class="tab ${activeTab === 'current' ? 'active' : ''}" data-tab="current">Current Read</button>
         <button class="tab ${activeTab === 'tbr' ? 'active' : ''}" data-tab="tbr">Club TBR</button>
         <button class="tab ${activeTab === 'history' ? 'active' : ''}" data-tab="history">History</button>
+        ${clubFeatureEnabled(club, 'polls') ? `<button class="tab ${activeTab === 'polls' ? 'active' : ''}" data-tab="polls">Polls (${clubPolls().length})</button>` : ''}
         <button class="tab ${activeTab === 'stats' ? 'active' : ''}" data-tab="stats">Stats</button>
         <button class="tab ${activeTab === 'members' ? 'active' : ''}" data-tab="members">Members (${activeMembers().length})${isMod() && requests.length ? ` · ${requests.length} pending` : ''}</button>
       </div>
@@ -602,8 +665,56 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
     if (activeTab === 'members') return renderMembers();
     if (activeTab === 'current') return renderCurrent();
     if (activeTab === 'tbr') return renderTbr();
+    if (activeTab === 'polls' && clubFeatureEnabled(club, 'polls')) return renderPolls();
     if (activeTab === 'stats') return renderStats();
     return renderHistory();
+  }
+
+  // ==================== Club-wide (untagged) polls ====================
+  // Tagged/spoiler-gated polls live on the read page instead — see the
+  // "Club polls" comment in club-reads.js for why the split.
+  const clubPolls = () => polls.filter(p => !p.readId);
+
+  function renderPolls() {
+    const cards = clubPolls()
+      .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
+      .map(pollCardHtml).join('');
+    return `
+      ${cards || '<div class="stub"><div class="stub-title">No polls yet</div>Ask the club something — free-form question, 2-10 options.</div>'}
+      ${isMod() ? '<div style="margin-top:14px"><button id="poll-new-btn" class="nav-link btn-primary">+ New Poll</button></div>' : ''}
+    `;
+  }
+
+  function pollCardHtml(poll) {
+    const votes = pollVotes[poll.id] || [];
+    const myVote = myPollVote(votes, mySlug);
+    const showResults = pollResultsVisible(poll, myVote !== null, isMod());
+    const { counts, total } = tallyPollVotes(poll.options, votes);
+    const canVote = session && isMember() && poll.status === 'open';
+    const optionsHtml = poll.options.map((opt, i) => {
+      const pct = total > 0 ? Math.round((counts[i] / total) * 100) : 0;
+      const mine = myVote === i;
+      if (canVote && !showResults) {
+        return `<button class="poll-opt" data-poll-vote="${poll.id}" data-opt="${i}">${escapeHtml(opt)}</button>`;
+      }
+      return `
+        <div class="poll-result${mine ? ' mine' : ''}"${canVote ? ` data-poll-vote="${poll.id}" data-opt="${i}" role="button" tabindex="0"` : ''}>
+          <div class="poll-result-bar" style="width:${pct}%"></div>
+          <span class="poll-result-label">${escapeHtml(opt)}${mine ? ' ✓' : ''}</span>
+          <span class="poll-result-pct">${showResults ? `${pct}% (${counts[i]})` : ''}</span>
+        </div>`;
+    }).join('');
+    return `
+      <div class="poll-card">
+        <div class="poll-q">📊 ${escapeHtml(poll.question)}${poll.status === 'closed' ? ' <span class="poll-closed-tag">Closed</span>' : ''}</div>
+        <div class="poll-options">${optionsHtml}</div>
+        ${showResults ? `<div class="poll-total">${total} vote${total !== 1 ? 's' : ''}</div>` : ''}
+        ${isMod() ? `
+          <div class="poll-admin">
+            <button data-poll-toggle="${poll.id}" data-status="${poll.status}">${poll.status === 'open' ? 'Close poll' : 'Reopen poll'}</button>
+            <button class="danger" data-poll-del="${poll.id}">Delete</button>
+          </div>` : ''}
+      </div>`;
   }
 
   function renderStats() {
@@ -1144,6 +1255,29 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
         }
         if (r && r.success) reload(); else if (r) showError(r.error);
       }));
+
+    const pollNewBtn = document.getElementById('poll-new-btn');
+    if (pollNewBtn) pollNewBtn.addEventListener('click', openPollModal);
+
+    contentEl.querySelectorAll('[data-poll-vote]').forEach(el =>
+      el.addEventListener('click', async () => {
+        const r = await castVote(db, clubId, el.dataset.pollVote, parseInt(el.dataset.opt, 10), session);
+        if (r.success) reload(); else showError(r.error);
+      }));
+
+    contentEl.querySelectorAll('[data-poll-toggle]').forEach(btn =>
+      btn.addEventListener('click', async () => {
+        const next = btn.dataset.status === 'open' ? 'closed' : 'open';
+        const r = await setPollStatus(db, clubId, btn.dataset.pollToggle, next);
+        if (r.success) reload(); else showError(r.error);
+      }));
+
+    contentEl.querySelectorAll('[data-poll-del]').forEach(btn =>
+      btn.addEventListener('click', async () => {
+        if (!confirm('Delete this poll? Votes will be lost.')) return;
+        const r = await deletePoll(db, clubId, btn.dataset.pollDel);
+        if (r.success) reload(); else showError(r.error);
+      }));
   }
 
   function showError(msg) {
@@ -1156,13 +1290,21 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
 
   async function reload() {
     if (session) await syncSeen(db, mySlug).catch(() => {});
-    [club, members, reads, requests, tbr] = await Promise.all([
+    [club, members, reads, requests, tbr, polls] = await Promise.all([
       getClub(db, clubId), getMembers(db, clubId), getReads(db, clubId),
-      getRequests(db, clubId), getTbr(db, clubId),
+      getRequests(db, clubId), getTbr(db, clubId), getPolls(db, clubId),
     ]);
     if (!club) {
       contentEl.innerHTML = '<a href="clubs.html" class="club-back">&larr; All Clubs</a><div class="empty">Club not found — it may have been deleted.</div>';
       return;
+    }
+    // Votes for the untagged (club-wide) polls only — tagged polls render on
+    // the read page, which loads its own votes.
+    pollVotes = {};
+    const untagged = polls.filter(p => !p.readId);
+    if (untagged.length) {
+      const lists = await Promise.all(untagged.map(p => getPollVotes(db, clubId, p.id)));
+      untagged.forEach((p, i) => { pollVotes[p.id] = lists[i]; });
     }
     // Which reads have I personally marked finished? Drives the rate nudge for
     // books the club is still actively reading.
@@ -1382,6 +1524,7 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
     if (isMod()) {
       document.getElementById('feat-schedule').checked = clubFeatureEnabled(club, 'readingSchedule');
       document.getElementById('feat-discord').checked = clubFeatureEnabled(club, 'discordAnnouncements');
+      document.getElementById('feat-polls').checked = clubFeatureEnabled(club, 'polls');
       const mask = club.discordWebhookMask || '';
       document.getElementById('edit-webhook').value = '';
       document.getElementById('edit-webhook-hint').textContent = mask
@@ -1465,6 +1608,7 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
         ...(club.features || {}),
         readingSchedule: document.getElementById('feat-schedule').checked,
         discordAnnouncements: document.getElementById('feat-discord').checked,
+        polls: document.getElementById('feat-polls').checked,
       };
     }
     // Webhook first, so a bad URL blocks the save with a visible error
@@ -1551,6 +1695,52 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
     rateModal.classList.remove('open');
     allReviews = null; // refresh aggregates
     clubStats = null;
+    reload();
+  });
+
+  // --- New Poll modal (club-wide/untagged; static DOM, wired once) ---
+  const pollModal = document.getElementById('poll-modal');
+  const pollOptionsList = document.getElementById('poll-options-list');
+
+  function pollOptionRowHtml() {
+    return `<div class="poll-opt-row">
+      <input type="text" maxlength="${MAX_POLL_OPTION_LENGTH}" placeholder="Option" />
+      <button type="button" class="poll-opt-remove" title="Remove option">&times;</button>
+    </div>`;
+  }
+
+  function wirePollOptionRemovers() {
+    pollOptionsList.querySelectorAll('.poll-opt-remove').forEach(btn =>
+      btn.addEventListener('click', () => {
+        if (pollOptionsList.children.length > MIN_POLL_OPTIONS) btn.closest('.poll-opt-row').remove();
+      }));
+  }
+
+  function openPollModal() {
+    document.getElementById('poll-question').value = '';
+    document.getElementById('poll-error').textContent = '';
+    pollOptionsList.innerHTML = pollOptionRowHtml() + pollOptionRowHtml();
+    wirePollOptionRemovers();
+    pollModal.classList.add('open');
+  }
+
+  document.getElementById('poll-close').addEventListener('click', () => pollModal.classList.remove('open'));
+  pollModal.addEventListener('click', (e) => { if (e.target === pollModal) pollModal.classList.remove('open'); });
+
+  document.getElementById('poll-add-option').addEventListener('click', () => {
+    if (pollOptionsList.children.length >= MAX_POLL_OPTIONS) return;
+    pollOptionsList.insertAdjacentHTML('beforeend', pollOptionRowHtml());
+    wirePollOptionRemovers();
+  });
+
+  document.getElementById('poll-submit').addEventListener('click', async () => {
+    const errEl = document.getElementById('poll-error');
+    errEl.textContent = '';
+    const question = document.getElementById('poll-question').value;
+    const options = [...pollOptionsList.querySelectorAll('input')].map(i => i.value);
+    const r = await createPoll(db, clubId, { question, options }, session);
+    if (!r.success) { errEl.textContent = r.error; return; }
+    pollModal.classList.remove('open');
     reload();
   });
 

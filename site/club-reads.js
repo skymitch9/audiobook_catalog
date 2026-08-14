@@ -909,3 +909,220 @@ export async function getMyProgress(db, clubId, readId, slug) {
     return snap.exists() ? { slug, ...snap.data() } : null;
   } catch { return null; }
 }
+
+// ==================== Club polls (backlog #3) ====================
+//
+// clubs/{id}/polls/{pollId}: free-form question + 2-10 options, optionally
+// tagged to a section of a specific read (readId + milestoneId +
+// milestonePosition, the same milestone vocabulary as the reading schedule).
+// Two creation surfaces, split deliberately:
+//   - club.html creates UNTAGGED polls (readId/milestoneId/milestonePosition
+//     all null) — club-wide, no book context, voted on directly on the club
+//     page.
+//   - club-read.html creates polls TAGGED to one of that read's sections —
+//     these render ONLY on the read page, near their section, and are
+//     spoiler-gated exactly like milestone comments (see isPollLocked below,
+//     which mirrors isMilestoneLocked / memberSchedulePosition: reuse the
+//     SAME position the reading schedule already computes, don't invent a
+//     second one). Untagged polls are never spoiler-gated.
+// Feature-gated per club: clubs.js FEATURE_DEFAULTS key `polls` (OFF by
+// default, one Edit Club checkbox, same pattern as readingSchedule).
+//
+// Data shape is deliberately the future announcement-engine contract too
+// (see docs/TODO.md "Club polls" backlog note): a poll closing is a natural
+// announceable event, same family as read started/finished.
+//
+// votes subcollection (clubs/{id}/polls/{pollId}/votes/{memberSlug}): one
+// doc per member, doc id = slug (member-identity convention used everywhere
+// else in this file — progress, TBR voterSlugs, comments). setDoc upsert
+// makes a vote changeable while the poll is open, per the spec ("changeable
+// while open"); rules refuse writes once a poll is closed (see
+// firestore.rules pollIsOpen()).
+
+export const MIN_POLL_OPTIONS = 2;
+export const MAX_POLL_OPTIONS = 10;
+export const MAX_POLL_QUESTION_LENGTH = 200;
+export const MAX_POLL_OPTION_LENGTH = 80;
+
+/** Validate a poll question. Required, up to MAX_POLL_QUESTION_LENGTH chars. */
+export function validatePollQuestion(question) {
+  const trimmed = (question || '').trim();
+  if (!trimmed) return { valid: false, error: 'Add a poll question.' };
+  if (trimmed.length > MAX_POLL_QUESTION_LENGTH) {
+    return { valid: false, error: `Poll question must be ${MAX_POLL_QUESTION_LENGTH} characters or fewer.` };
+  }
+  return { valid: true };
+}
+
+/**
+ * Validate + clean poll options: 2-10 non-blank entries, each up to
+ * MAX_POLL_OPTION_LENGTH chars. Blank entries (empty option rows in the
+ * composer) are dropped before the count check.
+ * @returns {{ valid: boolean, options?: string[], error?: string }}
+ */
+export function validatePollOptions(options) {
+  const cleaned = (options || []).map(o => (o || '').trim()).filter(Boolean);
+  if (cleaned.length < MIN_POLL_OPTIONS) {
+    return { valid: false, error: `Add at least ${MIN_POLL_OPTIONS} options.` };
+  }
+  if (cleaned.length > MAX_POLL_OPTIONS) {
+    return { valid: false, error: `At most ${MAX_POLL_OPTIONS} options.` };
+  }
+  if (cleaned.some(o => o.length > MAX_POLL_OPTION_LENGTH)) {
+    return { valid: false, error: `Each option must be ${MAX_POLL_OPTION_LENGTH} characters or fewer.` };
+  }
+  return { valid: true, options: cleaned };
+}
+
+/**
+ * Spoiler-gate predicate for a tagged poll, mirroring isMilestoneLocked:
+ * an untagged poll (milestonePosition null/undefined) is never locked; a
+ * tagged one is locked while the viewer's position (from
+ * memberSchedulePosition — the SAME number the reading schedule uses, -1 =
+ * not started) hasn't reached it.
+ */
+export function isPollLocked(poll, myPosition) {
+  const pos = poll && poll.milestonePosition;
+  if (pos === null || pos === undefined) return false;
+  return pos > (typeof myPosition === 'number' ? myPosition : -1);
+}
+
+/**
+ * Tally votes per option index.
+ * @returns {{ counts: number[], total: number }}
+ */
+export function tallyPollVotes(options, votes) {
+  const counts = (options || []).map(() => 0);
+  for (const v of votes || []) {
+    if (typeof v.optionIndex === 'number' && v.optionIndex >= 0 && v.optionIndex < counts.length) {
+      counts[v.optionIndex]++;
+    }
+  }
+  const total = counts.reduce((a, b) => a + b, 0);
+  return { counts, total };
+}
+
+/** The caller's own vote (option index), or null if they haven't voted. */
+export function myPollVote(votes, slug) {
+  const mine = (votes || []).find(v => v.slug === slug);
+  return mine && typeof mine.optionIndex === 'number' ? mine.optionIndex : null;
+}
+
+/**
+ * Results visibility: closed polls show results to everyone ("freezes it
+ * and shows results to all"); an open poll shows live counts only after the
+ * viewer has voted, or always for managers.
+ */
+export function pollResultsVisible(poll, hasVoted, isManager) {
+  if (poll && poll.status === 'closed') return true;
+  return !!hasVoted || !!isManager;
+}
+
+/**
+ * Create a poll. `input.readId`/`milestoneId`/`milestonePosition` are all
+ * optional together (an untagged, club-wide poll); when tagging a section,
+ * pass all three so the spoiler gate and read-page placement both work.
+ */
+export async function createPoll(db, clubId, input, session) {
+  if (!session || !session.displayName) {
+    return { success: false, error: 'Sign in to create a poll.' };
+  }
+  const qCheck = validatePollQuestion(input.question);
+  if (!qCheck.valid) return { success: false, error: qCheck.error };
+  const oCheck = validatePollOptions(input.options);
+  if (!oCheck.valid) return { success: false, error: oCheck.error };
+  try {
+    const ref = doc(collection(db, col('clubs'), clubId, 'polls'));
+    await setDoc(ref, {
+      question: input.question.trim(),
+      options: oCheck.options,
+      readId: input.readId || null,
+      milestoneId: input.milestoneId || null,
+      milestonePosition: typeof input.milestonePosition === 'number' ? input.milestonePosition : null,
+      status: 'open',
+      createdBy: session.displayName,
+      createdBySlug: slugifyName(session.displayName),
+      createdAt: serverTimestamp(),
+      closedAt: null,
+    });
+    return { success: true, pollId: ref.id };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+/** Fetch every poll for a club (untagged + every read's tagged polls). */
+export async function getPolls(db, clubId) {
+  const snap = await getDocs(collection(db, col('clubs'), clubId, 'polls'));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+/** Fetch a single poll. Returns null if missing. */
+export async function getPoll(db, clubId, pollId) {
+  const snap = await getDoc(doc(db, col('clubs'), clubId, 'polls', pollId));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+/**
+ * Open or close a poll (manager action, enforced in the UI + rules on
+ * claimed clubs). Closing freezes it — votes are refused by rules once
+ * status is 'closed' — and stamps closedAt for the future announcements
+ * engine.
+ */
+export async function setPollStatus(db, clubId, pollId, status) {
+  if (status !== 'open' && status !== 'closed') return { success: false, error: 'Invalid status.' };
+  try {
+    await updateDoc(doc(db, col('clubs'), clubId, 'polls', pollId), {
+      status,
+      closedAt: status === 'closed' ? serverTimestamp() : null,
+    });
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+/** Delete a poll and its votes (manager action). */
+export async function deletePoll(db, clubId, pollId) {
+  try {
+    const votesSnap = await getDocs(collection(db, col('clubs'), clubId, 'polls', pollId, 'votes'));
+    for (const v of votesSnap.docs) {
+      await deleteDoc(doc(db, col('clubs'), clubId, 'polls', pollId, 'votes', v.id));
+    }
+    await deleteDoc(doc(db, col('clubs'), clubId, 'polls', pollId));
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * Cast (or change) the caller's vote. One doc per member — setDoc upsert
+ * makes it changeable while the poll is open; rules refuse the write once
+ * the poll is closed.
+ */
+export async function castVote(db, clubId, pollId, optionIndex, session) {
+  if (!session || !session.displayName) {
+    return { success: false, error: 'Sign in to vote.' };
+  }
+  if (typeof optionIndex !== 'number' || optionIndex < 0) {
+    return { success: false, error: 'Pick an option.' };
+  }
+  try {
+    const slug = slugifyName(session.displayName);
+    await setDoc(doc(db, col('clubs'), clubId, 'polls', pollId, 'votes', slug), {
+      displayName: session.displayName,
+      optionIndex,
+      updatedAt: serverTimestamp(),
+    });
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+/** Fetch every vote on a poll. */
+export async function getPollVotes(db, clubId, pollId) {
+  const snap = await getDocs(collection(db, col('clubs'), clubId, 'polls', pollId, 'votes'));
+  return snap.docs.map(d => ({ slug: d.id, ...d.data() }));
+}
