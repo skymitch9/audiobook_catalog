@@ -150,11 +150,14 @@ def scan(root: Path) -> list[dict]:
     return ebooks
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--dry", action="store_true", help="summarise, write nothing")
-    args = parser.parse_args()
+def build_manifest(dry: bool = False) -> int:
+    """Scan the library and write `site/ebooks.json`. Returns an exit code.
 
+    The callable form of this script, so the sync pipeline (sync step 1b in
+    `scripts/sync_to_drive.py`) runs the SAME implementation the CLI does —
+    a second copy of the scan is exactly the drift this file's header warns
+    about. `dry` prints a summary and writes nothing.
+    """
     root = Path(ROOT_DIR)
     if not root.is_dir():
         print(f"[ebooks] ROOT_DIR not found: {root}")
@@ -172,7 +175,7 @@ def main() -> int:
     print(f"[ebooks]   by format: {by_format}")
     print(f"[ebooks]   metadata from: {by_source}")
 
-    if args.dry:
+    if dry:
         for e in ebooks[:10]:
             print(f"    [{e['source']:8}] {e['title']}  —  {e['author']}")
         print("[ebooks] dry run, nothing written")
@@ -194,6 +197,13 @@ def main() -> int:
     tmp.replace(OUT_PATH)
     print(f"[ebooks] wrote {OUT_PATH.relative_to(PROJECT_ROOT)}")
     return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--dry", action="store_true", help="summarise, write nothing")
+    args = parser.parse_args()
+    return build_manifest(dry=args.dry)
 
 
 if __name__ == "__main__":

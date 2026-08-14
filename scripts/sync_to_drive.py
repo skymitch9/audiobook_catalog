@@ -832,6 +832,31 @@ def run_pipeline(
         pstatus.step_detail("sort", "skipped (--upload-only)")
 
     # -----------------------------------------------------------------------
+    # Step 1b: Refresh the ebook manifest (site/ebooks.json)
+    #
+    # This is the file library_catalog's ebook importer reads — its ingest
+    # route has documented this as "sync step 1b" since it was built, but the
+    # step was never actually wired in, so the manifest only moved when a
+    # person ran scripts/build_ebook_manifest.py by hand and new EPUBs sat
+    # stranded (9 of them, found 2026-08-14). Runs AFTER sort + companions so
+    # the scan sees files at their final paths, and runs even under
+    # --upload-only because the scan is independent of sorting. site/ebooks.json
+    # is already in the auto-commit's `git add` list (step 6), so a refreshed
+    # manifest ships with the same push as the catalog it describes.
+    #
+    # Soft on purpose: a manifest failure must never block the audiobook sync
+    # — same stance as steps 0, 5.5–5.7.
+    # -----------------------------------------------------------------------
+    print("\n[STEP 1b] Refreshing ebook manifest (site/ebooks.json)...")
+    try:
+        from scripts.build_ebook_manifest import build_manifest
+        rc = build_manifest(dry=dry_run)
+        if rc != 0:
+            print("  [WARN] Ebook manifest build reported failure — see above.")
+    except Exception as e:
+        print(f"  [WARN] Ebook manifest refresh failed: {e}")
+
+    # -----------------------------------------------------------------------
     # Step 2: Detect new (un-uploaded) books
     # -----------------------------------------------------------------------
     print("\n[STEP 2] Detecting new books to upload...")
