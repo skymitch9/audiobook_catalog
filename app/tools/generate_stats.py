@@ -244,7 +244,8 @@ body{{
   padding:40px;
   clip-path:var(--et-clip-panel);
 }}
-h1{{margin:0 0 8px 0; color:var(--neon-yellow); font-family:var(--et-font-display); text-transform:var(--et-title-case); letter-spacing:var(--et-title-spacing); text-shadow:var(--et-glow-title)}}
+h1{{margin:0 0 8px 0; color:var(--neon-yellow); font-family:var(--et-font-display);
+   text-transform:var(--et-title-case); letter-spacing:var(--et-title-spacing); text-shadow:var(--et-glow-title)}}
 
 .stats-grid {{
   display: grid;
@@ -576,7 +577,8 @@ h1{{margin:0 0 8px 0; color:var(--neon-yellow); font-family:var(--et-font-displa
         </div>`;
 
       if (topReviewers.length > 0) {{
-        html += '<div style="margin-top:12px"><strong style="color:var(--neon-cyan);font-size:.85em;text-transform:var(--et-title-case)">Top Reviewers</strong>';
+        html += ('<div style="margin-top:12px"><strong style="color:var(--neon-cyan);'
+                 'font-size:.85em;text-transform:var(--et-title-case)">Top Reviewers</strong>');
         topReviewers.forEach(([name, count]) => {{
           html += `<div class="top-item"><span class="top-name">${{name}}</span><span class="top-count">${{count}} reviews</span></div>`;
         }});
@@ -584,7 +586,8 @@ h1{{margin:0 0 8px 0; color:var(--neon-yellow); font-family:var(--et-font-displa
       }}
 
       if (topBooks.length > 0) {{
-        html += '<div style="margin-top:12px"><strong style="color:var(--neon-cyan);font-size:.85em;text-transform:var(--et-title-case)">Most Reviewed Books</strong>';
+        html += ('<div style="margin-top:12px"><strong style="color:var(--neon-cyan);'
+                 'font-size:.85em;text-transform:var(--et-title-case)">Most Reviewed Books</strong>');
         topBooks.forEach(([bookId, count]) => {{
           const title = bookId.replace(/-/g, ' ').replace(/\\b\\w/g, c => c.toUpperCase());
           html += `<div class="top-item"><span class="top-name">${{title}}</span><span class="top-count">${{count}} reviews</span></div>`;
