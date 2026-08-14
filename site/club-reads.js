@@ -569,6 +569,19 @@ export async function removeRead(db, clubId, readId) {
         await deleteDoc(doc(db, col('clubs'), clubId, 'reads', readId, sub, d.id));
       }
     }
+    // Ratings: best-effort only. While the read's ratings are still blind,
+    // firestore.rules makes the subcollection unreadable to EVERYONE (see
+    // the "Blind ratings" section below), so getDocs() throws
+    // permission-denied here exactly as it would for any other caller.
+    // Orphaned rating docs under a deleted read are harmless (unreachable
+    // through the UI, still individually deletable) — don't let cleanup
+    // block removing the read itself.
+    try {
+      const ratingsSnap = await getDocs(collection(db, col('clubs'), clubId, 'reads', readId, 'ratings'));
+      for (const d of ratingsSnap.docs) {
+        await deleteDoc(doc(db, col('clubs'), clubId, 'reads', readId, 'ratings', d.id));
+      }
+    } catch { /* blind ratings unreadable pre-reveal; leave orphaned docs */ }
     await deleteDoc(readRef);
     await refreshClubAvatar(db, clubId);
     return { success: true };
@@ -1124,5 +1137,212 @@ export async function castVote(db, clubId, pollId, optionIndex, session) {
 /** Fetch every vote on a poll. */
 export async function getPollVotes(db, clubId, pollId) {
   const snap = await getDocs(collection(db, col('clubs'), clubId, 'polls', pollId, 'votes'));
+  return snap.docs.map(d => ({ slug: d.id, ...d.data() }));
+}
+
+// ==================== Blind ratings reveal (backlog #4) ====================
+//
+// clubs/{id}/reads/{readId}/ratings/{memberSlug}: one doc per member (the
+// progress/votes doc-id-is-slug convention), { displayName, rating (0.5-5,
+// the site's existing star scale — see reviews.js renderStars), comment
+// (optional, one line), createdAt, updatedAt }. Feature-gated per club:
+// FEATURE_DEFAULTS key `blindRatings` in clubs.js (OFF by default, one Edit
+// Club checkbox, same pattern as readingSchedule/polls).
+//
+// ⚠️ BLIND-STORAGE DESIGN — read this before touching the rules block.
+// This site's member identity is a slugified display name with NO auth
+// binding for ordinary members (only managerUids carries real uids, and
+// only for claimed clubs). That rules out the tempting "allow get where
+// doc id == caller's own slug" shape: the doc id in a Firestore request is
+// just whatever path the CLIENT asks for, and any browser that knows (or
+// can trivially compute via slugifyName) another member's display name can
+// request that exact same path — there is nothing rules could check to
+// tell the true owner from a forger. A per-slug read rule here would not
+// be "a bit forgeable", it would be no blind window at all: anyone who can
+// see the members list already has every other member's slug for free.
+//
+// So the chosen design is the simplest honest one: ratings are
+// UNREADABLE TO EVERYONE, including their own author, until the read's
+// ratingsRevealed flag flips (firestore.rules `ratingsRevealed()`, same
+// `allow read: if false`-style shape as clubs/{id}/settings). To let a
+// member see THEIR OWN rating during the blind window without a Firestore
+// read, rateBook() mirrors it into localStorage at write time
+// (storeMyRatingLocally / getMyStoredRating below); the UI reads that
+// mirror while blind and switches to the real subcollection once revealed.
+//
+// RESIDUAL GAP, stated plainly: the localStorage mirror is per-device. A
+// member who rates on their phone and opens the read on a laptop during
+// the SAME blind window will not see "you already rated" there — nothing
+// server-side can hand it back without breaking the blind guarantee for
+// everyone else. This is judged an acceptable trade for a real (not
+// merely CSS-hidden) blind window; it self-heals at reveal, when the real
+// data becomes readable everywhere.
+//
+// "N members have rated" is `ratingCount` on the read doc itself — open
+// write, incremented once per NEW rating (first write for that member),
+// same pattern as commentCount (bumped by every commenter, never rules-
+// gated). It stays visible through the blind window without exposing any
+// individual value, matching the spec's "count only" requirement.
+//
+// After reveal, ratings keep landing (rules allow create/update at any
+// time) but "arrive visibly" per the spec: isRatingAfterReveal compares a
+// rating's ORIGINAL createdAt against the read's revealedAt stamp so the
+// UI can badge it, without trusting anything the client self-reports.
+
+export const MIN_RATING = 0.5;
+export const MAX_RATING = 5;
+export const RATING_STEP = 0.5;
+export const MAX_RATING_COMMENT_LENGTH = 140;
+
+/** Validate a star rating: 0.5-5 in half-star steps (this site's existing
+ * review scale — see reviews.js submitReview). */
+export function validateRatingValue(rating) {
+  if (typeof rating !== 'number' || !Number.isFinite(rating)) {
+    return { valid: false, error: 'Pick a star rating.' };
+  }
+  if (rating < MIN_RATING || rating > MAX_RATING) {
+    return { valid: false, error: `Rating must be between ${MIN_RATING} and ${MAX_RATING} stars.` };
+  }
+  const steps = rating / RATING_STEP;
+  if (Math.abs(steps - Math.round(steps)) > 1e-9) {
+    return { valid: false, error: 'Ratings are in half-star increments.' };
+  }
+  return { valid: true };
+}
+
+/** Validate the optional one-line comment. Trims and caps length. */
+export function validateRatingComment(comment) {
+  const trimmed = (comment || '').trim();
+  if (trimmed.length > MAX_RATING_COMMENT_LENGTH) {
+    return { valid: false, error: `Comments must be ${MAX_RATING_COMMENT_LENGTH} characters or fewer.` };
+  }
+  return { valid: true, comment: trimmed };
+}
+
+/** True once a manager has flipped the read's ratings visible to everyone. */
+export function ratingsAreRevealed(read) {
+  return !!(read && read.ratingsRevealed === true);
+}
+
+/**
+ * Tally the average + count from a list of rating docs. Average is rounded
+ * to 1 decimal, same convention as reviews.js computeAverageRating.
+ * @returns {{ average: number, count: number }}
+ */
+export function tallyRatings(ratings) {
+  const list = (ratings || []).filter(r => typeof r.rating === 'number');
+  if (!list.length) return { average: 0, count: 0 };
+  const sum = list.reduce((acc, r) => acc + r.rating, 0);
+  return { average: Math.round((sum / list.length) * 10) / 10, count: list.length };
+}
+
+/**
+ * A rating "lands visibly" (per spec) when it was first created after the
+ * manager's reveal — compares stamped millis, not a client-asserted flag.
+ */
+export function isRatingAfterReveal(ratingCreatedAtMs, revealedAtMs) {
+  if (typeof ratingCreatedAtMs !== 'number' || typeof revealedAtMs !== 'number') return false;
+  return ratingCreatedAtMs > revealedAtMs;
+}
+
+/** Reveal-moment ordering: highest stars first, then name — a little
+ * ceremony for the "everyone's ratings unveil together" moment. */
+export function sortRatingsForReveal(ratings) {
+  return [...(ratings || [])].sort((a, b) => {
+    const byRating = (b.rating || 0) - (a.rating || 0);
+    return byRating !== 0 ? byRating : (a.displayName || '').localeCompare(b.displayName || '');
+  });
+}
+
+// ---- localStorage mirror of the caller's OWN rating (blind window only;
+// see the design note above for why this exists instead of a read rule) ----
+
+/** localStorage key for one member's own blind-window rating mirror. */
+export function myRatingStorageKey(clubId, readId, slug) {
+  return `blindRating:${clubId}:${readId}:${slug}`;
+}
+
+/** Best-effort write; localStorage can be unavailable (private mode, quota). */
+export function storeMyRatingLocally(clubId, readId, slug, rating, comment) {
+  try {
+    localStorage.setItem(
+      myRatingStorageKey(clubId, readId, slug),
+      JSON.stringify({ rating, comment: comment || '', savedAt: Date.now() })
+    );
+  } catch { /* non-fatal — the Firestore write already succeeded */ }
+}
+
+/** Read the local mirror of the caller's own rating, or null if unset/unavailable. */
+export function getMyStoredRating(clubId, readId, slug) {
+  try {
+    const raw = localStorage.getItem(myRatingStorageKey(clubId, readId, slug));
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+/**
+ * Submit (or update) the caller's own rating. First-time rating bumps the
+ * read's open `ratingCount` (transactional so it can't double-count an
+ * edit); the ORIGINAL createdAt is preserved across edits so
+ * isRatingAfterReveal reflects when the member first rated, not their
+ * latest edit. Mirrors the value into localStorage for the blind window.
+ */
+export async function rateBook(db, clubId, readId, rating, comment, session) {
+  if (!session || !session.displayName) {
+    return { success: false, error: 'Sign in to rate.' };
+  }
+  const ratingCheck = validateRatingValue(rating);
+  if (!ratingCheck.valid) return { success: false, error: ratingCheck.error };
+  const commentCheck = validateRatingComment(comment);
+  if (!commentCheck.valid) return { success: false, error: commentCheck.error };
+  const slug = slugifyName(session.displayName);
+  const ratingRef = doc(db, col('clubs'), clubId, 'reads', readId, 'ratings', slug);
+  const readRef = doc(db, col('clubs'), clubId, 'reads', readId);
+  try {
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(ratingRef);
+      const isNew = !snap.exists();
+      tx.set(ratingRef, {
+        displayName: session.displayName,
+        rating,
+        comment: commentCheck.comment,
+        createdAt: isNew ? serverTimestamp() : (snap.data().createdAt ?? serverTimestamp()),
+        updatedAt: serverTimestamp(),
+      });
+      if (isNew) tx.update(readRef, { ratingCount: increment(1) });
+    });
+    storeMyRatingLocally(clubId, readId, slug, rating, commentCheck.comment);
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * Reveal a read's ratings (manager action, enforced in the UI + rules on
+ * claimed clubs via MANAGED_READ_FIELDS). Stamps revealedAt so
+ * isRatingAfterReveal has a real instant to compare against.
+ */
+export async function revealRatings(db, clubId, readId) {
+  try {
+    await updateDoc(doc(db, col('clubs'), clubId, 'reads', readId), {
+      ratingsRevealed: true,
+      revealedAt: serverTimestamp(),
+    });
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * Fetch every rating for a read. Only succeeds once ratingsAreRevealed(read)
+ * — firestore.rules denies this read while blind, for every caller. Callers
+ * should gate the call on ratingsAreRevealed() rather than relying on the
+ * catch, so the blind-window UI never even attempts (and doesn't log) a
+ * denied read.
+ */
+export async function getRatings(db, clubId, readId) {
+  const snap = await getDocs(collection(db, col('clubs'), clubId, 'reads', readId, 'ratings'));
   return snap.docs.map(d => ({ slug: d.id, ...d.data() }));
 }

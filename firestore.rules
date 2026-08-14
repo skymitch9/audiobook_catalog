@@ -165,14 +165,50 @@ service cloud.firestore {
     }
 
     // Read-doc fields only a manager may change once the club is claimed:
-    // the reading schedule (milestones carry dueAt) and the club-level
-    // lifecycle (finish/abandon). commentCount (bumped by every commenter)
-    // and slotLabel (member-editable) stay open, as does CREATE — starting
-    // a read is a member action.
+    // the reading schedule (milestones carry dueAt), the club-level
+    // lifecycle (finish/abandon), and the blind-ratings reveal flip
+    // (ratingsRevealed/revealedAt — see the ratings subcollection below).
+    // commentCount (bumped by every commenter), slotLabel (member-editable)
+    // and ratingCount (bumped by every rater, same open pattern as
+    // commentCount) stay open, as does CREATE — starting a read is a
+    // member action.
     // ⚠️ Keep this list in step with MANAGED_READ_FIELDS in site/clubs.js.
     function readManagedFieldsChanged() {
       return request.resource.data.diff(resource.data).affectedKeys().hasAny(
-        ['milestones', 'scheduleUpdatedAt', 'status', 'finishedAt', 'slot']);
+        ['milestones', 'scheduleUpdatedAt', 'status', 'finishedAt', 'slot',
+         'ratingsRevealed', 'revealedAt']);
+    }
+
+    // clubs/{id}/reads/{readId}/ratings/* — blind ratings reveal (backlog
+    // #4). Doc id = member slug (progress/votes convention). Rating write
+    // is open like progress (no rule can bind a display name to a person,
+    // same residual-risk story as the rest of this trust model); READ is
+    // the security control here:
+    //
+    // ⚠️ TRUST-MODEL CALL: this site's member identity has no auth binding
+    // (see the file header) — a "read your own doc, deny others" rule is
+    // NOT enforceable, because the doc id in the request path is just
+    // whatever the client asks for; any browser that knows (or guesses) a
+    // slug can request that exact path. Rules cannot tell "the owner" from
+    // "anyone who typed the URL" without an auth uid on the doc, which
+    // regular members don't have (only managerUids does). So instead of a
+    // forgeable per-slug read rule, ratings are unreadable to EVERYONE
+    // (including their own author) until the read is revealed — same
+    // shape as the settings/{settingId} block above. The client mirrors
+    // each member's own submitted rating into localStorage at write time
+    // (site/club-reads.js) so they can see their own pick without a read;
+    // that mirror is per-device and does not follow them to a second
+    // browser during the blind window — an accepted, documented gap.
+    //
+    // "N members have rated" comes from ratingCount on the read doc itself
+    // (open write, incremented on first rating per member — same pattern
+    // as commentCount), NOT from reading this subcollection, so the count
+    // stays visible through the blind window without leaking values.
+    function validRating() {
+      return request.resource.data.rating is number
+             && request.resource.data.rating >= 0.5
+             && request.resource.data.rating <= 5
+             && request.resource.data.displayName is string;
     }
 
     // clubs/{id}/polls/* — free-form, optionally chapter-tagged polls
@@ -206,6 +242,16 @@ service cloud.firestore {
 
     function pollIsOpen(clubCol, clubId, pollId) {
       return parentPoll(clubCol, clubId, pollId).status == 'open';
+    }
+
+    // Parent read doc, for the ratings-reveal gate below. `.get(key, default)`
+    // dodges a missing-field error on reads created before this feature.
+    function parentRead(clubCol, clubId, readId) {
+      return get(/databases/$(database)/documents/$(clubCol)/$(clubId)/reads/$(readId)).data;
+    }
+
+    function ratingsRevealed(clubCol, clubId, readId) {
+      return parentRead(clubCol, clubId, readId).get('ratingsRevealed', false) == true;
     }
 
     function validClubComment() {
@@ -447,6 +493,17 @@ service cloud.firestore {
           allow write: if request.resource.data.milestonePosition is number
                        || request.resource.data.chapterIndex is number;
         }
+
+        // ⚠️ `allow read: if false`-until-revealed is the security control —
+        // see the validRating() comment above for why a forgeable per-slug
+        // read rule was rejected in favor of "nobody, not even the author,
+        // until reveal". Create/update stay open (member action, like
+        // progress); delete is open so removeRead()'s cleanup loop works.
+        match /ratings/{userId} {
+          allow read: if ratingsRevealed('clubs', clubId, readId);
+          allow create, update: if validRating();
+          allow delete: if true;
+        }
       }
     }
 
@@ -580,6 +637,14 @@ service cloud.firestore {
           allow read: if true;
           allow write: if request.resource.data.milestonePosition is number
                        || request.resource.data.chapterIndex is number;
+        }
+
+        // Mirrors /clubs/{clubId}/reads/{readId}/ratings — see the
+        // validRating() comment for the trust-model reasoning.
+        match /ratings/{userId} {
+          allow read: if ratingsRevealed('clubs_dev', clubId, readId);
+          allow create, update: if validRating();
+          allow delete: if true;
         }
       }
     }

@@ -293,6 +293,42 @@ details.milestone.ch-section summary{padding:10px 14px;font-size:.85em;color:var
   width:28px;flex-shrink:0;font-weight:bold;
 }
 .poll-opt-remove:hover{border-color:var(--neon-magenta);color:var(--neon-magenta)}
+/* Star display (renderStars() from reviews.js) */
+.stars .star{display:inline-block;position:relative}
+.stars .star-full{color:var(--neon-yellow)}
+.stars .star-half{color:var(--muted);display:inline-block;position:relative}
+.stars .star-half .star-half-fill{position:absolute;left:0;top:0;color:var(--neon-yellow);overflow:hidden;width:50%}
+.stars .star-empty{color:var(--muted)}
+/* Blind ratings reveal (feature-gated; see clubs.js FEATURE_DEFAULTS.blindRatings) */
+.rate-banner{
+  background:var(--bg-2);border:1px solid var(--border);border-left:3px solid var(--neon-magenta,#ff2a6d);
+  padding:12px 16px;margin-bottom:16px;font-size:.9em;
+}
+.rate-banner.revealed{border-left-color:var(--neon-yellow)}
+.rate-banner-head{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-family:var(--et-font-mono)}
+.rate-mine{margin-top:8px;color:var(--muted)}
+.reveal-btn{
+  background:none;border:1px solid var(--neon-yellow);color:var(--neon-yellow);cursor:pointer;
+  font-weight:700;font-size:.78em;padding:5px 12px;font-family:inherit;text-transform:var(--et-title-case);letter-spacing:.5px;
+}
+.reveal-btn:hover{background:var(--neon-yellow);color:var(--et-btn-fg)}
+.rate-composer{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}
+.rate-composer select{padding:7px 9px;background:var(--bg);color:var(--text);border:1px solid var(--border);font-family:inherit}
+.rate-composer input[type=text]{
+  flex:1;min-width:160px;padding:7px 9px;background:var(--bg);color:var(--text);border:1px solid var(--border);font-family:inherit;
+}
+.rate-composer select:focus,.rate-composer input:focus{outline:none;border-color:var(--neon-cyan)}
+.rate-composer button{
+  background:none;border:1px solid var(--neon-cyan);color:var(--neon-cyan);cursor:pointer;
+  font-weight:700;font-size:.82em;padding:7px 14px;font-family:inherit;text-transform:var(--et-title-case);letter-spacing:.5px;
+}
+.rate-composer button:hover{background:var(--neon-cyan);color:var(--et-btn-fg)}
+.rate-cards{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}
+.rate-card{background:var(--bg);border:1px solid var(--border);padding:10px 12px;min-width:160px;flex:1 1 200px}
+.rate-card.mine{border-color:var(--neon-cyan)}
+.rate-card-head{display:flex;gap:6px;align-items:baseline;flex-wrap:wrap;margin-bottom:4px}
+.rate-after-tag{font-size:.7em;color:var(--muted);border:1px solid var(--border);padding:1px 6px;text-transform:var(--et-title-case)}
+.rate-card-comment{margin-top:4px;color:var(--muted);font-size:.9em;font-style:italic}
 .archive-banner{
   padding:12px 16px;border:1px solid var(--neon-yellow);background:var(--bg-2);
   color:var(--neon-yellow);margin-bottom:16px;font-size:.95em;
@@ -430,7 +466,7 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
   import { coverUrl } from './covers-base.js';
   import { getSession, slugifyName, getSiteRole } from './identity.js';
   import { mountAccountModal } from './account-modal.js';
-  import { getClub, getMembers, clubFeatureEnabled } from './clubs.js?v=20260814d';
+  import { getClub, getMembers, clubFeatureEnabled } from './clubs.js?v=20260814e';
   import {
     getRead, getComments, addComment, deleteComment,
     toggleReaction, togglePin, REACTION_EMOJI,
@@ -444,10 +480,13 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
     getPolls, getPollVotes, createPoll, setPollStatus, deletePoll, castVote,
     tallyPollVotes, myPollVote, pollResultsVisible, isPollLocked,
     MIN_POLL_OPTIONS, MAX_POLL_OPTIONS, MAX_POLL_OPTION_LENGTH,
-  } from './club-reads.js?v=20260814d';
+    rateBook, revealRatings, getRatings, ratingsAreRevealed,
+    tallyRatings, isRatingAfterReveal, sortRatingsForReveal, getMyStoredRating,
+    MAX_RATING_COMMENT_LENGTH,
+  } from './club-reads.js?v=20260814e';
   import { addUserWarning, getUserWarnings, deleteUserWarning } from './user-warnings.js';
   import { markReadSeen } from './club-notify.js';
-  import { submitReview, bookIdFromTitle, getReviews } from './reviews.js';
+  import { submitReview, bookIdFromTitle, getReviews, renderStars } from './reviews.js';
 
   const firebaseConfig = {
     apiKey: "AIzaSyDgAblkxzVxl7nFbd7jXOo6PpuNPsJw11Y",
@@ -472,6 +511,7 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
   let quotes = [];
   let polls = [];       // this read's tagged polls only (club-wide polls live on club.html)
   let pollVotes = {};   // pollId -> votes[]
+  let ratings = [];      // blind ratings — only populated once ratingsAreRevealed(read) (see reload())
   let bookPrompts = null;   // AI starter questions for hosts (toggleable per club)
   let bookWarnings = null;  // published content warnings with sources
   let userWarnings = [];    // reader-added warnings from this site
@@ -536,6 +576,14 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
     return memberSchedulePosition(read.milestones, p, hasChapters());
   };
   const pollsForPosition = (pos) => polls.filter(p => p.milestonePosition === pos);
+
+  // Blind ratings reveal (feature-gated; see clubs.js FEATURE_DEFAULTS.blindRatings
+  // and the "Blind ratings reveal" section of club-reads.js for the full
+  // trust-model rationale). While blind, `ratings` stays empty (rules deny
+  // the read to everyone) and the viewer's own pick comes from the
+  // localStorage mirror instead.
+  const blindRatingsOn = () => !!club && clubFeatureEnabled(club, 'blindRatings');
+  const ratingTimestampMs = (ts) => (ts && typeof ts.toMillis === 'function' ? ts.toMillis() : null);
 
   // Bucket key for a comment on a chapter-based read:
   // 'general' | 'p<partIdx>' (part-level) | 'c<chapterIdx>' (chapter-level).
@@ -756,6 +804,66 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
     return `<div class="poll-banner">📊 ${polls.length} poll${polls.length !== 1 ? 's' : ''} in this read<span style="margin-left:auto">${newBtn}</span></div>`;
   }
 
+  // Blind ratings banner: a rate composer + count while blind, a sorted
+  // reveal ceremony with an average headline once a manager reveals.
+  function ratingsBannerHtml() {
+    if (!blindRatingsOn()) return '';
+    const revealed = ratingsAreRevealed(read);
+    const count = read.ratingCount || 0;
+    // Unlike most manager/member actions on this page, rating is allowed on
+    // BOTH active and finished/abandoned reads (per spec) — a book stays
+    // ratable after the club moves on, so no !isArchived() gate here.
+    const canRate = !!(session && myRole());
+    // Blind: read my own pick back from the localStorage mirror (Firestore
+    // denies the real read to everyone until reveal — see club-reads.js).
+    // Revealed: the real doc, now that `ratings` was actually fetched.
+    const mine = revealed
+      ? ratings.find(r => r.slug === mySlug) || null
+      : (canRate ? getMyStoredRating(clubId, readId, mySlug) : null);
+    const starOptions = [5, 4.5, 4, 3.5, 3, 2.5, 2, 1.5, 1, 0.5].map(v =>
+      `<option value="${v}" ${mine && mine.rating === v ? 'selected' : ''}>${v}★</option>`).join('');
+    const composer = canRate ? `
+      <div class="rate-composer">
+        <select id="rate-stars">${starOptions}</select>
+        <input type="text" id="rate-comment" maxlength="${MAX_RATING_COMMENT_LENGTH}"
+          placeholder="Optional one-line comment" value="${escapeHtml(mine ? (mine.comment || '') : '')}">
+        <button id="rate-submit">${mine ? 'Update rating' : 'Submit rating'}</button>
+      </div>` : '';
+
+    if (!revealed) {
+      const revealBtn = isMod() && count > 0
+        ? `<button class="reveal-btn" id="reveal-ratings-btn">🎉 Reveal ratings</button>` : '';
+      const mineTxt = canRate
+        ? (mine ? `Your rating: ${renderStars(mine.rating)}${mine.comment ? ` — "${escapeHtml(mine.comment)}"` : ''}`
+                : "You haven't rated yet — only you can see your own pick until reveal.")
+        : '';
+      return `
+        <div class="rate-banner">
+          <div class="rate-banner-head">🌟 Blind ratings — ${count} of ${members.length} member${members.length !== 1 ? 's' : ''} rated so far. Ratings stay hidden until revealed.${revealBtn ? `<span style="margin-left:auto">${revealBtn}</span>` : ''}</div>
+          ${mineTxt ? `<div class="rate-mine">${mineTxt}</div>` : ''}
+          ${composer}
+        </div>`;
+    }
+
+    const { average, count: n } = tallyRatings(ratings);
+    const revealedAtMs = ratingTimestampMs(read.revealedAt);
+    const cards = sortRatingsForReveal(ratings).map(r => {
+      const after = isRatingAfterReveal(ratingTimestampMs(r.createdAt), revealedAtMs);
+      return `
+        <div class="rate-card${r.slug === mySlug ? ' mine' : ''}">
+          <div class="rate-card-head"><strong>${escapeHtml(r.displayName)}</strong>${after ? ' <span class="rate-after-tag">after reveal</span>' : ''}</div>
+          ${renderStars(r.rating)}
+          ${r.comment ? `<div class="rate-card-comment">"${escapeHtml(r.comment)}"</div>` : ''}
+        </div>`;
+    }).join('');
+    return `
+      <div class="rate-banner revealed">
+        <div class="rate-banner-head">🎉 Ratings revealed — average ${average.toFixed(1)}★ (${n} rating${n !== 1 ? 's' : ''})</div>
+        <div class="rate-cards">${cards || '<span style="color:var(--muted)">No ratings yet.</span>'}</div>
+        ${canRate ? `<div class="rate-mine">${mine ? '' : "Rating now will post visibly, marked “after reveal.”"}</div>${composer}` : ''}
+      </div>`;
+  }
+
   function sectionHtml(id, label, position) {
     const inSectionAll = comments.filter(c => (c.milestoneId || GENERAL_MILESTONE) === id);
     const count = inSectionAll.length;
@@ -865,6 +973,7 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
         <div class="progress-row"><div class="member-progress" style="margin-left:0">${progressChips}</div></div>`}
       ${schedBannerHtml()}
       ${pollBannerHtml()}
+      ${ratingsBannerHtml()}
       <div class="view-switch">
         <button class="tab ${view === 'discussions' ? 'active' : ''}" data-view="discussions">Discussions</button>
         <button class="tab ${view === 'quotes' ? 'active' : ''}" data-view="quotes">Quotes (${quotes.length})</button>
@@ -1195,6 +1304,22 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
         const r = await deletePoll(db, clubId, btn.dataset.pollDel);
         if (r.success) reload(); else showError(r.error);
       }));
+
+    const rateSubmit = document.getElementById('rate-submit');
+    if (rateSubmit) rateSubmit.addEventListener('click', async () => {
+      const stars = parseFloat(document.getElementById('rate-stars').value);
+      const comment = document.getElementById('rate-comment').value;
+      rateSubmit.disabled = true;
+      const r = await rateBook(db, clubId, readId, stars, comment, session);
+      if (r.success) reload(); else { rateSubmit.disabled = false; showError(r.error); }
+    });
+
+    const revealBtn = document.getElementById('reveal-ratings-btn');
+    if (revealBtn) revealBtn.addEventListener('click', async () => {
+      if (!confirm(`Reveal every rating to the whole club? This can't be hidden again.`)) return;
+      const r = await revealRatings(db, clubId, readId);
+      if (r.success) reload(); else showError(r.error);
+    });
   }
 
   function showError(msg) {
@@ -1233,6 +1358,13 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
       const lists = await Promise.all(polls.map(p => getPollVotes(db, clubId, p.id)));
       polls.forEach((p, i) => { pollVotes[p.id] = lists[i]; });
     }
+    // Ratings only become readable once revealed (firestore.rules denies
+    // the read to everyone while blind — see club-reads.js). Gate the
+    // fetch on the flag rather than relying on the catch, so the blind
+    // window never even attempts a call rules will refuse.
+    ratings = (blindRatingsOn() && ratingsAreRevealed(read))
+      ? await getRatings(db, clubId, readId).catch(() => [])
+      : [];
     markReadSeen(db, mySlug, clubId, readId, read.commentCount || comments.length);
     const backLink = document.getElementById('back-link');
     backLink.href = `club.html?id=${encodeURIComponent(clubId)}`;

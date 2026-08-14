@@ -397,6 +397,10 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
         <input id="feat-polls" type="checkbox" />
         <label for="feat-polls" style="margin:0;text-transform:none">Polls — free-form club polls, optionally tagged to a spoiler-gated section</label>
       </div>
+      <div class="field-inline">
+        <input id="feat-blind-ratings" type="checkbox" />
+        <label for="feat-blind-ratings" style="margin:0;text-transform:none">Blind ratings — members rate privately, a host/mod reveals everyone's rating together</label>
+      </div>
     </div>
     <div class="field" id="edit-webhook-field" style="display:none">
       <label for="edit-webhook">Discord webhook (hosts/mods) — club reminders post to a channel you own</label>
@@ -1525,6 +1529,7 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
       document.getElementById('feat-schedule').checked = clubFeatureEnabled(club, 'readingSchedule');
       document.getElementById('feat-discord').checked = clubFeatureEnabled(club, 'discordAnnouncements');
       document.getElementById('feat-polls').checked = clubFeatureEnabled(club, 'polls');
+      document.getElementById('feat-blind-ratings').checked = clubFeatureEnabled(club, 'blindRatings');
       const mask = club.discordWebhookMask || '';
       document.getElementById('edit-webhook').value = '';
       document.getElementById('edit-webhook-hint').textContent = mask
@@ -1609,6 +1614,7 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
         readingSchedule: document.getElementById('feat-schedule').checked,
         discordAnnouncements: document.getElementById('feat-discord').checked,
         polls: document.getElementById('feat-polls').checked,
+        blindRatings: document.getElementById('feat-blind-ratings').checked,
       };
     }
     // Webhook first, so a bad URL blocks the save with a visible error

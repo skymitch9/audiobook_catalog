@@ -143,6 +143,11 @@ export const FEATURE_DEFAULTS = {
   // other opt-in feature; see the "Club polls" section of club-reads.js for
   // the data shape and spoiler-gating logic.
   polls: false,
+  // Blind ratings reveal (backlog #4): members rate a read privately, a
+  // manager reveals everyone's rating + the average together. OFF by
+  // default; see the "Blind ratings" section of club-reads.js for the
+  // browser-unreadable subcollection design and its trust-model trade-off.
+  blindRatings: false,
 };
 
 /** Is a feature enabled for this club? Falls back to FEATURE_DEFAULTS. */
@@ -177,10 +182,12 @@ export const MANAGED_CLUB_FIELDS = [
 
 /**
  * Read-doc fields rules gate the same way (schedule + club-level
- * lifecycle). ⚠️ MUST match readManagedFieldsChanged() in firestore.rules.
+ * lifecycle, plus the blind-ratings reveal flip). ⚠️ MUST match
+ * readManagedFieldsChanged() in firestore.rules.
  */
 export const MANAGED_READ_FIELDS = [
   'milestones', 'scheduleUpdatedAt', 'status', 'finishedAt', 'slot',
+  'ratingsRevealed', 'revealedAt',
 ];
 
 /** Does this club have a non-empty manager-uid roster? */

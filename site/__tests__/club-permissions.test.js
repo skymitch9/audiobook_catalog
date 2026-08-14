@@ -106,7 +106,8 @@ describe('rules contract — the field lists rules gate behind the roster', () =
 
   it('MANAGED_READ_FIELDS pins the manager-only read-doc fields', () => {
     expect([...MANAGED_READ_FIELDS].sort()).toEqual([
-      'finishedAt', 'milestones', 'scheduleUpdatedAt', 'slot', 'status',
+      'finishedAt', 'milestones', 'ratingsRevealed', 'revealedAt',
+      'scheduleUpdatedAt', 'slot', 'status',
     ]);
   });
 
@@ -120,7 +121,9 @@ describe('rules contract — the field lists rules gate behind the roster', () =
       'promptsEnabled',
     ];
     for (const f of memberClubFields) expect(MANAGED_CLUB_FIELDS).not.toContain(f);
-    const memberReadFields = ['commentCount', 'slotLabel'];
+    // ratingCount stays open too — same "bumped by every writer" pattern as
+    // commentCount (see the blind-ratings section of club-reads.js).
+    const memberReadFields = ['commentCount', 'slotLabel', 'ratingCount'];
     for (const f of memberReadFields) expect(MANAGED_READ_FIELDS).not.toContain(f);
   });
 });
