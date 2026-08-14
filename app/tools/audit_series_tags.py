@@ -260,6 +260,31 @@ def scan_file(path: Path) -> Scan:
     return s
 
 
+def _series_slot_holds_title(s: Scan) -> bool:
+    """The Uncapped signature: the series slot holds the book's own title.
+
+    Tightened 2026-08-14 after the full survey (394 flags, measured): ©alb == ©nam
+    is NORMAL on an Audible download, so the album only incriminates when SRNM is
+    absent AND something else claims the book is part of a series — a volume
+    number (trkn > 1: the hand-made Uncapped carried trkn=14) or a series the
+    catalog is deriving from title parsing (the garbled-album case, e.g.
+    'Demonic Devourer: Book 2: Demonic Devourer Series'). Without either, the
+    book is simply a standalone (152 files, e.g. The Silent Patient), and with a
+    good SRNM present the album proves nothing (171 files). SRNM holding the
+    title is the real defect and always flags (29 files).
+    """
+
+    def _is_title(candidate: Optional[str]) -> bool:
+        return bool(candidate and s.title and candidate.strip().lower() == s.title.strip().lower())
+
+    if _is_title(s.srnm):
+        return True
+    if not s.srnm and _is_title(s.album):
+        volume_evidence = bool(s.srsq) or bool(s.trkn and normalize_index(s.trkn) != "1")
+        return bool(volume_evidence or s.catalog_series)
+    return False
+
+
 def _classify(s: Scan) -> None:
     """Attach issue codes. Per-file only; cross-file checks run later."""
     tag_series = s.srnm or s.ff_series
@@ -271,11 +296,8 @@ def _classify(s: Scan) -> None:
         elif not s.catalog_series:
             s.issues.append("SERIES_BLANK")
 
-    # The Uncapped signature: the series slot holds the book's own title.
-    for candidate in (s.srnm, s.album):
-        if candidate and s.title and candidate.strip().lower() == s.title.strip().lower():
-            s.issues.append("SERIES_IS_TITLE")
-            break
+    if _series_slot_holds_title(s):
+        s.issues.append("SERIES_IS_TITLE")
 
     if tag_series and canonicalize_series(tag_series) != tag_series:
         s.issues.append("SERIES_SPELLING")
@@ -287,8 +309,11 @@ def _classify(s: Scan) -> None:
         else:
             s.issues.append("INDEX_BLANK")
 
-    # Two tag sources disagreeing is a decision, not a repair.
-    if s.srsq and s.trkn and normalize_index(s.srsq) != normalize_index(s.trkn):
+    # Two tag sources disagreeing is a decision, not a repair. But trkn=1 on an
+    # Audible m4b means "track 1 of 1", not "volume 1" — the 2026-08-13 survey
+    # measured all 467 INDEX_CONFLICTs as trkn=1 vs a present SRSQ, zero real —
+    # so only a trkn greater than 1 can contradict SRSQ.
+    if s.srsq and s.trkn and normalize_index(s.trkn) != "1" and normalize_index(s.srsq) != normalize_index(s.trkn):
         s.issues.append("INDEX_CONFLICT")
 
     if s.file_series and tag_series and canonicalize_series(s.file_series) != canonicalize_series(tag_series):
@@ -704,6 +729,10 @@ def collect_files(root: Path, author: Optional[str], limit: Optional[int]) -> Li
     exts = set(EXTS)
     files = [p for p in sorted(root.rglob("*")) if p.is_file() and p.suffix.lower() in exts]
     files = [p for p in files if not p.name.startswith("Copy of ")]
+    # Staging pile of part-files awaiting m4b assembly. Owner rule: excluded from
+    # every library sweep. Holds no matching extensions today, but the guard must
+    # not depend on that staying true.
+    files = [p for p in files if "zzzz_Books_to_be_Converted" not in p.parts]
     if author:
         needle = author.lower()
         files = [p for p in files if needle in p.parent.name.lower()]

@@ -157,6 +157,51 @@ def test_a_curated_correction_is_not_blocked_by_the_defect_it_documents(tmp_path
     assert proposal["writes"] == {K_SRNM: "The Completionist Chronicles", K_SRSQ: "14"}
 
 
+def test_album_matching_title_with_a_good_srnm_is_not_flagged(tmp_path):
+    """©alb == ©nam is normal on an Audible download; a real SRNM settles it (survey cluster S1, 171 files)."""
+    book = make_book(
+        tmp_path, "s1.m4b", title="Conflicted Home", series="The Survivalist Series", index="9", album="Conflicted Home"
+    )
+    s = scan(book)
+    assert "SERIES_IS_TITLE" not in s.issues
+
+
+def test_standalone_with_album_matching_title_is_not_flagged(tmp_path):
+    """No SRNM, no volume evidence, no derived series: a standalone, not a defect (cluster S4, 152 files)."""
+    book = make_book(
+        tmp_path, "s4.m4b", title="The Silent Patient", series=None, index=None, album="The Silent Patient", track=1
+    )
+    s = scan(book)
+    assert "SERIES_IS_TITLE" not in s.issues
+
+
+def test_album_matching_title_with_volume_evidence_still_flags(tmp_path):
+    """The hand-made Uncapped shape: album==title AND trkn carries a real volume."""
+    book = make_book(tmp_path, "s4b.m4b", title="Binding", series=None, index=None, album="Binding", track=3)
+    s = scan(book)
+    assert "SERIES_IS_TITLE" in s.issues
+
+
+def test_trkn_of_one_does_not_conflict_with_a_present_srsq(tmp_path):
+    """trkn=1 means 'track 1 of 1'. The 2026-08-13 survey measured 467/467 conflicts as this shape."""
+    book = make_book(
+        tmp_path, "t1.m4b", title="The Primal Hunter 12", series="The Primal Hunter", index="12", album=None, track=1
+    )
+    s = scan(book)
+    assert "INDEX_CONFLICT" not in s.issues
+
+
+def test_zzzz_staging_folder_is_excluded(tmp_path):
+    """Owner rule: zzzz_Books_to_be_Converted is a staging pile and no sweep may see it."""
+    keep = make_book(tmp_path, "keep.m4b", title="Kept", series="S", index="1")
+    staged_dir = tmp_path / "zzzz_Books_to_be_Converted"
+    staged_dir.mkdir()
+    make_book(staged_dir, "staged.m4b", title="Staged", series="S", index="2")
+    files = ast.collect_files(tmp_path, author=None, limit=None)
+    assert keep in files
+    assert all("zzzz_Books_to_be_Converted" not in p.parts for p in files)
+
+
 def test_two_tag_sources_disagreeing_is_a_decision_not_a_repair(tmp_path):
     book = make_book(tmp_path, "z.m4b", title="Conflicted", series="A Series", index="3", album="A Series", track=7)
     s = scan(book)
