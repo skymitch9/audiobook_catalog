@@ -456,7 +456,7 @@ html[data-theme="cyberpunk"] .nav-link{clip-path:polygon(6px 0, 100% 0, calc(100
   </div>
 
   <div style="margin-top: 30px; padding: 20px; background: var(--bg-2); border-radius: var(--radius); text-align: center; color: var(--muted);">
-    <small>Generated at: 2026-08-13 23:11:41</small>
+    <small>Generated at: 2026-08-13 23:17:14</small>
   </div>
 </div>
 
@@ -526,7 +526,7 @@ html[data-theme="cyberpunk"] .nav-link{clip-path:polygon(6px 0, 100% 0, calc(100
         </div>`;
 
       if (topReviewers.length > 0) {
-        html += ('<div style="margin-top:12px"><strong style="color:var(--neon-cyan);'
+        html += ('<div style="margin-top:12px"><strong style="color:var(--neon-cyan);' +
                  'font-size:.85em;text-transform:var(--et-title-case)">Top Reviewers</strong>');
         topReviewers.forEach(([name, count]) => {
           html += `<div class="top-item"><span class="top-name">${name}</span><span class="top-count">${count} reviews</span></div>`;
@@ -535,7 +535,7 @@ html[data-theme="cyberpunk"] .nav-link{clip-path:polygon(6px 0, 100% 0, calc(100
       }
 
       if (topBooks.length > 0) {
-        html += ('<div style="margin-top:12px"><strong style="color:var(--neon-cyan);'
+        html += ('<div style="margin-top:12px"><strong style="color:var(--neon-cyan);' +
                  'font-size:.85em;text-transform:var(--et-title-case)">Most Reviewed Books</strong>');
         topBooks.forEach(([bookId, count]) => {
           const title = bookId.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
