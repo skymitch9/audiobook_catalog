@@ -1205,11 +1205,37 @@ export function paceScaleY(position, maxPosition, height) {
 // makes a vote changeable while the poll is open, per the spec ("changeable
 // while open"); rules refuse writes once a poll is closed (see
 // firestore.rules pollIsOpen()).
+//
+// ---- 'next book' poll TYPE (backlog #3b) -----------------------------
+// A poll gains a `type` field: 'freeform' (default — omitted on every poll
+// created before this shipped, so `poll.type` is undefined on legacy docs;
+// every reader here and in firestore.rules treats missing/undefined the
+// same as 'freeform', never a validation failure) or 'nextBook'. This is a
+// poll TYPE, not a new feature — still gated behind the one `polls` toggle.
+// A nextBook poll's `options` are book refs `{title, author, coverHref}`
+// (picked via type-ahead against the site catalog — loadCatalogBooks above
+// is the exact picker data source club.html's Start-a-Read and Suggest-Book
+// modals already use) instead of bare strings. No separate "book id" field
+// is stored — same precedent as TBR items and read docs elsewhere in this
+// file, which also carry title/author/coverHref only; a stable id is
+// derived on demand via reviews.js bookIdFromTitle() wherever one is
+// needed. Deliberately club-wide only (created from club.html; the type
+// choice is hidden on club-read.html's tagged-poll composer — see the
+// comment there for why) since "what should we read next" doesn't belong
+// to any one section of a book already in progress, the same reasoning
+// that keeps the TBR list on the club page rather than the read page.
+// Voting/closing/results/spoiler mechanics are all UNCHANGED from #3 —
+// tallyPollVotes/myPollVote/pollResultsVisible/isPollLocked work on option
+// INDEX regardless of what shape options[i] is.
 
 export const MIN_POLL_OPTIONS = 2;
 export const MAX_POLL_OPTIONS = 10;
 export const MAX_POLL_QUESTION_LENGTH = 200;
 export const MAX_POLL_OPTION_LENGTH = 80;
+export const MAX_POLL_BOOK_TITLE_LENGTH = 200;
+export const MAX_POLL_BOOK_AUTHOR_LENGTH = 200;
+export const POLL_TYPE_FREEFORM = 'freeform';
+export const POLL_TYPE_NEXT_BOOK = 'nextBook';
 
 /** Validate a poll question. Required, up to MAX_POLL_QUESTION_LENGTH chars. */
 export function validatePollQuestion(question) {
@@ -1239,6 +1265,83 @@ export function validatePollOptions(options) {
     return { valid: false, error: `Each option must be ${MAX_POLL_OPTION_LENGTH} characters or fewer.` };
   }
   return { valid: true, options: cleaned };
+}
+
+/**
+ * Validate + clean 'next book' poll options: 2-10 book refs, each needing a
+ * non-blank title (author/coverHref are optional — a catalog entry can lack
+ * either). Mirrors validatePollOptions' count checks; entries with a blank
+ * title are dropped before counting, same "blank rows don't count" rule as
+ * the free-form composer's empty option inputs. Per-field length caps are
+ * separate constants (MAX_POLL_BOOK_TITLE_LENGTH/MAX_POLL_BOOK_AUTHOR_LENGTH)
+ * since book titles/authors routinely exceed MAX_POLL_OPTION_LENGTH (80,
+ * sized for a short free-form answer, not "The Fellowship of the Ring").
+ * @returns {{ valid: boolean, options?: Array<{title,author,coverHref}>, error?: string }}
+ */
+export function validateNextBookOptions(options) {
+  const cleaned = (options || [])
+    .filter(o => o && (o.title || '').trim())
+    .map(o => ({
+      title: (o.title || '').trim(),
+      author: (o.author || '').trim(),
+      coverHref: (o.coverHref || '').trim(),
+    }));
+  if (cleaned.length < MIN_POLL_OPTIONS) {
+    return { valid: false, error: `Pick at least ${MIN_POLL_OPTIONS} books.` };
+  }
+  if (cleaned.length > MAX_POLL_OPTIONS) {
+    return { valid: false, error: `At most ${MAX_POLL_OPTIONS} books.` };
+  }
+  if (cleaned.some(o => o.title.length > MAX_POLL_BOOK_TITLE_LENGTH || o.author.length > MAX_POLL_BOOK_AUTHOR_LENGTH)) {
+    return { valid: false, error: 'A book title or author is too long.' };
+  }
+  return { valid: true, options: cleaned };
+}
+
+/** True when a poll is the 'next book' type. Missing/undefined `type` (every
+ * poll created before backlog #3b) counts as free-form, never next-book. */
+export function isNextBookPoll(poll) {
+  return !!poll && poll.type === POLL_TYPE_NEXT_BOOK;
+}
+
+/**
+ * Render one poll option's inner (label) HTML — a plain escaped string for
+ * a free-form poll, or a cover-thumbnail + title/author row for a next-book
+ * poll. The one function both club.html and club-read.html call so the two
+ * pages can never drift on how a book-ref option renders. Caller supplies
+ * the surrounding <button class="poll-opt"> / <div class="poll-result">
+ * element and its vote-count chrome; this only produces the label content.
+ */
+export function pollOptionContentHtml(poll, opt) {
+  if (!isNextBookPoll(poll)) return escapeHtmlText(typeof opt === 'string' ? opt : '');
+  const title = escapeHtmlText((opt && opt.title) || '');
+  const author = escapeHtmlText((opt && opt.author) || '');
+  const cover = opt && opt.coverHref
+    ? `<img class="poll-opt-cover" src="${escapeHtmlText(opt.coverHref)}" alt="" onerror="this.remove()">`
+    : '';
+  return `<span class="poll-opt-book">${cover}<span class="poll-opt-book-text">`
+    + `<span class="poll-opt-book-title">${title}</span>`
+    + (author ? `<span class="poll-opt-book-author"> — ${author}</span>` : '')
+    + `</span></span>`;
+}
+
+/**
+ * Winning option index for a poll, or null when there are no votes yet, or
+ * when two or more options are tied for the lead (an honest tie shows no
+ * single winner rather than an arbitrary pick — same "don't fake certainty"
+ * instinct as the blind-ratings design). Used for the next-book poll winner
+ * badge/start-a-read affordance on a CLOSED poll; the caller decides when
+ * it's meaningful to call this (an open poll has a "leader" but not yet a
+ * "winner").
+ * @returns {number|null}
+ */
+export function pollWinnerIndex(options, votes) {
+  const { counts, total } = tallyPollVotes(options, votes);
+  if (total === 0) return null;
+  const max = Math.max(...counts);
+  const leaders = [];
+  counts.forEach((c, i) => { if (c === max) leaders.push(i); });
+  return leaders.length === 1 ? leaders[0] : null;
 }
 
 /**
@@ -1289,18 +1392,25 @@ export function pollResultsVisible(poll, hasVoted, isManager) {
  * Create a poll. `input.readId`/`milestoneId`/`milestonePosition` are all
  * optional together (an untagged, club-wide poll); when tagging a section,
  * pass all three so the spoiler gate and read-page placement both work.
+ * `input.type` (POLL_TYPE_FREEFORM default, or POLL_TYPE_NEXT_BOOK) picks
+ * which option validator/shape applies — free-form strings, or next-book
+ * refs `{title, author, coverHref}` from the catalog type-ahead.
  */
 export async function createPoll(db, clubId, input, session) {
   if (!session || !session.displayName) {
     return { success: false, error: 'Sign in to create a poll.' };
   }
+  const type = input.type === POLL_TYPE_NEXT_BOOK ? POLL_TYPE_NEXT_BOOK : POLL_TYPE_FREEFORM;
   const qCheck = validatePollQuestion(input.question);
   if (!qCheck.valid) return { success: false, error: qCheck.error };
-  const oCheck = validatePollOptions(input.options);
+  const oCheck = type === POLL_TYPE_NEXT_BOOK
+    ? validateNextBookOptions(input.options)
+    : validatePollOptions(input.options);
   if (!oCheck.valid) return { success: false, error: oCheck.error };
   try {
     const ref = doc(collection(db, col('clubs'), clubId, 'polls'));
     await setDoc(ref, {
+      type,
       question: input.question.trim(),
       options: oCheck.options,
       readId: input.readId || null,

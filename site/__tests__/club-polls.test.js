@@ -70,8 +70,10 @@ vi.mock('firebase/auth', () => ({
 
 const {
   MIN_POLL_OPTIONS, MAX_POLL_OPTIONS, MAX_POLL_QUESTION_LENGTH, MAX_POLL_OPTION_LENGTH,
-  validatePollQuestion, validatePollOptions, tallyPollVotes, myPollVote,
-  isPollLocked, pollResultsVisible,
+  MAX_POLL_BOOK_TITLE_LENGTH, MAX_POLL_BOOK_AUTHOR_LENGTH,
+  POLL_TYPE_FREEFORM, POLL_TYPE_NEXT_BOOK,
+  validatePollQuestion, validatePollOptions, validateNextBookOptions, tallyPollVotes, myPollVote,
+  isPollLocked, pollResultsVisible, isNextBookPoll, pollOptionContentHtml, pollWinnerIndex,
   createPoll, getPolls, getPoll, setPollStatus, deletePoll, castVote, getPollVotes,
 } = await import('../club-reads.js');
 
@@ -133,6 +135,111 @@ describe('validatePollOptions', () => {
   it('rejects an option over the per-option length cap', () => {
     const r = validatePollOptions(['ok', 'x'.repeat(MAX_POLL_OPTION_LENGTH + 1)]);
     expect(r.valid).toBe(false);
+  });
+});
+
+// ==================== Next-book poll options (backlog #3b) ====================
+
+describe('validateNextBookOptions', () => {
+  const book = (title, author = 'An Author', coverHref = 'https://covers.example/x.jpg') =>
+    ({ title, author, coverHref });
+
+  it('accepts 2-10 book refs and cleans (trims) each field', () => {
+    const r = validateNextBookOptions([
+      { title: '  The Way of Kings  ', author: ' Brandon Sanderson ', coverHref: ' https://c/1.jpg ' },
+      book('Words of Radiance'),
+    ]);
+    expect(r.valid).toBe(true);
+    expect(r.options[0]).toEqual({
+      title: 'The Way of Kings', author: 'Brandon Sanderson', coverHref: 'https://c/1.jpg',
+    });
+  });
+
+  it('drops entries with a blank title before counting (mirrors free-form blank-row rule)', () => {
+    const r = validateNextBookOptions([book('A'), { title: '  ', author: 'Nobody' }, book('B')]);
+    expect(r.valid).toBe(true);
+    expect(r.options.map(o => o.title)).toEqual(['A', 'B']);
+  });
+
+  it(`rejects fewer than ${MIN_POLL_OPTIONS} books`, () => {
+    expect(validateNextBookOptions([book('Only one')]).valid).toBe(false);
+    expect(validateNextBookOptions([]).valid).toBe(false);
+    expect(validateNextBookOptions(undefined).valid).toBe(false);
+  });
+
+  it(`rejects more than ${MAX_POLL_OPTIONS} books`, () => {
+    const opts = Array.from({ length: MAX_POLL_OPTIONS + 1 }, (_, i) => book(`Book ${i}`));
+    expect(validateNextBookOptions(opts).valid).toBe(false);
+  });
+
+  it(`accepts exactly ${MAX_POLL_OPTIONS} books`, () => {
+    const opts = Array.from({ length: MAX_POLL_OPTIONS }, (_, i) => book(`Book ${i}`));
+    expect(validateNextBookOptions(opts).valid).toBe(true);
+  });
+
+  it('rejects a title or author over their length caps', () => {
+    expect(validateNextBookOptions([book('x'.repeat(MAX_POLL_BOOK_TITLE_LENGTH + 1)), book('ok')]).valid).toBe(false);
+    expect(validateNextBookOptions([book('ok', 'x'.repeat(MAX_POLL_BOOK_AUTHOR_LENGTH + 1)), book('ok2')]).valid).toBe(false);
+  });
+
+  it('tolerates a missing author/coverHref (catalog entries can lack either)', () => {
+    const r = validateNextBookOptions([{ title: 'Solo' }, { title: 'Duo', author: 'Someone' }]);
+    expect(r.valid).toBe(true);
+    expect(r.options[0]).toEqual({ title: 'Solo', author: '', coverHref: '' });
+  });
+});
+
+describe('isNextBookPoll', () => {
+  it('is true only for type nextBook', () => {
+    expect(isNextBookPoll({ type: POLL_TYPE_NEXT_BOOK })).toBe(true);
+    expect(isNextBookPoll({ type: POLL_TYPE_FREEFORM })).toBe(false);
+  });
+
+  it('treats a missing type as free-form (legacy polls predate the field)', () => {
+    expect(isNextBookPoll({})).toBe(false);
+    expect(isNextBookPoll(null)).toBe(false);
+    expect(isNextBookPoll(undefined)).toBe(false);
+  });
+});
+
+describe('pollOptionContentHtml', () => {
+  it('escapes a free-form (string) option as-is', () => {
+    const html = pollOptionContentHtml({ type: POLL_TYPE_FREEFORM }, '<script>Kaladin</script>');
+    expect(html).toBe('&lt;script&gt;Kaladin&lt;/script&gt;');
+  });
+
+  it('renders a next-book option as a cover + title + author, HTML-escaped', () => {
+    const html = pollOptionContentHtml(
+      { type: POLL_TYPE_NEXT_BOOK },
+      { title: 'A "Great" Book', author: 'Some & Author', coverHref: 'https://c/1.jpg' },
+    );
+    expect(html).toContain('<img class="poll-opt-cover" src="https://c/1.jpg"');
+    expect(html).toContain('A &quot;Great&quot; Book');
+    expect(html).toContain('Some &amp; Author');
+  });
+
+  it('omits the cover image entirely when coverHref is blank', () => {
+    const html = pollOptionContentHtml({ type: POLL_TYPE_NEXT_BOOK }, { title: 'No Cover', author: '' });
+    expect(html).not.toContain('<img');
+    expect(html).toContain('No Cover');
+  });
+});
+
+describe('pollWinnerIndex', () => {
+  const options = [{ title: 'A' }, { title: 'B' }, { title: 'C' }];
+
+  it('returns null with no votes', () => {
+    expect(pollWinnerIndex(options, [])).toBeNull();
+  });
+
+  it('returns the single option with the most votes', () => {
+    const votes = [{ optionIndex: 1 }, { optionIndex: 1 }, { optionIndex: 0 }];
+    expect(pollWinnerIndex(options, votes)).toBe(1);
+  });
+
+  it('returns null on a tie rather than an arbitrary pick', () => {
+    const votes = [{ optionIndex: 0 }, { optionIndex: 1 }];
+    expect(pollWinnerIndex(options, votes)).toBeNull();
   });
 });
 
@@ -260,6 +367,49 @@ describe('createPoll', () => {
     const poll = await getPoll(fakeDb, 'club1', r.pollId);
     expect(poll.question).toBe('Trimmed?');
     expect(poll.options).toEqual(['A', 'B']);
+  });
+
+  it('defaults to type freeform when omitted', async () => {
+    const r = await createPoll(fakeDb, 'club1', { question: 'Q?', options: ['A', 'B'] }, jane);
+    const poll = await getPoll(fakeDb, 'club1', r.pollId);
+    expect(poll.type).toBe('freeform');
+  });
+
+  it('creates a nextBook poll storing book-ref options, not strings', async () => {
+    const r = await createPoll(fakeDb, 'club1', {
+      question: 'What should we read next?',
+      type: 'nextBook',
+      options: [
+        { title: 'The Way of Kings', author: 'Brandon Sanderson', coverHref: 'https://c/1.jpg' },
+        { title: 'Mistborn', author: 'Brandon Sanderson', coverHref: 'https://c/2.jpg' },
+      ],
+    }, jane);
+    expect(r.success).toBe(true);
+    const poll = await getPoll(fakeDb, 'club1', r.pollId);
+    expect(poll.type).toBe('nextBook');
+    expect(poll.options).toEqual([
+      { title: 'The Way of Kings', author: 'Brandon Sanderson', coverHref: 'https://c/1.jpg' },
+      { title: 'Mistborn', author: 'Brandon Sanderson', coverHref: 'https://c/2.jpg' },
+    ]);
+  });
+
+  it('rejects a nextBook poll with fewer than 2 book refs, or a malformed one (blank title)', async () => {
+    const tooFew = await createPoll(fakeDb, 'club1', {
+      question: 'Q?', type: 'nextBook', options: [{ title: 'Solo' }],
+    }, jane);
+    expect(tooFew.success).toBe(false);
+
+    const malformed = await createPoll(fakeDb, 'club1', {
+      question: 'Q?', type: 'nextBook', options: [{ title: '' }, { title: 'Fine' }],
+    }, jane);
+    expect(malformed.success).toBe(false);
+  });
+
+  it('an unrecognized type falls back to freeform validation/storage', async () => {
+    const r = await createPoll(fakeDb, 'club1', { question: 'Q?', type: 'bogus', options: ['A', 'B'] }, jane);
+    expect(r.success).toBe(true);
+    const poll = await getPoll(fakeDb, 'club1', r.pollId);
+    expect(poll.type).toBe('freeform');
   });
 });
 

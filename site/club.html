@@ -213,6 +213,36 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
   width:30px;flex-shrink:0;font-weight:bold;
 }
 .poll-opt-remove:hover{border-color:var(--neon-magenta);color:var(--neon-magenta)}
+/* Next-book polls (backlog #3b) */
+.poll-type-toggle{display:flex;gap:8px}
+.poll-type-btn{
+  flex:1;padding:8px;background:var(--bg);border:1px solid var(--border);color:var(--muted);
+  cursor:pointer;font-family:inherit;font-size:.85em;text-transform:var(--et-title-case);letter-spacing:.5px;
+}
+.poll-type-btn.active{border-color:var(--neon-cyan);color:var(--neon-cyan)}
+.poll-book-chip{
+  display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--border);
+  margin-bottom:6px;background:var(--bg-2);
+}
+.poll-book-chip img{width:28px;height:auto;flex-shrink:0;border:1px solid var(--border)}
+.pbc-text{flex:1;min-width:0}
+.pbc-title{font-weight:700;font-size:.88em;color:var(--text)}
+.pbc-sub{font-size:.78em;color:var(--muted)}
+.poll-book-remove{
+  background:none;border:1px solid var(--border);color:var(--muted);cursor:pointer;
+  width:26px;flex-shrink:0;font-weight:bold;
+}
+.poll-book-remove:hover{border-color:var(--neon-magenta);color:var(--neon-magenta)}
+.poll-opt-book{display:inline-flex;align-items:center;gap:8px;vertical-align:middle}
+.poll-opt-cover{width:32px;height:auto;flex-shrink:0;border:1px solid var(--border)}
+.poll-opt-book-title{font-weight:700}
+.poll-opt-book-author{color:var(--muted)}
+.poll-winner-badge{color:var(--neon-yellow);margin-left:6px;font-size:.85em;white-space:nowrap}
+.poll-winner-start-btn{
+  margin-top:8px;background:none;border:1px solid var(--neon-yellow);color:var(--neon-yellow);
+  cursor:pointer;font-size:.78em;padding:5px 10px;font-family:inherit;text-transform:var(--et-title-case);
+}
+.poll-winner-start-btn:hover{background:var(--neon-yellow);color:var(--et-accent-fg)}
 .rc-remove{
   background:none;border:1px solid var(--border);color:var(--muted);
   width:28px;height:28px;cursor:pointer;font-weight:bold;flex-shrink:0;
@@ -266,12 +296,12 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
 .field textarea{resize:vertical;min-height:80px}
 .field-inline{display:flex;align-items:center;gap:8px}
 .field-inline input[type=checkbox]{width:18px;height:18px}
-#book-results,#suggest-results{max-height:180px;overflow-y:auto;border:1px solid var(--border);margin-top:4px}
-#book-results button,#suggest-results button{
+#book-results,#suggest-results,#poll-book-results{max-height:180px;overflow-y:auto;border:1px solid var(--border);margin-top:4px}
+#book-results button,#suggest-results button,#poll-book-results button{
   display:block;width:100%;text-align:left;padding:8px 12px;background:none;border:none;
   border-bottom:1px solid var(--border);color:var(--text);cursor:pointer;font-family:inherit;font-size:.92em;
 }
-#book-results button:hover,#suggest-results button:hover{background:var(--bg);color:var(--neon-cyan)}
+#book-results button:hover,#suggest-results button:hover,#poll-book-results button:hover{background:var(--bg);color:var(--neon-cyan)}
 #picked-book{
   display:none;gap:12px;align-items:center;padding:10px;border:1px solid var(--neon-cyan);margin-top:6px;
 }
@@ -510,13 +540,26 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
     <button class="modal-close" id="poll-close">X</button>
     <h2 style="margin-top:0;color:var(--neon-yellow);text-transform:var(--et-title-case);letter-spacing:var(--et-title-spacing)">New Poll</h2>
     <div class="field">
+      <label>Type</label>
+      <div class="poll-type-toggle" role="group">
+        <button type="button" id="poll-type-freeform" class="poll-type-btn active" data-type="freeform">Free-form</button>
+        <button type="button" id="poll-type-nextbook" class="poll-type-btn" data-type="nextBook">Next book</button>
+      </div>
+    </div>
+    <div class="field">
       <label for="poll-question">Question</label>
       <textarea id="poll-question" maxlength="200" rows="2" placeholder="Ask the club something..."></textarea>
     </div>
-    <div class="field">
+    <div class="field" id="poll-freeform-field">
       <label>Options (2-10)</label>
       <div id="poll-options-list"></div>
       <button type="button" id="poll-add-option" class="nav-link" style="margin-top:2px;padding:4px 10px;font-size:.75em">+ Add option</button>
+    </div>
+    <div class="field" id="poll-nextbook-field" style="display:none">
+      <label>Books (2-10) &mdash; search the catalog and pick each one</label>
+      <div id="poll-book-picked"></div>
+      <input type="text" id="poll-book-search" placeholder="Search title or author..." autocomplete="off" />
+      <div id="poll-book-results"></div>
     </div>
     <div id="poll-error" class="form-error"></div>
     <button id="poll-submit" class="nav-link btn-primary" style="width:100%">Create Poll</button>
@@ -538,7 +581,7 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
     acceptInvite, declineInvite, dismissRateNudge,
     clubFeatureEnabled, isValidDiscordWebhook, setClubDiscordWebhook, clearClubDiscordWebhook,
     isClubClaimed, isManagerUid, canManageClub, canOperateClub, claimManagerRole,
-  } from './clubs.js?v=20260814h';
+  } from './clubs.js?v=20260814i';
   import {
     getReads, startRead, removeRead, finishRead, getComments, updateReadLabel, splitByDuration, parseManualMilestones,
     loadCatalogBooks, MAX_ACTIVE_READS, groupChapters,
@@ -547,9 +590,10 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
     hasSchedule, nextDueMilestone, formatDueDate,
     getPolls, getPollVotes, createPoll, setPollStatus, deletePoll, castVote,
     tallyPollVotes, myPollVote, pollResultsVisible,
+    isNextBookPoll, pollOptionContentHtml, pollWinnerIndex, POLL_TYPE_FREEFORM, POLL_TYPE_NEXT_BOOK,
     MIN_POLL_OPTIONS, MAX_POLL_OPTIONS, MAX_POLL_OPTION_LENGTH,
     RSVP_RESPONSES, getRsvps, castRsvp, currentRsvps, tallyRsvps, myRsvpResponse,
-  } from './club-reads.js?v=20260814h';
+  } from './club-reads.js?v=20260814i';
   import { loadSeen, syncSeen } from './club-notify.js';
   import { buildMeetingIcs, icsFilename, downloadIcsFile } from './ics.js?v=20260814g';
 
@@ -763,7 +807,7 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
       .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
       .map(pollCardHtml).join('');
     return `
-      ${cards || '<div class="stub"><div class="stub-title">No polls yet</div>Ask the club something — free-form question, 2-10 options.</div>'}
+      ${cards || '<div class="stub"><div class="stub-title">No polls yet</div>Ask the club something — free-form question, or vote on the next book to read.</div>'}
       ${canOperate() ? '<div style="margin-top:14px"><button id="poll-new-btn" class="nav-link btn-primary">+ New Poll</button></div>' : ''}
     `;
   }
@@ -774,24 +818,36 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
     const showResults = pollResultsVisible(poll, myVote !== null, canOperate());
     const { counts, total } = tallyPollVotes(poll.options, votes);
     const canVote = session && isMember() && poll.status === 'open';
+    // Winner convenience (backlog #3b): only meaningful once a next-book
+    // poll is CLOSED — an open poll has a "leader" but not yet a "winner".
+    const winnerIdx = (isNextBookPoll(poll) && poll.status === 'closed')
+      ? pollWinnerIndex(poll.options, votes) : null;
     const optionsHtml = poll.options.map((opt, i) => {
       const pct = total > 0 ? Math.round((counts[i] / total) * 100) : 0;
       const mine = myVote === i;
+      const label = pollOptionContentHtml(poll, opt);
+      const winnerTag = i === winnerIdx ? '<span class="poll-winner-badge">🏆 winner</span>' : '';
       if (canVote && !showResults) {
-        return `<button class="poll-opt" data-poll-vote="${poll.id}" data-opt="${i}">${escapeHtml(opt)}</button>`;
+        return `<button class="poll-opt" data-poll-vote="${poll.id}" data-opt="${i}">${label}</button>`;
       }
       return `
         <div class="poll-result${mine ? ' mine' : ''}"${canVote ? ` data-poll-vote="${poll.id}" data-opt="${i}" role="button" tabindex="0"` : ''}>
           <div class="poll-result-bar" style="width:${pct}%"></div>
-          <span class="poll-result-label">${escapeHtml(opt)}${mine ? ' ✓' : ''}</span>
+          <span class="poll-result-label">${label}${mine ? ' ✓' : ''}${winnerTag}</span>
           <span class="poll-result-pct">${showResults ? `${pct}% (${counts[i]})` : ''}</span>
         </div>`;
     }).join('');
+    // Host/mod convenience: prefill Start-a-Read with the winning book. Only
+    // offered when the winner is unambiguous (pollWinnerIndex returns null
+    // on a tie) — see openReadModalForBook below for the prefill itself.
+    const startReadBtn = (canOperate() && winnerIdx !== null)
+      ? `<button class="poll-winner-start-btn" data-poll-start-read="${poll.id}">▶ Start a read with this book</button>` : '';
     return `
       <div class="poll-card">
         <div class="poll-q">📊 ${escapeHtml(poll.question)}${poll.status === 'closed' ? ' <span class="poll-closed-tag">Closed</span>' : ''}</div>
         <div class="poll-options">${optionsHtml}</div>
         ${showResults ? `<div class="poll-total">${total} vote${total !== 1 ? 's' : ''}</div>` : ''}
+        ${startReadBtn}
         ${canOperate() ? `
           <div class="poll-admin">
             <button data-poll-toggle="${poll.id}" data-status="${poll.status}">${poll.status === 'open' ? 'Close poll' : 'Reopen poll'}</button>
@@ -1386,6 +1442,16 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
         const r = await deletePoll(db, clubId, btn.dataset.pollDel);
         if (r.success) reload(); else showError(r.error);
       }));
+
+    contentEl.querySelectorAll('[data-poll-start-read]').forEach(btn =>
+      btn.addEventListener('click', () => {
+        const poll = polls.find(p => p.id === btn.dataset.pollStartRead);
+        if (!poll) return;
+        const votes = pollVotes[poll.id] || [];
+        const winner = pollWinnerIndex(poll.options, votes);
+        if (winner === null) return;
+        openReadModalForBook(poll.options[winner]);
+      }));
   }
 
   function showError(msg) {
@@ -1817,8 +1883,21 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
   });
 
   // --- New Poll modal (club-wide/untagged; static DOM, wired once) ---
+  // backlog #3b: gains a type choice (free-form vs next-book). Next-book
+  // options come from the SAME catalog type-ahead data/pattern as the
+  // Start-a-Read and Suggest-a-Book pickers above (loadCatalogBooks +
+  // catalogBooks, lazy-loaded once and reused) — see club-reads.js's "Club
+  // polls" section comment for why this surface (not club-read.html) is
+  // where next-book polls are created.
   const pollModal = document.getElementById('poll-modal');
   const pollOptionsList = document.getElementById('poll-options-list');
+  const pollFreeformField = document.getElementById('poll-freeform-field');
+  const pollNextbookField = document.getElementById('poll-nextbook-field');
+  const pollBookSearch = document.getElementById('poll-book-search');
+  const pollBookResults = document.getElementById('poll-book-results');
+  const pollBookPicked = document.getElementById('poll-book-picked');
+  let pollType = POLL_TYPE_FREEFORM;
+  let pollPickedBooks = []; // next-book poll composer state: [{title, author, coverHref}]
 
   function pollOptionRowHtml() {
     return `<div class="poll-opt-row">
@@ -1834,16 +1913,82 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
       }));
   }
 
+  function setPollType(type) {
+    pollType = type;
+    document.getElementById('poll-type-freeform').classList.toggle('active', type === POLL_TYPE_FREEFORM);
+    document.getElementById('poll-type-nextbook').classList.toggle('active', type === POLL_TYPE_NEXT_BOOK);
+    pollFreeformField.style.display = type === POLL_TYPE_FREEFORM ? 'block' : 'none';
+    pollNextbookField.style.display = type === POLL_TYPE_NEXT_BOOK ? 'block' : 'none';
+    if (type === POLL_TYPE_NEXT_BOOK) loadPollBookCatalog();
+  }
+
+  async function loadPollBookCatalog() {
+    if (catalogBooks) { renderPollBookResults(''); return; }
+    pollBookResults.innerHTML = '<button disabled>Loading catalog...</button>';
+    try {
+      catalogBooks = await loadCatalogBooks();
+      renderPollBookResults('');
+    } catch (e) {
+      pollBookResults.innerHTML = '<button disabled>Failed to load catalog</button>';
+    }
+  }
+
+  function pollBookChipHtml(b, i) {
+    return `<div class="poll-book-chip">
+      ${b.coverHref ? `<img src="${escapeHtml(b.coverHref)}" alt="" onerror="this.remove()">` : ''}
+      <div class="pbc-text"><div class="pbc-title">${escapeHtml(b.title)}</div><div class="pbc-sub">${escapeHtml(b.author)}</div></div>
+      <button type="button" class="poll-book-remove" data-book-remove="${i}" title="Remove">&times;</button>
+    </div>`;
+  }
+
+  function renderPollBookPicked() {
+    pollBookPicked.innerHTML = pollPickedBooks.map(pollBookChipHtml).join('');
+    pollBookPicked.querySelectorAll('[data-book-remove]').forEach(btn =>
+      btn.addEventListener('click', () => {
+        pollPickedBooks.splice(parseInt(btn.dataset.bookRemove, 10), 1);
+        renderPollBookPicked();
+        renderPollBookResults(pollBookSearch.value);
+      }));
+  }
+
+  function renderPollBookResults(q) {
+    const query = q.toLowerCase().trim();
+    const matches = (catalogBooks || [])
+      .filter(b => !query || b.title.toLowerCase().includes(query) || b.author.toLowerCase().includes(query))
+      .filter(b => !pollPickedBooks.some(p => p.title === b.title))
+      .slice(0, 25);
+    pollBookResults.innerHTML = matches.map((b, i) =>
+      `<button type="button" data-book-pick="${i}">${escapeHtml(b.title)} — ${escapeHtml(b.author)}</button>`).join('')
+      || '<button disabled>No matches</button>';
+    pollBookResults.querySelectorAll('[data-book-pick]').forEach(btn =>
+      btn.addEventListener('click', () => {
+        if (pollPickedBooks.length >= MAX_POLL_OPTIONS) return;
+        const b = matches[parseInt(btn.dataset.bookPick, 10)];
+        pollPickedBooks.push({ title: b.title, author: b.author || '', coverHref: b.coverHref || '' });
+        pollBookSearch.value = '';
+        renderPollBookPicked();
+        renderPollBookResults('');
+      }));
+  }
+
   function openPollModal() {
     document.getElementById('poll-question').value = '';
     document.getElementById('poll-error').textContent = '';
     pollOptionsList.innerHTML = pollOptionRowHtml() + pollOptionRowHtml();
     wirePollOptionRemovers();
+    pollPickedBooks = [];
+    renderPollBookPicked();
+    pollBookSearch.value = '';
+    pollBookResults.innerHTML = '';
+    setPollType(POLL_TYPE_FREEFORM);
     pollModal.classList.add('open');
   }
 
   document.getElementById('poll-close').addEventListener('click', () => pollModal.classList.remove('open'));
   pollModal.addEventListener('click', (e) => { if (e.target === pollModal) pollModal.classList.remove('open'); });
+  document.getElementById('poll-type-freeform').addEventListener('click', () => setPollType(POLL_TYPE_FREEFORM));
+  document.getElementById('poll-type-nextbook').addEventListener('click', () => setPollType(POLL_TYPE_NEXT_BOOK));
+  pollBookSearch.addEventListener('input', () => { if (catalogBooks) renderPollBookResults(pollBookSearch.value); });
 
   document.getElementById('poll-add-option').addEventListener('click', () => {
     if (pollOptionsList.children.length >= MAX_POLL_OPTIONS) return;
@@ -1855,12 +2000,32 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
     const errEl = document.getElementById('poll-error');
     errEl.textContent = '';
     const question = document.getElementById('poll-question').value;
-    const options = [...pollOptionsList.querySelectorAll('input')].map(i => i.value);
-    const r = await createPoll(db, clubId, { question, options }, session);
+    const options = pollType === POLL_TYPE_NEXT_BOOK
+      ? pollPickedBooks
+      : [...pollOptionsList.querySelectorAll('input')].map(i => i.value);
+    const r = await createPoll(db, clubId, { question, options, type: pollType }, session);
     if (!r.success) { errEl.textContent = r.error; return; }
     pollModal.classList.remove('open');
     reload();
   });
+
+  // Winner convenience (backlog #3b): prefill Start-a-Read with a closed
+  // next-book poll's unambiguous winner. Reuses openReadModal (loads the
+  // catalog, resets the modal state) + pickBook — the exact functions the
+  // manual Start-a-Read flow already calls, so this is a thin prefill on
+  // top of an existing flow, not a new one. Prefers the live catalog entry
+  // (for its duration/chapter data) when the winning title still matches
+  // one; falls back to the poll's stored book ref (title/author/cover only,
+  // duration 0 — "whole book" milestone mode still works) if the book has
+  // since left the catalog.
+  async function openReadModalForBook(bookRef) {
+    await openReadModal();
+    const match = (catalogBooks || []).find(b => b.title.toLowerCase() === bookRef.title.toLowerCase());
+    await pickBook(match || {
+      title: bookRef.title, author: bookRef.author || '', coverHref: bookRef.coverHref || '',
+      durationMinutes: 0, durationHhmm: '',
+    });
+  }
 
   if (!clubId) {
     contentEl.innerHTML = '<a href="clubs.html" class="club-back">&larr; All Clubs</a><div class="empty">No club specified.</div>';

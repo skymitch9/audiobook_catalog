@@ -261,6 +261,34 @@ service cloud.firestore {
     // reads/settings); voting stays open like progress writes (no rule can
     // bind a display name to a person, same residual-risk story as the rest
     // of this trust model).
+    //
+    // backlog #3b ('next book' poll type): an optional `type` field —
+    // missing/undefined means 'freeform' (every poll written before this
+    // shipped has no `type` at all, and an update() carries the existing
+    // doc's fields forward into request.resource.data, so this MUST stay
+    // backward compatible or closing/reopening a legacy poll would start
+    // failing validPoll()). A 'nextBook' poll's `options` are book refs, not
+    // strings — validated by validNextBookOptions/validBookOption below.
+    // Rules have no generic "check every list element" construct, so the
+    // check is written positionally, bounded by MAX_POLL_OPTIONS (10) —
+    // cheap (no extra get()) and exact for a list this short.
+    function validBookOption(opt) {
+      return opt is map && opt.title is string && opt.title.size() > 0 && opt.title.size() <= 200;
+    }
+
+    function validNextBookOptions(opts) {
+      return (opts.size() < 1 || validBookOption(opts[0]))
+             && (opts.size() < 2 || validBookOption(opts[1]))
+             && (opts.size() < 3 || validBookOption(opts[2]))
+             && (opts.size() < 4 || validBookOption(opts[3]))
+             && (opts.size() < 5 || validBookOption(opts[4]))
+             && (opts.size() < 6 || validBookOption(opts[5]))
+             && (opts.size() < 7 || validBookOption(opts[6]))
+             && (opts.size() < 8 || validBookOption(opts[7]))
+             && (opts.size() < 9 || validBookOption(opts[8]))
+             && (opts.size() < 10 || validBookOption(opts[9]));
+    }
+
     function validPoll() {
       return request.resource.data.question is string
              && request.resource.data.question.size() > 0
@@ -268,7 +296,10 @@ service cloud.firestore {
              && request.resource.data.options is list
              && request.resource.data.options.size() >= 2
              && request.resource.data.options.size() <= 10
-             && request.resource.data.status in ['open', 'closed'];
+             && request.resource.data.status in ['open', 'closed']
+             && (!('type' in request.resource.data) || request.resource.data.type in ['freeform', 'nextBook'])
+             && (!('type' in request.resource.data) || request.resource.data.type != 'nextBook'
+                 || validNextBookOptions(request.resource.data.options));
     }
 
     function validPollVote() {
