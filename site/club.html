@@ -23,7 +23,11 @@ body{
   min-height:100vh;
 }
 /* Keep the fixed estate cog clear of the nav/identity row */
-.nav-row{padding-right:56px}
+/* Cog clearance — only where the fixed cog can actually collide with the
+   nav; on wider screens the nav must sit exactly where prod puts it. */
+@media (max-width:1010px){
+  .nav-row{padding-right:56px}
+}
 #wrap{max-width:900px;margin:0 auto}
 .nav-row{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
 .nav-link{
@@ -258,6 +262,21 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
 
 .nav-link.active{border-color:var(--neon-cyan,#05d9e8);color:var(--neon-yellow,#fcee0a)}
 
+
+/* =============== CYBERPUNK IDENTITY RESTORES ===============
+   Owner, 2026-08-14: "/dev/ and the existing page don't look the same."
+   Pre-theme literals (a202f4a), verbatim, scoped to the default theme so
+   the other themes keep their honest token rendering. */
+html[data-theme="cyberpunk"] .club-name{letter-spacing:2px}
+html[data-theme="cyberpunk"] .nav-link:hover{box-shadow:0 0 8px rgba(5,217,232,.2)}
+html[data-theme="cyberpunk"] .club-back:hover{box-shadow:0 0 8px rgba(5,217,232,.2)}
+html[data-theme="cyberpunk"] .btn-danger:hover{box-shadow:0 0 8px rgba(255,42,109,.2)}
+html[data-theme="cyberpunk"] .btn-primary:hover{box-shadow:0 0 12px rgba(5,217,232,.5)}
+html[data-theme="cyberpunk"] .stub .stub-title{letter-spacing:1px}
+html[data-theme="cyberpunk"] .rc-slot{letter-spacing:1px}
+html[data-theme="cyberpunk"] .rq-h{letter-spacing:1px}
+html[data-theme="cyberpunk"] .rate-nudge{box-shadow:0 0 10px rgba(252,238,10,.12)}
+html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
 </style>
 </head>
 <body>

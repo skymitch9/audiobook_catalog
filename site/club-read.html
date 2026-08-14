@@ -23,7 +23,11 @@ body{
   min-height:100vh;
 }
 /* Keep the fixed estate cog clear of the nav/identity row */
-.nav-row{padding-right:56px}
+/* Cog clearance — only where the fixed cog can actually collide with the
+   nav; on wider screens the nav must sit exactly where prod puts it. */
+@media (max-width:1010px){
+  .nav-row{padding-right:56px}
+}
 #wrap{max-width:820px;margin:0 auto}
 .nav-row{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
 .nav-link{
@@ -254,6 +258,16 @@ details.milestone.ch-section summary{padding:10px 14px;font-size:.85em;color:var
 
 .nav-link.active{border-color:var(--neon-cyan,#05d9e8);color:var(--neon-yellow,#fcee0a)}
 
+
+/* =============== CYBERPUNK IDENTITY RESTORES ===============
+   Owner, 2026-08-14: "/dev/ and the existing page don't look the same."
+   Pre-theme literals (a202f4a), verbatim, scoped to the default theme so
+   the other themes keep their honest token rendering. */
+html[data-theme="cyberpunk"] .nav-link:hover{box-shadow:0 0 8px rgba(5,217,232,.2)}
+html[data-theme="cyberpunk"] .club-back:hover{box-shadow:0 0 8px rgba(5,217,232,.2)}
+html[data-theme="cyberpunk"] .read-title{letter-spacing:1px}
+html[data-theme="cyberpunk"] .finish-me:hover{color:#141406}
+html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
 </style>
 </head>
 <body>
