@@ -86,9 +86,12 @@ function mirrorUser(user, marker) {
  * Clear the mirror — the WHOLE ab_identity_* family, tagged or not, so a
  * sign-out always lands in a truly signed-out UI whatever residue any lane's
  * code left behind. Public as `logout()` for legacy sessions and tests.
+ * Also drops the per-session estate-approval cache: a signed-out (or
+ * revoked-and-signed-out) person must not keep a cached "approved".
  */
 export function logout() {
   sweepMirror();
+  clearEstateCache();
 }
 
 let _mirrorAttached = false;
@@ -292,6 +295,103 @@ export async function signOutGoogle(app) {
     // Ignore signout errors
   }
   logout();
+}
+
+// ==================== Estate approval (the dev-site gate) ====================
+//
+// Testing permission IS estate approval — granted and revoked at
+// heygabi.ai/admin, no parallel testers list. The auth Worker's
+// GET /api/estate/me answers { status, is_approver, visibility } for the
+// caller's own Firebase ID token; the account modals show a quiet
+// "Dev site →" link iff status === 'approved'. Everything else — signed
+// out, legacy/stub session (no live token to send), pending, revoked,
+// unknown, fetch failure — silently shows nothing.
+//
+// The answer is cached per browser session in sessionStorage, keyed by uid,
+// so the modal does not refetch on every open. logout() drops the cache
+// alongside the ab_identity_* sweep, so sign-out forgets the approval too.
+
+const ESTATE_ME_URL = 'https://auth.heygabi.ai/api/estate/me';
+const ESTATE_CACHE_PREFIX = 'ab_identity_estate_me_'; // + uid, in sessionStorage
+
+function clearEstateCache() {
+  try {
+    const stale = [];
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const k = sessionStorage.key(i);
+      if (k && k.indexOf(ESTATE_CACHE_PREFIX) === 0) stale.push(k);
+    }
+    stale.forEach((k) => sessionStorage.removeItem(k));
+  } catch (e) { /* storage unavailable — nothing cached anyway */ }
+}
+
+/**
+ * The live Firebase user, or null. Waits for the SDK to publish its restored
+ * session (the mirror is synchronous but the session is not), so a modal
+ * opened right after load still gets an answer. A legacy or stub mirror has
+ * no live user behind it and resolves null.
+ */
+function liveUser(app) {
+  return new Promise((resolve) => {
+    if (!app) return resolve(null);
+    try {
+      const auth = getAuth(app);
+      if (auth.currentUser) return resolve(auth.currentUser);
+      const unsub = onAuthStateChanged(auth, (user) => { unsub(); resolve(user || null); });
+    } catch (e) {
+      resolve(null);
+    }
+  });
+}
+
+/**
+ * The estate's answer about the current signed-in person, or null when there
+ * is no live session or the answer cannot be had. Never throws.
+ * @returns {Promise<{status: string|null, is_approver: boolean, visibility: string[]}|null>}
+ */
+export async function getEstateStatus(app) {
+  try {
+    const user = await liveUser(app);
+    if (!user || !user.uid) return null;
+    const cacheKey = ESTATE_CACHE_PREFIX + user.uid;
+    try {
+      const cached = sessionStorage.getItem(cacheKey);
+      if (cached) return JSON.parse(cached);
+    } catch (e) { /* unreadable cache — fall through to a fresh fetch */ }
+    const token = await user.getIdToken();
+    const res = await fetch(ESTATE_ME_URL, { headers: { Authorization: 'Bearer ' + token } });
+    if (!res.ok) return null; // a failure is not an answer — do not cache it
+    const answer = await res.json();
+    try { sessionStorage.setItem(cacheKey, JSON.stringify(answer)); } catch (e) { /* full — refetch next time */ }
+    return answer;
+  } catch (e) {
+    return null; // fetch failed / offline — the gate simply stays closed
+  }
+}
+
+/** Approved in the estate directory? The one question the dev-site link asks. */
+export async function isEstateApproved(app) {
+  const me = await getEstateStatus(app);
+  return !!me && me.status === 'approved';
+}
+
+/**
+ * Fill `slotEl` with a quiet "Dev site →" link iff the current live session
+ * is estate-approved; otherwise leave it empty, silently. Both account
+ * modals (index.html inline + account-modal.js) call this with an empty
+ * slot div rendered near the Appearance section.
+ */
+export function renderDevSiteLink(slotEl, app) {
+  if (!slotEl || !app) return;
+  isEstateApproved(app).then((ok) => {
+    if (!ok) return;
+    const a = document.createElement('a');
+    a.href = '/dev/';
+    a.textContent = 'Dev site →';
+    a.style.cssText = 'display:block;text-align:center;margin-top:8px;padding:8px;border:1px solid var(--border,#2a2a3a);text-decoration:none;color:var(--muted,#8a8f98);font-size:.8em;letter-spacing:.5px';
+    slotEl.innerHTML = '';
+    slotEl.appendChild(a);
+  }).catch(() => { /* silently no link */ });
 }
 
 // ==================== Profiles ====================

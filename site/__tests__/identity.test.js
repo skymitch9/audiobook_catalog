@@ -17,7 +17,7 @@
 // path only off-localhost, and fb-env's IS_DEV_LANE must be false so col()
 // resolves unsuffixed names in the profile-write assertions.
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fc from 'fast-check';
 
 // --- In-memory Firestore mock ---
@@ -64,6 +64,7 @@ vi.mock('firebase/auth', () => {
 import {
   validateDisplayName, getSession, logout, isAdmin, slugifyName,
   signInWithGoogle, signOutGoogle, handleRedirectResult, renderIdentityBar,
+  getEstateStatus, isEstateApproved, renderDevSiteLink,
 } from '../identity.js';
 
 const fakeApp = {};
@@ -78,6 +79,7 @@ function setLegacyMirror(name, method = 'google', email = '') {
 
 beforeEach(() => {
   localStorage.clear();
+  sessionStorage.clear();
   mockStore = {};
   signOutSpy.mockClear();
   signInWithPopupMock.mockReset();
@@ -419,6 +421,135 @@ describe('isAdmin', () => {
     localStorage.setItem('ab_identity_email', 'nope@example.com');
     localStorage.setItem('ab_identity_name', 'Nope');
     expect(isAdmin()).toBe(false);
+  });
+});
+
+describe('Estate approval gate — the dev-site link', () => {
+  // Testing permission IS estate approval (heygabi.ai/admin) — the modal
+  // shows "Dev site →" iff GET /api/estate/me answers status 'approved' for
+  // a LIVE Firebase session. Everything else stays silent.
+  //
+  // The auth mock never has a currentUser, so liveUser() waits on
+  // onAuthStateChanged — each getEstateStatus call registers a listener in
+  // authCallback, and driving it simulates Firebase publishing the session.
+  const ME_URL = 'https://auth.heygabi.ai/api/estate/me';
+
+  function fakeUser(uid, token = 'live-id-token') {
+    return { uid, getIdToken: async () => token };
+  }
+
+  function stubFetch(answer, ok = true) {
+    const mock = vi.fn(async () => ({ ok, json: async () => answer }));
+    vi.stubGlobal('fetch', mock);
+    return mock;
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('sends the ID token as a bearer to /api/estate/me and answers approved', async () => {
+    const fetchMock = stubFetch({ status: 'approved', is_approver: false, visibility: ['audiobook'] });
+
+    const p = isEstateApproved(fakeApp);
+    authCallback(fakeUser('uid-approved'));
+
+    expect(await p).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, opts] = fetchMock.mock.calls[0];
+    expect(url).toBe(ME_URL);
+    expect(opts.headers.Authorization).toBe('Bearer live-id-token');
+  });
+
+  it('pending, revoked and not-in-directory are all NOT approved', async () => {
+    for (const status of ['pending', 'revoked', null]) {
+      sessionStorage.clear();
+      stubFetch({ status, is_approver: false, visibility: [] });
+      const p = isEstateApproved(fakeApp);
+      authCallback(fakeUser('uid-x'));
+      expect(await p).toBe(false);
+    }
+  });
+
+  it('no live session → null, and the endpoint is never even asked', async () => {
+    const fetchMock = stubFetch({ status: 'approved' });
+    const p = getEstateStatus(fakeApp);
+    authCallback(null); // Firebase publishes "no user"
+    expect(await p).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('a failed fetch answers null and is NOT cached — the next open retries', async () => {
+    const failing = vi.fn(async () => { throw new TypeError('network down'); });
+    vi.stubGlobal('fetch', failing);
+
+    const p1 = getEstateStatus(fakeApp);
+    authCallback(fakeUser('uid-flaky'));
+    expect(await p1).toBeNull();
+
+    const p2 = getEstateStatus(fakeApp);
+    authCallback(fakeUser('uid-flaky'));
+    expect(await p2).toBeNull();
+    expect(failing).toHaveBeenCalledTimes(2); // no failure was cached
+
+    // A non-OK response is likewise not an answer.
+    stubFetch({ error: 'unauthenticated' }, false);
+    const p3 = getEstateStatus(fakeApp);
+    authCallback(fakeUser('uid-flaky'));
+    expect(await p3).toBeNull();
+  });
+
+  it('caches per uid in sessionStorage — one fetch per session, not per open', async () => {
+    const fetchMock = stubFetch({ status: 'approved', is_approver: false, visibility: ['audiobook'] });
+
+    const p1 = getEstateStatus(fakeApp);
+    authCallback(fakeUser('uid-cached'));
+    expect((await p1).status).toBe('approved');
+
+    const p2 = getEstateStatus(fakeApp);
+    authCallback(fakeUser('uid-cached'));
+    expect((await p2).status).toBe('approved');
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(sessionStorage.getItem('ab_identity_estate_me_uid-cached')).toContain('approved');
+  });
+
+  it('logout() drops the cache alongside the mirror sweep', async () => {
+    const fetchMock = stubFetch({ status: 'approved', is_approver: false, visibility: ['audiobook'] });
+    const p1 = getEstateStatus(fakeApp);
+    authCallback(fakeUser('uid-out'));
+    await p1;
+    expect(sessionStorage.getItem('ab_identity_estate_me_uid-out')).not.toBeNull();
+
+    logout();
+
+    expect(sessionStorage.getItem('ab_identity_estate_me_uid-out')).toBeNull();
+    const p2 = getEstateStatus(fakeApp);
+    authCallback(fakeUser('uid-out'));
+    await p2;
+    expect(fetchMock).toHaveBeenCalledTimes(2); // refetched after sign-out
+  });
+
+  it('renderDevSiteLink renders a quiet /dev/ link for the approved only', async () => {
+    stubFetch({ status: 'approved', is_approver: false, visibility: ['audiobook'] });
+    const slot = document.createElement('div');
+    renderDevSiteLink(slot, fakeApp);
+    authCallback(fakeUser('uid-approved-dom'));
+    await new Promise((r) => setTimeout(r, 0));
+
+    const a = slot.querySelector('a');
+    expect(a).not.toBeNull();
+    expect(a.getAttribute('href')).toBe('/dev/');
+    expect(a.textContent).toBe('Dev site →');
+  });
+
+  it('renderDevSiteLink leaves the slot empty for pending — silently', async () => {
+    stubFetch({ status: 'pending', is_approver: false, visibility: ['audiobook'] });
+    const slot = document.createElement('div');
+    renderDevSiteLink(slot, fakeApp);
+    authCallback(fakeUser('uid-pending-dom'));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(slot.innerHTML).toBe('');
   });
 });
 

@@ -8,7 +8,7 @@
 // catalog.csv (index.html scrapes its own table instead; same data).
 
 import { doc, getDoc, setDoc, collection, getDocs, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
-import { getSession, signInWithGoogle, signOutGoogle, isAdmin, handleRedirectResult } from './identity.js';
+import { getSession, signInWithGoogle, signOutGoogle, isAdmin, handleRedirectResult, renderDevSiteLink } from './identity.js';
 import { coverUrl } from './covers-base.js';
 import { col } from './fb-env.js';
 import { loadCatalogBooks } from './club-reads.js';
@@ -226,6 +226,7 @@ export function mountAccountModal(db, app, containerEl) {
         <div class="am-stat"><div class="v" style="color:var(--neon-magenta,#ff2a6d)">${gameAccuracy}%</div><div class="l">Game Accuracy</div></div>
       </div>
       ${appearanceHTML()}
+      <div id="am-dev-site-slot"></div>
       <button id="am-logout-btn" style="width:100%;margin-top:10px;background:var(--neon-magenta,#ff2a6d);color:#fff;border:none;padding:10px;cursor:pointer;font-weight:700;font-family:inherit">Logout</button>
       <div style="border-top:1px solid var(--border,#2a2a3a);margin-top:12px;padding-top:12px">
         <div class="am-section-title">Currently Reading</div>
@@ -264,6 +265,10 @@ export function mountAccountModal(db, app, containerEl) {
     }
 
     wireAppearance(container);
+
+    // Estate-approved testers get a quiet link to the dev lane; everyone
+    // else (pending, revoked, legacy, offline) sees nothing — silently.
+    renderDevSiteLink(container.querySelector('#am-dev-site-slot'), app);
 
     container.querySelector('#am-logout-btn').addEventListener('click', async () => {
       await signOutGoogle(app);

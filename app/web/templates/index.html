@@ -1444,7 +1444,7 @@ function wireAppearance(container){
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
   import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
   import { coverUrl } from './covers-base.js';
-  import { getSession, signInWithGoogle, signOutGoogle, isAdmin, handleRedirectResult } from './identity.js';
+  import { getSession, signInWithGoogle, signOutGoogle, isAdmin, handleRedirectResult, renderDevSiteLink } from './identity.js';
   import { submitReview, getReviews, renderStars, bookIdFromTitle, computeAverageRating, formatDate } from './reviews.js';
   import { addUserWarning, getUserWarnings, deleteUserWarning, requestWarningCheck, getWarningRequest } from './user-warnings.js';
   import { col } from './fb-env.js';
@@ -1576,6 +1576,8 @@ function wireAppearance(container){
 
       ${appearanceHTML()}
 
+      <div id="auth-dev-site-slot"></div>
+
       <button id="auth-logout-btn" class="btn" style="width:100%;margin-top:10px;background:var(--neon-magenta);color:#fff;border:none;padding:10px">Logout</button>
       <a id="auth-admin-link" href="admin.html" style="display:none;text-align:center;margin-top:10px;padding:10px;border:1px solid var(--border);text-decoration:none;color:var(--neon-cyan);font-weight:700;font-size:.9em">🔧 Admin Portal</a>
 
@@ -1602,6 +1604,10 @@ function wireAppearance(container){
 
     // Appearance controls (theme + mode)
     wireAppearance(container);
+
+    // Estate-approved testers get a quiet link to the dev lane; everyone
+    // else (pending, revoked, legacy, offline) sees nothing — silently.
+    renderDevSiteLink(container.querySelector('#auth-dev-site-slot'), app);
 
     // Logout — ends the live Firebase session and clears the mirror; also
     // the right call for a legacy session (absent-session signOut is a no-op)
