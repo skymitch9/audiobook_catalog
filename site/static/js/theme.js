@@ -29,6 +29,12 @@
   var THEMES = ['apple', 'cyberpunk', 'retro', 'classic'];
   var MODES = ['auto', 'light', 'dark'];
   var DEFAULT_THEME = docEl.getAttribute('data-default-theme') || 'apple';
+  // SITE-LOCAL ADDITION (identity, owner 2026-08-14: "/dev/ must look like
+  // the existing page"): the pre-theme site booted DARK for every first-time
+  // visitor regardless of OS preference. data-default-mode="dark" preserves
+  // that — an unset hg_mode means dark here, not auto. Picking Auto in the
+  // cog still stores 'auto' and follows the OS from then on.
+  var DEFAULT_MODE = docEl.getAttribute('data-default-mode') || 'auto';
   var media = window.matchMedia('(prefers-color-scheme: dark)');
 
   function read(key) {
@@ -52,7 +58,7 @@
   var storedMode = read('hg_mode');
   var state = {
     theme: THEMES.indexOf(storedTheme) >= 0 ? storedTheme : DEFAULT_THEME,
-    mode: MODES.indexOf(storedMode) >= 0 ? storedMode : 'auto',
+    mode: MODES.indexOf(storedMode) >= 0 ? storedMode : DEFAULT_MODE,
   };
 
   function resolvedMode() {
