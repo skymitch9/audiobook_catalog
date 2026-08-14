@@ -132,6 +132,62 @@ def calculate_stats(csv_path: Path) -> Dict[str, Any]:
     }
 
 
+# The estate settings cog (theme + light/dark), inserted after <body>.
+# theme.js wires this standard markup automatically. Kept out of the
+# big f-string so no source line breaks the linter.
+_COG_HTML = (
+    '<!-- Estate settings cog: theme + light/dark. static/js/them'
+    'e.js wires this\n'
+    '     standard markup (select#hg-theme-select, [data-hg-mode]'
+    ') automatically. -->\n'
+    '<button id="hg-cog" class="hg-cog" type="button" aria-expand'
+    'ed="false" aria-controls="hg-cog-panel" aria-label="Display '
+    'settings">\n'
+    '  <svg width="20" height="20" viewBox="0 0 24 24" fill="none'
+    '" stroke="currentColor" stroke-width="1.8" stroke-linecap="r'
+    'ound" stroke-linejoin="round" aria-hidden="true"><circle cx='
+    '"12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.'
+    '87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.3'
+    '4 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 '
+    '0-1.11-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.8'
+    '3l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1.03H3a2'
+    ' 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.56-1.11 1.7 1.7 0 0 0-.34-1'
+    '.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.3'
+    '4h.09a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 '
+    '0 0 1.03 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 '
+    '2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.09a1.7 1.7 0 0 0 1.56 1'
+    '.03H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1.03z"/></svg>\n'
+    '</button>\n'
+    '<div id="hg-cog-panel" class="hg-cog-panel" hidden>\n'
+    '  <div class="hg-row">\n'
+    '    <label class="hg-label" for="hg-theme-select">Theme</lab'
+    'el>\n'
+    '    <select id="hg-theme-select">\n'
+    '      <option value="cyberpunk">Cyberpunk</option>\n'
+    '      <option value="apple">Apple</option>\n'
+    '      <option value="retro">Retro</option>\n'
+    '    </select>\n'
+    '  </div>\n'
+    '  <div class="hg-row">\n'
+    '    <span class="hg-label" id="hg-mode-label">Appearance</sp'
+    'an>\n'
+    '    <div class="hg-mode-group" role="group" aria-labelledby='
+    '"hg-mode-label">\n'
+    '      <button type="button" data-hg-mode="auto" aria-pressed'
+    '="true">Auto</button>\n'
+    '      <button type="button" data-hg-mode="light" aria-presse'
+    'd="false">Light</button>\n'
+    '      <button type="button" data-hg-mode="dark" aria-pressed'
+    '="false">Dark</button>\n'
+    '    </div>\n'
+    '  </div>\n'
+    '  <p class="hg-cog-note">Your choice is remembered on this s'
+    'ite only — each catalogue keeps its own look until you chang'
+    'e it there.</p>\n'
+    '</div>\n'
+)
+
+
 def generate_stats_html(stats: Dict[str, Any], generated_at: str) -> str:
     """Generate HTML for the stats page"""
     
@@ -147,50 +203,48 @@ def generate_stats_html(stats: Dict[str, Any], generated_at: str) -> str:
             return f"{listening['days']:.1f} days"
     
     html = f"""<!doctype html>
-<html>
+<html data-default-theme="cyberpunk">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Audiobook Catalog - Statistics</title>
 <link rel="icon" type="image/png" href="static/img/favicon.png">
-<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<!-- Estate theme system: token contract + pre-paint switcher. Fonts are
+     self-hosted under static/fonts/ (no third-party requests). theme.js is
+     synchronous on purpose so the stored theme/mode land on <html> before
+     first paint; it also migrates the legacy ab_theme key once. -->
+<link rel="stylesheet" href="static/css/estate-theme.css">
+<link rel="stylesheet" href="static/css/ab-bridge.css">
+<script src="static/js/theme.js"></script>
 <style>
-/* =============== Cyberpunk 2077 Theme =============== */
+/* Palette lives in static/css/estate-theme.css (the --et-* token contract:
+   cyberpunk / apple / retro, each light + dark) with ab-bridge.css aliasing
+   this page's legacy names (--bg, --neon-*, …) onto it. theme.js stamps
+   data-theme/data-mode on <html> — this page had no light mode at all before
+   the tokens; now it follows theme + mode like the rest of the site. */
 :root{{
-  --pad:14px; --radius:4px;
-  --bg:#0a0a12; --bg-2:#12121f;
-  --text:#e8e6e3; --muted:#8a8f98;
-  --border:#2a2a3a;
-  --neon-yellow:#fcee0a;
-  --neon-cyan:#05d9e8;
-  --neon-magenta:#ff2a6d;
+  --pad:14px;
 }}
 
 *{{box-sizing:border-box}}
 body{{
   margin:0; padding:40px 20px;
-  font-family:'Rajdhani','Segoe UI',system-ui,sans-serif;
-  background:var(--bg);
-  background-image:
-    radial-gradient(ellipse at 20% 50%, rgba(252,238,10,.03) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 20%, rgba(5,217,232,.03) 0%, transparent 50%);
   min-height:100vh;
   display:flex;
   justify-content:center;
   align-items:flex-start;
-  color:var(--text);
 }}
 #wrap{{
   background:var(--bg-2);
   border:1px solid var(--border);
-  border-radius:0;
-  box-shadow:0 0 30px rgba(5,217,232,.1);
+  border-radius:var(--et-radius);
+  box-shadow: var(--et-shadow-lift);
   max-width:1100px;
   width:100%;
   padding:40px;
-  clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 16px 100%, 0 calc(100% - 16px));
+  clip-path:var(--et-clip-panel);
 }}
-h1{{margin:0 0 8px 0; color:var(--neon-yellow); text-transform:uppercase; letter-spacing:2px; text-shadow:0 0 10px rgba(252,238,10,.3)}}
+h1{{margin:0 0 8px 0; color:var(--neon-yellow); font-family:var(--et-font-display); text-transform:var(--et-title-case); letter-spacing:var(--et-title-spacing); text-shadow:var(--et-glow-title)}}
 
 .stats-grid {{
   display: grid;
@@ -202,7 +256,7 @@ h1{{margin:0 0 8px 0; color:var(--neon-yellow); text-transform:uppercase; letter
   background: var(--bg);
   border: 1px solid var(--border);
   border-left: 3px solid var(--neon-cyan);
-  border-radius: 0;
+  border-radius:var(--et-radius);
   padding: 20px;
   text-align: center;
 }}
@@ -211,13 +265,13 @@ h1{{margin:0 0 8px 0; color:var(--neon-yellow); text-transform:uppercase; letter
   font-weight: bold;
   color: var(--neon-yellow);
   margin-bottom: 8px;
-  text-shadow: 0 0 8px rgba(252,238,10,.3);
-  font-family: 'Share Tech Mono', monospace;
+  text-shadow: var(--et-glow-title);
+  font-family:var(--et-font-mono);
 }}
 .stat-label {{
   font-size: 1.1em;
   color: var(--neon-cyan);
-  text-transform: uppercase;
+  text-transform:var(--et-title-case);
   letter-spacing: .5px;
   font-size: .9em;
 }}
@@ -228,15 +282,15 @@ h1{{margin:0 0 8px 0; color:var(--neon-yellow); text-transform:uppercase; letter
 .top-list {{
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 0;
+  border-radius:var(--et-radius);
   padding: 20px;
   margin: 20px 0;
 }}
 .top-list h3 {{
   margin-top: 0;
   color: var(--neon-magenta);
-  text-transform: uppercase;
-  letter-spacing: 1px;
+  text-transform:var(--et-title-case);
+  letter-spacing:var(--et-title-spacing);
   font-size: 1em;
 }}
 .top-item {{
@@ -255,32 +309,32 @@ h1{{margin:0 0 8px 0; color:var(--neon-yellow); text-transform:uppercase; letter
 .top-count {{
   color: var(--neon-cyan);
   font-weight: bold;
-  font-family: 'Share Tech Mono', monospace;
+  font-family:var(--et-font-mono);
 }}
 .insights {{
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 0;
+  border-radius:var(--et-radius);
   padding: 20px;
   margin: 20px 0;
 }}
 .insights h3 {{
   margin-top: 0;
   color: var(--neon-magenta);
-  text-transform: uppercase;
-  letter-spacing: 1px;
+  text-transform:var(--et-title-case);
+  letter-spacing:var(--et-title-spacing);
 }}
 .insight-item {{
   margin: 12px 0;
   padding: 12px;
   background: var(--bg-2);
-  border-radius: 0;
+  border-radius:var(--et-radius);
   border-left: 3px solid var(--neon-yellow);
 }}
 .insight-label {{
   font-weight: bold;
   color: var(--neon-yellow);
-  text-transform: uppercase;
+  text-transform:var(--et-title-case);
   font-size: .85em;
 }}
 .insight-value {{
@@ -293,19 +347,18 @@ h1{{margin:0 0 8px 0; color:var(--neon-yellow); text-transform:uppercase; letter
   background: var(--bg);
   color: var(--neon-cyan);
   text-decoration: none;
-  border-radius: 0;
+  border-radius:var(--et-radius);
   border: 1px solid var(--border);
   margin: 10px 10px 10px 0;
-  text-transform: uppercase;
+  text-transform:var(--et-title-case);
   font-weight: 600;
   font-size: .85em;
   letter-spacing: .5px;
   transition: all .2s;
-  clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%);
 }}
 .nav-link:hover {{
   border-color: var(--neon-cyan);
-  box-shadow: 0 0 8px rgba(5,217,232,.3);
+  box-shadow: var(--et-glow);
 }}
 @media (max-width: 768px) {{
   .stats-grid {{
@@ -315,6 +368,7 @@ h1{{margin:0 0 8px 0; color:var(--neon-yellow); text-transform:uppercase; letter
 </style>
 </head>
 <body>
+{_COG_HTML}
 <div id="wrap">
   <h1>📊 Audiobook Statistics</h1>
 
@@ -522,7 +576,7 @@ h1{{margin:0 0 8px 0; color:var(--neon-yellow); text-transform:uppercase; letter
         </div>`;
 
       if (topReviewers.length > 0) {{
-        html += '<div style="margin-top:12px"><strong style="color:var(--neon-cyan);font-size:.85em;text-transform:uppercase">Top Reviewers</strong>';
+        html += '<div style="margin-top:12px"><strong style="color:var(--neon-cyan);font-size:.85em;text-transform:var(--et-title-case)">Top Reviewers</strong>';
         topReviewers.forEach(([name, count]) => {{
           html += `<div class="top-item"><span class="top-name">${{name}}</span><span class="top-count">${{count}} reviews</span></div>`;
         }});
@@ -530,7 +584,7 @@ h1{{margin:0 0 8px 0; color:var(--neon-yellow); text-transform:uppercase; letter
       }}
 
       if (topBooks.length > 0) {{
-        html += '<div style="margin-top:12px"><strong style="color:var(--neon-cyan);font-size:.85em;text-transform:uppercase">Most Reviewed Books</strong>';
+        html += '<div style="margin-top:12px"><strong style="color:var(--neon-cyan);font-size:.85em;text-transform:var(--et-title-case)">Most Reviewed Books</strong>';
         topBooks.forEach(([bookId, count]) => {{
           const title = bookId.replace(/-/g, ' ').replace(/\\b\\w/g, c => c.toUpperCase());
           html += `<div class="top-item"><span class="top-name">${{title}}</span><span class="top-count">${{count}} reviews</span></div>`;

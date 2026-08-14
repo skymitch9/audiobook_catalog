@@ -1,62 +1,62 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-default-theme="cyberpunk">
 <head>
-<script>if(localStorage.getItem("ab_theme")==="light")document.documentElement.classList.add("light");</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Guess That Audiobook! - Duration Challenge</title>
     <link rel="icon" type="image/png" href="static/img/favicon.png">
-    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <!-- Estate theme system: token contract + pre-paint switcher. Fonts are
+         self-hosted under static/fonts/ (no third-party requests). theme.js
+         is synchronous on purpose so the stored theme/mode land on <html>
+         before first paint; it also migrates the legacy ab_theme key once. -->
+    <link rel="stylesheet" href="static/css/estate-theme.css">
+    <link rel="stylesheet" href="static/css/ab-bridge.css">
+    <script src="static/js/theme.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
-        :root{
-            --bg:#0a0a12; --bg-2:#12121f;
-            --text:#e8e6e3; --muted:#8a8f98;
-            --border:#2a2a3a;
-            --neon-yellow:#fcee0a;
-            --neon-cyan:#05d9e8;
-            --neon-magenta:#ff2a6d;
-        }
+        /* Palette lives in static/css/estate-theme.css (the --et-* token
+           contract: cyberpunk / apple / retro, each light + dark) with
+           ab-bridge.css aliasing this page's legacy names (--bg, --neon-*)
+           onto it. theme.js stamps data-theme/data-mode on <html>; the old
+           html.light mechanism is gone — and this page now has a real light
+           mode for the first time, straight from the tokens. */
         body {
-            font-family: 'Rajdhani', 'Segoe UI', system-ui, sans-serif;
-            background: var(--bg);
-            background-image:
-                radial-gradient(ellipse at 30% 50%, rgba(255,42,109,.04) 0%, transparent 50%),
-                radial-gradient(ellipse at 70% 20%, rgba(5,217,232,.04) 0%, transparent 50%);
             min-height: 100vh;
             padding: 20px;
-            color: var(--text);
         }
+        /* Keep the fixed estate cog clear of the nav/identity row */
+        .nav-row { padding-right: 56px; }
         #wrap { max-width: 640px; margin: 0 auto; }
         .nav-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:16px; }
 
         .game-container {
             background: var(--bg-2);
             border: 1px solid var(--border);
-            border-radius: 0;
-            box-shadow: 0 0 30px rgba(5,217,232,.1);
+            border-radius:var(--et-radius);
+            box-shadow: var(--et-shadow-lift);
             width: 100%;
             padding: 40px 32px;
             text-align: center;
-            clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px));
+            clip-path:var(--et-clip-panel);
         }
 
         h1 {
             color: var(--neon-yellow);
             margin-bottom: 10px;
             font-size: 2.2em;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            text-shadow: 0 0 10px rgba(252,238,10,.3);
+            font-family: var(--et-font-display);
+            text-transform:var(--et-title-case);
+            letter-spacing:var(--et-title-spacing);
+            text-shadow:var(--et-glow-title);
         }
 
         .subtitle {
             color: var(--muted);
             margin-bottom: 30px;
             font-size: 1em;
-            text-transform: uppercase;
-            letter-spacing: 1px;
+            text-transform:var(--et-title-case);
+            letter-spacing:var(--et-title-spacing);
         }
 
         .score-board {
@@ -66,7 +66,7 @@
             padding: 15px;
             background: var(--bg);
             border: 1px solid var(--border);
-            border-radius: 0;
+            border-radius:var(--et-radius);
         }
 
         .score-item { text-align: center; }
@@ -74,7 +74,7 @@
         .score-label {
             font-size: 0.8em;
             color: var(--neon-cyan);
-            text-transform: uppercase;
+            text-transform:var(--et-title-case);
             letter-spacing: .5px;
         }
 
@@ -82,8 +82,8 @@
             font-size: 1.8em;
             font-weight: bold;
             color: var(--neon-yellow);
-            font-family: 'Share Tech Mono', monospace;
-            text-shadow: 0 0 6px rgba(252,238,10,.3);
+            font-family:var(--et-font-mono);
+            text-shadow: var(--et-glow-title);
         }
 
         .book-cover-container { margin: 30px 0; position: relative; }
@@ -96,20 +96,19 @@
             box-shadow: 0 10px 30px rgba(0,0,0,0.4);
             transition: transform 0.3s ease;
         }
-        .book-cover:hover { transform: scale(1.05); box-shadow: 0 0 20px rgba(5,217,232,.2); }
+        .book-cover:hover { transform: scale(1.05); box-shadow: var(--et-glow); }
 
         .hint-badge {
             display: inline-block;
             padding: 10px 20px;
             background: var(--neon-yellow);
-            color: var(--bg);
-            border-radius: 0;
+            color: var(--et-btn-fg);
+            border-radius:var(--et-radius);
             font-weight: bold;
             margin: 20px 0;
             font-size: 1em;
-            text-transform: uppercase;
+            text-transform:var(--et-title-case);
             letter-spacing: .5px;
-            clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%);
         }
 
         .guess-section { margin: 30px 0; }
@@ -120,39 +119,38 @@
             font-size: 1.5em;
             text-align: center;
             border: 2px solid var(--neon-cyan);
-            border-radius: 0;
+            border-radius:var(--et-radius);
             margin-right: 10px;
             background: var(--bg);
             color: var(--text);
-            font-family: 'Share Tech Mono', monospace;
+            font-family:var(--et-font-mono);
         }
         .guess-input:focus {
             outline: none;
             border-color: var(--neon-yellow);
-            box-shadow: 0 0 10px rgba(252,238,10,.2);
+            box-shadow: var(--et-glow-title);
         }
 
         .btn {
             padding: 15px 30px;
             font-size: 1em;
             border: none;
-            border-radius: 0;
+            border-radius:var(--et-radius);
             cursor: pointer;
             transition: all 0.3s ease;
             font-weight: 700;
-            text-transform: uppercase;
+            text-transform:var(--et-title-case);
             letter-spacing: .5px;
-            clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
         }
 
         .btn-primary {
             background: var(--neon-yellow);
-            color: var(--bg);
-            box-shadow: 0 0 10px rgba(252,238,10,.3);
+            color: var(--et-btn-fg);
+            box-shadow: var(--et-glow-title);
         }
         .btn-primary:hover {
             transform: translateY(-2px);
-            box-shadow: 0 0 16px rgba(252,238,10,.5);
+            box-shadow: var(--et-glow-title);
         }
 
         .btn-secondary {
@@ -163,8 +161,8 @@
         }
         .btn-secondary:hover {
             background: var(--neon-cyan);
-            color: var(--bg);
-            box-shadow: 0 0 10px rgba(5,217,232,.3);
+            color: var(--et-accent-fg);
+            box-shadow: var(--et-glow);
         }
 
         .attempts-display { margin: 20px 0; font-size: 1.1em; color: var(--muted); }
@@ -175,30 +173,30 @@
             border-radius: 2px;
             background: var(--border);
             margin: 0 5px;
-            border: 1px solid #3a3a4a;
+            border: 1px solid var(--border);
         }
-        .attempt-dot.used { background: var(--neon-magenta); border-color: var(--neon-magenta); box-shadow: 0 0 6px rgba(255,42,109,.4); }
+        .attempt-dot.used { background: var(--neon-magenta); border-color: var(--neon-magenta); box-shadow: var(--et-glow); }
 
         .result-message {
             margin: 20px 0;
             padding: 20px;
-            border-radius: 0;
+            border-radius:var(--et-radius);
             font-size: 1.1em;
             font-weight: bold;
         }
         .result-correct {
-            background: #0a1a12;
+            background: color-mix(in srgb, var(--et-accent) 10%, var(--et-bg));
             color: var(--neon-cyan);
             border: 2px solid var(--neon-cyan);
-            box-shadow: 0 0 10px rgba(5,217,232,.2);
+            box-shadow: var(--et-glow);
         }
         .result-wrong {
-            background: #1a0a12;
+            background: color-mix(in srgb, var(--et-danger) 10%, var(--et-bg));
             color: var(--neon-magenta);
             border: 2px solid var(--neon-magenta);
         }
         .result-gameover {
-            background: #1a1a0a;
+            background: color-mix(in srgb, var(--et-accent-2) 10%, var(--et-bg));
             color: var(--neon-yellow);
             border: 2px solid var(--neon-yellow);
         }
@@ -209,10 +207,10 @@
             background: var(--bg);
             border: 1px solid var(--border);
             border-left: 3px solid var(--neon-cyan);
-            border-radius: 0;
+            border-radius:var(--et-radius);
             text-align: left;
         }
-        .book-info h3 { color: var(--neon-cyan); margin-bottom: 10px; text-transform: uppercase; font-size: 1em; }
+        .book-info h3 { color: var(--neon-cyan); margin-bottom: 10px; text-transform:var(--et-title-case); font-size: 1em; }
         .book-info p { margin: 5px 0; color: var(--text); }
 
         .nav-link {
@@ -220,7 +218,7 @@
             color: var(--neon-cyan);
             text-decoration: none;
             font-weight: 700;
-            text-transform: uppercase;
+            text-transform:var(--et-title-case);
             font-size: .85em;
             letter-spacing: .5px;
             padding: 8px 14px;
@@ -229,7 +227,7 @@
         }
         .nav-link:hover {
             border-color: var(--neon-cyan);
-            box-shadow: 0 0 8px rgba(5,217,232,.3);
+            box-shadow: var(--et-glow);
         }
 
         .faq-section {
@@ -237,7 +235,7 @@
             padding: 20px;
             background: var(--bg);
             border: 1px solid var(--border);
-            border-radius: 0;
+            border-radius:var(--et-radius);
             text-align: left;
         }
         .faq-toggle {
@@ -248,13 +246,13 @@
             justify-content: space-between;
             align-items: center;
             user-select: none;
-            text-transform: uppercase;
+            text-transform:var(--et-title-case);
             letter-spacing: .5px;
         }
         .faq-toggle:hover { color: var(--neon-cyan); }
         .faq-content { margin-top: 15px; display: none; color: var(--muted); }
         .faq-content.show { display: block; }
-        .faq-content h4 { color: var(--neon-cyan); margin-top: 15px; margin-bottom: 10px; text-transform: uppercase; font-size: .9em; }
+        .faq-content h4 { color: var(--neon-cyan); margin-top: 15px; margin-bottom: 10px; text-transform:var(--et-title-case); font-size: .9em; }
         .faq-content ul { margin: 10px 0; padding-left: 20px; }
         .faq-content li { margin: 5px 0; }
 
@@ -267,7 +265,7 @@
         .time-range-item {
             padding: 10px;
             background: var(--bg-2);
-            border-radius: 0;
+            border-radius:var(--et-radius);
             border: 1px solid var(--border);
             border-left: 3px solid var(--neon-yellow);
         }
@@ -278,7 +276,7 @@
             padding: 20px;
             background: var(--bg);
             border: 1px solid var(--neon-magenta);
-            border-radius: 0;
+            border-radius:var(--et-radius);
         }
         .leaderboard-header {
             display: flex;
@@ -286,26 +284,26 @@
             align-items: center;
             margin-bottom: 15px;
         }
-        .leaderboard-header h3 { margin: 0; color: var(--neon-magenta); text-transform: uppercase; letter-spacing: 1px; }
-        .week-reset { font-size: 0.85em; color: var(--muted); font-family: 'Share Tech Mono', monospace; }
+        .leaderboard-header h3 { margin: 0; color: var(--neon-magenta); text-transform:var(--et-title-case); letter-spacing:var(--et-title-spacing); }
+        .week-reset { font-size: 0.85em; color: var(--muted); font-family:var(--et-font-mono); }
 
         .leaderboard-table { width: 100%; background: var(--bg-2); border: 1px solid var(--border); overflow: hidden; }
         .leaderboard-table table { width: 100%; border-collapse: collapse; }
         .leaderboard-table th {
-            background: #1a1a2e;
+            background: var(--row-alt);
             color: var(--neon-cyan);
             padding: 10px;
             text-align: left;
             font-weight: bold;
-            text-transform: uppercase;
+            text-transform:var(--et-title-case);
             font-size: .8em;
             letter-spacing: .5px;
         }
         .leaderboard-table td { padding: 10px; border-bottom: 1px solid var(--border); color: var(--text); }
         .leaderboard-table tr:last-child td { border-bottom: none; }
-        .leaderboard-table tr:nth-child(even) { background: #0e0e1a; }
+        .leaderboard-table tr:nth-child(even) { background: var(--row-alt); }
         .rank-medal { font-size: 1.2em; margin-right: 5px; }
-        .current-player { background: rgba(252,238,10,.05) !important; font-weight: bold; }
+        .current-player { background: color-mix(in srgb, var(--et-accent-2) 8%, transparent) !important; font-weight: bold; }
         .no-scores { text-align: center; padding: 20px; color: var(--muted); font-style: italic; }
 
         @media (max-width: 600px) {
@@ -327,21 +325,40 @@
 .identity-bar__google-btn:disabled{opacity:.6;cursor:wait}
 .identity-bar__logout-btn{
   background:none;border:1px solid var(--border,var(--border));color:var(--muted,var(--muted));cursor:pointer;
-  font-size:.75em;padding:4px 10px;font-family:inherit;text-transform:uppercase;letter-spacing:.5px;
+  font-size:.75em;padding:4px 10px;font-family:inherit;text-transform:var(--et-title-case);letter-spacing:.5px;
 }
 .identity-bar__logout-btn:hover{border-color:var(--neon-magenta,var(--neon-magenta));color:var(--neon-magenta,var(--neon-magenta))}
 
 .nav-link.active{border-color:var(--neon-cyan,var(--neon-cyan));color:var(--neon-yellow,var(--neon-yellow))}
 
-/* Light theme: html.light overrides the palette vars site-wide */
-html.light{
-  --bg:#eef0f5; --bg-2:#ffffff; --text:#16161e; --muted:#5c6270; --border:#c9cdd9;
-  --neon-yellow:#9a7b00; --neon-cyan:#00798f; --neon-magenta:#c31e58;
-}
-html.light body{background-image:none}
 </style>
 </head>
 <body>
+<!-- Estate settings cog: theme + light/dark. static/js/theme.js wires this
+     standard markup (select#hg-theme-select, [data-hg-mode]) automatically. -->
+<button id="hg-cog" class="hg-cog" type="button" aria-expanded="false" aria-controls="hg-cog-panel" aria-label="Display settings">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.56-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.09a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.09a1.7 1.7 0 0 0 1.56 1.03H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1.03z"/></svg>
+</button>
+<div id="hg-cog-panel" class="hg-cog-panel" hidden>
+  <div class="hg-row">
+    <label class="hg-label" for="hg-theme-select">Theme</label>
+    <select id="hg-theme-select">
+      <option value="cyberpunk">Cyberpunk</option>
+      <option value="apple">Apple</option>
+      <option value="retro">Retro</option>
+    </select>
+  </div>
+  <div class="hg-row">
+    <span class="hg-label" id="hg-mode-label">Appearance</span>
+    <div class="hg-mode-group" role="group" aria-labelledby="hg-mode-label">
+      <button type="button" data-hg-mode="auto" aria-pressed="true">Auto</button>
+      <button type="button" data-hg-mode="light" aria-pressed="false">Light</button>
+      <button type="button" data-hg-mode="dark" aria-pressed="false">Dark</button>
+    </div>
+  </div>
+  <p class="hg-cog-note">Your choice is remembered on this site only — each catalogue keeps its own look until you change it there.</p>
+</div>
+
     <div id="wrap">
     <div class="nav-row">
     <a href="index.html" class="nav-link">Catalog</a>
@@ -388,7 +405,7 @@ html.light body{background-image:none}
 
         <div class="guess-section" id="guess-section">
             <input type="number" id="guess-input" class="guess-input" placeholder="?" min="1" max="100">
-            <span style="font-size: 1.5em; color: #666;">hours</span>
+            <span style="font-size: 1.5em; color: var(--muted);">hours</span>
             <br><br>
             <button class="btn btn-primary" onclick="submitGuess()" id="submit-btn" disabled>Submit Guess</button>
         </div>
