@@ -279,6 +279,18 @@ def test_from_overrides_only_writes_nothing_without_a_curated_entry(tmp_path):
         ("Full Murderhobo", "Everything - Full Murderhobo, Book 3", False),
         (None, "Anything", False),
         ("Something", None, False),
+        # Found live, 2026-08-14, on the first real dry run under the fixed guard:
+        # the album carries a decoration the title does not (reversed direction
+        # from the original bug - the TITLE is the prefix of the candidate here).
+        ("The Alchemist (Unabridged)", "The Alchemist", True),
+        ("Mother of Learning Arc 1 (Unabridged)", "Mother of Learning Arc 1", True),
+        # Same subtitle, different separator glyph on each side (dash vs colon).
+        ("Smartphone: Volume 1 (Unabridged)", "Smartphone- Volume 1", True),
+        # A real series name IS buried in here ('The Liveship Traders'), but
+        # extracting it is parsing, not this guard's job - skipping is safe.
+        ("Ship of Magic: The Liveship Traders, Book 1", "Ship of Magic", True),
+        # A decoration alone must not make an unrelated candidate look related.
+        ("Some Unrelated Series (Unabridged)", "A Different Book Entirely", False),
     ],
 )
 def test_is_title_prefix(candidate, title, expected):
@@ -303,6 +315,24 @@ def test_bug1_album_that_is_the_title_minus_a_subtitle_is_not_written_as_a_serie
     assert "SERIES_ONLY_IN_ALBUM" in s.issues, "still flagged - the file is still worth a human look"
     proposal = ast.propose(s)
     assert proposal is None, "but nothing is proposed to write, because it is not really a series"
+
+
+def test_bug1_widened_album_decoration_is_not_written_as_a_series(tmp_path):
+    """Found live, 2026-08-14: the album adds '(Unabridged)' to an otherwise
+    identical title. Same defect as bug 1, reversed direction - the exact-
+    equality guard's replacement had to handle both."""
+    book = make_book(
+        tmp_path,
+        "decorated.m4b",
+        title="Mock Memoir",
+        series=None,
+        index=None,
+        album="Mock Memoir (Unabridged)",
+        track=1,
+    )
+    s = scan(book)
+    proposal = ast.propose(s)
+    assert proposal is None
 
 
 def test_bug1_fix_does_not_block_a_real_series_plus_volume_title(tmp_path):
@@ -337,13 +367,43 @@ def test_bug2_fix_does_not_block_a_real_trkn_greater_than_one(tmp_path):
 def test_recover_only_fills_a_blank_srnm_from_album_and_a_blank_srsq_from_trkn(tmp_path):
     """The gated recovery sweep: exactly the two RECOVERABLE classes, and
     nothing else - in particular, no canonical_series respelling of a tag that
-    is already present."""
+    is already present. The series recovery also needs the filename's own
+    parsed series to corroborate it (found necessary 2026-08-14, see the note
+    in propose()) - the bracketed '[Series - N]' pattern supplies that here,
+    exactly like the real Wrath of the Dragon / Soul Gem Collector files."""
     book = make_book(
-        tmp_path, "rec.m4b", title="Recoverable Book", series=None, index=None, album="Recoverable Series", track=4
+        tmp_path,
+        "Author - [Recoverable Series - 4] - Recoverable Book.m4b",
+        title="Recoverable Book",
+        series=None,
+        index=None,
+        album="Recoverable Series",
+        track=4,
     )
     s = scan(book)
     proposal = ast.propose(s, recover_only=True)
     assert proposal["writes"] == {K_SRNM: "Recoverable Series", K_SRSQ: "4"}
+
+
+def test_recover_only_series_write_requires_filename_corroboration(tmp_path):
+    """Found live, 2026-08-14: 'Dark Matter (Movie Tie-In) - A Novel' (title) /
+    'Dark Matter (Movie Tie-In)' (album) and similar decorated titles slipped
+    past every string-based guard tried. The gated recovery path requires a
+    second, independent signal - the filename's own parsed series - and this
+    file has none, so nothing is written even though the permissive mode
+    still proposes writing it (and stays disarmed for --commit either way)."""
+    book = make_book(
+        tmp_path,
+        "Dark Matter (Movie Tie-In) - A Novel.m4b",
+        title="Dark Matter (Movie Tie-In) - A Novel",
+        series=None,
+        index=None,
+        album="Dark Matter (Movie Tie-In)",
+        track=None,
+    )
+    s = scan(book)
+    assert s.file_series is None, "no bracket/Book-N pattern in this filename - no corroborating evidence"
+    assert ast.propose(s, recover_only=True) is None
 
 
 def test_recover_only_does_not_respell_an_already_present_srnm(tmp_path):
@@ -378,7 +438,13 @@ def test_commit_without_from_overrides_only_or_from_tags_only_still_refuses(tmp_
 
 def test_commit_with_from_tags_only_recovers_a_blank_atom_end_to_end(tmp_path, monkeypatch):
     book = make_book(
-        tmp_path, "e2e.m4b", title="End To End", series=None, index=None, album="End To End Series", track=5
+        tmp_path,
+        "Author - [End To End Series - 5] - End To End.m4b",
+        title="End To End",
+        series=None,
+        index=None,
+        album="End To End Series",
+        track=5,
     )
     monkeypatch.setattr(ast, "ROOT_DIR", tmp_path)
     monkeypatch.setattr(ast, "OUTPUT_DIR", tmp_path / "out")

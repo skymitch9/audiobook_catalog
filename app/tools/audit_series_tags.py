@@ -176,33 +176,76 @@ def _looks_like_series(name: Optional[str]) -> bool:
     return bool(name and len(name.strip()) >= 3)
 
 
-_SUBTITLE_SEP = re.compile(r"^\s*[-:–—]")
+_TRAILING_PARENS = re.compile(r"\s*\([^()]*\)\s*$")
+_SEP_RUN = re.compile(r"\s*[-:–—,]\s*")
+_SEP_TOKEN = " | "
+
+
+def _strip_decoration(text: str) -> str:
+    """Repeatedly drop a trailing parenthetical — '(Unabridged)', '(Dramatized
+    Adaptation)', and the like. These are recording-format notes, never part of
+    a series name, and never the difference between a real subtitle and not."""
+    prev = None
+    t = text
+    while prev != t:
+        prev = t
+        t = _TRAILING_PARENS.sub("", t).strip()
+    return t
+
+
+def _normalize_for_prefix(text: str) -> str:
+    """Lowercase, strip trailing decoration, and fold every separator variant
+    (hyphen, en/em dash, colon, comma) onto one token, so 'Title - Subtitle'
+    and 'Title: Subtitle' compare equal at the point that matters."""
+    t = _strip_decoration(text.strip().lower())
+    t = _SEP_RUN.sub(_SEP_TOKEN, t)
+    return re.sub(r"\s+", " ", t).strip()
 
 
 def _is_title_prefix(candidate: Optional[str], title: Optional[str]) -> bool:
-    """True when `candidate` is the title with a trailing subtitle stripped.
+    """True when `candidate` is really just the title (a subtitle stripped, or
+    a decoration added) — NOT an independent series name.
 
-    Bug 1 of the disarmed repair path (catalog-corrections.md §8.2): Audible
-    titles often carry a subtitle the album tag drops — e.g. title
-    'The Woman in the Window - A Novel', album 'The Woman in the Window'. The
-    original guard compared for exact equality, which this near-miss slips
-    past, so it got written as a one-book series (the same Uncapped defect the
-    tool exists to catch). A candidate only counts as a title-prefix — and is
-    therefore NOT a series name — when what follows it in the title looks like
-    a subtitle separator (a dash or colon), not merely the start of a longer,
-    unrelated word or a real volume number ('The Primal Hunter 12' minus
-    'The Primal Hunter' must NOT match this, so a real series-plus-volume
-    title still gets its album written as the series).
+    Bug 1 of the disarmed repair path (catalog-corrections.md §8.2), found
+    2026-08-11 and widened 2026-08-14 by the first real dry run under the
+    fixed guard, which turned up two more shapes of the same mistake:
+
+      * album drops a subtitle the title carries — 'The Woman in the Window -
+        A Novel' (title) vs 'The Woman in the Window' (album, candidate is a
+        PREFIX of the title);
+      * album carries a decoration the title doesn't - 'The Alchemist'
+        (title) vs 'The Alchemist (Unabridged)' (album, title is a PREFIX of
+        the candidate) - found live: 'Mother of Learning Arc 1 (Unabridged)'
+        and 'The Alchemist (Unabridged)' would otherwise have been written as
+        one-book series names;
+      * the two use different separator glyphs for the same subtitle - title
+        'Smartphone- Volume 1', album 'Smartphone: Volume 1 (Unabridged)' -
+        found live on the same run.
+
+    None of these are a series name; all are the book's own title with
+    cosmetic drift. A candidate only counts as a title-prefix — and is
+    therefore NOT a series — when what follows the shared prefix (in
+    WHICHEVER direction is longer) looks like a subtitle separator, not
+    merely the start of a longer, unrelated word or a real volume number
+    ('The Primal Hunter 12' minus 'The Primal Hunter' must NOT match this, so
+    a real series-plus-volume title still gets its album written as the
+    series; 'Ship of Magic' vs 'Ship of Magic: The Liveship Traders, Book 1'
+    DOES match this and is skipped — a real series name is buried in there,
+    but extracting it is parsing, not this guard's job, and skipping is the
+    safe direction).
     """
     if not candidate or not title:
         return False
-    c = candidate.strip().lower()
-    t = title.strip().lower()
-    if not c or c == t:
-        return True
-    if not t.startswith(c):
+    c = _normalize_for_prefix(candidate)
+    t = _normalize_for_prefix(title)
+    if not c or not t:
         return False
-    return bool(_SUBTITLE_SEP.match(t[len(c):]))
+    if c == t:
+        return True
+    shorter, longer = (c, t) if len(c) <= len(t) else (t, c)
+    if not longer.startswith(shorter):
+        return False
+    return longer[len(shorter):].startswith(_SEP_TOKEN)
 
 
 @dataclass
@@ -454,7 +497,9 @@ def propose(s: Scan, from_overrides_only: bool = False, recover_only: bool = Fal
     (SERIES_ONLY_IN_ALBUM: fill a blank SRNM from the album; INDEX_ONLY_IN_TRACK:
     fill a blank SRSQ from trkn) — never the canonical_series respelling of an
     ALREADY-PRESENT SRNM, which is a different kind of write and was never part
-    of the gated recovery sweep (docs/info/tag-repair-plan.md).
+    of the gated recovery sweep (docs/info/tag-repair-plan.md). Within
+    `recover_only`, a series recovery ALSO requires the filename's own parsed
+    evidence to independently agree — see the note above the check below.
     """
     writes: Dict[str, str] = {}
     sources: Dict[str, str] = {}
@@ -471,10 +516,31 @@ def propose(s: Scan, from_overrides_only: bool = False, recover_only: bool = Fal
             # used to slip past an exact-equality guard and get written as a
             # one-book series. _is_title_prefix catches the near-miss without
             # blocking a real 'series name' + 'volume number' title.
+            #
+            # The first live --from-tags-only dry run (2026-08-14) turned up
+            # MORE shapes of "the album is decorated title text, not a series"
+            # than any string heuristic reliably tells apart from a real series
+            # ('Dark Matter (Movie Tie-In) - A Novel' / album 'Dark Matter
+            # (Movie Tie-In)'; 'Just Mercy: A Story of... (Adapted for Young
+            # Adults)' / album 'Just Mercy (Adapted for Young Adults)' — both
+            # slipped past a widened _is_title_prefix too). Rather than keep
+            # chasing decoration patterns, the gated recovery path requires a
+            # SECOND, independent signal: the filename's own parsed series
+            # (never itself written — evidence only) must agree. Every clean
+            # write actually found in the library (Wrath of the Dragon, Soul
+            # Gem Collector, Star Justice, ...) carries the bracketed
+            # '[Series - N]' filename pattern that supplies this; every bad
+            # one found so far does not.
             candidate = s.album or s.ff_series
             if _looks_like_series(candidate) and not _is_title_prefix(candidate, s.title):
-                writes[K_SERIES_VENDOR] = canonicalize_series(candidate)
-                sources[K_SERIES_VENDOR] = "album tag (©alb)"
+                corroborated = s.file_series is not None and canonicalize_series(s.file_series) == canonicalize_series(
+                    candidate
+                )
+                if not recover_only or corroborated:
+                    writes[K_SERIES_VENDOR] = canonicalize_series(candidate)
+                    sources[K_SERIES_VENDOR] = (
+                        f"album tag (©alb), corroborated by filename [{s.file_series}]" if recover_only else "album tag (©alb)"
+                    )
         elif not recover_only and s.srnm and canonicalize_series(s.srnm) != s.srnm:
             writes[K_SERIES_VENDOR] = canonicalize_series(s.srnm)
             sources[K_SERIES_VENDOR] = "canonical_series normalisation"
