@@ -64,16 +64,14 @@ const CSS = `
 .am-seg button{padding:6px 12px;border:none;background:var(--bg,#0a0a12);color:var(--muted,#8a8f98);font-family:inherit;font-size:.8em;text-transform:var(--et-title-case,uppercase);letter-spacing:.5px;cursor:pointer}
 .am-seg button + button{border-left:1px solid var(--border,#2a2a3a)}
 .am-seg button.on{background:var(--neon-cyan,#05d9e8);color:#04121a;font-weight:700}
-.am-applyall{background:none;border:1px solid var(--border,#2a2a3a);color:var(--neon-cyan,#05d9e8);padding:4px 10px;font-size:.72em;cursor:pointer;font-family:inherit;text-transform:var(--et-title-case,uppercase);letter-spacing:.5px}
-.am-applyall:hover{border-color:var(--neon-cyan,#05d9e8)}
 `;
 
 // Appearance controls — the estate cog's options, modal-native (owner,
 // 2026-08-14: the floating cog leaves the pages; theme + mode live HERE,
 // replacing the old dark-mode switch). Everything drives window.estateTheme
-// (static/js/theme.js): setTheme = this page, setSiteTheme = all pages,
-// setMode = site-wide. The scope row surfaces only when this page has its
-// own override, offering "apply to all pages".
+// (static/js/theme.js). Theme choice is SITE-WIDE — one look per site
+// (owner clarification 2026-08-14); the per-page scope row and its
+// "apply to all pages" lever left with the canonical revert.
 function appearanceHTML() {
   const themes = (window.estateTheme ? window.estateTheme.themes : ['cyberpunk', 'apple', 'retro', 'classic']);
   const options = themes.map(t =>
@@ -93,10 +91,6 @@ function appearanceHTML() {
             <button type="button" data-am-mode="dark">Dark</button>
           </div>
         </div>
-        <div id="am-scope-row" style="display:none;align-items:center;justify-content:space-between;gap:10px;margin-top:8px">
-          <span style="font-size:.72em;color:var(--muted,#8a8f98)">Theme set for this page only</span>
-          <button type="button" id="am-apply-all" class="am-applyall">Apply to all pages</button>
-        </div>
       </div>`;
 }
 
@@ -104,8 +98,6 @@ function wireAppearance(container) {
   const et = window.estateTheme;
   const sel = container.querySelector('#am-theme-select');
   const seg = container.querySelectorAll('[data-am-mode]');
-  const scopeRow = container.querySelector('#am-scope-row');
-  const applyAll = container.querySelector('#am-apply-all');
 
   function sync() {
     if (!et) return;
@@ -116,14 +108,10 @@ function wireAppearance(container) {
       b.classList.toggle('on', on);
       b.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
-    if (scopeRow) scopeRow.style.display = (s.scope === 'page') ? 'flex' : 'none';
   }
 
   if (sel) sel.addEventListener('change', () => { if (et) et.setTheme(sel.value); });
   seg.forEach(b => b.addEventListener('click', () => { if (et) et.setMode(b.getAttribute('data-am-mode')); }));
-  if (applyAll) applyAll.addEventListener('click', () => {
-    if (et && et.setSiteTheme) et.setSiteTheme(et.get().theme);
-  });
 
   // One document-level listener at a time — re-renders must not accumulate.
   if (wireAppearance._sync) document.removeEventListener('hg-themechange', wireAppearance._sync);
