@@ -14,24 +14,37 @@ from app.web.html_builder import STATIC_DIR, render_index_html
 # --------------------------
 # CSV
 # --------------------------
+#: The catalog CSV's columns, in order. Shared with app/library_link.py's
+#: manual runner so a re-stamp of the existing site/catalog.csv writes the
+#: SAME column set a fresh pipeline build would — one list, not two that can
+#: drift apart.
+CSV_FIELDNAMES = [
+    "title",
+    "series",
+    "series_index_display",
+    "series_index_sort",
+    "author",
+    "narrator",
+    "year",
+    "genre",
+    "duration_hhmm",
+    "cover_href",
+    "companion_files",
+    "desc",
+    # "Other versions available" — library_catalog's work id + format list for
+    # this book, stamped by app/library_link.py before this function ever
+    # runs. Blank means unmatched (or the pipeline step was skipped/unset),
+    # never a guess.
+    "library_work_id",
+    "library_formats",
+]
+
+
 def write_csv(rows: List[Dict[str, str]], out_path: Path) -> None:
     """
     Writes the catalog CSV including cover references.
     """
-    fieldnames = [
-        "title",
-        "series",
-        "series_index_display",
-        "series_index_sort",
-        "author",
-        "narrator",
-        "year",
-        "genre",
-        "duration_hhmm",
-        "cover_href",
-        "companion_files",
-        "desc",
-    ]
+    fieldnames = CSV_FIELDNAMES
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=fieldnames)

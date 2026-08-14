@@ -644,6 +644,17 @@ html[data-theme="cyberpunk"] #recently-added h2{ letter-spacing:1px !important; 
         <summary style="cursor:pointer; color:var(--neon-cyan); text-transform:var(--et-title-case); font-size:.75em; letter-spacing:.5px;">📎 Companion Files</summary>
         <ul id="m-companions-list" style="margin:8px 0 2px 18px; font-size:.85em; line-height:1.5;"></ul>
       </details>
+      <!-- Other versions available — library_catalog's copy of this same book,
+           stamped by app/library_link.py (join on this book's own title
+           against that catalog's audiobook_holding cache). Every entry names
+           its format, per the owner's cross-catalog spec, and links to
+           https://library.heygabi.ai/work/{id}.
+           ⚠️ That site requires sign-in — the link works for estate members;
+           a stranger clicking it hits the sign-in wall. Correct, not a bug. -->
+      <details id="m-library-versions" style="display:none; margin-top:8px; padding:6px 10px; background:var(--surface); border:1px solid var(--border); border-radius:4px;">
+        <summary style="cursor:pointer; color:var(--neon-cyan); text-transform:var(--et-title-case); font-size:.75em; letter-spacing:.5px;">🔗 Other versions available</summary>
+        <ul id="m-library-versions-list" style="margin:8px 0 2px 18px; font-size:.85em; line-height:1.5;"></ul>
+      </details>
       <div class="desc" id="m-desc"></div>
       <!-- Content warnings (only for books already checked via the club pipeline) -->
       <details id="m-warnings" style="display:none; margin-top:10px; padding:6px 10px; background:var(--surface); border:1px solid var(--border); border-radius:4px;">
@@ -924,6 +935,8 @@ function wireAppearance(container){
   var mDesc=document.getElementById("m-desc");
   var mCompanions=document.getElementById("m-companions");
   var mCompanionsList=document.getElementById("m-companions-list");
+  var mLibraryVersions=document.getElementById("m-library-versions");
+  var mLibraryVersionsList=document.getElementById("m-library-versions-list");
   var mWarnings=document.getElementById("m-warnings");
   var mWarningsList=document.getElementById("m-warnings-list");
 
@@ -982,6 +995,33 @@ function wireAppearance(container){
       }
     } else {
       mCompanions.style.display="none";
+    }
+
+    // Other versions available — library_catalog work + formats, stamped by
+    // app/library_link.py. ALWAYS shows the format word per the owner's spec;
+    // renders nothing when this book has no library match.
+    mLibraryVersionsList.innerHTML="";
+    if(payload.libraryWorkId && payload.libraryFormats){
+      var libHref="https://library.heygabi.ai/work/"+encodeURIComponent(payload.libraryWorkId);
+      var libFmts=payload.libraryFormats.split("|").map(function(s){return s.trim();}).filter(Boolean);
+      libFmts.forEach(function(fmt){
+        var li=document.createElement("li");
+        li.appendChild(document.createTextNode(fmt+" — "));
+        var a=document.createElement("a");
+        a.href=libHref; a.target="_blank"; a.rel="noopener noreferrer";
+        a.textContent="View record";
+        li.appendChild(a);
+        mLibraryVersionsList.appendChild(li);
+      });
+      if(libFmts.length){
+        mLibraryVersions.querySelector("summary").textContent="🔗 Other versions available ("+libFmts.length+")";
+        mLibraryVersions.open=false;
+        mLibraryVersions.style.display="block";
+      } else {
+        mLibraryVersions.style.display="none";
+      }
+    } else {
+      mLibraryVersions.style.display="none";
     }
 
     var author=payload.author||"";
@@ -1058,7 +1098,7 @@ function wireAppearance(container){
       openModal({
         cover:d.cover||"", title:d.title||"", series:d.series||"", index:d.index||"",
         author:d.author||"", narrator:d.narrator||"", year:d.year||"",
-        genre:d.genre||"", duration:d.duration||"", desc:d.desc||"", companions:d.companions||""
+        genre:d.genre||"", duration:d.duration||"", desc:d.desc||"", companions:d.companions||"", libraryWorkId:d.libraryWorkId||"", libraryFormats:d.libraryFormats||""
       });
     }
   });
@@ -1074,7 +1114,7 @@ function wireAppearance(container){
     openModal({
       cover:d.cover||"", title:d.title||"", series:d.series||"", index:d.index||"",
       author:d.author||"", narrator:d.narrator||"", year:d.year||"",
-      genre:d.genre||"", duration:d.duration||"", desc:d.desc||"", companions:d.companions||""
+      genre:d.genre||"", duration:d.duration||"", desc:d.desc||"", companions:d.companions||"", libraryWorkId:d.libraryWorkId||"", libraryFormats:d.libraryFormats||""
     });
   });
 
@@ -1088,7 +1128,7 @@ function wireAppearance(container){
     openModal({
       cover:d.cover||"", title:d.title||"", series:d.series||"", index:d.index||"",
       author:d.author||"", narrator:d.narrator||"", year:d.year||"",
-      genre:d.genre||"", duration:d.duration_hhmm||d.duration||"", desc:d.desc||"", companions:d.companions||""
+      genre:d.genre||"", duration:d.duration_hhmm||d.duration||"", desc:d.desc||"", companions:d.companions||"", libraryWorkId:d.libraryWorkId||"", libraryFormats:d.libraryFormats||""
     });
   });
 
@@ -1118,7 +1158,7 @@ function wireAppearance(container){
     openModal({
       cover:d.cover||"", title:d.title||"", series:d.series||"", index:d.index||"",
       author:d.author||"", narrator:d.narrator||"", year:d.year||"",
-      genre:d.genre||"", duration:d.duration||"", desc:d.desc||"", companions:d.companions||""
+      genre:d.genre||"", duration:d.duration||"", desc:d.desc||"", companions:d.companions||"", libraryWorkId:d.libraryWorkId||"", libraryFormats:d.libraryFormats||""
     });
   });
 
@@ -1429,7 +1469,8 @@ function wireAppearance(container){
           index: book.series_index_display || '', author: book.author || '',
           narrator: book.narrator || '', year: book.year || '',
           genre: book.genre || '', duration: book.duration_hhmm || '', desc: book.desc || '',
-          companions: book.companion_files || ''
+          companions: book.companion_files || '',
+          libraryWorkId: book.library_work_id || '', libraryFormats: book.library_formats || ''
         });
       };
     }

@@ -79,6 +79,16 @@ def main() -> None:
     from app.additions_log import update_additions_log
     additions = update_additions_log(rows, SITE_DIR)
 
+    # 0c) Stamp "Other versions available" — library_catalog's work id +
+    #     formats for every row it has already matched to an audiobook.
+    #     Mirrors app/index_push.py's failure posture: unconfigured ->
+    #     one log line, a fetch failure warns without failing the build (the
+    #     try/except lives in stamp_after_build_safe, not here, to keep this
+    #     function's branching count off this call site).
+    #     Runs BEFORE write_csv/stage_site_files so the stamp lands in both.
+    from app.library_link import stamp_after_build_safe
+    stamp_after_build_safe(rows)
+
     # 1) Write CSV (timestamped) into output_files/
     write_csv(rows, out_csv)
 

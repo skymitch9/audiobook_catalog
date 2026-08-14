@@ -80,6 +80,9 @@ def _cover_button(r: Dict[str, str], inline: bool = False) -> str:
             f'data-duration="{_esc(r.get("duration_hhmm",""))}"',
             f'data-companions="{_esc(r.get("companion_files",""))}"',
             f'data-desc="{_esc(r.get("desc",""))}"',  # may be empty if not provided
+            # "Other versions available" — see CSV_FIELDNAMES in writers.py.
+            f'data-library-work-id="{_esc(r.get("library_work_id",""))}"',
+            f'data-library-formats="{_esc(r.get("library_formats",""))}"',
         ]
     )
     img_cls = "cover-inline" if inline else "cover"
@@ -128,6 +131,12 @@ def _card_html(r: Dict[str, str]) -> str:
         "index": r.get("series_index_display", ""),
         "companions": r.get("companion_files", ""),
         "desc": r.get("desc", ""),
+        # "Other versions available" — hyphenated keys so f'data-{k}' below
+        # produces the SAME attribute names _cover_button and _added_item_html
+        # use (data-library-work-id / data-library-formats), which is what
+        # gives every render point the same dataset.libraryWorkId in JS.
+        "library-work-id": r.get("library_work_id", ""),
+        "library-formats": r.get("library_formats", ""),
     }
     data_attrs = " ".join(f'data-{k}="{_esc(v)}"' for k, v in attrs.items())
     thumb = _cover_button(r, inline=True)
@@ -212,6 +221,9 @@ def _added_item_html(r: Dict[str, str], date_label: str = "") -> str:
         f'data-duration="{_esc(r.get("duration_hhmm",""))}"',
         f'data-companions="{_esc(r.get("companion_files",""))}"',
         f'data-desc="{_esc(r.get("desc",""))}"',
+        # "Other versions available" — see CSV_FIELDNAMES in writers.py.
+        f'data-library-work-id="{_esc(r.get("library_work_id",""))}"',
+        f'data-library-formats="{_esc(r.get("library_formats",""))}"',
     ])
 
     return (
