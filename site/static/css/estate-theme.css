@@ -1,0 +1,627 @@
+/*
+ * estate-theme.css — the estate THEME SYSTEM, as a platform asset.
+ * One implementation, consumers adopt — the same move the estate made with
+ * auth (packages/estate-auth), applied to design.
+ *
+ * THREE NAMED THEMES, user-selectable per site, each in light AND dark:
+ *
+ *   apple      — near-monochrome, one accent, big quiet type, pill buttons.
+ *                Authored here; the apex's and the library's default.
+ *   cyberpunk  — EXTRACTED from the audiobook site's real CSS (dark-first
+ *                neon + its ab_theme light variant): Rajdhani / Share Tech
+ *                Mono, #0a0a12 ground, yellow/cyan/magenta neons, glows,
+ *                notched corners. Yellow is the brand voice, cyan is the
+ *                interactive voice — that split is the identity.
+ *   retro      — EXTRACTED from the board-game app's styles.css. ⚠️ On disk
+ *                this is MUTED VINTAGE POP-ART, not arcade-retro: aged
+ *                paper, halftone dots, 2px charcoal ink outlines, hard
+ *                offset shadows (no blur), Bangers/Luckiest Guy. Restraint
+ *                is its stated brief — do not add pixel/neon "retro"
+ *                elements to match the dropdown label.
+ *
+ * Extraction provenance: drafted from the two sites' real stylesheets
+ * 2026-08-13 (audiobook site pages' inline <style>; games styles.css incl.
+ * its shipped data-theme='dark' block). Where a value is INVENTED rather
+ * than measured it says so inline — there are two: cyberpunk's --et-ok
+ * (the site has no green anywhere) and cyberpunk-light glow triplets
+ * (the site hardcodes dark glows even in light mode; rebuilt from the
+ * light neons deliberately).
+ *
+ * THE CONTRACT: every theme defines the SAME --et-* vocabulary (list
+ * below). Pages style against tokens and never against a theme — if a page
+ * needs `[data-theme="…"]` selectors, a token is missing; ask for one
+ * rather than forking. The switcher (assets/theme.js) stamps
+ * <html data-theme="…" data-mode="light|dark">; selection persists in
+ * localStorage `hg_theme` / `hg_mode` — origin-scoped, so per-site free.
+ *
+ * DEFAULTS ARE IDENTITY (owner, 2026-08-13): apex + library → apple,
+ * audiobooks → cyberpunk, games → retro. A site changes theme only when
+ * ITS user chooses. Consumers of THIS asset: the apex and the library.
+ * The audiobook and games sites keep their own implementations as their
+ * defaults and would adopt the switcher, not this file, first — see
+ * docs/info/estate-themes.md (including what a consumer must NOT do).
+ *
+ * Fonts are SELF-HOSTED under assets/fonts/ (latin subsets, OFL — license
+ * file travels with them), for the same reason the games repo commits its
+ * woff2: no third-party requests, CSP font-src stays 'self'. @font-face
+ * only fetches a face when an active theme actually uses it.
+ *
+ * MODE MECHANISM: theme.js always stamps a RESOLVED data-mode ('auto' is
+ * resolved against prefers-color-scheme, re-resolved live on OS change).
+ * The only media-query fallback is apple's, so a no-JS visitor still gets
+ * apple in their OS mode; non-apple themes exist only via the switcher.
+ */
+
+/* ---- self-hosted faces (lazy: fetched only when a theme uses them) -------- */
+
+@font-face {
+  font-family: 'Rajdhani';
+  src: url('../fonts/rajdhani-400.woff2') format('woff2');
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Rajdhani';
+  src: url('../fonts/rajdhani-600.woff2') format('woff2');
+  font-weight: 600; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Rajdhani';
+  src: url('../fonts/rajdhani-700.woff2') format('woff2');
+  font-weight: 700; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Share Tech Mono';
+  src: url('../fonts/share-tech-mono-400.woff2') format('woff2');
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Bangers';
+  src: url('../fonts/bangers.woff2') format('woff2');
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Luckiest Guy';
+  src: url('../fonts/luckiest-guy.woff2') format('woff2');
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+
+/* ===========================================================================
+ * THE TOKEN CONTRACT — every theme defines all of these.
+ *
+ *   color    --et-bg --et-bg-texture --et-bg-texture-size --et-surface
+ *            --et-fg --et-muted --et-hairline --et-ink
+ *            --et-accent --et-accent-fg --et-accent-2 --et-heading-color
+ *            --et-ok --et-warn --et-danger
+ *            --et-panel-border --et-field-border
+ *            --et-shadow-lift --et-glow --et-glow-title
+ *   type     --et-font --et-font-display --et-font-mono
+ *            --et-text-display/-title/-heading/-body/-small/-micro
+ *            --et-title-case --et-title-spacing
+ *   shape    --et-radius --et-radius-lg --et-radius-xl --et-radius-pill
+ *            --et-border-w --et-clip-panel
+ *   button   --et-btn-bg --et-btn-fg --et-btn-border --et-btn-shadow
+ *            --et-press
+ *   motion   --et-ease --et-ease-out --et-ease-spring
+ *            --et-dur-fast --et-dur --et-dur-slow --et-tilt-max
+ *
+ * Roles: --et-accent is INTERACTIVITY (links, primary actions, focus).
+ * --et-accent-2 is the theme's second identity voice (cyberpunk's yellow,
+ * retro's mustard) — apple sets it equal to --et-accent: one voice.
+ * --et-heading-color is what display headings wear (cyberpunk: yellow;
+ * others: --et-fg). --et-ink is the strong outline color (retro's charcoal);
+ * others alias it to the hairline. --et-panel-border/--et-field-border are
+ * transparent where the theme is flat (apple) and visible where borders ARE
+ * the theme. Status colors carry STATUS, never mood.
+ * ========================================================================= */
+
+/* ---- shared: type scale, rhythm, motion (theme-independent) --------------- */
+
+:root {
+  --et-text-display: clamp(2.75rem, 8vw, 4.75rem);
+  --et-text-title:   clamp(1.75rem, 5vw, 2.5rem);
+  --et-text-heading: clamp(1.25rem, 3vw, 1.5rem);
+  --et-text-body:    1.0625rem;
+  --et-text-small:   .875rem;
+  --et-text-micro:   .75rem;
+
+  --et-space-1: .5rem;
+  --et-space-2: 1rem;
+  --et-space-3: 1.75rem;
+  --et-space-4: 2.75rem;
+  --et-space-5: 4.5rem;
+  --et-space-6: 7rem;
+
+  --et-ease: cubic-bezier(.25, .1, .25, 1);
+  --et-ease-out: cubic-bezier(.16, 1, .3, 1);
+  --et-ease-spring: cubic-bezier(.34, 1.3, .4, 1);
+  --et-dur-fast: .18s;
+  --et-dur: .35s;
+  --et-dur-slow: .7s;
+  --et-tilt-max: 4; /* degrees; read by assets/motion.js (apple-only pattern) */
+}
+
+/* Native widgets (selects, date pickers) follow the stamped mode. */
+:root[data-mode="light"] { color-scheme: light; }
+:root[data-mode="dark"]  { color-scheme: dark; }
+
+/* ---- APPLE — light (the base / no-JS default) ----------------------------- */
+
+:root {
+  --et-bg: #fbfbfd;
+  --et-bg-texture: none;
+  --et-bg-texture-size: auto;
+  --et-surface: #f5f5f7;
+  --et-fg: #1d1d1f;
+  --et-muted: #6e6e73;
+  --et-hairline: #d2d2d7;
+  --et-ink: #d2d2d7;
+
+  --et-accent: #0071e3;
+  --et-accent-fg: #ffffff;
+  --et-accent-2: #0071e3; /* one voice, deliberately */
+  --et-heading-color: var(--et-fg);
+
+  --et-ok: #1d8a34;
+  --et-warn: #b25000;
+  --et-danger: #d70015;
+
+  --et-panel-border: transparent; /* apple is FLAT: surfaces, not boxes */
+  --et-field-border: transparent;
+
+  --et-shadow-lift: 0 14px 40px -12px rgba(0, 0, 0, .18);
+  --et-glow: none;
+  --et-glow-title: none;
+
+  --et-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+             "Helvetica Neue", Arial, sans-serif;
+  --et-font-display: var(--et-font);
+  --et-font-mono: ui-monospace, SFMono-Regular, "Cascadia Mono", Menlo, monospace;
+  --et-title-case: none;
+  --et-title-spacing: -.02em;
+
+  --et-radius: 12px;
+  --et-radius-lg: 18px;
+  --et-radius-xl: 28px;
+  --et-radius-pill: 980px;
+  --et-border-w: 1px;
+  --et-clip-panel: none;
+
+  --et-btn-bg: var(--et-accent);
+  --et-btn-fg: var(--et-accent-fg);
+  --et-btn-border: 0 solid transparent;
+  --et-btn-shadow: none;
+  --et-press: scale(.965);
+}
+
+/* Apple dark — twice on purpose: once for no-JS visitors whose OS is dark
+   (guarded so an explicit light choice wins), once for the stamped mode. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-mode="light"]) {
+    --et-bg: #000000;
+    --et-surface: #1d1d1f;
+    --et-fg: #f5f5f7;
+    --et-muted: #86868b;
+    --et-hairline: #3a3a3c;
+    --et-ink: #3a3a3c;
+    --et-accent: #2997ff;
+    --et-accent-2: #2997ff;
+    --et-ok: #30d158;
+    --et-warn: #ff9f0a;
+    --et-danger: #ff453a;
+    --et-shadow-lift: 0 16px 48px -12px rgba(0, 0, 0, .65);
+  }
+}
+:root[data-mode="dark"] {
+  --et-bg: #000000;
+  --et-surface: #1d1d1f;
+  --et-fg: #f5f5f7;
+  --et-muted: #86868b;
+  --et-hairline: #3a3a3c;
+  --et-ink: #3a3a3c;
+  --et-accent: #2997ff;
+  --et-accent-2: #2997ff;
+  --et-ok: #30d158;
+  --et-warn: #ff9f0a;
+  --et-danger: #ff453a;
+  --et-shadow-lift: 0 16px 48px -12px rgba(0, 0, 0, .65);
+}
+
+/* ---- CYBERPUNK — dark first (the audiobook site's identity) --------------- */
+/* Measured from the site's own pages (club/community block, the dominant of
+   its two palettes). Yellow #fcee0a = brand voice (headings, active states);
+   cyan #05d9e8 = interactive (focus, links, primary buttons — .btn-primary
+   is cyan-filled with #04121a text); magenta #ff2a6d = danger. Ambient neon
+   haze on the ground; notched corners instead of radius. */
+
+:root[data-theme="cyberpunk"] {
+  --et-bg: #0a0a12;
+  --et-bg-texture:
+    radial-gradient(ellipse at 20% 50%, rgba(252, 238, 10, .03) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(5, 217, 232, .03) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 80%, rgba(255, 42, 109, .02) 0%, transparent 50%);
+  --et-bg-texture-size: auto;
+  --et-surface: #12121f;
+  --et-fg: #e8e6e3;
+  --et-muted: #8a8f98;
+  --et-hairline: #2a2a3a;
+  --et-ink: #2a2a3a;
+
+  --et-accent: #05d9e8;
+  --et-accent-fg: #04121a;
+  --et-accent-2: #fcee0a;
+  --et-heading-color: var(--et-accent-2);
+
+  --et-ok: #39d98a; /* INVENTED — the site has no green anywhere; flagged, not fabricated silently */
+  --et-warn: #fcee0a;
+  --et-danger: #ff2a6d;
+
+  --et-panel-border: var(--et-hairline);
+  --et-field-border: var(--et-hairline);
+
+  --et-shadow-lift: 0 0 16px rgba(5, 217, 232, .25);
+  --et-glow: 0 0 8px rgba(5, 217, 232, .3);
+  --et-glow-title: 0 0 10px rgba(252, 238, 10, .3);
+
+  --et-font: 'Rajdhani', 'Segoe UI', system-ui, sans-serif;
+  --et-font-display: 'Rajdhani', 'Share Tech Mono', 'Segoe UI', system-ui, sans-serif;
+  --et-font-mono: 'Share Tech Mono', ui-monospace, monospace;
+  --et-title-case: uppercase;
+  --et-title-spacing: .06em;
+
+  --et-radius: 2px;
+  --et-radius-lg: 2px;
+  --et-radius-xl: 2px;
+  --et-radius-pill: 2px;
+  --et-border-w: 1px;
+  /* The notched corner — the site's panel clip, verbatim. Note: clip-path
+     also clips box-shadow, so hover feedback on clipped panels is the
+     border, not the glow (matches the source's own behaviour). */
+  --et-clip-panel: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px));
+
+  --et-btn-bg: var(--et-accent);      /* .btn-primary: cyan fill */
+  --et-btn-fg: var(--et-accent-fg);   /* #04121a on cyan, the site's literal */
+  --et-btn-border: 1px solid var(--et-accent);
+  --et-btn-shadow: none;
+  --et-press: scale(.97);
+}
+
+/* Cyberpunk light — the site's own html.light palette (club pages, the
+   dominant of its two light palettes). Glow triplets rebuilt from the light
+   neons — the source hardcodes DARK glows even in light mode; deliberate
+   deviation, flagged. */
+:root[data-theme="cyberpunk"][data-mode="light"] {
+  --et-bg: #eef0f5;
+  --et-bg-texture: none; /* the site kills its haze in light mode */
+  --et-surface: #ffffff;
+  --et-fg: #16161e;
+  --et-muted: #5c6270;
+  --et-hairline: #c9cdd9;
+  --et-ink: #c9cdd9;
+
+  --et-accent: #00798f;
+  --et-accent-fg: #ffffff;
+  --et-accent-2: #9a7b00;
+
+  --et-ok: #1d7a4b; /* INVENTED, as above */
+  --et-warn: #9a7b00;
+  --et-danger: #c31e58;
+
+  --et-shadow-lift: 0 6px 20px rgba(22, 22, 30, .15);
+  --et-glow: 0 0 8px rgba(0, 121, 143, .25);
+  --et-glow-title: 0 0 10px rgba(154, 123, 0, .25);
+}
+
+/* ---- RETRO — light first (the games app's aged-paper identity) ------------ */
+/* Verbatim from styles.css: paper #f2e8d5, card #fbf5e9 (lighter than the
+   page, never white), charcoal ink 2px outlines, hard offset shadows with
+   NO blur, the two-grid 6px halftone at ~4% alpha, Bangers headings.
+   ⚠️ Mustard is the PRIMARY-ACTION color (not the blue accent) — measured.
+   Dark set is the app's own shipped data-theme='dark' block. */
+
+:root[data-theme="retro"] {
+  --et-bg: #f2e8d5;
+  --et-bg-texture:
+    radial-gradient(circle at 1px 1px, rgba(43, 38, 34, .055) 1px, transparent 0),
+    radial-gradient(circle at 4px 4px, rgba(43, 38, 34, .035) 1px, transparent 0);
+  --et-bg-texture-size: 6px 6px;
+  --et-surface: #fbf5e9;
+  --et-fg: #2b2622;
+  --et-muted: #7a6e60;
+  --et-hairline: #cdbb9c;
+  --et-ink: #2b2622;
+
+  --et-accent: #4a7c9b;
+  --et-accent-fg: #fbf5e9;
+  --et-accent-2: #d99a2b;
+  --et-heading-color: var(--et-fg);
+
+  --et-ok: #4e7a44;
+  --et-warn: #9a6a12;
+  --et-danger: #a8443a;
+
+  --et-panel-border: var(--et-ink);   /* the 2px ink outline IS the theme */
+  --et-field-border: var(--et-hairline);
+
+  --et-shadow-lift: 3px 3px 0 rgba(43, 38, 34, .18); /* hard offset, NO blur */
+  --et-glow: none;
+  --et-glow-title: none;
+
+  --et-font: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --et-font-display: 'Bangers', 'Luckiest Guy', 'Trebuchet MS', system-ui, sans-serif;
+  --et-font-mono: ui-monospace, "Cascadia Code", Consolas, monospace;
+  --et-title-case: none;
+  --et-title-spacing: .03em; /* opens Bangers' tight caps back up */
+
+  --et-radius: 7px;      /* controls */
+  --et-radius-lg: 10px;  /* panels */
+  --et-radius-xl: 10px;
+  --et-radius-pill: 7px; /* buttons are panels here, not pills */
+  --et-border-w: 2px;
+  --et-clip-panel: none;
+
+  --et-btn-bg: var(--et-accent-2);   /* mustard primary action, measured */
+  --et-btn-fg: #2b2622;
+  --et-btn-border: 2px solid var(--et-ink);
+  --et-btn-shadow: 2px 2px 0 rgba(43, 38, 34, .22);
+  --et-press: translate(2px, 2px);   /* the press INTO the shadow */
+}
+
+:root[data-theme="retro"][data-mode="dark"] {
+  --et-bg: #1b1814;
+  --et-bg-texture:
+    radial-gradient(circle at 1px 1px, rgba(236, 224, 203, .05) 1px, transparent 0),
+    radial-gradient(circle at 4px 4px, rgba(236, 224, 203, .03) 1px, transparent 0);
+  --et-surface: #302a20;
+  --et-fg: #ece0cb;
+  --et-muted: #a39683;
+  --et-hairline: #453c2f;
+  --et-ink: #0b0907;
+
+  --et-accent: #7fb0cd;
+  --et-accent-fg: #1b1814;
+  --et-accent-2: #e5b45c;
+
+  --et-ok: #8fbb7e;
+  --et-warn: #d9a441;
+  --et-danger: #d4776b;
+
+  --et-shadow-lift: 3px 3px 0 rgba(0, 0, 0, .6);
+
+  --et-btn-fg: #1b1814;
+  --et-btn-shadow: 2px 2px 0 rgba(0, 0, 0, .5);
+}
+
+/* Texture is decoration and loses to user settings (the games app's own
+   rule, kept estate-wide). */
+@media (prefers-contrast: more) {
+  :root, :root[data-theme="cyberpunk"], :root[data-theme="retro"] {
+    --et-bg-texture: none;
+  }
+}
+
+/* ---- primitives (written ONCE, themed by tokens) -------------------------- */
+
+.et-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .4em;
+  min-height: 44px;
+  padding: .5em 1.4em;
+  border: var(--et-btn-border);
+  border-radius: var(--et-radius-pill);
+  background: var(--et-btn-bg);
+  color: var(--et-btn-fg);
+  box-shadow: var(--et-btn-shadow);
+  font: 600 var(--et-text-body)/1.2 var(--et-font);
+  letter-spacing: calc(var(--et-title-spacing) / 2);
+  cursor: pointer;
+  transition: transform var(--et-dur-fast) var(--et-ease),
+              filter var(--et-dur-fast) var(--et-ease),
+              box-shadow var(--et-dur-fast) var(--et-ease),
+              opacity var(--et-dur-fast) var(--et-ease);
+}
+.et-btn:hover { filter: brightness(1.06); box-shadow: var(--et-btn-shadow), var(--et-glow); }
+.et-btn:active { transform: var(--et-press); }
+.et-btn:focus-visible { outline: 2px solid var(--et-accent); outline-offset: 3px; }
+.et-btn:disabled { opacity: .5; cursor: default; transform: none; }
+/* Retro's press sinks the button INTO its shadow — the shadow goes with it. */
+[data-theme="retro"] .et-btn:active { box-shadow: none; }
+
+.et-btn--quiet {
+  --et-btn-bg: var(--et-surface);
+  --et-btn-fg: var(--et-fg);
+}
+.et-btn--danger {
+  --et-btn-bg: var(--et-surface);
+  --et-btn-fg: var(--et-danger);
+}
+
+.et-input {
+  min-height: 44px;
+  padding: .5em 1em;
+  border: var(--et-border-w) solid var(--et-field-border);
+  border-radius: var(--et-radius);
+  background: var(--et-surface);
+  color: var(--et-fg);
+  font: var(--et-text-body)/1.4 var(--et-font);
+  transition: border-color var(--et-dur-fast) var(--et-ease);
+}
+.et-input::placeholder { color: var(--et-muted); }
+.et-input:focus-visible { outline: 2px solid var(--et-accent); outline-offset: 0; }
+.et-input:disabled { opacity: .55; }
+
+/* The big tile: full-width stacked section. Flat where the theme is flat
+   (apple), outlined where borders are the theme (retro ink, cyberpunk
+   hairline + notch). Hover lifts SHADOW/border only — transform belongs to
+   the tilt script, so CSS and JS never share a property. */
+.et-tile {
+  display: block;
+  padding: clamp(2.25rem, 7vw, 4rem) 1.5rem;
+  border: var(--et-border-w) solid var(--et-panel-border);
+  border-radius: var(--et-radius-xl);
+  clip-path: var(--et-clip-panel);
+  background: var(--et-surface);
+  color: inherit;
+  text-decoration: none;
+  text-align: center;
+  transition: box-shadow var(--et-dur) var(--et-ease), border-color var(--et-dur) var(--et-ease);
+}
+.et-tile:hover { box-shadow: var(--et-shadow-lift); }
+.et-tile:focus-visible { outline: 2px solid var(--et-accent); outline-offset: 4px; }
+[data-theme="cyberpunk"] .et-tile:hover { border-color: var(--et-accent); }
+
+.et-hairline-top { border-top: 1px solid var(--et-hairline); }
+
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  margin: -1px; padding: 0; border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ---- the settings cog (the switcher's UI) --------------------------------- */
+/* Markup contract (docs/info/estate-themes.md): button#hg-cog +
+   div#hg-cog-panel holding select#hg-theme-select and three [data-hg-mode]
+   buttons. assets/theme.js wires it; these rules style it from the tokens
+   so the cog wears whatever theme it just picked. */
+
+.hg-cog {
+  position: fixed;
+  top: max(.9rem, env(safe-area-inset-top));
+  right: max(.9rem, env(safe-area-inset-right));
+  z-index: 50;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: var(--et-border-w) solid var(--et-hairline);
+  border-radius: var(--et-radius-pill);
+  background: var(--et-surface);
+  color: var(--et-muted);
+  cursor: pointer;
+  transition: color var(--et-dur-fast) var(--et-ease),
+              border-color var(--et-dur-fast) var(--et-ease),
+              transform var(--et-dur-slow) var(--et-ease);
+}
+.hg-cog:hover { color: var(--et-fg); border-color: var(--et-accent); }
+.hg-cog:focus-visible { outline: 2px solid var(--et-accent); outline-offset: 3px; }
+/* The one place the page literally spins as you interact — the gear turns a
+   quarter clockwise while its panel is open. Reduced motion parks it. */
+.hg-cog[aria-expanded="true"] { transform: rotate(90deg); color: var(--et-fg); }
+
+.hg-cog-panel {
+  position: fixed;
+  top: calc(max(.9rem, env(safe-area-inset-top)) + 52px);
+  right: max(.9rem, env(safe-area-inset-right));
+  z-index: 50;
+  width: min(19rem, calc(100vw - 2rem));
+  padding: 1rem;
+  border: var(--et-border-w) solid var(--et-hairline);
+  border-radius: var(--et-radius-lg);
+  background: var(--et-surface);
+  color: var(--et-fg);
+  box-shadow: var(--et-shadow-lift);
+  font-family: var(--et-font);
+}
+.hg-cog-panel[hidden] { display: none; }
+
+.hg-cog-panel .hg-label {
+  display: block;
+  margin: 0 0 .35rem;
+  color: var(--et-muted);
+  font-size: var(--et-text-micro);
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.hg-cog-panel .hg-row { margin: 0 0 .9rem; }
+.hg-cog-panel .hg-row:last-child { margin-bottom: 0; }
+
+#hg-theme-select {
+  width: 100%;
+  min-height: 40px;
+  padding: .35em .7em;
+  border: var(--et-border-w) solid var(--et-hairline);
+  border-radius: var(--et-radius);
+  background: var(--et-bg);
+  color: var(--et-fg);
+  font: var(--et-text-small)/1.3 var(--et-font);
+}
+
+.hg-mode-group { display: flex; gap: .4rem; }
+.hg-mode-group button {
+  flex: 1;
+  min-height: 36px;
+  padding: .3em .5em;
+  border: var(--et-border-w) solid var(--et-hairline);
+  border-radius: var(--et-radius);
+  background: var(--et-bg);
+  color: var(--et-muted);
+  font: 600 var(--et-text-small)/1.2 var(--et-font);
+  cursor: pointer;
+}
+.hg-mode-group button[aria-pressed="true"] {
+  background: var(--et-accent);
+  border-color: var(--et-accent);
+  color: var(--et-accent-fg);
+}
+.hg-mode-group button:focus-visible { outline: 2px solid var(--et-accent); outline-offset: 2px; }
+
+.hg-cog-note { margin: .8rem 0 0; color: var(--et-muted); font-size: var(--et-text-micro); }
+
+/* ---- motion machinery ----------------------------------------------------- */
+/*
+ * REVEAL — sections rise into place as they enter the viewport (all themes;
+ * the tempo is the estate's). assets/motion.js adds `et-motion` to <html>
+ * and `.in` per element via IntersectionObserver. ⚠️ The hidden state is
+ * gated on html.et-motion, so with no JS, a failed script, or
+ * prefers-reduced-motion the content is simply VISIBLE — the page can never
+ * be blanked by its own choreography.
+ */
+html.et-motion .reveal {
+  opacity: 0;
+  transform: translateY(26px);
+  transition: opacity var(--et-dur-slow) var(--et-ease-out),
+              transform var(--et-dur-slow) var(--et-ease-out);
+}
+html.et-motion .reveal.in { opacity: 1; transform: none; }
+html.et-motion .reveal-d1 { transition-delay: .08s; }
+html.et-motion .reveal-d2 { transition-delay: .16s; }
+
+/*
+ * TILT — the Apple showroom feel and APPLE-SCOPED IDENTITY: an .et-tilt
+ * element leans toward the cursor (≤ --et-tilt-max degrees) and springs
+ * back on leave. motion.js writes the transform inline (rAF-throttled,
+ * fine pointers only, and only while data-theme is apple); this standing
+ * transition damps the per-frame updates into the glide.
+ */
+html.et-motion[data-theme="apple"] .et-tilt,
+html.et-motion:not([data-theme]) .et-tilt {
+  transition: transform var(--et-dur-fast) var(--et-ease),
+              box-shadow var(--et-dur) var(--et-ease);
+  will-change: transform;
+}
+
+/*
+ * REDUCED MOTION — the whole vocabulary dies at once, honored religiously
+ * (both source sites already do; the estate keeps the rule). motion.js also
+ * refuses to start, and the cog's spin is parked with everything else.
+ */
+@media (prefers-reduced-motion: reduce) {
+  html.et-motion .reveal,
+  html.et-motion .reveal.in {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+  .et-btn, .et-tile, .hg-cog, html.et-motion .et-tilt {
+    transition: none !important;
+  }
+  .et-btn:active { transform: none; }
+  .hg-cog[aria-expanded="true"] { transform: none; }
+}

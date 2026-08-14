@@ -1,0 +1,67 @@
+/*
+ * ab-bridge.css — the audiobook site's legacy variable names, aliased onto
+ * the estate token contract (static/css/estate-theme.css).
+ *
+ * Every page of this site was written against the cyberpunk-era vocabulary
+ * (--bg / --bg-2 / --text / --muted / --border / --neon-*). Rather than
+ * rewrite thousands of rules and inline styles, those names are defined here
+ * ONCE in terms of --et-* roles, so the whole site re-themes when theme.js
+ * stamps <html data-theme data-mode>. Pages must not define palettes of
+ * their own any more — the old :root / body.dark / html.light palette blocks
+ * are gone on purpose; putting one back forks the theme system.
+ *
+ * Role mapping (measured from the site's own CSS, matching the extraction in
+ * catalog-platform's estate-theme.css):
+ *   --neon-cyan    → --et-accent    (interactive voice: links, focus, primary)
+ *   --neon-yellow  → --et-accent-2  (brand voice: headings, active states)
+ *   --neon-magenta → --et-danger    (delete/close/error — and, historically,
+ *                                    some decorative flair that now correctly
+ *                                    reads as the theme's danger color)
+ *   --neon-blue    → --et-accent    (was only a gradient partner; collapsed)
+ *
+ * Load order on every page: estate-theme.css, then this file, then the
+ * page's own <style>. theme.js loads synchronously right after (pre-paint).
+ */
+
+:root {
+  --bg: var(--et-bg);
+  --bg-2: var(--et-surface);
+  --text: var(--et-fg);
+  --muted: var(--et-muted);
+  --border: var(--et-hairline);
+  --chip: var(--et-surface);
+
+  --neon-yellow: var(--et-accent-2);
+  --neon-cyan: var(--et-accent);
+  --neon-magenta: var(--et-danger);
+  --neon-blue: var(--et-accent);
+  --accent: var(--et-accent-2);
+
+  /* index.html's control vocabulary */
+  --btn-bg: var(--et-surface);
+  --btn-bg-active: var(--et-surface);
+  --btn-border: var(--et-hairline);
+  --btn-active: var(--et-accent-2);
+
+  /* Derived shades the old palettes hardcoded per mode (row striping, hover
+     tint). color-mix keeps them token-driven instead of forked per theme. */
+  --row-alt: color-mix(in srgb, var(--et-surface) 55%, var(--et-bg));
+  --row-hover: color-mix(in srgb, var(--et-accent) 10%, var(--et-bg));
+
+  /* Modal scrim — deliberately a literal: every theme dims with dark glass. */
+  --overlay: rgba(0, 0, 0, .78);
+
+  --radius: var(--et-radius);
+}
+
+/* The shared ground: every page used to paint its own background + neon haze
+   and declare Rajdhani by name. The tokens own all of that now — cyberpunk
+   keeps its haze via --et-bg-texture, apple gets clean ground, retro gets its
+   halftone paper. Pages keep only their layout rules for body. */
+body {
+  background: var(--et-bg);
+  background-image: var(--et-bg-texture);
+  background-size: var(--et-bg-texture-size);
+  color: var(--et-fg);
+  font-family: var(--et-font);
+}
