@@ -195,7 +195,7 @@ def _added_item_html(r: Dict[str, str], date_label: str = "") -> str:
         series_badge = f'<span class="ab-chip" style="font-size:.8em">{_esc(r["series"])}{idx}</span>'
     date_html = (
         f'<div style="flex-shrink:0;color:var(--muted);font-size:.8em;'
-        f'font-family:\'Share Tech Mono\',monospace">{_esc(date_label)}</div>'
+        f'font-family:var(--et-font-mono)">{_esc(date_label)}</div>'
         if date_label else ""
     )
 
@@ -286,8 +286,9 @@ def _upload_history_html(
         suffix = _HISTORY_SOURCE_LABELS.get(next(iter(sources)), "") if len(sources) == 1 else ""
         parts.append(
             f'<div style="margin-top:10px;color:var(--neon-cyan);font-size:.85em;'
-            f'text-transform:uppercase;letter-spacing:1px;'
-            f'font-family:\'Share Tech Mono\',monospace">'
+            f'text-transform:var(--et-title-case);'
+            f'letter-spacing:var(--et-title-spacing);'
+            f'font-family:var(--et-font-mono)">'
             f'{_esc(day or "unknown date")}{_esc(suffix)}'
             f' <span style="color:var(--muted)">({len(items)})</span></div>'
         )

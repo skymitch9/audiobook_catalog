@@ -1,41 +1,25 @@
 <!doctype html>
-<html>
+<html lang="en" data-default-theme="cyberpunk">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<!-- Estate theme system: token contract + pre-paint switcher. Fonts are
+     self-hosted under static/fonts/ (no third-party requests). theme.js is
+     synchronous on purpose so the stored theme/mode land on <html> before
+     first paint; it also migrates the legacy ab_theme key once. -->
+<link rel="stylesheet" href="static/css/estate-theme.css">
+<link rel="stylesheet" href="static/css/ab-bridge.css">
+<script src="static/js/theme.js"></script>
 <title>Audiobook Catalog</title>
 <link rel="icon" type="image/png" href="static/img/favicon.png">
 <style>
-/* =============== Theming — Cyberpunk 2077 =============== */
+/* Palette lives in static/css/estate-theme.css (the --et-* token contract:
+   cyberpunk / apple / retro, each light + dark) with ab-bridge.css aliasing
+   this page's legacy names (--bg, --neon-*, --btn-*, --row-*) onto it.
+   theme.js stamps data-theme/data-mode on <html>; the old body.dark
+   light-first mechanism and its second, divergent light palette are gone. */
 :root{
-  --pad:14px; --radius:4px;
-  --bg:#f0eff4; --bg-2:#e4e3ea;
-  --text:#1a1a2e; --muted:#4a4a5a;
-  --border:#c8c6d0;
-  --chip:#dcdae4;
-  --btn-bg:#e4e3ea; --btn-bg-active:#d4d2e0; --btn-border:#b8b6c0; --btn-active:#fcee0a;
-  --row-alt:#eae9f0; --row-hover:#e0dff0;
-  --overlay: rgba(20,20,40,.7);
-  --neon-yellow:#c4a800;
-  --neon-cyan:#0098a8;
-  --neon-magenta:#c4205a;
-  --neon-blue:#5a48cc;
-  --accent: var(--neon-yellow);
-}
-body.dark{
-  --bg:#0a0a12; --bg-2:#12121f;
-  --text:#e8e6e3; --muted:#8a8f98;
-  --border:#2a2a3a;
-  --chip:#1a1a2e;
-  --btn-bg:#1a1a2e; --btn-bg-active:#2a1a3e; --btn-border:#3a2a4a; --btn-active:#fcee0a;
-  --row-alt:#0e0e1a; --row-hover:#1a1028;
-  --overlay: rgba(0,0,0,.85);
-  --neon-yellow:#fcee0a;
-  --neon-cyan:#05d9e8;
-  --neon-magenta:#ff2a6d;
-  --neon-blue:#7b61ff;
+  --pad:14px;
 }
 
 /* =============== Base Layout =============== */
@@ -43,23 +27,18 @@ body.dark{
 html,body{height:100%}
 body{
   margin:0; padding:var(--pad);
-  font-family:'Rajdhani', 'Share Tech Mono', 'Segoe UI', system-ui, sans-serif;
-  background:var(--bg); color:var(--text);
-}
-body.dark{
-  background-image:
-    radial-gradient(ellipse at 20% 50%, rgba(252,238,10,.03) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 20%, rgba(5,217,232,.03) 0%, transparent 50%),
-    radial-gradient(ellipse at 50% 80%, rgba(255,42,109,.02) 0%, transparent 50%);
 }
 #wrap{max-width:1100px;margin:0 auto}
+/* Keep the fixed estate cog clear of the header/identity row */
+#wrap > div:first-child{padding-right:56px}
 h1{
   margin:0 0 8px 0;
   font-weight:700;
-  text-transform:uppercase;
-  letter-spacing:2px;
+  font-family:var(--et-font-display);
+  text-transform:var(--et-title-case);
+  letter-spacing:var(--et-title-spacing);
   color: var(--neon-yellow);
-  text-shadow: 0 0 10px rgba(252,238,10,.4), 0 0 40px rgba(252,238,10,.1);
+  text-shadow: var(--et-glow-title);
 }
 
 /* Controls */
@@ -72,42 +51,43 @@ input#ab-search, select#ab-sort, select#ab-page-size{
 }
 input#ab-search:focus, select#ab-sort:focus, select#ab-page-size:focus{
   border-color: var(--neon-cyan);
-  box-shadow: 0 0 8px rgba(5,217,232,.3), inset 0 0 4px rgba(5,217,232,.1);
+  box-shadow: var(--et-glow);
 }
 button.btn{
   padding:10px 12px; border:1px solid var(--btn-border); border-radius:var(--radius);
   background:var(--btn-bg); color:var(--text); cursor:pointer;
-  text-transform:uppercase; letter-spacing:.5px; font-weight:600; font-size:.85em;
+  text-transform:var(--et-title-case); letter-spacing:.5px; font-weight:600; font-size:.85em;
   transition: all .2s;
-  clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
   padding: 10px 18px;
 }
 button.btn:hover{
   background: var(--neon-yellow);
-  color: #0a0a12;
+  color: var(--et-btn-fg);
   border-color: var(--neon-yellow);
-  box-shadow: 0 0 12px rgba(252,238,10,.4);
+  box-shadow: var(--et-glow-title);
 }
 button.btn:focus, select:focus, input:focus{ outline:2px solid var(--neon-cyan); outline-offset:2px }
 
-/* Game button - Cyberpunk neon style */
+/* Game button — primary-action treatment from the tokens. (The old
+   magenta→purple gradient had no token role and no honest rendering outside
+   cyberpunk; accent fill + glow is the contract's primary voice.) */
 .game-btn{
-  background: linear-gradient(135deg, #ff2a6d 0%, #7b61ff 100%) !important;
-  color: white !important;
+  background: var(--et-accent) !important;
+  color: var(--et-accent-fg) !important;
   border: none !important;
   font-weight: 700;
   padding: 12px 20px !important;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  box-shadow: 0 0 15px rgba(255,42,109,.4), 0 0 30px rgba(123,97,255,.2);
+  text-transform:var(--et-title-case);
+  letter-spacing:var(--et-title-spacing);
+  box-shadow: var(--et-glow);
   transition: all 0.3s ease;
   position: relative;
   overflow: hidden;
-  clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
+  border-radius: var(--et-radius);
 }
 .game-btn:hover{
   transform: translateY(-2px);
-  box-shadow: 0 0 20px rgba(255,42,109,.6), 0 0 40px rgba(123,97,255,.3);
+  box-shadow: var(--et-glow), var(--et-shadow-lift);
 }
 .game-btn:active{
   transform: translateY(0);
@@ -128,7 +108,7 @@ button.btn:focus, select:focus, input:focus{ outline:2px solid var(--neon-cyan);
 
 /* Dark mode switch — neon toggle */
 .switch{ display:inline-flex; align-items:center; gap:8px; user-select:none }
-.switch .label{font-size:.85em; color:var(--muted); text-transform:uppercase; letter-spacing:.5px}
+.switch .label{font-size:.85em; color:var(--muted); text-transform:var(--et-title-case); letter-spacing:.5px}
 .switch input{display:none}
 .switch .track{
   width:46px; height:26px; border-radius:4px; position:relative;
@@ -139,7 +119,7 @@ button.btn:focus, select:focus, input:focus{ outline:2px solid var(--neon-cyan);
   width:20px; height:20px; border-radius:2px; position:absolute; top:2px; left:3px;
   background:var(--muted); transition:left .2s, background .2s;
 }
-.switch input:checked + .track .thumb{ left:23px; background:var(--neon-cyan); box-shadow:0 0 6px rgba(5,217,232,.5); }
+.switch input:checked + .track .thumb{ left:23px; background:var(--neon-cyan); box-shadow: var(--et-glow); }
 .switch input:checked + .track{ background:var(--bg-2); border-color:var(--neon-cyan); }
 
 /* Table — cyberpunk grid */
@@ -147,7 +127,7 @@ table{border-collapse:collapse;width:100%}
 th, td{border:1px solid var(--border); padding:10px; vertical-align:middle}
 th{
   background:var(--bg-2); user-select:none; position:sticky; top:0; z-index:1;
-  text-transform:uppercase; font-size:.8em; letter-spacing:1px; color:var(--neon-cyan);
+  text-transform:var(--et-title-case); font-size:.8em; letter-spacing:var(--et-title-spacing); color:var(--neon-cyan);
   border-bottom:2px solid var(--neon-cyan);
 }
 tr:nth-child(even){background:var(--row-alt)}
@@ -161,7 +141,7 @@ td:nth-child(4){text-align:right}
 /* Covers: cyberpunk glow on hover */
 td:first-child{width:72px; border-top: none; border-bottom: 1px solid var(--border); border-left: none; border-right: none;}
 img.cover{width:56px;height:auto;border-radius:2px;display:block;border:1px solid var(--border);box-shadow:none;background:transparent;transition:all .2s}
-img.cover:hover{border-color:var(--neon-cyan);box-shadow:0 0 8px rgba(5,217,232,.4)}
+img.cover:hover{border-color:var(--neon-cyan);box-shadow: var(--et-glow)}
 button.cover-btn{display:block;border:none;background:transparent;padding:0;cursor:pointer}
 button.cover-btn:focus{ outline:2px solid var(--neon-cyan); outline-offset:2px }
 
@@ -170,36 +150,36 @@ button.cover-btn:focus{ outline:2px solid var(--neon-cyan); outline-offset:2px }
 .ab-card{
   border:1px solid var(--border); border-radius:var(--radius); padding:12px;
   background:var(--bg-2); cursor:pointer;
-  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+  clip-path:var(--et-clip-panel);
   transition: all .2s;
 }
 .ab-card:hover{
   background:var(--row-hover);
   border-color:var(--neon-magenta);
-  box-shadow: 0 0 12px rgba(255,42,109,.2);
+  box-shadow: var(--et-glow);
 }
 .ab-card .t{font-weight:600;margin-bottom:4px;display:flex;align-items:center;gap:8px;color:var(--neon-yellow)}
 .ab-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
 .ab-chip{
   background:var(--chip);padding:4px 8px;border-radius:2px;font-size:.85em;color:var(--muted);
   border:1px solid var(--border);
-  font-family:'Share Tech Mono', monospace;
+  font-family:var(--et-font-mono);
 }
 .cover-inline{width:40px;height:auto;border-radius:2px;display:inline-block;vertical-align:middle;border:1px solid var(--border)}
 
 /* Pagination — neon pills */
 .pagination{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.pagination-info{color:var(--muted); font-family:'Share Tech Mono', monospace; font-size:.85em}
+.pagination-info{color:var(--muted); font-family:var(--et-font-mono); font-size:.85em}
 #ab-page-nav{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .page-btn{
   padding:6px 10px; border:1px solid var(--btn-border); border-radius:2px;
   background:var(--btn-bg); cursor:pointer; color:var(--text);
-  font-family:'Share Tech Mono', monospace; transition:all .2s;
+  font-family:var(--et-font-mono); transition:all .2s;
 }
 .page-btn:hover{border-color:var(--neon-cyan); color:var(--neon-cyan)}
 .page-btn.active, .page-btn:disabled{
-  background:var(--neon-yellow); color:#0a0a12; border-color:var(--neon-yellow); cursor:default;
-  box-shadow:0 0 8px rgba(252,238,10,.3);
+  background:var(--neon-yellow); color:var(--et-btn-fg); border-color:var(--neon-yellow); cursor:default;
+  box-shadow: var(--et-glow-title);
 }
 
 /* Empty state */
@@ -224,44 +204,44 @@ button.cover-btn:focus{ outline:2px solid var(--neon-cyan); outline-offset:2px }
 #modal .panel{
   width:min(960px, 95vw); max-height:90vh; overflow:auto;
   background:var(--bg); color:var(--text); border:1px solid var(--neon-cyan);
-  border-radius:0; display:grid; grid-template-columns: 240px 1fr; gap:16px; padding:16px;
-  box-shadow: 0 0 20px rgba(5,217,232,.2), 0 0 60px rgba(5,217,232,.05);
-  clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 20px 100%, 0 calc(100% - 20px));
+  border-radius:var(--et-radius); display:grid; grid-template-columns: 240px 1fr; gap:16px; padding:16px;
+  box-shadow: var(--et-shadow-lift);
+  clip-path:var(--et-clip-panel);
 }
 #modal .panel .cover-lg{ width: 100%; height:auto; border-radius:2px; display:block; border:1px solid var(--border) }
 #modal .meta-grid{ display:grid; grid-template-columns: 120px 1fr; gap:8px; align-items:start }
-#modal .label{ color:var(--neon-cyan); text-transform:uppercase; font-size:.75em; letter-spacing:.5px }
-#modal .title{ font-size:1.1rem; font-weight:700; margin-bottom:6px; color:var(--neon-yellow); text-transform:uppercase }
+#modal .label{ color:var(--neon-cyan); text-transform:var(--et-title-case); font-size:.75em; letter-spacing:.5px }
+#modal .title{ font-size:1.1rem; font-weight:700; margin-bottom:6px; color:var(--neon-yellow); text-transform:var(--et-title-case) }
 #modal .desc{ margin-top:10px; line-height:1.45; white-space:pre-wrap; color:var(--text) }
 #modal .close{
   position:absolute; top:14px; right:14px;
-  background:var(--btn-bg); border:1px solid var(--neon-magenta); border-radius:0;
+  background:var(--btn-bg); border:1px solid var(--neon-magenta); border-radius:var(--et-radius);
   padding:8px 10px; cursor:pointer; color:var(--neon-magenta);
-  text-transform:uppercase; font-weight:700; font-size:.8em;
+  text-transform:var(--et-title-case); font-weight:700; font-size:.8em;
   transition:all .2s;
 }
 #modal .close:hover{
   background:var(--neon-magenta); color:#fff;
-  box-shadow:0 0 10px rgba(255,42,109,.4);
+  box-shadow: var(--et-glow);
 }
 /* Link-style buttons */
 a.link-btn{
   display:inline-block;
   padding:8px 10px;
   border:1px solid var(--btn-border);
-  border-radius:0;
+  border-radius:var(--et-radius);
   background:var(--btn-bg);
   color:var(--neon-cyan);
   text-decoration:none;
   margin-top:4px;
   font-size:.85em;
-  text-transform:uppercase;
+  text-transform:var(--et-title-case);
   letter-spacing:.5px;
   transition:all .2s;
 }
 a.link-btn:hover{
   border-color:var(--neon-cyan);
-  box-shadow:0 0 8px rgba(5,217,232,.3);
+  box-shadow: var(--et-glow);
 }
 a.link-btn:focus{ outline:2px solid var(--neon-cyan); outline-offset:2px }
 
@@ -275,7 +255,7 @@ a.link-btn:focus{ outline:2px solid var(--neon-cyan); outline-offset:2px }
 @media (max-width: 600px){
   body{ padding:8px; }
   #wrap{ max-width:100%; }
-  h1{ font-size:1.3em; letter-spacing:1px; }
+  h1{ font-size:1.3em; letter-spacing:var(--et-title-spacing); }
 
   /* Stack header vertically */
   #wrap > div:first-child{
@@ -317,7 +297,7 @@ a.link-btn:focus{ outline:2px solid var(--neon-cyan); outline-offset:2px }
 
   /* Modal full screen on mobile */
   #modal .panel{
-    width:100vw; max-height:100vh; border-radius:0;
+    width:100vw; max-height:100vh; border-radius:var(--et-radius);
     clip-path:none; padding:12px;
   }
   #auth-modal .auth-modal-panel{
@@ -341,7 +321,7 @@ body:not(.cards) #ab-table{display:table}
 #ab-table tbody tr{ cursor:pointer; }
 
 /* Rating column */
-.rating-cell{ font-family:'Share Tech Mono', monospace; white-space:nowrap; }
+.rating-cell{ font-family:var(--et-font-mono); white-space:nowrap; }
 .rating-cell .stars{ color: var(--neon-yellow); }
 .rating-chip .stars{ color: var(--neon-yellow); font-size:.9em; }
 .stars .star{ display:inline-block; position:relative; }
@@ -366,7 +346,7 @@ body:not(.cards) #ab-table{display:table}
 .auth-modal-panel{
   background:var(--bg-2); border:1px solid var(--neon-magenta);
   width:min(400px, 92vw); padding:24px; position:relative;
-  clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px));
+  clip-path:var(--et-clip-panel);
 }
 #auth-modal.open{ display:flex; align-items:flex-start; padding-top:40px; overflow-y:auto; }
 .auth-modal-close{
@@ -438,6 +418,31 @@ body:not(.cards) #ab-table{display:table}
 </head>
 
 <body>
+<!-- Estate settings cog: theme + light/dark. static/js/theme.js wires this
+     standard markup (select#hg-theme-select, [data-hg-mode]) automatically. -->
+<button id="hg-cog" class="hg-cog" type="button" aria-expanded="false" aria-controls="hg-cog-panel" aria-label="Display settings">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.56-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.09a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.09a1.7 1.7 0 0 0 1.56 1.03H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1.03z"/></svg>
+</button>
+<div id="hg-cog-panel" class="hg-cog-panel" hidden>
+  <div class="hg-row">
+    <label class="hg-label" for="hg-theme-select">Theme</label>
+    <select id="hg-theme-select">
+      <option value="cyberpunk">Cyberpunk</option>
+      <option value="apple">Apple</option>
+      <option value="retro">Retro</option>
+    </select>
+  </div>
+  <div class="hg-row">
+    <span class="hg-label" id="hg-mode-label">Appearance</span>
+    <div class="hg-mode-group" role="group" aria-labelledby="hg-mode-label">
+      <button type="button" data-hg-mode="auto" aria-pressed="true">Auto</button>
+      <button type="button" data-hg-mode="light" aria-pressed="false">Light</button>
+      <button type="button" data-hg-mode="dark" aria-pressed="false">Dark</button>
+    </div>
+  </div>
+  <p class="hg-cog-note">Your choice is remembered on this site only — each catalogue keeps its own look until you change it there.</p>
+</div>
+
 <div id="wrap">
   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap:wrap; gap:12px;">
     <h1 style="margin: 0;">Audiobook Catalog</h1>
@@ -449,20 +454,20 @@ body:not(.cards) #ab-table{display:table}
   </div>
 
   <!-- Book of the Day -->
-  <div id="book-of-day" style="background: var(--bg-2); border: 1px solid var(--border); border-left:3px solid var(--neon-yellow); border-radius: 0; padding: 1rem; margin-bottom: 1rem; clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));">
+  <div id="book-of-day" style="background: var(--bg-2); border: 1px solid var(--border); border-left:3px solid var(--neon-yellow); border-radius:var(--et-radius); padding: 1rem; margin-bottom: 1rem; clip-path:var(--et-clip-panel);">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-      <h2 style="margin: 0; font-size: 1.1rem; text-transform:uppercase; letter-spacing:1px; color:var(--neon-yellow);">Book of the Day</h2>
+      <h2 style="margin: 0; font-size: 1.1rem; text-transform:var(--et-title-case); letter-spacing:var(--et-title-spacing); color:var(--neon-yellow);">Book of the Day</h2>
       <button id="random-book-btn" class="btn" style="font-size: 0.8rem;">Random</button>
     </div>
     <div id="book-of-day-content" style="display: flex; gap: 1rem; align-items: start;">
-      <div id="book-of-day-loading" style="color: var(--muted); font-family:'Share Tech Mono',monospace;">Loading...</div>
+      <div id="book-of-day-loading" style="color: var(--muted); font-family:var(--et-font-mono);">Loading...</div>
     </div>
   </div>
 
   <!-- Recently Added -->
-  <div id="recently-added" style="background: var(--bg-2); border: 1px solid var(--border); border-left:3px solid var(--neon-cyan); border-radius: 0; padding: 1rem; margin-bottom: 1rem; clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));">
+  <div id="recently-added" style="background: var(--bg-2); border: 1px solid var(--border); border-left:3px solid var(--neon-cyan); border-radius:var(--et-radius); padding: 1rem; margin-bottom: 1rem; clip-path:var(--et-clip-panel);">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
-      <h2 style="margin: 0; font-size: 1.1rem; text-transform:uppercase; letter-spacing:1px; color:var(--neon-cyan);">Recently Added</h2>
+      <h2 style="margin: 0; font-size: 1.1rem; text-transform:var(--et-title-case); letter-spacing:var(--et-title-spacing); color:var(--neon-cyan);">Recently Added</h2>
       <button id="upload-history-btn" class="btn" style="font-size: 0.8rem;">Full History</button>
     </div>
     <div id="recently-added-content">{{RECENTLY_ADDED}}</div>
@@ -577,13 +582,13 @@ body:not(.cards) #ab-table{display:table}
         <div class="label">Duration</div><div id="m-duration"></div>
       </div>
       <details id="m-companions" style="display:none; margin-top:8px; padding:6px 10px; background:var(--surface); border:1px solid var(--border); border-radius:4px;">
-        <summary style="cursor:pointer; color:var(--neon-cyan); text-transform:uppercase; font-size:.75em; letter-spacing:.5px;">📎 Companion Files</summary>
+        <summary style="cursor:pointer; color:var(--neon-cyan); text-transform:var(--et-title-case); font-size:.75em; letter-spacing:.5px;">📎 Companion Files</summary>
         <ul id="m-companions-list" style="margin:8px 0 2px 18px; font-size:.85em; line-height:1.5;"></ul>
       </details>
       <div class="desc" id="m-desc"></div>
       <!-- Content warnings (only for books already checked via the club pipeline) -->
       <details id="m-warnings" style="display:none; margin-top:10px; padding:6px 10px; background:var(--surface); border:1px solid var(--border); border-radius:4px;">
-        <summary style="cursor:pointer; color:var(--neon-cyan); text-transform:uppercase; font-size:.78em; letter-spacing:.5px;">⚠ Content notes</summary>
+        <summary style="cursor:pointer; color:var(--neon-cyan); text-transform:var(--et-title-case); font-size:.78em; letter-spacing:.5px;">⚠ Content notes</summary>
         <ul id="m-warnings-list" style="margin:8px 0 2px 18px; font-size:.9em; line-height:1.5;"></ul>
         <div id="m-cw-actions"></div>
       </details>
@@ -596,18 +601,19 @@ body:not(.cards) #ab-table{display:table}
 </div>
 
 <script>
-/* ===== Theme bootstrap (default Dark ON) ===== */
+/* ===== View bootstrap (theme/mode live in static/js/theme.js now) ===== */
 (function(){
-  var saved = localStorage.getItem("ab_theme");
-  var startDark = (saved ? saved === "dark" : true);
-  if (startDark) document.body.classList.add("dark");
   if (window.matchMedia("(max-width: 820px)").matches){ document.body.classList.add("cards"); }
 })();
 
-/* Global dark mode toggle function (called from user modal) */
+/* Dark-mode bridge for the account modal — delegates to the estate switcher
+   (hg_mode on <html data-mode>). The legacy ab_theme key is migrated once by
+   theme.js and never written again. */
 function toggleDarkMode(isDark){
-  if(isDark){ document.body.classList.add("dark"); localStorage.setItem("ab_theme","dark"); }
-  else { document.body.classList.remove("dark"); localStorage.setItem("ab_theme","light"); }
+  if (window.estateTheme) window.estateTheme.setMode(isDark ? "dark" : "light");
+}
+function isDarkMode(){
+  return document.documentElement.getAttribute("data-mode") !== "light";
 }
 
 /* ===== App logic ===== */
@@ -1429,7 +1435,7 @@ function toggleDarkMode(isDark){
   function _renderLoggedInModal(container, db, authBtn) {
     const session = getSession();
     const photo = session.photoURL ? `<img src="${session.photoURL}" style="width:56px;height:56px;border-radius:50%;border:2px solid var(--neon-cyan)">` : '';
-    const isDark = document.body.classList.contains('dark');
+    const isDark = isDarkMode();
 
     // Get game stats from localStorage
     const prefix = `guessGame_${session.displayName}_`;
@@ -1441,26 +1447,26 @@ function toggleDarkMode(isDark){
     container.innerHTML = `
       <div style="text-align:center;padding:10px 0">
         ${photo}
-        <div style="margin-top:8px;font-size:1.2em;font-weight:700;color:var(--neon-cyan);text-transform:uppercase">${session.displayName}</div>
+        <div style="margin-top:8px;font-size:1.2em;font-weight:700;color:var(--neon-cyan);text-transform:var(--et-title-case)">${session.displayName}</div>
         <div style="color:var(--muted);font-size:.75em;margin-top:2px">${session.method === 'google' ? 'Google Account' : 'Passphrase Account'}</div>
       </div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0;text-align:center">
         <div style="background:var(--bg);border:1px solid var(--border);padding:10px">
-          <div id="user-review-count" style="font-size:1.4em;font-weight:700;color:var(--neon-yellow);font-family:'Share Tech Mono',monospace">...</div>
-          <div style="font-size:.7em;color:var(--muted);text-transform:uppercase">Reviews</div>
+          <div id="user-review-count" style="font-size:1.4em;font-weight:700;color:var(--neon-yellow);font-family:var(--et-font-mono)">...</div>
+          <div style="font-size:.7em;color:var(--muted);text-transform:var(--et-title-case)">Reviews</div>
         </div>
         <div style="background:var(--bg);border:1px solid var(--border);padding:10px">
-          <div id="user-avg-rating" style="font-size:1.4em;font-weight:700;color:var(--neon-yellow);font-family:'Share Tech Mono',monospace">...</div>
-          <div style="font-size:.7em;color:var(--muted);text-transform:uppercase">Avg Rating</div>
+          <div id="user-avg-rating" style="font-size:1.4em;font-weight:700;color:var(--neon-yellow);font-family:var(--et-font-mono)">...</div>
+          <div style="font-size:.7em;color:var(--muted);text-transform:var(--et-title-case)">Avg Rating</div>
         </div>
         <div style="background:var(--bg);border:1px solid var(--border);padding:10px">
-          <div style="font-size:1.4em;font-weight:700;color:var(--neon-magenta);font-family:'Share Tech Mono',monospace">${gameStreak}</div>
-          <div style="font-size:.7em;color:var(--muted);text-transform:uppercase">Best Streak</div>
+          <div style="font-size:1.4em;font-weight:700;color:var(--neon-magenta);font-family:var(--et-font-mono)">${gameStreak}</div>
+          <div style="font-size:.7em;color:var(--muted);text-transform:var(--et-title-case)">Best Streak</div>
         </div>
         <div style="background:var(--bg);border:1px solid var(--border);padding:10px">
-          <div style="font-size:1.4em;font-weight:700;color:var(--neon-magenta);font-family:'Share Tech Mono',monospace">${gameAccuracy}%</div>
-          <div style="font-size:.7em;color:var(--muted);text-transform:uppercase">Game Accuracy</div>
+          <div style="font-size:1.4em;font-weight:700;color:var(--neon-magenta);font-family:var(--et-font-mono)">${gameAccuracy}%</div>
+          <div style="font-size:.7em;color:var(--muted);text-transform:var(--et-title-case)">Game Accuracy</div>
         </div>
       </div>
 
@@ -1477,7 +1483,7 @@ function toggleDarkMode(isDark){
 
       <!-- Profile section -->
       <div style="border-top:1px solid var(--border);margin-top:12px;padding-top:12px">
-        <div style="font-size:.8em;color:var(--neon-cyan);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Currently Reading</div>
+        <div style="font-size:.8em;color:var(--neon-cyan);text-transform:var(--et-title-case);letter-spacing:.5px;margin-bottom:8px">Currently Reading</div>
         <div>
           <input id="profile-reading" type="text" placeholder="Search catalog..." style="width:100%;padding:6px 8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:.85em" autocomplete="off" />
           <div id="profile-reading-results" style="background:var(--bg-2);border:1px solid var(--border);max-height:200px;overflow-y:auto;display:none"></div>
@@ -1486,7 +1492,7 @@ function toggleDarkMode(isDark){
       </div>
 
       <div style="border-top:1px solid var(--border);margin-top:12px;padding-top:12px">
-        <div style="font-size:.8em;color:var(--neon-cyan);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Favorite Books <span style="color:var(--muted)">(up to 5)</span></div>
+        <div style="font-size:.8em;color:var(--neon-cyan);text-transform:var(--et-title-case);letter-spacing:.5px;margin-bottom:8px">Favorite Books <span style="color:var(--muted)">(up to 5)</span></div>
         <div style="position:relative">
           <input id="profile-fav-input" type="text" placeholder="Search catalog..." style="width:100%;padding:6px 8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:.85em" autocomplete="off" />
           <div id="profile-fav-results" style="background:var(--bg-2);border:1px solid var(--border);max-height:200px;overflow-y:auto;display:none"></div>
@@ -1668,7 +1674,7 @@ function toggleDarkMode(isDark){
   async function _renderLoggedOutModal(container, db, authBtn) {
     container.innerHTML = `
       <div style="padding:20px 0;text-align:center">
-        <h3 style="color:var(--neon-yellow);text-transform:uppercase;letter-spacing:1px;margin-bottom:16px">Sign In</h3>
+        <h3 style="color:var(--neon-yellow);text-transform:var(--et-title-case);letter-spacing:var(--et-title-spacing);margin-bottom:16px">Sign In</h3>
         <button id="auth-google-btn" class="identity-bar__google-btn" style="width:100%;justify-content:center;padding:12px 16px;font-size:.95em">
           <svg width="18" height="18" viewBox="0 0 48 48" style="vertical-align:middle;margin-right:8px"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
           Continue with Google
@@ -1677,7 +1683,7 @@ function toggleDarkMode(isDark){
         <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-top:1px solid var(--border);margin-top:12px">
           <span style="font-size:.85em;color:var(--muted)">Dark Mode</span>
           <label class="switch" style="margin:0">
-            <input id="modal-dark-toggle-out" type="checkbox" ${document.body.classList.contains('dark') ? 'checked' : ''} />
+            <input id="modal-dark-toggle-out" type="checkbox" ${isDarkMode() ? 'checked' : ''} />
             <span class="track"><span class="thumb"></span></span>
           </label>
         </div>
