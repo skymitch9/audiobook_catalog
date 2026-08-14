@@ -1337,7 +1337,7 @@
     {
       "book": "The Great Cleric: Volume 1 - Broccoli Lion, Matthew Jackson - Translator - Translator",
       "match": {
-        "author": "Broccoli Lion, Matthew Jackson - Translator - Translator",
+        "author": "Broccoli Lion",
         "title": "The Great Cleric: Volume 1"
       },
       "set": {
@@ -1361,7 +1361,8 @@
           "CDEK": "absent"
         },
         "filename_said": "The Great Cleric- Volume 1",
-        "sources": []
+        "sources": [],
+        "note": "match.author reduced to the first credited name 2026-08-14: the layer matches one comma-separated name, and the editor had written the full multi-author string, which never fires."
       }
     },
     {
@@ -1397,7 +1398,7 @@
     {
       "book": "Empire of the Vampire: Book One - Jay Kristoff, Bon Orthwick",
       "match": {
-        "author": "Jay Kristoff, Bon Orthwick",
+        "author": "Jay Kristoff",
         "title": "Empire of the Vampire: Book One"
       },
       "set": {
@@ -1421,7 +1422,8 @@
           "CDEK": "absent"
         },
         "filename_said": "Empire of the Vampire",
-        "sources": []
+        "sources": [],
+        "note": "match.author reduced to the first credited name 2026-08-14: the layer matches one comma-separated name, and the editor had written the full multi-author string, which never fires."
       }
     },
     {
