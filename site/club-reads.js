@@ -154,6 +154,165 @@ export function isMilestoneLocked(milestonePosition, myPosition, milestoneId) {
   return milestonePosition > (typeof myPosition === 'number' ? myPosition : -1);
 }
 
+// ==================== Reading schedule (due dates) ====================
+//
+// Milestone entries on the read doc gain an OPTIONAL `dueAt`: epoch millis at
+// end-of-day (23:59:59.999) local to whoever set the schedule — the same
+// absolute-instant-in-millis convention as the club doc's nextMeetingAt.
+// Absent/null = no due date; partial schedules are fine. Saving a schedule
+// also stamps `scheduleUpdatedAt` on the read doc. The Discord notifier
+// (backlog #2) consumes exactly this: reads[].milestones[].dueAt vs the
+// progress subcollection. Feature-gated per club (clubs.js FEATURE_DEFAULTS
+// key `readingSchedule`).
+
+/** 'YYYY-MM-DD' -> local end-of-day epoch millis, or null for blank/invalid. */
+export function dateInputToDueAt(yyyyMmDd) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec((yyyyMmDd || '').trim());
+  if (!m) return null;
+  const d = new Date(+m[1], +m[2] - 1, +m[3], 23, 59, 59, 999);
+  return Number.isFinite(d.getTime()) ? d.getTime() : null;
+}
+
+/** Epoch millis -> local 'YYYY-MM-DD' for a date input, or '' when unset. */
+export function dueAtToDateInput(ms) {
+  if (typeof ms !== 'number' || !Number.isFinite(ms)) return '';
+  const d = new Date(ms);
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/** Short viewer-local label for a due date, e.g. "Aug 20". */
+export function formatDueDate(ms) {
+  if (typeof ms !== 'number' || !Number.isFinite(ms)) return '';
+  const d = new Date(ms);
+  const opts = { month: 'short', day: 'numeric' };
+  if (d.getFullYear() !== new Date().getFullYear()) opts.year = 'numeric';
+  return d.toLocaleDateString([], opts);
+}
+
+/**
+ * Spread `count` due dates evenly from startInput to endInput (both local
+ * 'YYYY-MM-DD'; the LAST milestone lands exactly on endInput).
+ * @returns {{ dates?: string[], error?: string }}
+ */
+export function spreadScheduleDates(count, startInput, endInput) {
+  const n = Math.floor(count);
+  if (!(n >= 1)) return { error: 'Nothing to schedule.' };
+  const parse = (s) => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec((s || '').trim());
+    return m ? new Date(+m[1], +m[2] - 1, +m[3], 12) : null; // noon dodges DST edges
+  };
+  const start = parse(startInput);
+  const end = parse(endInput);
+  if (!end) return { error: 'Pick a finish-by date.' };
+  if (!start) return { error: 'Pick a start date.' };
+  const DAY = 24 * 60 * 60 * 1000;
+  const totalDays = Math.round((end.getTime() - start.getTime()) / DAY);
+  if (totalDays < 0) return { error: 'The finish date is before the start date.' };
+  const pad = (x) => String(x).padStart(2, '0');
+  const dates = [];
+  for (let i = 0; i < n; i++) {
+    const d = new Date(start.getFullYear(), start.getMonth(),
+      start.getDate() + Math.round((totalDays * (i + 1)) / n), 12);
+    dates.push(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`);
+  }
+  return { dates };
+}
+
+/** True when at least one milestone carries a due date. */
+export function hasSchedule(milestones) {
+  return (milestones || []).some(m => typeof m.dueAt === 'number' && Number.isFinite(m.dueAt));
+}
+
+/**
+ * The position a member should have reached by `nowMs`: the highest
+ * milestone position whose dueAt has passed. -1 when nothing is due yet.
+ */
+export function expectedSchedulePosition(milestones, nowMs) {
+  let best = -1;
+  for (const m of milestones || []) {
+    if (typeof m.dueAt === 'number' && m.dueAt <= nowMs && m.position > best) best = m.position;
+  }
+  return best;
+}
+
+/**
+ * A member's effective milestone position from their progress doc.
+ * Chaptered reads store chapterIndex; a part-shaped milestone counts as
+ * completed once chapterIndex reaches its chEnd. -1 = not started.
+ */
+export function memberSchedulePosition(milestones, progress, chaptered) {
+  const list = milestones || [];
+  const last = list.length ? Math.max(...list.map(m => m.position)) : -1;
+  if (!progress) return -1;
+  if (progress.finished) return last;
+  if (chaptered) {
+    const ch = typeof progress.chapterIndex === 'number' ? progress.chapterIndex : -1;
+    let best = -1;
+    for (const m of list) {
+      if (typeof m.chEnd === 'number' && ch >= m.chEnd && m.position > best) best = m.position;
+    }
+    return best;
+  }
+  return typeof progress.milestonePosition === 'number' ? progress.milestonePosition : -1;
+}
+
+/** The next upcoming due milestone (smallest future dueAt), or null. */
+export function nextDueMilestone(milestones, nowMs) {
+  let next = null;
+  for (const m of milestones || []) {
+    if (typeof m.dueAt === 'number' && m.dueAt > nowMs && (!next || m.dueAt < next.dueAt)) next = m;
+  }
+  return next;
+}
+
+/**
+ * On-track / behind verdict for one member against the schedule.
+ * @returns {{status: 'none'|'done'|'on-track'|'behind', behindBy: number}}
+ *   'none' = no schedule set; 'done' = member finished the book;
+ *   behindBy = how many past-due milestones the member hasn't completed.
+ */
+export function scheduleStatus(milestones, progress, chaptered, nowMs) {
+  if (!hasSchedule(milestones)) return { status: 'none', behindBy: 0 };
+  const list = milestones || [];
+  const last = list.length ? Math.max(...list.map(m => m.position)) : -1;
+  const pos = memberSchedulePosition(list, progress, chaptered);
+  if ((progress && progress.finished) || (pos >= 0 && pos >= last)) {
+    return { status: 'done', behindBy: 0 };
+  }
+  const behindBy = list.filter(m =>
+    typeof m.dueAt === 'number' && m.dueAt <= nowMs && m.position > pos).length;
+  return behindBy > 0
+    ? { status: 'behind', behindBy }
+    : { status: 'on-track', behindBy: 0 };
+}
+
+/**
+ * Save the read's schedule: dueAts is an array of epoch millis (or null)
+ * aligned with the milestones sorted by position. Null clears a date.
+ * Rewrites the milestones array in place on the read doc — no parallel
+ * schedule structure — and stamps scheduleUpdatedAt.
+ */
+export async function setReadSchedule(db, clubId, readId, dueAts) {
+  try {
+    const readRef = doc(db, col('clubs'), clubId, 'reads', readId);
+    const snap = await getDoc(readRef);
+    if (!snap.exists()) return { success: false, error: 'Read not found.' };
+    const ordered = [...(snap.data().milestones || [])].sort((a, b) => a.position - b.position);
+    const milestones = ordered.map((m, i) => {
+      const next = { ...m };
+      const due = Array.isArray(dueAts) ? dueAts[i] : null;
+      if (typeof due === 'number' && Number.isFinite(due)) next.dueAt = due;
+      else delete next.dueAt;
+      return next;
+    });
+    await updateDoc(readRef, { milestones, scheduleUpdatedAt: serverTimestamp() });
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
 // ---- Chapter-based milestones (data from site/chapters.json, generated by
 // ---- app/tools/extract_chapters.py on the machine with the audio library) ----
 

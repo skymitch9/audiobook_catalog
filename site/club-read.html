@@ -75,6 +75,38 @@ body{
 .mp-chip.done strong{color:var(--neon-yellow)}
 .mp-chip.ns{opacity:.55}
 .mp-chip.me{border-color:var(--neon-cyan)}
+/* Reading-schedule verdicts (feature-gated per club) */
+.mp-chip.behind{border-color:var(--neon-magenta)}
+.mp-chip .mp-behind{color:var(--neon-magenta);font-weight:700}
+.mp-chip .mp-ontrack{color:var(--neon-cyan)}
+.ms-due{color:var(--neon-yellow);font-family:var(--et-font-mono);font-weight:400}
+.sched-banner{
+  background:var(--bg-2);border:1px solid var(--border);border-left:3px solid var(--neon-yellow);
+  padding:10px 16px;margin-bottom:16px;font-size:.9em;font-family:var(--et-font-mono);
+  display:flex;gap:12px;align-items:center;flex-wrap:wrap;
+}
+.sched-banner .sb-behind{color:var(--neon-magenta);font-weight:700}
+.sched-banner .sb-ontrack{color:var(--neon-cyan);font-weight:700}
+.sched-edit-btn{
+  background:none;border:1px solid var(--border);color:var(--muted);cursor:pointer;
+  font-size:.78em;padding:4px 10px;font-family:inherit;text-transform:var(--et-title-case);letter-spacing:.5px;
+}
+.sched-edit-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
+.sched-row{display:flex;gap:10px;align-items:center;padding:5px 0;border-bottom:1px solid var(--border)}
+.sched-row:last-child{border-bottom:none}
+.sched-row label{flex:1;min-width:0;font-size:.9em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sched-row input[type=date],#sched-spread-start,#sched-spread-end{
+  padding:5px 8px;background:var(--bg);color:var(--text);border:1px solid var(--border);font-family:inherit;
+}
+.sched-row input:focus{outline:none;border-color:var(--neon-cyan)}
+.sched-tools{display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-bottom:12px;
+  padding:10px;border:1px dashed var(--border)}
+.sched-tools .st-field label{display:block;font-size:.72em;color:var(--muted);text-transform:var(--et-title-case);letter-spacing:.5px;margin-bottom:3px}
+.sched-tools button{
+  background:none;border:1px solid var(--border);color:var(--muted);cursor:pointer;
+  font-size:.75em;padding:6px 10px;font-family:inherit;text-transform:var(--et-title-case);
+}
+.sched-tools button:hover{border-color:var(--neon-cyan);color:var(--neon-cyan)}
 details.milestone{
   background:var(--bg-2);border:1px solid var(--border);margin-bottom:10px;
 }
@@ -307,13 +339,31 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
   </div>
 </div>
 
+<!-- Reading-schedule editor (hosts/mods; feature-gated per club) -->
+<div id="sched-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;align-items:center;justify-content:center;padding:16px">
+  <div style="background:var(--bg-2);border:1px solid var(--neon-yellow);max-width:480px;width:100%;max-height:90vh;overflow-y:auto;padding:20px;position:relative;box-sizing:border-box">
+    <button id="sched-close" style="position:absolute;top:8px;right:10px;background:none;border:none;color:var(--muted);font-size:1.4em;line-height:1;cursor:pointer">×</button>
+    <h2 style="margin:0 0 4px;color:var(--neon-yellow);text-transform:var(--et-title-case);letter-spacing:var(--et-title-spacing);font-size:1.1em">Reading Schedule</h2>
+    <p style="color:var(--muted);font-size:.85em;margin:0 0 12px">Target dates per section — members see on-track / behind chips against them. Blank = no due date.</p>
+    <div class="sched-tools">
+      <div class="st-field"><label for="sched-spread-start">Start</label><input type="date" id="sched-spread-start"></div>
+      <div class="st-field"><label for="sched-spread-end">Finish by</label><input type="date" id="sched-spread-end"></div>
+      <button id="sched-spread">Spread evenly</button>
+      <button id="sched-clear">Clear all</button>
+    </div>
+    <div id="sched-rows"></div>
+    <div id="sched-error" style="color:var(--neon-magenta);font-size:.85em;min-height:1.2em;margin:8px 0"></div>
+    <button id="sched-save" class="nav-link" style="width:100%;background:var(--neon-cyan);color:var(--et-accent-fg);border:none;font-weight:700">Save Schedule</button>
+  </div>
+</div>
+
 <script type="module">
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
   import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
   import { coverUrl } from './covers-base.js';
   import { getSession, slugifyName} from './identity.js';
   import { mountAccountModal } from './account-modal.js';
-  import { getClub, getMembers } from './clubs.js?v=20260714';
+  import { getClub, getMembers, clubFeatureEnabled } from './clubs.js?v=20260814';
   import {
     getRead, getComments, addComment, deleteComment,
     toggleReaction, togglePin, REACTION_EMOJI,
@@ -321,7 +371,9 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
     highlightMentions, mentionsUser, getBookPrompts, getBookWarnings,
     setProgress, setChapterProgress, getProgressAll,
     isMilestoneLocked, isCommentSpoiler, groupChapters, GENERAL_MILESTONE, MAX_COMMENT_LENGTH,
-  } from './club-reads.js?v=20260707';
+    hasSchedule, scheduleStatus, nextDueMilestone, formatDueDate,
+    dueAtToDateInput, dateInputToDueAt, spreadScheduleDates, setReadSchedule,
+  } from './club-reads.js?v=20260814';
   import { addUserWarning, getUserWarnings, deleteUserWarning } from './user-warnings.js';
   import { markReadSeen } from './club-notify.js';
   import { submitReview, bookIdFromTitle, getReviews } from './reviews.js';
@@ -382,6 +434,17 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
   const seenKey = () => `ab_seen_${clubId}_${readId}`;
   const parts = () => groupChapters(chapterTitles());
   const partIndexForChapter = (ch) => parts().findIndex(g => ch >= g.start && ch <= g.end);
+
+  // Reading schedule (feature-gated per club; see clubs.js FEATURE_DEFAULTS)
+  const schedOn = () => !!club && clubFeatureEnabled(club, 'readingSchedule');
+  const schedActive = () => schedOn() && !isArchived() && hasSchedule(read.milestones);
+  const orderedMilestones = () => [...(read.milestones || [])].sort((a, b) => a.position - b.position);
+  const milestoneDueByPosition = (pos) => {
+    if (!schedOn()) return null;
+    const m = (read.milestones || []).find(x => x.position === pos);
+    return m && typeof m.dueAt === 'number' ? m.dueAt : null;
+  };
+  const dueTag = (dueAt) => dueAt ? `<span class="ms-due">due ${escapeHtml(formatDueDate(dueAt))}</span> · ` : '';
 
   // Bucket key for a comment on a chapter-based read:
   // 'general' | 'p<partIdx>' (part-level) | 'c<chapterIdx>' (chapter-level).
@@ -563,17 +626,18 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
         ? (chStart !== null && id !== GENERAL_MILESTONE && myChapter() < chStart)
         : isMilestoneLocked(position, myProgress(), id)
     );
+    const due = milestone && typeof milestone.dueAt === 'number' && schedOn() ? milestone.dueAt : null;
     if (locked) {
       return `
         <div class="locked">
           <span>🔒 ${escapeHtml(label)} — ${hasChapters() ? "you haven't reached this yet" : 'update your progress to view'} (spoilers ahead)</span>
-          <span class="ms-count">${count} comment${count !== 1 ? 's' : ''}</span>
+          <span class="ms-count">${dueTag(due)}${count} comment${count !== 1 ? 's' : ''}</span>
         </div>`;
     }
     const open = openSections.has(id) ? 'open' : '';
     return `
       <details class="milestone" data-ms-section="${escapeHtml(id)}" ${open}>
-        <summary>${escapeHtml(label)}<span class="ms-count">${newCount ? `<span class="new-count">${newCount} new</span> · ` : ''}${count} comment${count !== 1 ? 's' : ''}</span></summary>
+        <summary>${escapeHtml(label)}<span class="ms-count">${dueTag(due)}${newCount ? `<span class="new-count">${newCount} new</span> · ` : ''}${count} comment${count !== 1 ? 's' : ''}</span></summary>
         <div class="ms-body">${starterQuestionHtml(id)}${commentThreadHtml(id)}</div>
       </details>`;
   }
@@ -585,6 +649,10 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
     // along first, with an explicit Finished state.
     const lastPos = hasChapters() ? chapterTitles().length - 1
       : (read.milestones.length ? Math.max(...read.milestones.map(m => m.position)) : -1);
+    // On-track / behind verdicts come from the reading schedule when the
+    // club has the feature on and dates are set; 'none' renders nothing.
+    const showSched = schedActive();
+    const now = Date.now();
     const progressChips = members
       .map(m => {
         const p = progressAll.find(x => x.slug === m.slug);
@@ -601,10 +669,20 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
         const done = pos >= 0 && pos >= lastPos;
         if (done) label = 'Finished ✓';
         const name = m.displayName || (p && p.displayName) || m.slug;
-        return { name, pos, done, label, me: m.slug === mySlug };
+        const sched = showSched && !done
+          ? scheduleStatus(read.milestones, p, hasChapters(), now)
+          : { status: 'none', behindBy: 0 };
+        return { name, pos, done, label, me: m.slug === mySlug, sched };
       })
       .sort((a, b) => b.pos - a.pos || a.name.localeCompare(b.name))
-      .map(c => `<span class="mp-chip${c.done ? ' done' : c.pos < 0 ? ' ns' : ''}${c.me ? ' me' : ''}"><strong>${escapeHtml(c.name)}</strong> ${escapeHtml(c.label)}</span>`)
+      .map(c => {
+        const verdict = c.sched.status === 'behind'
+          ? ` · <span class="mp-behind">behind</span>`
+          : c.sched.status === 'on-track' ? ` · <span class="mp-ontrack">on track</span>` : '';
+        return `<span class="mp-chip${c.done ? ' done' : c.pos < 0 ? ' ns' : ''}${c.me ? ' me' : ''}${c.sched.status === 'behind' ? ' behind' : ''}"${
+          c.sched.status === 'behind' ? ` title="${c.sched.behindBy} scheduled section${c.sched.behindBy !== 1 ? 's' : ''} past due"` : ''
+        }><strong>${escapeHtml(c.name)}</strong> ${escapeHtml(c.label)}${verdict}</span>`;
+      })
       .join('');
 
     const myPart = myChapter() >= 0 ? partIndexForChapter(Math.min(myChapter(), chapterTitles().length - 1)) : -1;
@@ -644,7 +722,7 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
           <div class="member-progress">${progressChips}</div>
         </div>` : `
         <div class="progress-row"><div class="member-progress" style="margin-left:0">${progressChips}</div></div>`}
-
+      ${schedBannerHtml()}
       <div class="view-switch">
         <button class="tab ${view === 'discussions' ? 'active' : ''}" data-view="discussions">Discussions</button>
         <button class="tab ${view === 'quotes' ? 'active' : ''}" data-view="quotes">Quotes (${quotes.length})</button>
@@ -654,6 +732,40 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
       ${read.milestones.map(m => sectionHtml(m.id, m.label, m.position)).join('')}`)}
     `;
     wireEvents();
+  }
+
+  // Schedule banner: next due section + the viewer's own verdict. Renders
+  // nothing when the club feature is off; when on but no dates are set yet,
+  // hosts/mods get the entry point to create one.
+  function schedBannerHtml() {
+    if (!schedOn() || isArchived()) return '';
+    const scheduled = hasSchedule(read.milestones);
+    const editBtn = isMod()
+      ? `<button class="sched-edit-btn" id="sched-edit-btn">${scheduled ? 'Edit schedule' : 'Set a reading schedule'}</button>`
+      : '';
+    if (!scheduled) {
+      return editBtn
+        ? `<div class="sched-banner">📅 No reading schedule yet.<span style="margin-left:auto">${editBtn}</span></div>`
+        : '';
+    }
+    const now = Date.now();
+    const next = nextDueMilestone(read.milestones, now);
+    const nextTxt = next
+      ? `Next due: <strong>${escapeHtml(next.label)}</strong> by ${escapeHtml(formatDueDate(next.dueAt))}`
+      : 'All scheduled sections are past due';
+    let mine = '';
+    if (session && myRole()) {
+      const p = progressAll.find(x => x.slug === mySlug);
+      const st = scheduleStatus(read.milestones, p, hasChapters(), now);
+      if (st.status === 'behind') {
+        mine = ` — <span class="sb-behind">you're behind (${st.behindBy} section${st.behindBy !== 1 ? 's' : ''})</span>`;
+      } else if (st.status === 'on-track') {
+        mine = ` — <span class="sb-ontrack">you're on track</span>`;
+      } else if (st.status === 'done') {
+        mine = ` — <span class="sb-ontrack">finished ✓</span>`;
+      }
+    }
+    return `<div class="sched-banner">📅 ${nextTxt}${mine}${editBtn ? `<span style="margin-left:auto">${editBtn}</span>` : ''}</div>`;
   }
 
   // Parts are the primary sections; chapters nest inside, expandable —
@@ -682,12 +794,13 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
       const totalCount = partAll.length;
       const newCount = partAll.filter(isNewC).length;
 
+      const partDue = milestoneDueByPosition(k);
       const locked = !isArchived() && myChapter() < g.start;
       if (locked) {
         out.push(`
           <div class="locked">
             <span>🔒 ${escapeHtml(g.label)} — you haven't reached this yet (spoilers ahead)</span>
-            <span class="ms-count">${totalCount} comment${totalCount !== 1 ? 's' : ''}</span>
+            <span class="ms-count">${dueTag(partDue)}${totalCount} comment${totalCount !== 1 ? 's' : ''}</span>
           </div>`);
         return;
       }
@@ -716,7 +829,7 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
           <div class="chapters-body">${chapterSections}</div>
         </details>`;
       out.push(sectionShell(`part${k}`, g.label, null,
-        body, '', `${newCount ? `<span class="new-count">${newCount} new</span> · ` : ''}${totalCount} comment${totalCount !== 1 ? 's' : ''}`));
+        body, '', `${dueTag(partDue)}${newCount ? `<span class="new-count">${newCount} new</span> · ` : ''}${totalCount} comment${totalCount !== 1 ? 's' : ''}`));
     });
     return out.join('');
   }
@@ -824,6 +937,9 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
         const r = await deleteQuote(db, clubId, readId, btn.dataset.quoteDel);
         if (r.success) reload(); else showError(r.error);
       }));
+
+    const schedBtn = document.getElementById('sched-edit-btn');
+    if (schedBtn) schedBtn.addEventListener('click', openSchedModal);
 
     const finishedBtn = document.getElementById('finished-btn');
     if (finishedBtn) finishedBtn.addEventListener('click', async () => {
@@ -978,6 +1094,58 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
       }
     }
   }
+
+  // --- Reading-schedule editor (hosts/mods; static DOM, wired once) --------
+  function openSchedModal() {
+    const rows = document.getElementById('sched-rows');
+    const ms = orderedMilestones();
+    rows.innerHTML = ms.map((m, i) => `
+      <div class="sched-row">
+        <label for="sched-d-${i}" title="${escapeHtml(m.label)}">${escapeHtml(m.label)}</label>
+        <input type="date" id="sched-d-${i}" value="${dueAtToDateInput(m.dueAt)}">
+      </div>`).join('');
+    document.getElementById('sched-spread-start').value = dueAtToDateInput(Date.now());
+    document.getElementById('sched-spread-end').value = '';
+    document.getElementById('sched-error').textContent = '';
+    document.getElementById('sched-modal').style.display = 'flex';
+  }
+
+  (function wireSchedModal() {
+    const modal = document.getElementById('sched-modal');
+    if (!modal) return;
+    const close = () => { modal.style.display = 'none'; };
+    document.getElementById('sched-close').addEventListener('click', close);
+    modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+    document.getElementById('sched-spread').addEventListener('click', () => {
+      const errEl = document.getElementById('sched-error');
+      errEl.textContent = '';
+      const n = orderedMilestones().length;
+      const r = spreadScheduleDates(n,
+        document.getElementById('sched-spread-start').value,
+        document.getElementById('sched-spread-end').value);
+      if (r.error) { errEl.textContent = r.error; return; }
+      r.dates.forEach((d, i) => {
+        const input = document.getElementById(`sched-d-${i}`);
+        if (input) input.value = d;
+      });
+    });
+    document.getElementById('sched-clear').addEventListener('click', () => {
+      orderedMilestones().forEach((m, i) => {
+        const input = document.getElementById(`sched-d-${i}`);
+        if (input) input.value = '';
+      });
+    });
+    document.getElementById('sched-save').addEventListener('click', async () => {
+      const errEl = document.getElementById('sched-error');
+      errEl.textContent = '';
+      const dueAts = orderedMilestones().map((m, i) => {
+        const input = document.getElementById(`sched-d-${i}`);
+        return dateInputToDueAt(input ? input.value : '');
+      });
+      const r = await setReadSchedule(db, clubId, readId, dueAts);
+      if (r.success) { close(); reload(); } else errEl.textContent = r.error;
+    });
+  })();
 
   // --- Rate-this-book modal (opens after "I'm finished") ------------------
   async function openRateModal() {

@@ -350,6 +350,22 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
         placeholder="Meeting notes — agenda, where, what to have read"></textarea>
       <small style="color:var(--muted)">Leave the date empty for no scheduled meeting.</small>
     </div>
+    <div class="field" id="edit-features-field" style="display:none">
+      <label>Club features (hosts/mods) — new features stay off until you turn them on</label>
+      <div class="field-inline">
+        <input id="feat-schedule" type="checkbox" />
+        <label for="feat-schedule" style="margin:0;text-transform:none">Reading schedule — due dates on sections, on-track/behind chips</label>
+      </div>
+    </div>
+    <div class="field" id="edit-webhook-field" style="display:none">
+      <label for="edit-webhook">Discord webhook (hosts/mods) — club reminders post to a channel you own</label>
+      <input id="edit-webhook" type="text" placeholder="https://discord.com/api/webhooks/..." autocomplete="off" />
+      <small id="edit-webhook-hint" style="color:var(--muted);display:block;margin-top:4px"></small>
+      <div class="field-inline" id="edit-webhook-clear-row" style="display:none;margin-top:6px">
+        <input id="edit-webhook-clear" type="checkbox" />
+        <label for="edit-webhook-clear" style="margin:0;text-transform:none">Remove the saved webhook</label>
+      </div>
+    </div>
     <div class="field" id="edit-joinmode-field" style="display:none">
       <label for="edit-joinmode">Join mode (host setting)</label>
       <select id="edit-joinmode">
@@ -421,13 +437,15 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
     removeMemberBySlug, setMemberRole, deleteClub,
     updateClubDetails, requestToJoin, getRequests, acceptRequest, rejectRequest, inviteMember,
     acceptInvite, declineInvite, dismissRateNudge,
-  } from './clubs.js?v=20260714';
+    clubFeatureEnabled, isValidDiscordWebhook, setClubDiscordWebhook, clearClubDiscordWebhook,
+  } from './clubs.js?v=20260814';
   import {
     getReads, startRead, removeRead, finishRead, getComments, updateReadLabel, splitByDuration, parseManualMilestones,
     loadCatalogBooks, MAX_ACTIVE_READS, groupChapters,
     getBookChapters, wholeBookMilestones, formatHhmm,
     getTbr, addTbrItem, removeTbrItem, toggleTbrVote, getMyProgress,
-  } from './club-reads.js?v=20260707';
+    hasSchedule, nextDueMilestone, formatDueDate,
+  } from './club-reads.js?v=20260814';
   import { loadSeen, syncSeen } from './club-notify.js';
 
   const firebaseConfig = {
@@ -754,6 +772,16 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
     }).join('');
   }
 
+  // "next due Aug 20" / "N section(s) past due" on active read cards —
+  // only when the club has the reading-schedule feature on and dates are set.
+  function readDueMeta(r) {
+    if (!clubFeatureEnabled(club, 'readingSchedule') || !hasSchedule(r.milestones)) return '';
+    const now = Date.now();
+    const next = nextDueMilestone(r.milestones, now);
+    if (next) return ` · 📅 next due ${formatDueDate(next.dueAt)}`;
+    return ' · 📅 schedule complete';
+  }
+
   function renderCurrent() {
     const active = reads.filter(r => r.status === 'active').sort((a, b) => a.slot - b.slot);
     const canStart = isMember() && active.length < MAX_ACTIVE_READS;
@@ -764,7 +792,7 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
           <div class="rc-slot">${escapeHtml(r.slotLabel || (active.length > 1 ? (r.slot === 1 ? 'Main read' : 'Side read') : 'Current read'))}${isMember() ? ` <button class="rc-label-edit" data-edit-label="${r.id}" title="Rename this slot">\u270e</button>` : ''}</div>
           <div class="rc-title">${escapeHtml(r.bookTitle)}</div>
           <div class="rc-author">${escapeHtml(r.bookAuthor)}</div>
-          <div class="rc-meta">${(r.milestones || []).length} milestones · ${r.commentCount || 0} comments${newComments(r) ? ` · <span class="rc-new">${newComments(r)} new</span>` : ''} · started by ${escapeHtml(r.startedBy || '')}</div>
+          <div class="rc-meta">${(r.milestones || []).length} milestones · ${r.commentCount || 0} comments${newComments(r) ? ` · <span class="rc-new">${newComments(r)} new</span>` : ''} · started by ${escapeHtml(r.startedBy || '')}${readDueMeta(r)}</div>
         </div>
       </a>`).join('');
     const emptyState = isMember()
@@ -1275,6 +1303,22 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
       document.getElementById('edit-meeting-notes').value = club.nextMeetingNotes || '';
     }
 
+    // Feature toggles + Discord webhook (hosts/mods). The webhook input is
+    // never prefilled — the full URL is write-only by design; only the masked
+    // tail on the club doc says whether one is set.
+    document.getElementById('edit-features-field').style.display = isMod() ? 'block' : 'none';
+    document.getElementById('edit-webhook-field').style.display = isMod() ? 'block' : 'none';
+    if (isMod()) {
+      document.getElementById('feat-schedule').checked = clubFeatureEnabled(club, 'readingSchedule');
+      const mask = club.discordWebhookMask || '';
+      document.getElementById('edit-webhook').value = '';
+      document.getElementById('edit-webhook-hint').textContent = mask
+        ? `A webhook is set (${mask}). Paste a new URL to replace it, or leave blank to keep it.`
+        : 'In Discord: channel settings → Integrations → Webhooks → New Webhook → Copy URL.';
+      document.getElementById('edit-webhook-clear-row').style.display = mask ? 'flex' : 'none';
+      document.getElementById('edit-webhook-clear').checked = false;
+    }
+
     // Club-level read management (hosts/mods): Finish/Abandon/Remove live
     // here, off the read cards, so nobody ends a club read by accident.
     const readsField = document.getElementById('edit-reads-field');
@@ -1343,6 +1387,29 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
       const parsed = atRaw ? new Date(atRaw).getTime() : NaN;
       input.nextMeetingAt = Number.isFinite(parsed) ? parsed : null;
       input.nextMeetingNotes = document.getElementById('edit-meeting-notes').value;
+    }
+    if (document.getElementById('edit-features-field').style.display !== 'none') {
+      input.features = {
+        ...(club.features || {}),
+        readingSchedule: document.getElementById('feat-schedule').checked,
+      };
+    }
+    // Webhook first, so a bad URL blocks the save with a visible error
+    // instead of half-applying. Blank input + unchecked clear = no change.
+    if (document.getElementById('edit-webhook-field').style.display !== 'none') {
+      const url = document.getElementById('edit-webhook').value.trim();
+      const clearIt = document.getElementById('edit-webhook-clear').checked;
+      if (url) {
+        if (!isValidDiscordWebhook(url)) {
+          errEl.textContent = 'That does not look like a Discord webhook URL (https://discord.com/api/webhooks/...).';
+          return;
+        }
+        const wr = await setClubDiscordWebhook(db, clubId, url, session);
+        if (!wr.success) { errEl.textContent = wr.error; return; }
+      } else if (clearIt) {
+        const wr = await clearClubDiscordWebhook(db, clubId);
+        if (!wr.success) { errEl.textContent = wr.error; return; }
+      }
     }
     const r = await updateClubDetails(db, clubId, input);
     if (!r.success) { errEl.textContent = r.error; return; }

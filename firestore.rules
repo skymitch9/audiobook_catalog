@@ -78,6 +78,15 @@ service cloud.firestore {
              && request.resource.data.status in ['active', 'finished', 'abandoned'];
     }
 
+    // clubs/{id}/settings/* — currently the single doc `discord`, holding the
+    // club's own Discord webhook URL (see site/clubs.js setClubDiscordWebhook).
+    function validClubSettings() {
+      return request.resource.data.webhookUrl is string
+             && request.resource.data.webhookUrl.size() <= 300
+             && request.resource.data.webhookUrl.matches('https://(discord|discordapp)\\.com/api/webhooks/[0-9]+/[A-Za-z0-9_-]+')
+             && request.resource.data.updatedBy is string;
+    }
+
     function validClubComment() {
       return request.resource.data.text is string
              && request.resource.data.text.size() > 0
@@ -235,6 +244,20 @@ service cloud.firestore {
         allow delete: if true;
       }
 
+      // ⚠️ `allow read: if false` is the security control, not an oversight —
+      // same pattern as pipeline_requests. This doc holds the club's Discord
+      // webhook URL, which is a CAPABILITY: anyone reading it can post to the
+      // club's channel. Browsers write it (managers, UI-enforced) and never
+      // read it back; the club doc carries only a masked tail
+      // (discordWebhookMask) for display. The server-side Discord notifier
+      // reads it via the service account, which bypasses rules. Delete stays
+      // open like every member-action delete in this trust model.
+      match /settings/{settingId} {
+        allow read: if false;
+        allow create, update: if validClubSettings();
+        allow delete: if true;
+      }
+
       match /reads/{readId}/quotes/{quoteId} {
         allow read: if true;
         allow write: if request.resource.data.text is string
@@ -334,6 +357,13 @@ service cloud.firestore {
         allow read: if true;
         allow write: if request.resource.data.bookTitle is string
                      && request.resource.data.suggestedBy is string;
+        allow delete: if true;
+      }
+
+      // Mirrors /clubs/{clubId}/settings — see the capability note there.
+      match /settings/{settingId} {
+        allow read: if false;
+        allow create, update: if validClubSettings();
         allow delete: if true;
       }
 

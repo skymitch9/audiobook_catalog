@@ -108,9 +108,93 @@ export async function getMyClubs(db, displayName) {
   return out.filter(c => !c.archived);
 }
 
+// ==================== Club feature toggles ====================
+//
+// Every club feature added from 2026-08 on ships GATED behind a per-club
+// toggle that club managers (host/moderator — enforced in the UI, like every
+// manager action in this auth-free trust model) control from the Edit Club
+// modal. The club doc carries a `features` map; each backlog feature adds ONE
+// key here and one checkbox in club.html — no schema migration. A key absent
+// from the club doc falls back to FEATURE_DEFAULTS.
+//
+// readingSchedule defaults OFF: every read has milestones by construction, so
+// "on if the club uses milestones" would mean on for everyone. OFF means zero
+// UI change for existing clubs until a manager opts in.
+export const FEATURE_DEFAULTS = {
+  readingSchedule: false,   // due dates on sections + on-track/behind chips
+};
+
+/** Is a feature enabled for this club? Falls back to FEATURE_DEFAULTS. */
+export function clubFeatureEnabled(club, key) {
+  const map = club && club.features;
+  if (map && typeof map === 'object' && key in map) return !!map[key];
+  return !!FEATURE_DEFAULTS[key];
+}
+
+// ==================== Per-club Discord webhook ====================
+//
+// Clubs paste their OWN webhook URL so reminders/announcements post to a
+// channel they own. A webhook URL is a capability — anyone holding it can
+// post to that channel — so the full URL never lives on the world-readable
+// club doc and is never rendered back after save. It goes in
+// clubs/{id}/settings/discord, which rules make UNREADABLE to browsers
+// (write-only, same pattern as pipeline_requests); the server-side Discord
+// notifier reads it via the service account, which bypasses rules. The
+// public club doc keeps only a masked tail (discordWebhookMask) for display.
+
+const DISCORD_WEBHOOK_RE =
+  /^https:\/\/(discord\.com|discordapp\.com)\/api\/webhooks\/\d+\/[\w-]+$/;
+
+/** Client-side shape check for a Discord webhook URL. */
+export function isValidDiscordWebhook(url) {
+  return DISCORD_WEBHOOK_RE.test((url || '').trim());
+}
+
+/** Display-safe mask: last 4 characters only (e.g. "…f3Kq"). */
+export function maskWebhookUrl(url) {
+  const u = (url || '').trim();
+  return u ? `…${u.slice(-4)}` : '';
+}
+
+/**
+ * Save the club's Discord webhook (manager action, enforced in the UI).
+ * Full URL -> write-only settings subdoc; masked tail -> club doc.
+ */
+export async function setClubDiscordWebhook(db, clubId, url, session) {
+  const trimmed = (url || '').trim();
+  if (!isValidDiscordWebhook(trimmed)) {
+    return { success: false, error: 'That does not look like a Discord webhook URL (https://discord.com/api/webhooks/...).' };
+  }
+  try {
+    await setDoc(doc(db, col('clubs'), clubId, 'settings', 'discord'), {
+      webhookUrl: trimmed,
+      updatedBy: session && session.displayName ? session.displayName : '',
+      updatedAt: serverTimestamp(),
+    });
+    await updateDoc(doc(db, col('clubs'), clubId), {
+      discordWebhookMask: maskWebhookUrl(trimmed),
+    });
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+/** Remove the club's Discord webhook (manager action, enforced in the UI). */
+export async function clearClubDiscordWebhook(db, clubId) {
+  try {
+    await deleteDoc(doc(db, col('clubs'), clubId, 'settings', 'discord'));
+    await updateDoc(doc(db, col('clubs'), clubId), { discordWebhookMask: '' });
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
 /**
  * Update club details. Any member may edit name/description/emoji;
- * joinMode ('open' | 'application') is a host setting (enforced in the UI).
+ * joinMode ('open' | 'application') and the features map are manager
+ * settings (enforced in the UI).
  */
 export async function updateClubDetails(db, clubId, input) {
   const updates = {};
@@ -147,6 +231,19 @@ export async function updateClubDetails(db, clubId, input) {
       return { success: false, error: 'Meeting notes must be 500 characters or less.' };
     }
     updates.nextMeetingNotes = notes;
+  }
+  // Feature toggles: a full map of boolean flags (callers pass current map
+  // with the toggled keys merged in). Unknown keys are dropped so a stale
+  // client can't stuff arbitrary data under `features`.
+  if (input.features !== undefined) {
+    if (!input.features || typeof input.features !== 'object') {
+      return { success: false, error: 'Invalid features map.' };
+    }
+    const cleaned = {};
+    for (const key of Object.keys(FEATURE_DEFAULTS)) {
+      if (key in input.features) cleaned[key] = !!input.features[key];
+    }
+    updates.features = cleaned;
   }
   try {
     await updateDoc(doc(db, col('clubs'), clubId), updates);
