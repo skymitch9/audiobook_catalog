@@ -44,6 +44,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 from app.core import book_lookup as bl
 from app.core import overrides_store as store
+from app.core import review_join
 from app.core.catalog_overrides import CORRECTABLE_FIELDS, OVERRIDES_PATH, canonicalize_series
 
 BLANK = "-"  # what to type to force a field blank rather than leave it alone
@@ -266,6 +267,70 @@ def _key_file_for(args, book: bl.Book) -> Optional[str]:
     return None
 
 
+def _key_move(book: bl.Book, sets: Dict[str, Optional[str]]) -> Optional[Tuple[str, str, Optional[int]]]:
+    """
+    Phase A2 (catalog-platform/docs/info/edit-audit-design.md sec 3.4, sec 6):
+    a title/author edit changes the book's derived review-join key on BOTH
+    sides of the estate boundary - this site's own bookId join
+    (site/reviews.js) and the library side's workKey join - and nothing warns
+    about it today.
+
+    Returns None when `sets` does not touch title/author, or when it does but
+    the edit folds to the SAME key (a spelling/case change normalise_title
+    treats as identical - not a real move). Otherwise returns
+    (old_key, new_key, review_count), where review_count is the number of
+    review docs currently joined to the OLD title via bookId - the audiobook
+    site's own live join mechanism, read the same way site code does: a
+    read-only Firestore query, never a write - or None when that read could
+    not be completed ("unknowable", never a reason to block the edit).
+    """
+    if "title" not in sets and "author" not in sets:
+        return None
+    published = book.published()
+    old_title = published.get("title") or ""
+    old_author = published.get("author") or ""
+    new_title = (sets.get("title") or "").strip() or old_title
+    new_author = (sets.get("author") or "").strip() or old_author
+
+    old_key = review_join.work_key_for(old_title, old_author)
+    new_key = review_join.work_key_for(new_title, new_author)
+    if old_key == new_key:
+        return None
+
+    count = review_join.count_reviews_for_book_id(review_join.book_id_from_title(old_title))
+    return old_key, new_key, count
+
+
+def _warn_key_move(old_key: str, new_key: str, count: Optional[int]) -> None:
+    _out()
+    _rule("!")
+    _out("KEY-MOVE WARNING: this edit changes the book's review-join key.")
+    _out(f"  old key: {old_key}")
+    _out(f"  new key: {new_key}")
+    if count is None:
+        _out("  reviews currently joined to the old title: UNKNOWN (could not reach Firestore - read-only check failed)")
+    else:
+        _out(f"  reviews currently joined to the old title: {count}")
+    _out("  Without a carry, those reviews stop joining this book - on the library site (workKey)")
+    _out("  and on this site's own lookup (bookId) - until the join is restamped onto the new key.")
+    _out("  Carry procedure: after the next `python -m app.main` build, run the library repo's")
+    _out("  scripts/backfill-review-keys.mjs (catalog-platform/docs/info/edit-audit-design.md sec 6).")
+    _rule("!")
+
+
+def _key_move_allowed(args, book: bl.Book, sets: Dict[str, Optional[str]]) -> bool:
+    """Print the A2 warning and enforce --confirm-key-move. True = safe to proceed."""
+    move = _key_move(book, sets)
+    if move is None:
+        return True
+    old_key, new_key, count = move
+    _warn_key_move(old_key, new_key, count)
+    if args.confirm_key_move:
+        return True
+    _out("\nRefusing: this edit moves the review-join key. Pass --confirm-key-move to proceed anyway.")
+    return False
+
+
 def _first_credited_author(author: Optional[str]) -> Optional[str]:
     """
     match.author must hold ONE credited name, never the full comma-joined string.
@@ -327,6 +392,9 @@ def cmd_edit(args) -> int:
     if not sets:
         _out("No changes.")
         return 0
+
+    if not _key_move_allowed(args, book, sets):
+        return 4
 
     try:
         entry = _build_entry(args, book, sets, why)
@@ -495,6 +563,14 @@ def build_parser() -> argparse.ArgumentParser:
     e.add_argument("--source", action="append", metavar="URL", help="repeatable; citable source for the correction")
     e.add_argument("--note", help="free-text note on the entry")
     e.add_argument("--key-file", action="store_true", help="add match.file as a tiebreaker (never the only key)")
+    e.add_argument(
+        "--confirm-key-move",
+        action="store_true",
+        help=(
+            "required when a title/author change would move the book's review-join key "
+            "(shown as a warning otherwise); see docs/info/edit-audit-design.md sec 3.4/6 in catalog-platform"
+        ),
+    )
     e.add_argument("--replace", action="store_true", help="replace an existing entry instead of merging into it")
     e.add_argument("--dry-run", action="store_true")
     e.add_argument("-y", "--yes", action="store_true", help="no prompts")

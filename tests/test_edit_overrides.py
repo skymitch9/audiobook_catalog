@@ -338,6 +338,135 @@ def test_cli_edit_writes_a_verified_entry(sandbox, tmp_path, monkeypatch, capsys
     assert written[0]["evidence"]["tags_read"]["SRNM"] == "absent"
 
 
+# --------------------------------------------------------------------------- #
+# Phase A2: the key-move warning (edit-audit-design.md sec 3.4/6)
+# --------------------------------------------------------------------------- #
+
+
+def _plain_book(title="Tag Title", author="A. Author", **extra):
+    row = {
+        "title": title, "author": author, "narrator": "", "year": "", "genre": "",
+        "series": "", "series_index_display": "", "cover_href": "",
+    }
+    row.update(extra)
+    return bl.Book(row=row, path=None, uncorrected=None, asin=None, tags_read={})
+
+
+def test_key_move_is_none_when_title_and_author_are_untouched():
+    assert cli._key_move(_plain_book(), {"series": "S"}) is None
+
+
+def test_key_move_is_none_when_the_new_value_folds_to_the_same_key():
+    """'THE Tag Title' vs 'Tag Title' normalise to the identical key - not a move."""
+    assert cli._key_move(_plain_book(), {"title": "THE Tag Title"}) is None
+
+
+def test_key_move_detects_a_title_change(monkeypatch):
+    # Every test here mocks the network read - see review_join module tests
+    # for count_reviews_for_book_id's own behaviour (including a real
+    # failure->None degrade). This test only pins _key_move's OWN logic.
+    monkeypatch.setattr(cli.review_join, "count_reviews_for_book_id", lambda *a, **k: None)
+    move = cli._key_move(_plain_book(), {"title": "A Completely Different Title"})
+    assert move is not None
+    old_key, new_key, count = move
+    # normalise_title strips a leading article - "A. Author" -> "a author" ->
+    # the standalone "a" reads as the indefinite article and is stripped too.
+    # Faithful to titles.ts::normaliseTitle, applied identically to authors.
+    assert old_key == "tag title|author"
+    assert new_key == "completely different title|author"
+    assert count is None, "a failed/unmocked read must degrade to 'unknowable', never raise"
+
+
+def test_key_move_detects_an_author_change(monkeypatch):
+    monkeypatch.setattr(cli.review_join, "count_reviews_for_book_id", lambda *a, **k: None)
+    move = cli._key_move(_plain_book(), {"author": "A Totally Different Person"})
+    assert move is not None
+    old_key, new_key, _ = move
+    assert old_key.split("|")[1] == "author"
+    assert new_key.split("|")[1] == "totally different person"
+
+
+def test_cli_refuses_a_key_moving_edit_without_the_confirm_flag(sandbox, monkeypatch, capsys):
+    book = bl.Book(
+        row={"title": "Tag Title", "author": "A. Author", "narrator": "", "year": "", "genre": "", "series": "", "series_index_display": "", "cover_href": ""},
+        path=None, uncorrected=None, asin=None, tags_read={},
+    )
+    monkeypatch.setattr(cli, "_resolve", lambda *a, **k: book)
+    monkeypatch.setattr(cli, "_duplicate_titles", lambda b: 1)
+    monkeypatch.setattr(cli.review_join, "count_reviews_for_book_id", lambda *a, **k: 3)
+    before = sandbox.read_text(encoding="utf-8")
+
+    rc = cli.main(
+        [
+            "--overrides", str(sandbox), "edit", "tag title",
+            "--set", "title=A Whole New Title",
+            "--why", "title=the tag was garbled",
+            "--yes",
+        ]
+    )
+    assert rc == 4
+    out = capsys.readouterr().out
+    assert "KEY-MOVE WARNING" in out
+    assert "old key" in out and "new key" in out
+    assert "3" in out, "the (mocked) review count must be shown"
+    assert "--confirm-key-move" in out
+    assert sandbox.read_text(encoding="utf-8") == before, "a refused key move must leave the file untouched"
+
+
+def test_cli_proceeds_past_a_key_move_with_the_confirm_flag(sandbox, monkeypatch, capsys):
+    book = bl.Book(
+        row={"title": "Tag Title", "author": "A. Author", "narrator": "", "year": "", "genre": "", "series": "", "series_index_display": "", "cover_href": ""},
+        path=None, uncorrected=None, asin=None, tags_read={},
+    )
+    monkeypatch.setattr(cli, "_resolve", lambda *a, **k: book)
+    monkeypatch.setattr(cli, "_duplicate_titles", lambda b: 1)
+    monkeypatch.setattr(cli.review_join, "count_reviews_for_book_id", lambda *a, **k: 0)
+
+    rc = cli.main(
+        [
+            "--overrides", str(sandbox), "edit", "tag title",
+            "--set", "title=A Whole New Title",
+            "--why", "title=the tag was garbled",
+            "--confirm-key-move",
+            "--yes",
+        ]
+    )
+    assert rc == 0
+    written = [e for e in store.load(sandbox)["overrides"] if e["match"].get("title") == "Tag Title"]
+    assert len(written) == 1
+    assert written[0]["set"]["title"] == "A Whole New Title"
+    assert "KEY-MOVE WARNING" in capsys.readouterr().out
+
+
+def test_cli_never_warns_when_no_key_move_is_happening(sandbox, tmp_path, monkeypatch, capsys):
+    """Editing narrator/series/etc. must never hit the network at all."""
+    book = bl.Book(
+        row={"title": "Tag Title", "author": "A. Author", "narrator": "", "year": "", "genre": "", "series": "", "series_index_display": "", "cover_href": ""},
+        path=tmp_path / "Tag Title.m4b",
+        uncorrected={"title": "Tag Title", "author": "A. Author", "narrator": "", "year": "", "genre": "", "series": "", "series_index": ""},
+        asin=None,
+        tags_read={},
+    )
+    monkeypatch.setattr(cli, "_resolve", lambda *a, **k: book)
+    monkeypatch.setattr(cli, "_duplicate_titles", lambda b: 1)
+
+    def _boom(*a, **k):
+        raise AssertionError("must not be called when title/author are untouched")
+
+    monkeypatch.setattr(cli.review_join, "count_reviews_for_book_id", _boom)
+
+    rc = cli.main(
+        [
+            "--overrides", str(sandbox), "edit", "tag title",
+            "--set", "narrator=New Narrator",
+            "--why", "narrator=Audible page credits them",
+            "--yes",
+        ]
+    )
+    assert rc == 0
+    assert "KEY-MOVE" not in capsys.readouterr().out
+
+
 def test_cli_refuses_a_set_with_no_why(sandbox, tmp_path, monkeypatch):
     book = bl.Book(row={"title": "T", "author": "A", "cover_href": ""}, path=None, uncorrected=None)
     monkeypatch.setattr(cli, "_resolve", lambda *a, **k: book)
