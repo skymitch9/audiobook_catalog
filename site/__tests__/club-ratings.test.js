@@ -40,20 +40,24 @@ vi.mock('firebase/firestore', () => {
       }
       return { _path: segs.join('/'), id: segs[segs.length - 1] };
     },
-    getDoc: async (ref) => makeSnap(ref._path),
+    // getDoc/getDocs are vi.fn()-wrapped (not plain functions) so tests can
+    // assert rateBook() never reads the ratings subcollection before
+    // writing — that get() would 403 while blind in the real deployed
+    // rules (see the ⚠️ gotcha note in club-reads.js).
+    getDoc: vi.fn(async (ref) => makeSnap(ref._path)),
     setDoc: async (ref, data) => { mockStore[ref._path] = { ...data }; },
     updateDoc: async (ref, data) => { applyUpdate(ref._path, data); },
     deleteDoc: async (ref) => { delete mockStore[ref._path]; },
     increment: (n) => ({ __inc: n }),
     query: (colRef, ...filters) => ({ _path: colRef._path, _filters: filters }),
     where: (field, op, value) => ({ field, op, value }),
-    getDocs: async (q) => {
+    getDocs: vi.fn(async (q) => {
       const prefix = q._path + '/';
       const docs = Object.entries(mockStore)
         .filter(([p]) => p.startsWith(prefix) && !p.slice(prefix.length).includes('/'))
         .map(([p, data]) => ({ id: p.split('/').pop(), data: () => data, exists: () => true }));
       return { docs };
-    },
+    }),
     serverTimestamp: () => 'server-ts',
     runTransaction: async (db, fn) =>
       fn({
@@ -80,6 +84,7 @@ const {
   myRatingStorageKey, storeMyRatingLocally, getMyStoredRating,
   rateBook, revealRatings, getRatings,
 } = await import('../club-reads.js');
+const { getDoc: mockedGetDoc, getDocs: mockedGetDocs } = await import('firebase/firestore');
 
 const fakeDb = {};
 const jane = { displayName: 'Jane Doe' };
@@ -94,6 +99,8 @@ beforeEach(() => {
     [READ_PATH]: { bookTitle: 'A Book', status: 'active' },
   };
   localStorage.clear();
+  mockedGetDoc.mockClear();
+  mockedGetDocs.mockClear();
 });
 
 // ==================== Pure validation ====================
@@ -272,13 +279,18 @@ describe('rateBook', () => {
     expect(getMyStoredRating('club1', 'read1', 'jane doe')).toMatchObject({ rating: 4.5 });
   });
 
-  it('editing an existing rating does not double-count ratingCount or lose the original createdAt', async () => {
+  it('editing an existing rating does not double-count ratingCount (tracked via the localStorage mirror, not a read)', async () => {
     await rateBook(fakeDb, 'club1', 'read1', 3, 'first pass', jane);
-    const firstCreatedAt = mockStore[`${READ_PATH}/ratings/jane doe`].createdAt;
     await rateBook(fakeDb, 'club1', 'read1', 5, 'changed my mind', jane);
     expect(mockStore[READ_PATH].ratingCount).toBe(1);
     expect(mockStore[`${READ_PATH}/ratings/jane doe`]).toMatchObject({ rating: 5, comment: 'changed my mind' });
-    expect(mockStore[`${READ_PATH}/ratings/jane doe`].createdAt).toBe(firstCreatedAt);
+  });
+
+  it('never reads the ratings subcollection first — would 403 while blind, per firestore.rules (regression: an earlier version wrapped this in a transaction that opened with a get() and broke every blind-window rating)', async () => {
+    await rateBook(fakeDb, 'club1', 'read1', 4, '', jane);
+    await rateBook(fakeDb, 'club1', 'read1', 3, 'edit', jane); // and again on edit
+    expect(mockedGetDoc).not.toHaveBeenCalled();
+    expect(mockedGetDocs).not.toHaveBeenCalled();
   });
 
   it('ratingCount increments independently per distinct member', async () => {

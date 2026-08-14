@@ -1179,15 +1179,34 @@ export async function getPollVotes(db, clubId, pollId) {
 // data becomes readable everywhere.
 //
 // "N members have rated" is `ratingCount` on the read doc itself — open
-// write, incremented once per NEW rating (first write for that member),
-// same pattern as commentCount (bumped by every commenter, never rules-
-// gated). It stays visible through the blind window without exposing any
-// individual value, matching the spec's "count only" requirement.
+// write, incremented once per NEW rating, same pattern as commentCount
+// (bumped by every commenter, never rules-gated). It stays visible through
+// the blind window without exposing any individual value, matching the
+// spec's "count only" requirement.
+//
+// ⚠️ IMPLEMENTATION GOTCHA (hit and fixed while building this): rateBook()
+// CANNOT `get()` the caller's own rating doc to check "have I already
+// rated?" before deciding whether to bump ratingCount — that get() is
+// itself a read of the ratings subcollection, and the rule above denies
+// ALL reads while blind, including to the write's own author. An earlier
+// version wrapped the write in a transaction that opened with exactly that
+// get() and failed every blind-window rating with PERMISSION_DENIED. The
+// fix: "have I rated before" is answered from the localStorage mirror
+// (client-side truth, no read involved) instead of Firestore. A rater on a
+// SECOND device without a local mirror yet will bump ratingCount again —
+// an accepted extra edge in the same "open, unenforced counter" class as
+// commentCount (nothing here stops anyone writing ratingCount to any
+// number directly either).
 //
 // After reveal, ratings keep landing (rules allow create/update at any
-// time) but "arrive visibly" per the spec: isRatingAfterReveal compares a
-// rating's ORIGINAL createdAt against the read's revealedAt stamp so the
-// UI can badge it, without trusting anything the client self-reports.
+// time) but "arrive visibly" per the spec: createdAt is stamped fresh with
+// serverTimestamp() on every write (create AND edit — the same
+// no-pre-read constraint rules out fetching an original value to keep),
+// so isRatingAfterReveal reflects "this rating's current value was posted
+// or last edited after the reveal", not literally "first ever submitted
+// after reveal". A member who rated blind and never touches it again
+// keeps their pre-reveal timestamp and no badge; editing after reveal
+// picks one up — read as "this is what changed since the reveal moment."
 
 export const MIN_RATING = 0.5;
 export const MAX_RATING = 5;
@@ -1281,11 +1300,11 @@ export function getMyStoredRating(clubId, readId, slug) {
 }
 
 /**
- * Submit (or update) the caller's own rating. First-time rating bumps the
- * read's open `ratingCount` (transactional so it can't double-count an
- * edit); the ORIGINAL createdAt is preserved across edits so
- * isRatingAfterReveal reflects when the member first rated, not their
- * latest edit. Mirrors the value into localStorage for the blind window.
+ * Submit (or update) the caller's own rating. Deliberately does NOT read
+ * the ratings subcollection first (see the ⚠️ gotcha note above) — "have I
+ * rated before, on this device" comes from the localStorage mirror, and
+ * that alone decides whether to bump the read's open `ratingCount`.
+ * createdAt is stamped fresh with serverTimestamp() on every write.
  */
 export async function rateBook(db, clubId, readId, rating, comment, session) {
   if (!session || !session.displayName) {
@@ -1298,19 +1317,18 @@ export async function rateBook(db, clubId, readId, rating, comment, session) {
   const slug = slugifyName(session.displayName);
   const ratingRef = doc(db, col('clubs'), clubId, 'reads', readId, 'ratings', slug);
   const readRef = doc(db, col('clubs'), clubId, 'reads', readId);
+  const isFirstOnThisDevice = !getMyStoredRating(clubId, readId, slug);
   try {
-    await runTransaction(db, async (tx) => {
-      const snap = await tx.get(ratingRef);
-      const isNew = !snap.exists();
-      tx.set(ratingRef, {
-        displayName: session.displayName,
-        rating,
-        comment: commentCheck.comment,
-        createdAt: isNew ? serverTimestamp() : (snap.data().createdAt ?? serverTimestamp()),
-        updatedAt: serverTimestamp(),
-      });
-      if (isNew) tx.update(readRef, { ratingCount: increment(1) });
+    await setDoc(ratingRef, {
+      displayName: session.displayName,
+      rating,
+      comment: commentCheck.comment,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
     });
+    if (isFirstOnThisDevice) {
+      await updateDoc(readRef, { ratingCount: increment(1) });
+    }
     storeMyRatingLocally(clubId, readId, slug, rating, commentCheck.comment);
     return { success: true };
   } catch (e) {
