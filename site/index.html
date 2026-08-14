@@ -41026,17 +41026,28 @@ function wireAppearance(container){
     mDesc.textContent=payload.desc ? payload.desc : "No description available.";
 
     // Companion files — collapsible, starts minimized (matches Content notes)
+    // Epubs are filtered at RENDER, not removed from the data: the ebooks now
+    // live in the library catalog, so listing them here is noise — but the
+    // underlying companion_files field still feeds the ebook manifest and the
+    // future cross-catalog link sync (owner, 2026-08-14: "remove them from the
+    // reference ... proper link sync with the catalogs later"). PDFs stay.
     mCompanionsList.innerHTML="";
     if(payload.companions){
-      var comps=payload.companions.split("|").map(function(s){return s.trim();}).filter(Boolean);
+      var comps=payload.companions.split("|").map(function(s){return s.trim();}).filter(Boolean)
+        .filter(function(s){return !/\.epub$/i.test(s);});
       comps.forEach(function(name){
         var li=document.createElement("li");
         li.textContent=name;
         mCompanionsList.appendChild(li);
       });
-      mCompanions.querySelector("summary").textContent="📎 Companion Files ("+comps.length+")";
-      mCompanions.open=false;
-      mCompanions.style.display="block";
+      if(comps.length){
+        mCompanions.querySelector("summary").textContent="📎 Companion Files ("+comps.length+")";
+        mCompanions.open=false;
+        mCompanions.style.display="block";
+      } else {
+        // Everything this book had was epubs — no section at all.
+        mCompanions.style.display="none";
+      }
     } else {
       mCompanions.style.display="none";
     }
