@@ -1952,6 +1952,38 @@
         "filename_said": "The Dragon Girl’s Ascension (Volume 6)",
         "sources": []
       }
+    },
+    {
+      "book": "Star Child - Places of Power - Leonard Petracci",
+      "match": {
+        "asin": "B077H1FFBM"
+      },
+      "set": {
+        "series": "Places of Power",
+        "series_index": "1"
+      },
+      "added": "2026-08-14",
+      "evidence": {
+        "series": "Owner decision 2026-08-14 from their Audible library + web-verified: Goodreads series 258886 'Places of Power', book listed as 'Star Child (Places of Power, #1)'; 'Star Child - Places of Power' is Audible's composite title",
+        "series_index": "Owner: book 1 for sure; Goodreads concurs (#1; Book 0 is the unowned prequel novelette Forgotten Pages)",
+        "tags_read": {
+          "©nam": "Star Child - Places of Power",
+          "©alb": "Star Child",
+          "©ART": "Leonard Petracci",
+          "©wrt": "Will M. Watt",
+          "©day": "2017-11-16",
+          "©gen": "Literature & Fiction:Genre Fiction:Magical Realism",
+          "trkn": "(1, 0)",
+          "SRNM": "Star Child - Places of Power",
+          "SRSQ": "1",
+          "CDEK": "B077H1FFBM"
+        },
+        "filename_said": "Star Child - Places of Power",
+        "sources": [
+          "https://www.goodreads.com/series/258886-places-of-power",
+          "https://www.goodreads.com/en/book/show/36466303"
+        ]
+      }
     }
   ],
   "_not_corrected_on_purpose": {
