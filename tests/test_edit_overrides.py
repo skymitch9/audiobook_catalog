@@ -382,6 +382,76 @@ def test_cli_refuses_to_write_an_entry_that_could_never_fire(sandbox, tmp_path, 
     assert sandbox.read_text(encoding="utf-8") == before
 
 
+def test_first_credited_author_reduces_a_joined_string():
+    assert cli._first_credited_author("Author A, Author B") == "Author A"
+    assert cli._first_credited_author("Solo Author") == "Solo Author"
+    assert cli._first_credited_author(None) is None
+    assert cli._first_credited_author("") == ""
+
+
+def test_multi_author_entry_keys_on_a_single_credited_name(sandbox, tmp_path, monkeypatch):
+    """Regression (tag-repair-plan.md section 8): _build_entry used to store the
+    full comma-joined author string in match.author. _author_matches() and
+    entries_for() both check whether match.author equals ONE of the
+    comma-separated names in the book's real (multi-author) field, so a joined
+    match.author can never equal any single segment - the entry validated,
+    looked correct, and silently never fired. Caught only by counting a sweep
+    plan (29 vs 31), not by _verify(), because the title-only fields still came
+    out correct.
+    """
+    book = bl.Book(
+        row={
+            "title": "Shared Byline",
+            "author": "Author A, Author B",
+            "narrator": "",
+            "year": "",
+            "genre": "",
+            "series": "",
+            "series_index_display": "",
+            "cover_href": "",
+        },
+        path=tmp_path / "Shared Byline.m4b",
+        uncorrected={
+            "title": "Shared Byline",
+            "author": "Author A, Author B",
+            "narrator": "",
+            "year": "",
+            "genre": "",
+            "series": "",
+            "series_index": "",
+        },
+        asin=None,
+        tags_read={"\xa9nam": "Shared Byline", "SRNM": "absent"},
+    )
+    monkeypatch.setattr(cli, "_resolve", lambda *a, **k: book)
+    monkeypatch.setattr(cli, "_duplicate_titles", lambda b: 1)
+
+    rc = cli.main(
+        [
+            "--overrides", str(sandbox), "edit", "shared byline",
+            "--set", "series=Some Series",
+            "--why", "series=album tag holds it",
+            "--yes",
+        ]
+    )
+    assert rc == 0
+
+    written = [e for e in store.load(sandbox)["overrides"] if e["match"].get("title") == "Shared Byline"]
+    assert len(written) == 1
+    entry = written[0]
+    assert entry["match"]["author"] == "Author A", "keyed on a single credited name, not the joined string"
+    assert entry["book"] == "Shared Byline - Author A, Author B", "the LABEL keeps the full byline; only the key is reduced"
+
+    # And it must actually fire once the build sees the real, multi-author row -
+    # this is the check _verify() could not have caught (co.py, not book_lookup.py).
+    assert co._author_matches(entry["match"]["author"], "Author A, Author B") is True
+    out = store.simulate(
+        store.load(sandbox),
+        {"title": "Shared Byline", "author": "Author A, Author B", "series": "", "series_index": ""},
+    )
+    assert out["series"] == "Some Series"
+
+
 def test_interactive_asks_for_a_reason_until_it_gets_one(monkeypatch, capsys):
     """Enter = leave alone, '-' = force blank, and a blank reason is re-asked."""
     book = bl.Book(

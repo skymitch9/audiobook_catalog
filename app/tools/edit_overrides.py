@@ -266,13 +266,36 @@ def _key_file_for(args, book: bl.Book) -> Optional[str]:
     return None
 
 
+def _first_credited_author(author: Optional[str]) -> Optional[str]:
+    """
+    match.author must hold ONE credited name, never the full comma-joined string.
+
+    Both matchers that read this field - catalog_overrides._author_matches() and
+    overrides_store.entries_for() - check whether match.author equals one of the
+    comma-separated names in the book's actual (multi-author) author field. If
+    match.author is itself the full joined string ("Author A, Author B"), it can
+    never equal a single segment of that same string, so the entry validates,
+    reads perfectly, and never fires (docs/info/tag-repair-plan.md §8: found via
+    two hand-curated multi-author entries missing from a sweep plan, 29 vs 31).
+    Reducing to the first credited name is exactly what those two entries were
+    fixed to by hand; this makes that the tool's own default instead of a manual
+    workaround repeated by every future multi-author edit.
+    """
+    if not author:
+        return author
+    first = str(author).split(",", 1)[0].strip()
+    return first or author
+
+
 def _build_entry(args, book: bl.Book, sets: Dict[str, Optional[str]], why: Dict[str, str]) -> Dict:
     """Key it (ASIN first - it survives a rename AND a retag) and attach the evidence."""
     tagged = book.uncorrected or {}
     title = tagged.get("title") or book.title
     author = tagged.get("author") or book.author
     return store.build_entry(
-        match=store.build_match(asin=book.asin, title=title, author=author, file=_key_file_for(args, book)),
+        match=store.build_match(
+            asin=book.asin, title=title, author=_first_credited_author(author), file=_key_file_for(args, book)
+        ),
         sets=sets,
         why=why,
         tags_read=book.tags_read or {"_note": "not read - no m4b found for this row under ROOT_DIR"},
