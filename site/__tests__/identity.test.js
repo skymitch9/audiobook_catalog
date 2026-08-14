@@ -63,7 +63,7 @@ vi.mock('firebase/auth', () => {
 
 import {
   validateDisplayName, getSession, logout, isAdmin, slugifyName,
-  signInWithGoogle, signOutGoogle, handleRedirectResult,
+  signInWithGoogle, signOutGoogle, handleRedirectResult, renderIdentityBar,
 } from '../identity.js';
 
 const fakeApp = {};
@@ -301,6 +301,85 @@ describe('signOutGoogle', () => {
     setLegacyMirror('OldTimer', 'passphrase');
     await signOutGoogle(fakeApp);
     expect(getSession()).toBeNull();
+  });
+
+  it('⚠️ sweeps the ENTIRE ab_identity_* family — untagged v1 residue and unknown keys included', async () => {
+    // The owner's attended pass, 2026-08-14: after a v2 sign-out, untagged
+    // v1-shape keys were present (prod v1 shares this origin's localStorage
+    // until promotion) and the UI rendered a signed-in "Skylar" over an empty
+    // Firebase session. Sign-out must land in a truly signed-out UI whatever
+    // residue any lane's code left behind.
+    setLegacyMirror('Skylar', 'google', 'nbaslamking@gmail.com');
+    localStorage.setItem('ab_identity_photo', 'https://p/x.png');
+    localStorage.setItem('ab_identity_v1_extra', 'residue'); // a key v2 never wrote
+    localStorage.setItem('guessGame_Skylar_streak', '7'); // NOT ours — must survive
+
+    await signOutGoogle(fakeApp);
+
+    expect(getSession()).toBeNull();
+    for (let i = 0; i < localStorage.length; i++) {
+      expect(localStorage.key(i).startsWith('ab_identity')).toBe(false);
+    }
+    expect(localStorage.getItem('guessGame_Skylar_streak')).toBe('7');
+  });
+});
+
+describe('Residue robustness — the owner-found failure modes', () => {
+  it('sign-in ALWAYS invokes the clean popup, whatever the mirror holds', async () => {
+    // Residue may inform the UI; it must never block the flow.
+    setLegacyMirror('Skylar', 'google', 'nbaslamking@gmail.com');
+    localStorage.setItem('ab_identity_v1_extra', 'residue');
+    signInWithPopupMock.mockResolvedValue({
+      user: { displayName: 'Skylar', email: 'nbaslamking@gmail.com', photoURL: '' },
+    });
+
+    const result = await signInWithGoogle(fakeApp);
+
+    expect(signInWithPopupMock).toHaveBeenCalledTimes(1);
+    expect(result.success).toBe(true);
+    // The write superseded the whole family: live-tagged, residue gone
+    expect(getSession().legacy).toBe(false);
+    expect(localStorage.getItem('ab_identity_v1_extra')).toBeNull();
+    expect(localStorage.getItem('ab_identity_live')).toBe('1');
+  });
+
+  it('the mirror listener also supersedes residue when a live user is published', async () => {
+    setLegacyMirror('Skylar', 'google');
+    localStorage.setItem('ab_identity_v1_extra', 'residue');
+    await handleRedirectResult(fakeApp);
+
+    authCallback({ displayName: 'Skylar', email: 'nbaslamking@gmail.com', photoURL: '' });
+
+    expect(localStorage.getItem('ab_identity_v1_extra')).toBeNull();
+    expect(getSession().legacy).toBe(false);
+  });
+
+  it('the identity bar renders the legacy upgrade panel from the owner\'s exact state', () => {
+    // mirror-without-tag + no live session: must NOT render as a plain
+    // signed-in chip with no way forward.
+    setLegacyMirror('Skylar', 'google', 'nbaslamking@gmail.com');
+
+    const container = document.createElement('div');
+    renderIdentityBar(container, {}, { app: fakeApp });
+
+    expect(container.textContent).toContain('Skylar');
+    expect(container.textContent).toContain('Legacy');
+    const buttons = Array.from(container.querySelectorAll('button')).map((b) => b.textContent);
+    expect(buttons.some((t) => t.includes('Sign in'))).toBe(true); // the Google upgrade
+    expect(buttons.some((t) => t.includes('Logout'))).toBe(true);
+  });
+
+  it('a live-backed session renders WITHOUT the legacy affordances', () => {
+    localStorage.setItem('ab_identity_name', 'Skylar');
+    localStorage.setItem('ab_identity_session', 'active');
+    localStorage.setItem('ab_identity_method', 'google');
+    localStorage.setItem('ab_identity_live', '1');
+
+    const container = document.createElement('div');
+    renderIdentityBar(container, {}, { app: fakeApp });
+
+    expect(container.textContent).toContain('Google');
+    expect(container.textContent).not.toContain('Legacy');
   });
 });
 

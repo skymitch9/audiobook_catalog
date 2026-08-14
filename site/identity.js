@@ -43,8 +43,34 @@ import { col, IS_DEV_LANE } from './fb-env.js';
  */
 const LIVE_MARKER = 'ab_identity_live';
 
-/** Write the mirror from a live Firebase user. */
+/**
+ * Remove EVERY ab_identity_* key — known names, v1-era names, and anything a
+ * future writer mints — by prefix sweep, not a fixed list.
+ *
+ * ⚠️ Why a sweep and not a list (owner's attended pass, 2026-08-14): until
+ * this ships to prod, BOTH lanes share this origin's localStorage and prod
+ * still runs v1, whose sign-in writes the same key names WITHOUT the live
+ * marker and then detaches Firebase. Key shape therefore cannot distinguish
+ * "pre-v2 legacy capture" (honor it) from "post-v2 residue" (clear it) — the
+ * v1 writer keeps producing the legacy shape while v2 is live. The
+ * distinction is BEHAVIORAL instead: every v2 sign-out sweeps the whole
+ * family, and every v2 mirror write supersedes it, so an untagged row can
+ * only mean "written by a v1 page and not yet touched by any v2 action" —
+ * which is exactly the legacy case the upgrade panel exists for.
+ */
+function sweepMirror() {
+  const stale = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.indexOf('ab_identity') === 0) stale.push(k);
+  }
+  stale.forEach((k) => localStorage.removeItem(k));
+}
+
+/** Write the mirror from a live Firebase user. Supersedes any stale
+ * ab_identity_* keys this writer does not own (v1 residue included). */
 function mirrorUser(user, marker) {
+  sweepMirror();
   localStorage.setItem('ab_identity_name', user.displayName || user.email);
   localStorage.setItem('ab_identity_session', 'active');
   localStorage.setItem('ab_identity_method', 'google');
@@ -57,15 +83,12 @@ function mirrorUser(user, marker) {
 }
 
 /**
- * Clear the mirror. Public as `logout()` for legacy sessions and tests.
+ * Clear the mirror — the WHOLE ab_identity_* family, tagged or not, so a
+ * sign-out always lands in a truly signed-out UI whatever residue any lane's
+ * code left behind. Public as `logout()` for legacy sessions and tests.
  */
 export function logout() {
-  localStorage.removeItem('ab_identity_name');
-  localStorage.removeItem('ab_identity_session');
-  localStorage.removeItem('ab_identity_method');
-  localStorage.removeItem('ab_identity_photo');
-  localStorage.removeItem('ab_identity_email');
-  localStorage.removeItem(LIVE_MARKER);
+  sweepMirror();
 }
 
 let _mirrorAttached = false;
