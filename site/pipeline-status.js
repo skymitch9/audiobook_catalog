@@ -99,7 +99,7 @@ function renderSummary(status) {
 export function renderStatus(el, status) {
   if (!status) {
     el.innerHTML = `<div class="pl-card pl-card--idle">
-      <div class="pl-head"><span class="pl-dot pl-dot--idle"></span><strong>Pipeline</strong>
+      <div class="pl-head"><span class="pl-dot pl-dot--idle"></span><strong>Automated Book Pipeline</strong>
       <span class="pl-state">no runs recorded yet</span></div>
       <p class="pl-hint">The status card fills in the first time the pipeline runs
       with credentials configured.</p></div>`;
@@ -121,7 +121,7 @@ export function renderStatus(el, status) {
     <div class="pl-card pl-card--${esc(state)}">
       <div class="pl-head">
         <span class="pl-dot pl-dot--${esc(state)}"></span>
-        <strong>Pipeline</strong>
+        <strong>Automated Book Pipeline</strong>
         <span class="pl-state">${esc(label)}</span>
         <span class="pl-when">${esc(when)}</span>
         <span class="pl-trigger">${esc(status.trigger || '')}</span>
@@ -142,7 +142,7 @@ export function watchStatus(db, el) {
     (snap) => renderStatus(el, snap.exists() ? snap.data() : null),
     (err) => {
       el.innerHTML = `<div class="pl-card pl-card--failed">
-        <div class="pl-head"><span class="pl-dot pl-dot--failed"></span><strong>Pipeline</strong>
+        <div class="pl-head"><span class="pl-dot pl-dot--failed"></span><strong>Automated Book Pipeline</strong>
         <span class="pl-state">STATUS UNAVAILABLE</span></div>
         <div class="pl-error">${esc(err.message || err)}</div></div>`;
     },

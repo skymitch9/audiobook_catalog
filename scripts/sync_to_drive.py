@@ -22,6 +22,7 @@ import json
 import os
 import sys
 import time
+from dataclasses import dataclass, field
 
 # Fix Windows console encoding for non-ASCII filenames
 if sys.stdout.encoding != 'utf-8':
@@ -684,23 +685,29 @@ def check_file_exists_on_drive(service, file_name: str, folder_id: str) -> str |
 def upload_file_to_drive(
     service, file_path: Path, folder_id: str, dry_run: bool = False,
     max_retries: int = 3, item_index: int = 0, item_total: int = 0,
-) -> str | None:
+) -> tuple[str | None, bool]:
     """
     Upload a file to a specific Google Drive folder using resumable upload.
     Checks for duplicates first — skips if file already exists on Drive.
     Retries on transient failures with exponential backoff.
-    Returns the Drive file ID or None on failure.
+
+    Returns (drive_file_id, already_existed). already_existed is True when
+    the file was found on Drive without uploading anything — the caller
+    uses it to keep "already on Drive" and "just uploaded" honestly
+    separate instead of lumping both into one count (they used to collapse
+    into the same bucket because nothing downstream could tell them apart).
+    drive_file_id is None on a real failure (network/API, after retries).
     """
     if dry_run:
         size_mb = file_path.stat().st_size / (1024 * 1024)
         print(f"  [DRY-RUN] Would upload: {file_path.name} ({size_mb:.1f} MB)")
-        return "dry-run-file-id"
+        return "dry-run-file-id", False
 
     # Check if file already exists on Drive
     existing_id = check_file_exists_on_drive(service, file_path.name, folder_id)
     if existing_id:
         print(f"  [SKIP] Already on Drive: {file_path.name}")
-        return existing_id
+        return existing_id, True
 
     from googleapiclient.http import MediaFileUpload
 
@@ -741,7 +748,7 @@ def upload_file_to_drive(
 
             file_id = response.get("id")
             print(f"\r{label} ... done ({file_id})")
-            return file_id
+            return file_id, False
 
         except Exception as e:
             print(f"\n  [ERROR] Upload failed for {file_path.name}: {e}")
@@ -751,9 +758,169 @@ def upload_file_to_drive(
                 time.sleep(backoff)
             else:
                 print(f"  [FAILED] All {max_retries} attempts exhausted for {file_path.name}")
-                return None
+                return None, False
 
-    return None
+    return None, False
+
+
+# ---------------------------------------------------------------------------
+# Upload outcome classification
+#
+# Ebooks are a first-class upload path now (they feed library_catalog's ebook
+# lane), so "uploaded only ebooks, no new m4bs this run" must read as an
+# ordinary success — not as a degraded or partial one. Four honest classes:
+#   uploaded         — new file, pushed to Drive this run
+#   already_on_drive — dedup found it there already; not a failure
+#   misplaced        — loose file at the library root, no <Author>/ folder;
+#                       a WARNING, reported by name, never a failure
+#   failed           — a real failure: network/API error, or no Drive folder
+#                       could be resolved/created for the author
+# Only `failed` may ever push a run to "partial". See _file_is_misplaced()
+# and _upload_new_files() for where each class is assigned.
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class UploadOutcome:
+    """Tally + names for one STEP 4 run. See module note above for classes."""
+
+    uploaded: list[str] = field(default_factory=list)
+    already_on_drive: list[str] = field(default_factory=list)
+    misplaced: list[str] = field(default_factory=list)
+    failed: list[str] = field(default_factory=list)
+
+    @property
+    def uploaded_count(self) -> int:
+        return len(self.uploaded)
+
+    @property
+    def already_count(self) -> int:
+        return len(self.already_on_drive)
+
+    @property
+    def misplaced_count(self) -> int:
+        return len(self.misplaced)
+
+    @property
+    def failed_count(self) -> int:
+        return len(self.failed)
+
+    def warnings(self) -> list[str]:
+        """Human-readable lines for pipeline_status's 'warnings' field."""
+        return [f"Not in author folder: {name}" for name in self.misplaced]
+
+    def run_state(self) -> str:
+        """'success' unless a REAL failure occurred. Misplaced files are
+        warnings, not failures — a run that only found misplaced/already/
+        uploaded files (the morning-of-2026-08-15 scenario: 9 misplaced
+        epubs, 0 uploaded, 0 failed) is a full success."""
+        return "success" if self.failed_count == 0 else "partial"
+
+
+def _file_is_misplaced(rel: Path) -> bool:
+    """True when a candidate upload sits directly under the library root
+    (no <Author>/ folder) rather than filed under an author. Step 1 sorts
+    loose files into author folders on the NEXT run — this function just
+    recognizes the state, it does not fix it. See the judgment-guard note
+    in _upload_new_files()."""
+    return len(rel.parts) <= 1
+
+
+def upload_run_state(failed_count: int) -> str:
+    """Standalone wrapper around UploadOutcome.run_state() for callers that
+    only have the failure tally (e.g. tests exercising the classification
+    rule in isolation)."""
+    return "success" if failed_count == 0 else "partial"
+
+
+def _upload_new_files(
+    new_files: list[Path],
+    root_dir: Path,
+    aliases: dict[str, str],
+    drive_folders: dict,
+    service,
+    dry_run: bool = False,
+) -> tuple[dict[str, dict], UploadOutcome, list[str], dict[str, str]]:
+    """
+    Resolve each candidate file to a Drive author folder and upload it,
+    classifying the result. Returns (manifest_updates, outcome,
+    new_folders_created, resolved_author_links).
+
+    ⚠️ Judgment guard: a file with no author folder is reported as
+    'misplaced' and skipped — this function NEVER auto-files it into an
+    author folder itself. Sorting a loose book is a human call (the
+    2026-08-15 morning fix for 9 misplaced epubs was made by the owner via
+    the coordinator, not by this script); the pipeline's job is to report
+    clearly, not to guess where a book belongs.
+    """
+    manifest_updates: dict[str, dict] = {}
+    outcome = UploadOutcome()
+    new_folders_created: list[str] = []
+    resolved_links: dict[str, str] = {}
+    total = len(new_files)
+
+    for i, file_path in enumerate(new_files, 1):
+        rel = file_path.relative_to(root_dir)
+
+        if _file_is_misplaced(rel):
+            print(f"\n  [{i}/{total}] [MISPLACED] File not in author folder: {rel}")
+            outcome.misplaced.append(str(rel))
+            continue
+
+        author_name = rel.parts[0]
+
+        # Resolve through alias map first
+        canonical_author, folder_id_override = resolve_alias(author_name, aliases)
+
+        print(f"\n  [{i}/{total}] {rel}")
+
+        # If alias provided a direct folder ID, use it
+        if folder_id_override:
+            folder_name = canonical_author
+            folder_id = folder_id_override
+        else:
+            # Resolve author to a Drive folder
+            result = resolve_author_to_drive_folder(canonical_author, drive_folders, dry_run=dry_run)
+
+            if result:
+                folder_name, folder_id = result
+            else:
+                # Create new folder
+                created = create_drive_folder(service, canonical_author, drive_folders, dry_run=dry_run)
+                if created:
+                    folder_name, folder_id = created
+                    new_folders_created.append(canonical_author)
+                else:
+                    print(f"  [SKIP] Could not resolve Drive folder for '{canonical_author}'")
+                    outcome.failed.append(str(rel))
+                    continue
+
+        # Record the author -> Drive folder link so the next rebuild embeds it
+        # and the prod audit can resolve this author (esp. brand-new folders).
+        if folder_id and not str(folder_id).startswith("dry-run"):
+            resolved_links[canonical_author] = folder_id
+
+        # Upload the file
+        drive_file_id, already_existed = upload_file_to_drive(
+            service, file_path, folder_id, dry_run=dry_run,
+            item_index=i, item_total=total,
+        )
+
+        if drive_file_id:
+            manifest_updates[str(rel)] = {
+                "uploaded_at": datetime.now().isoformat(),
+                "drive_file_id": drive_file_id,
+                "drive_folder": folder_name,
+                "author": author_name,
+            }
+            if already_existed:
+                outcome.already_on_drive.append(str(rel))
+            else:
+                outcome.uploaded.append(str(rel))
+        else:
+            outcome.failed.append(str(rel))
+
+    return manifest_updates, outcome, new_folders_created, resolved_links
 
 
 # ---------------------------------------------------------------------------
@@ -924,78 +1091,17 @@ def run_pipeline(
 
     from app.config import ROOT_DIR
 
-    uploaded_count = 0
-    skipped_count = 0
-    failed_count = 0
-    new_folders_created = []
-    resolved_links: dict[str, str] = {}
     aliases = load_author_aliases()
     start_time = time.time()
 
-    for i, file_path in enumerate(new_files, 1):
-        rel = file_path.relative_to(ROOT_DIR)
-        # Author is the top-level directory name in the library
-        author_name = rel.parts[0] if len(rel.parts) > 1 else None
+    manifest_updates, outcome, new_folders_created, resolved_links = _upload_new_files(
+        new_files, ROOT_DIR, aliases, drive_folders, service, dry_run=dry_run,
+    )
+    manifest.update(manifest_updates)
 
-        if not author_name:
-            print(f"\n  [{i}/{len(new_files)}] [SKIP] File not in author folder: {rel}")
-            failed_count += 1
-            continue
-
-        # Resolve through alias map first
-        canonical_author, folder_id_override = resolve_alias(author_name, aliases)
-
-        print(f"\n  [{i}/{len(new_files)}] {rel}")
-
-        # If alias provided a direct folder ID, use it
-        if folder_id_override:
-            folder_name = canonical_author
-            folder_id = folder_id_override
-        else:
-            # Resolve author to a Drive folder
-            result = resolve_author_to_drive_folder(canonical_author, drive_folders, dry_run=dry_run)
-
-            if result:
-                folder_name, folder_id = result
-            else:
-                # Create new folder
-                created = create_drive_folder(service, canonical_author, drive_folders, dry_run=dry_run)
-                if created:
-                    folder_name, folder_id = created
-                    new_folders_created.append(canonical_author)
-                else:
-                    print(f"  [SKIP] Could not resolve Drive folder for '{canonical_author}'")
-                    failed_count += 1
-                    continue
-
-        # Record the author -> Drive folder link so the next rebuild embeds it
-        # and the prod audit can resolve this author (esp. brand-new folders).
-        if folder_id and not str(folder_id).startswith("dry-run"):
-            resolved_links[canonical_author] = folder_id
-
-        # Upload the file
-        drive_file_id = upload_file_to_drive(
-            service, file_path, folder_id, dry_run=dry_run,
-            item_index=i, item_total=len(new_files),
-        )
-
-        if drive_file_id:
-            # Record in manifest
-            rel_path_str = str(rel)
-            manifest[rel_path_str] = {
-                "uploaded_at": datetime.now().isoformat(),
-                "drive_file_id": drive_file_id,
-                "drive_folder": folder_name,
-                "author": author_name,
-            }
-            if drive_file_id.startswith("dry-run"):
-                uploaded_count += 1
-            elif check_file_exists_on_drive and "SKIP" not in str(drive_file_id):
-                uploaded_count += 1
-            else:
-                skipped_count += 1
-        else:
-            failed_count += 1
+    uploaded_count = outcome.uploaded_count
+    skipped_count = outcome.already_count
+    failed_count = outcome.failed_count
 
     # Save manifest
     if not dry_run:
@@ -1009,14 +1115,24 @@ def run_pipeline(
     # Summary
     elapsed = time.time() - start_time
     print("\n" + "=" * 60)
-    print(f"  COMPLETE: {uploaded_count} uploaded, {skipped_count} skipped (already on Drive), {failed_count} failed")
+    print(
+        f"  COMPLETE: {uploaded_count} uploaded, {skipped_count} already on Drive, "
+        f"{outcome.misplaced_count} misplaced, {failed_count} failed"
+    )
     print(f"  Time: {elapsed:.1f}s")
     pstatus.step_detail(
         "upload",
-        f"{uploaded_count} uploaded, {skipped_count} already there, {failed_count} failed",
+        f"{uploaded_count} uploaded, {skipped_count} already there, "
+        f"{outcome.misplaced_count} misplaced, {failed_count} failed",
     )
+    # `warnings` is new: misplaced files are named here but never move the
+    # run out of success (see UploadOutcome.run_state()). skipped/uploaded/
+    # failed/misplaced field KEYS are unchanged — the admin panel and status
+    # page already read them; only the classification feeding them changed.
     pstatus.set_summary(
-        uploaded=uploaded_count, skipped=skipped_count, failed=failed_count,
+        uploaded=uploaded_count, skipped=skipped_count,
+        misplaced=outcome.misplaced_count, misplacedFiles=outcome.misplaced,
+        failed=failed_count, warnings=outcome.warnings(),
         uploadSec=round(elapsed),
     )
 
@@ -1031,10 +1147,28 @@ def run_pipeline(
         print("  Review these for duplicates/typos.")
         print("  To merge authors, add entries to: scripts/author_aliases.json")
 
+    # Report misplaced files (so a human can file them — the pipeline never
+    # does this itself; see the judgment-guard note on _upload_new_files()).
+    if outcome.misplaced:
+        print(f"\n  MISPLACED ({outcome.misplaced_count}) — not in an author folder, left in place:")
+        print("  " + "-" * 40)
+        for name in outcome.misplaced:
+            print(f"    - {name}")
+        print()
+        print("  Not moved automatically. File each into an <Author>/ folder")
+        print("  and the next run will pick it up.")
+
     print("=" * 60)
 
     # -----------------------------------------------------------------------
     # Step 5: Rebuild catalog (so deploy can detect new books for Discord)
+    #
+    # Only worth doing when something NEW landed on Drive this run — a
+    # misplaced-only or all-already-there run has nothing new for the
+    # audiobook catalog to reflect. This gate is fine to keep narrow because,
+    # unlike the old STEP 6, nothing here is needed to publish an ebook-only
+    # or misplaced-only run's other changes (see STEP 6 below, which is NOT
+    # gated on uploaded_count for exactly that reason).
     # -----------------------------------------------------------------------
     if not dry_run and uploaded_count > 0:
         print("\n[STEP 5] Rebuilding catalog...")
@@ -1092,13 +1226,27 @@ def run_pipeline(
                 print("  [WARN] Some covers failed to upload — they will retry next run.")
         except Exception as e:
             print(f"  [WARN] Cover upload failed: {e}")
+    elif uploaded_count > 0:
+        print("\n[STEP 5] Skipped catalog rebuild (dry-run)")
 
-        # Auto-commit and push if there are changes
+    # -----------------------------------------------------------------------
+    # Step 6: Auto-commit & push
+    #
+    # ⚠️ NOT gated on uploaded_count — that was the morning-of-2026-08-15 bug.
+    # STEP 1b refreshes site/ebooks.json unconditionally, earlier, straight
+    # from what's on disk; an all-misplaced run (0 uploaded, e.g. 9 loose
+    # epubs at the library root) still leaves a freshly-rewritten ebooks.json
+    # that needs to ship. _auto_commit_and_push() already no-ops safely via
+    # `git status --porcelain` when nothing changed, so calling it
+    # unconditionally here costs nothing on a genuinely idle run and fixes
+    # the case where uploaded_count == 0 but real local changes exist —
+    # exactly the ebook-only / misplaced-only path this run must still
+    # publish (manifest, index push, commit) in full.
+    # -----------------------------------------------------------------------
+    if not dry_run:
         print("\n[STEP 6] Auto-commit & push...")
         pstatus.step("publish")
         _auto_commit_and_push()
-    elif uploaded_count > 0:
-        print("\n[STEP 5] Skipped catalog rebuild (dry-run)")
 
     # Fulfill any flagged books (site's "Request AI check" button or
     # cw_requests.txt) — full chain including Claude. Runs on EVERY non-dry
@@ -1113,8 +1261,9 @@ def run_pipeline(
 
     # A run that uploaded but could not publish is still a partial failure the
     # panel should show, so key the outcome on failed_count rather than just
-    # "we reached the end".
-    pstatus.finish_run("success" if failed_count == 0 else "partial")
+    # "we reached the end". Misplaced files are excluded from failed_count
+    # (see UploadOutcome.run_state()), so a misplaced-only run reports success.
+    pstatus.finish_run(outcome.run_state())
 
 
 # ---------------------------------------------------------------------------
