@@ -56,18 +56,22 @@ def cover_src(cover_href: str) -> str:
     return base.rstrip("/") + "/" + _url_encode_path(rel.lstrip("/"))
 
 
-def _cover_button(r: Dict[str, str], inline: bool = False) -> str:
+def _book_data_attrs(r: Dict[str, str], cover_url: Optional[str] = None) -> str:
+    """THE book-modal data contract.
+
+    Every element that can open the book modal — table-row cover buttons
+    (_cover_button), grid cards (_card_html), and Recently Added / Upload
+    History rows (_added_item_html) — carries exactly this data-*
+    attribute set. The template's single JS reader, bookPayloadFromEl()
+    in templates/index.html, reads exactly these attributes back into the
+    openModal() payload.
+
+    To add a new modal field: add it to the list HERE, and to
+    bookPayloadFromEl() in templates/index.html. Nowhere else.
     """
-    Wrap cover <img> in a button with data-* attributes used by the modal.
-    If no cover, returns empty string.
-    """
-    cover = r.get("cover_href") or ""
-    if not cover:
-        return ""
-    cls = "cover-btn inline" if inline else "cover-btn"
-    cover_url = cover_src(cover)
-    # Data attributes: keep short names to minimize HTML size
-    data_attrs = " ".join(
+    if cover_url is None:
+        cover_url = cover_src(r.get("cover_href", ""))
+    return " ".join(
         [
             f'data-cover="{_esc(cover_url)}"',
             f'data-title="{_esc(r.get("title",""))}"',
@@ -85,6 +89,19 @@ def _cover_button(r: Dict[str, str], inline: bool = False) -> str:
             f'data-library-formats="{_esc(r.get("library_formats",""))}"',
         ]
     )
+
+
+def _cover_button(r: Dict[str, str], inline: bool = False) -> str:
+    """
+    Wrap cover <img> in a button with data-* attributes used by the modal.
+    If no cover, returns empty string.
+    """
+    cover = r.get("cover_href") or ""
+    if not cover:
+        return ""
+    cls = "cover-btn inline" if inline else "cover-btn"
+    cover_url = cover_src(cover)
+    data_attrs = _book_data_attrs(r, cover_url=cover_url)
     img_cls = "cover-inline" if inline else "cover"
     return f'<button class="{cls}" {data_attrs}><img class="{img_cls}" src="{cover_url}" alt="Cover of {_esc(r.get("title",""))}" loading="lazy" /></button>'
 
@@ -116,29 +133,13 @@ def _table_rows_html(rows: List[Dict[str, str]]) -> str:
 
 
 def _card_html(r: Dict[str, str]) -> str:
-    # data-* attrs for sorting in cards
-    attrs = {
-        "title": r.get("title", ""),
-        "series": r.get("series", ""),
-        "series_index_sort": r.get("series_index_sort", ""),
-        "author": r.get("author", ""),
-        "narrator": r.get("narrator", ""),
-        "year": r.get("year", ""),
-        "genre": r.get("genre", ""),
-        "duration_hhmm": r.get("duration_hhmm", ""),
-        # Add modal data attributes
-        "cover": cover_src(r.get("cover_href", "")),
-        "index": r.get("series_index_display", ""),
-        "companions": r.get("companion_files", ""),
-        "desc": r.get("desc", ""),
-        # "Other versions available" — hyphenated keys so f'data-{k}' below
-        # produces the SAME attribute names _cover_button and _added_item_html
-        # use (data-library-work-id / data-library-formats), which is what
-        # gives every render point the same dataset.libraryWorkId in JS.
-        "library-work-id": r.get("library_work_id", ""),
-        "library-formats": r.get("library_formats", ""),
-    }
-    data_attrs = " ".join(f'data-{k}="{_esc(v)}"' for k, v in attrs.items())
+    # The book-modal contract (see _book_data_attrs) plus two card-only
+    # extras that exist purely for sorting/search, not the modal:
+    # series_index_sort (numeric sort key for the "#" column) and the
+    # plain-text search cache in the template's _buildSearchCache().
+    data_attrs = _book_data_attrs(r) + (
+        f' data-series_index_sort="{_esc(r.get("series_index_sort",""))}"'
+    )
     thumb = _cover_button(r, inline=True)
 
     chips = []
@@ -208,23 +209,8 @@ def _added_item_html(r: Dict[str, str], date_label: str = "") -> str:
         if date_label else ""
     )
 
-    # Data attributes for modal opening on click
-    data_attrs = " ".join([
-        f'data-cover="{_esc(cover_url)}"',
-        f'data-title="{_esc(r.get("title",""))}"',
-        f'data-series="{_esc(r.get("series",""))}"',
-        f'data-index="{_esc(r.get("series_index_display",""))}"',
-        f'data-author="{_esc(r.get("author",""))}"',
-        f'data-narrator="{_esc(r.get("narrator",""))}"',
-        f'data-year="{_esc(r.get("year",""))}"',
-        f'data-genre="{_esc(r.get("genre",""))}"',
-        f'data-duration="{_esc(r.get("duration_hhmm",""))}"',
-        f'data-companions="{_esc(r.get("companion_files",""))}"',
-        f'data-desc="{_esc(r.get("desc",""))}"',
-        # "Other versions available" — see CSV_FIELDNAMES in writers.py.
-        f'data-library-work-id="{_esc(r.get("library_work_id",""))}"',
-        f'data-library-formats="{_esc(r.get("library_formats",""))}"',
-    ])
+    # Data attributes for modal opening on click — see _book_data_attrs.
+    data_attrs = _book_data_attrs(r, cover_url=cover_url)
 
     return (
         f'<div class="recently-added-item" {data_attrs}'

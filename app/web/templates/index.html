@@ -845,7 +845,9 @@ function wireAppearance(container){
     });
     document.querySelectorAll("#ab-cards .ab-card").forEach(function(c){
       if(!c.dataset._searchText){
-        var keys=["title","series","series_index_sort","author","narrator","year","genre","duration_hhmm"];
+        // Card carries the book-modal contract's "duration" (see
+        // bookPayloadFromEl), not the old card-only "duration_hhmm" name.
+        var keys=["title","series","series_index_sort","author","narrator","year","genre","duration"];
         var parts=keys.map(function(k){ return c.getAttribute("data-"+k)||""; });
         parts.push(c.innerText||c.textContent||"");
         c.dataset._searchText=_normalize(parts.join(" "));
@@ -956,6 +958,27 @@ function wireAppearance(container){
   var mAuthorFolder=document.getElementById("m-author-folder");
   var mBookDrive=document.getElementById("m-book-drive");
   var modalClose=document.getElementById("modal-close");
+
+  // THE book-modal data contract's reader half (Python emit half:
+  // _book_data_attrs in app/web/html_builder.py). Every element that can
+  // open the book modal — cover buttons, grid cards, Recently Added /
+  // Upload History items — carries the same data-* attribute set; this
+  // is the ONE place that turns that set into the openModal() payload.
+  // Add a new modal field in BOTH places — here and _book_data_attrs —
+  // and nowhere else.
+  function bookPayloadFromEl(el){
+    var d=el.dataset;
+    return {
+      cover:d.cover||"", title:d.title||"", series:d.series||"", index:d.index||"",
+      author:d.author||"", narrator:d.narrator||"", year:d.year||"", genre:d.genre||"",
+      // Cards used to carry data-duration_hhmm instead of data-duration;
+      // both are read here so any modal-contract element works regardless
+      // of which name it happens to carry.
+      duration:d.duration||d.duration_hhmm||"",
+      desc:d.desc||"", companions:d.companions||"",
+      libraryWorkId:d.libraryWorkId||"", libraryFormats:d.libraryFormats||""
+    };
+  }
 
   function openModal(payload){
     modalCover.src=payload.cover||"";
@@ -1094,12 +1117,7 @@ function wireAppearance(container){
   document.addEventListener("click", function(e){
     var btn=e.target.closest("button.cover-btn");
     if(btn){
-      var d=btn.dataset;
-      openModal({
-        cover:d.cover||"", title:d.title||"", series:d.series||"", index:d.index||"",
-        author:d.author||"", narrator:d.narrator||"", year:d.year||"",
-        genre:d.genre||"", duration:d.duration||"", desc:d.desc||"", companions:d.companions||"", libraryWorkId:d.libraryWorkId||"", libraryFormats:d.libraryFormats||""
-      });
+      openModal(bookPayloadFromEl(btn));
     }
   });
 
@@ -1110,12 +1128,7 @@ function wireAppearance(container){
     if (e.target.closest("a,button") && !e.target.closest("button.cover-btn")) return;
     var tr=td.parentElement; if(!tr) return;
     var coverBtn=tr.querySelector("button.cover-btn"); if(!coverBtn) return;
-    var d=coverBtn.dataset;
-    openModal({
-      cover:d.cover||"", title:d.title||"", series:d.series||"", index:d.index||"",
-      author:d.author||"", narrator:d.narrator||"", year:d.year||"",
-      genre:d.genre||"", duration:d.duration||"", desc:d.desc||"", companions:d.companions||"", libraryWorkId:d.libraryWorkId||"", libraryFormats:d.libraryFormats||""
-    });
+    openModal(bookPayloadFromEl(coverBtn));
   });
 
   // Card click -> open modal (improved functionality)
@@ -1123,13 +1136,8 @@ function wireAppearance(container){
     var card=e.target.closest(".ab-card");
     if(!card) return;
     if (e.target.closest("a,button")) return; // Don't trigger on interactive elements
-    
-    var d=card.dataset;
-    openModal({
-      cover:d.cover||"", title:d.title||"", series:d.series||"", index:d.index||"",
-      author:d.author||"", narrator:d.narrator||"", year:d.year||"",
-      genre:d.genre||"", duration:d.duration_hhmm||d.duration||"", desc:d.desc||"", companions:d.companions||"", libraryWorkId:d.libraryWorkId||"", libraryFormats:d.libraryFormats||""
-    });
+
+    openModal(bookPayloadFromEl(card));
   });
 
   if(modalClose) modalClose.addEventListener("click", closeModal);
@@ -1154,12 +1162,7 @@ function wireAppearance(container){
   document.addEventListener("click", function(e){
     var item=e.target.closest(".recently-added-item");
     if(!item) return;
-    var d=item.dataset;
-    openModal({
-      cover:d.cover||"", title:d.title||"", series:d.series||"", index:d.index||"",
-      author:d.author||"", narrator:d.narrator||"", year:d.year||"",
-      genre:d.genre||"", duration:d.duration||"", desc:d.desc||"", companions:d.companions||"", libraryWorkId:d.libraryWorkId||"", libraryFormats:d.libraryFormats||""
-    });
+    openModal(bookPayloadFromEl(item));
   });
 
   document.addEventListener("DOMContentLoaded", function(){
@@ -1345,84 +1348,70 @@ function wireAppearance(container){
 
     // ========== Book of the Day ==========
     function getAllBooks() {
-      // Parse books from table rows and cards
+      // Parse books from table rows into openModal-payload-shaped objects,
+      // via the SAME reader every other entry point uses — this is what
+      // keeps Book of the Day from drifting out of sync with the modal
+      // contract again (it did once: see the "Other-versions fields" fix).
       var books = [];
       var table = document.getElementById('ab-table');
       var tbody = table ? table.tBodies[0] : null;
-      
+
       if (tbody) {
         var rows = tbody.querySelectorAll('tr');
         rows.forEach(function(row) {
           var cells = row.cells;
           if (cells.length < 9) return;
-          
+
           var coverBtn = cells[0].querySelector('.cover-btn');
-          var book = {
-            cover_href: coverBtn ? coverBtn.getAttribute('data-cover') : '',
-            title: coverBtn ? coverBtn.getAttribute('data-title') : (cells[1].textContent || ''),
-            series: coverBtn ? coverBtn.getAttribute('data-series') : (cells[2].textContent || ''),
-            series_index_display: coverBtn ? coverBtn.getAttribute('data-index') : (cells[3].textContent || ''),
-            author: coverBtn ? coverBtn.getAttribute('data-author') : (cells[4].textContent || ''),
-            narrator: coverBtn ? coverBtn.getAttribute('data-narrator') : (cells[5].textContent || ''),
-            year: coverBtn ? coverBtn.getAttribute('data-year') : (cells[6].textContent || ''),
-            genre: coverBtn ? coverBtn.getAttribute('data-genre') : (cells[7].textContent || ''),
-            duration_hhmm: coverBtn ? coverBtn.getAttribute('data-duration') : (cells[8].textContent || ''),
-            companion_files: coverBtn ? coverBtn.getAttribute('data-companions') : '',
-            desc: coverBtn ? coverBtn.getAttribute('data-desc') : '',
-            // Book of the Day's modal call passes these through (owner-found
-            // gap: this builder predated the Other-versions block, so the
-            // link never rendered from THIS entry point).
-            library_work_id: coverBtn ? coverBtn.getAttribute('data-library-work-id') : '',
-            library_formats: coverBtn ? coverBtn.getAttribute('data-library-formats') : ''
-          };
-          books.push(book);
+          if (coverBtn) {
+            books.push(bookPayloadFromEl(coverBtn));
+            return;
+          }
+          // No cover means no data-* attributes to read (see
+          // _cover_button in html_builder.py) — fall back to the visible
+          // cell text so cover-less books still enter the pool.
+          books.push({
+            cover: '', title: cells[1].textContent || '', series: cells[2].textContent || '',
+            index: cells[3].textContent || '', author: cells[4].textContent || '',
+            narrator: cells[5].textContent || '', year: cells[6].textContent || '',
+            genre: cells[7].textContent || '', duration: cells[8].textContent || '',
+            desc: '', companions: '', libraryWorkId: '', libraryFormats: ''
+          });
         });
       }
-      
+
       return books;
     }
 
-    function getBookOfDay() {
-      var allBooks = getAllBooks();
-      
-      // Filter for standalone books or first in series
-      var eligibleBooks = allBooks.filter(function(book) {
+    function _eligibleBooks(allBooks) {
+      // Standalone books, or first-in-series by any common "1" spelling.
+      return allBooks.filter(function(book) {
         var series = book.series || '';
-        var index = book.series_index_display || '';
-        // Include if: no series (standalone) OR series index is 1, One, I, or First
+        var index = book.index || '';
         if (!series) return true;
         if (!index) return false;
         var idxLower = index.toLowerCase().trim();
-        return idxLower === '1' || idxLower === 'one' || idxLower === 'i' || 
+        return idxLower === '1' || idxLower === 'one' || idxLower === 'i' ||
                idxLower === 'first' || idxLower === '1.0' || idxLower === '01';
       });
+    }
 
+    function getBookOfDay() {
+      var eligibleBooks = _eligibleBooks(getAllBooks());
       if (eligibleBooks.length === 0) return null;
 
       // Get date-based seed for consistent daily selection
       var today = new Date();
       var daysSinceEpoch = Math.floor(today.getTime() / (1000 * 60 * 60 * 24));
       var seed = daysSinceEpoch % eligibleBooks.length;
-      
+
       return eligibleBooks[seed];
     }
 
     function getRandomBook() {
-      var allBooks = getAllBooks();
-      
-      // Same filtering logic but truly random
-      var eligibleBooks = allBooks.filter(function(book) {
-        var series = book.series || '';
-        var index = book.series_index_display || '';
-        if (!series) return true;
-        if (!index) return false;
-        var idxLower = index.toLowerCase().trim();
-        return idxLower === '1' || idxLower === 'one' || idxLower === 'i' || 
-               idxLower === 'first' || idxLower === '1.0' || idxLower === '01';
-      });
-
+      var eligibleBooks = _eligibleBooks(getAllBooks());
       if (eligibleBooks.length === 0) return null;
-      
+
       var randomIndex = Math.floor(Math.random() * eligibleBooks.length);
       return eligibleBooks[randomIndex];
     }
@@ -1435,15 +1424,15 @@ function wireAppearance(container){
       }
 
       var coverHtml = '';
-      if (book.cover_href) {
-        coverHtml = '<img src="' + book.cover_href + '" alt="Cover" style="width: 80px; height: auto; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">';
+      if (book.cover) {
+        coverHtml = '<img src="' + book.cover + '" alt="Cover" style="width: 80px; height: auto; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">';
       }
 
       var seriesInfo = '';
       if (book.series) {
         seriesInfo = '<div style="color: var(--muted); font-size: 0.9rem;">📖 ' + book.series;
-        if (book.series_index_display) {
-          seriesInfo += ' #' + book.series_index_display;
+        if (book.index) {
+          seriesInfo += ' #' + book.index;
         }
         seriesInfo += '</div>';
       } else {
@@ -1455,28 +1444,23 @@ function wireAppearance(container){
                  '<div style="font-weight: 600; font-size: 1.1rem; margin-bottom: 0.25rem;">' + book.title + '</div>' +
                  '<div style="color: var(--muted); margin-bottom: 0.25rem;">by ' + book.author + '</div>' +
                  seriesInfo;
-      
+
       if (book.narrator) {
         html += '<div style="color: var(--muted); font-size: 0.9rem;">🎙️ ' + book.narrator + '</div>';
       }
-      
-      if (book.duration_hhmm) {
-        html += '<div style="color: var(--muted); font-size: 0.9rem;">⏱️ ' + book.duration_hhmm + '</div>';
+
+      if (book.duration) {
+        html += '<div style="color: var(--muted); font-size: 0.9rem;">⏱️ ' + book.duration + '</div>';
       }
 
       html += '</div>';
-      
+
       container.innerHTML = html;
       container.style.cursor = 'pointer';
       container.onclick = function() {
-        openModal({
-          cover: book.cover_href || '', title: book.title || '', series: book.series || '',
-          index: book.series_index_display || '', author: book.author || '',
-          narrator: book.narrator || '', year: book.year || '',
-          genre: book.genre || '', duration: book.duration_hhmm || '', desc: book.desc || '',
-          companions: book.companion_files || '',
-          libraryWorkId: book.library_work_id || '', libraryFormats: book.library_formats || ''
-        });
+        // book is already openModal-payload-shaped (bookPayloadFromEl) —
+        // no separate mapping needed, unlike the old hand-built object.
+        openModal(book);
       };
     }
 
