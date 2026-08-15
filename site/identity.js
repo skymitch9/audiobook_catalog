@@ -115,12 +115,59 @@ function attachAuthMirror(app) {
     onAuthStateChanged(getAuth(app), (user) => {
       if (user) {
         mirrorUser(user);
+        helloEstate(user);
       } else if (localStorage.getItem(LIVE_MARKER) === '1') {
         logout();
       }
     });
   } catch (e) {
     console.warn('[Identity] auth mirror attach failed:', e);
+  }
+}
+
+// ==================== Estate enrollment (the /hello pipe) ====================
+//
+// Incident 2026-08-15: someone signed up here and never appeared in the
+// estate directory (heygabi.ai/admin). This site is static — unlike the
+// library/games apps, whose Workers report sign-ins to the estate's /seen
+// endpoint server-side, nothing here ever told the directory anyone existed;
+// the 2026-08-14 migration was a one-time backfill wearing the pipe's
+// clothes. This is the pipe: POST /api/estate/hello with the caller's own
+// Firebase ID token. The Worker verifies the token and upserts the caller as
+// pending-if-new (it can NEVER change an existing status — same single-
+// statement guarantee as /seen), so an approver just sees newcomers appear.
+//
+// Fire-and-forget from the auth listener — sign-in, redirect completion and
+// restored sessions all pass through it, so a person missed while this code
+// was broken still enrolls on their next page load, no re-sign-in needed.
+// Once per browser session per uid; the marker is only kept on a 2xx so a
+// failed attempt retries on the next page load rather than silently never.
+
+const ESTATE_HELLO_URL = 'https://auth.heygabi.ai/api/estate/hello';
+const HELLO_MARK_PREFIX = 'ab_identity_estate_hello_'; // + uid, sessionStorage
+
+function helloEstate(user) {
+  try {
+    if (!user || !user.uid) return;
+    const key = HELLO_MARK_PREFIX + user.uid;
+    if (sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, '1');
+    user
+      .getIdToken()
+      .then((token) =>
+        fetch(ESTATE_HELLO_URL, {
+          method: 'POST',
+          headers: { Authorization: 'Bearer ' + token },
+        }),
+      )
+      .then((res) => {
+        if (!res || !res.ok) sessionStorage.removeItem(key);
+      })
+      .catch(() => {
+        try { sessionStorage.removeItem(key); } catch (e) { /* next session retries */ }
+      });
+  } catch (e) {
+    /* storage or fetch unavailable — enrollment is best-effort by design */
   }
 }
 
