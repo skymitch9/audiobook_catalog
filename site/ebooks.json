@@ -1,107 +1,8 @@
 {
-  "generated_at": "2026-08-15T07:07:06.488447Z",
+  "generated_at": "2026-08-15T15:48:36.902403Z",
   "root": "C:/Users/nbasl/OpenAudible/books",
   "count": 156,
   "ebooks": [
-    {
-      "path": "All The Skills 3- A Deckbuilding LitRPG - Honour Rae.epub",
-      "filename": "All The Skills 3- A Deckbuilding LitRPG - Honour Rae.epub",
-      "format": "epub",
-      "title": "All The Skills 3: A Deckbuilding LitRPG",
-      "author": "Honour Rae",
-      "source": "opf",
-      "beside_audiobook": null,
-      "size_bytes": 2148336,
-      "modified": "2026-08-14T04:15:15.525540Z"
-    },
-    {
-      "path": "All the Skills- A Deck-Building LitRPG - Honour Rae.epub",
-      "filename": "All the Skills- A Deck-Building LitRPG - Honour Rae.epub",
-      "format": "epub",
-      "title": "All the Skills: A Deck-Building LitRPG",
-      "author": "Honour Rae",
-      "source": "opf",
-      "beside_audiobook": null,
-      "size_bytes": 3791179,
-      "modified": "2026-08-14T04:15:26.712186Z"
-    },
-    {
-      "path": "All The Skills- Book 2- A Deck-Building LitRPG - Honour Rae.epub",
-      "filename": "All The Skills- Book 2- A Deck-Building LitRPG - Honour Rae.epub",
-      "format": "epub",
-      "title": "All The Skills: Book 2: A Deck-Building LitRPG",
-      "author": "Honour Rae",
-      "source": "opf",
-      "beside_audiobook": null,
-      "size_bytes": 3868815,
-      "modified": "2026-08-14T04:15:19.521876Z"
-    },
-    {
-      "path": "All The Skills- Book 4- A Deck-Building LitRPG - Honour Rae.epub",
-      "filename": "All The Skills- Book 4- A Deck-Building LitRPG - Honour Rae.epub",
-      "format": "epub",
-      "title": "All The Skills: Book 4: A Deck-Building LitRPG",
-      "author": "Honour Rae",
-      "source": "opf",
-      "beside_audiobook": null,
-      "size_bytes": 3707420,
-      "modified": "2026-08-14T04:15:30.391520Z"
-    },
-    {
-      "path": "All The Skills- Book 6- A Deck-Building LitRPG - Honour Rae.epub",
-      "filename": "All The Skills- Book 6- A Deck-Building LitRPG - Honour Rae.epub",
-      "format": "epub",
-      "title": "All The Skills: Book 6: A Deck-Building LitRPG",
-      "author": "Honour Rae",
-      "source": "opf",
-      "beside_audiobook": null,
-      "size_bytes": 3566655,
-      "modified": "2026-08-14T04:15:23.039627Z"
-    },
-    {
-      "path": "Beneath the Dragoneye Moons- Immortal War - Selkie Myth.epub",
-      "filename": "Beneath the Dragoneye Moons- Immortal War - Selkie Myth.epub",
-      "format": "epub",
-      "title": "Beneath the Dragoneye Moons: Immortal War",
-      "author": "Selkie Myth",
-      "source": "opf",
-      "beside_audiobook": null,
-      "size_bytes": 4781397,
-      "modified": "2026-08-14T04:19:27.232505Z"
-    },
-    {
-      "path": "Beneath the Dragoneye Moons- Mandate of Heaven - Selkie Myth.epub",
-      "filename": "Beneath the Dragoneye Moons- Mandate of Heaven - Selkie Myth.epub",
-      "format": "epub",
-      "title": "Beneath the Dragoneye Moons: Mandate of Heaven",
-      "author": "Selkie Myth",
-      "source": "opf",
-      "beside_audiobook": null,
-      "size_bytes": 5219581,
-      "modified": "2026-08-14T04:19:23.681014Z"
-    },
-    {
-      "path": "Beneath the Dragoneye Moons- New Horizons - Selkie Myth.epub",
-      "filename": "Beneath the Dragoneye Moons- New Horizons - Selkie Myth.epub",
-      "format": "epub",
-      "title": "Beneath the Dragoneye Moons: New Horizons",
-      "author": "Selkie Myth",
-      "source": "opf",
-      "beside_audiobook": null,
-      "size_bytes": 5014483,
-      "modified": "2026-08-14T04:19:18.142321Z"
-    },
-    {
-      "path": "Beneath the Dragoneye Moons- Return to Remus - Selkie Myth.epub",
-      "filename": "Beneath the Dragoneye Moons- Return to Remus - Selkie Myth.epub",
-      "format": "epub",
-      "title": "Beneath the Dragoneye Moons: Return to Remus",
-      "author": "Selkie Myth",
-      "source": "opf",
-      "beside_audiobook": null,
-      "size_bytes": 4773583,
-      "modified": "2026-08-14T04:19:12.469595Z"
-    },
     {
       "path": "Brandon Sanderson/Defiant.pdf",
       "filename": "Defiant.pdf",
@@ -752,6 +653,61 @@
       "modified": "2026-08-05T00:31:50.215514Z"
     },
     {
+      "path": "Honour Rae/All The Skills 3- A Deckbuilding LitRPG - Honour Rae.epub",
+      "filename": "All The Skills 3- A Deckbuilding LitRPG - Honour Rae.epub",
+      "format": "epub",
+      "title": "All The Skills 3: A Deckbuilding LitRPG",
+      "author": "Honour Rae",
+      "source": "opf",
+      "beside_audiobook": "Honour Rae",
+      "size_bytes": 2148336,
+      "modified": "2026-08-14T04:15:15.525540Z"
+    },
+    {
+      "path": "Honour Rae/All the Skills- A Deck-Building LitRPG - Honour Rae.epub",
+      "filename": "All the Skills- A Deck-Building LitRPG - Honour Rae.epub",
+      "format": "epub",
+      "title": "All the Skills: A Deck-Building LitRPG",
+      "author": "Honour Rae",
+      "source": "opf",
+      "beside_audiobook": "Honour Rae",
+      "size_bytes": 3791179,
+      "modified": "2026-08-14T04:15:26.712186Z"
+    },
+    {
+      "path": "Honour Rae/All The Skills- Book 2- A Deck-Building LitRPG - Honour Rae.epub",
+      "filename": "All The Skills- Book 2- A Deck-Building LitRPG - Honour Rae.epub",
+      "format": "epub",
+      "title": "All The Skills: Book 2: A Deck-Building LitRPG",
+      "author": "Honour Rae",
+      "source": "opf",
+      "beside_audiobook": "Honour Rae",
+      "size_bytes": 3868815,
+      "modified": "2026-08-14T04:15:19.521876Z"
+    },
+    {
+      "path": "Honour Rae/All The Skills- Book 4- A Deck-Building LitRPG - Honour Rae.epub",
+      "filename": "All The Skills- Book 4- A Deck-Building LitRPG - Honour Rae.epub",
+      "format": "epub",
+      "title": "All The Skills: Book 4: A Deck-Building LitRPG",
+      "author": "Honour Rae",
+      "source": "opf",
+      "beside_audiobook": "Honour Rae",
+      "size_bytes": 3707420,
+      "modified": "2026-08-14T04:15:30.391520Z"
+    },
+    {
+      "path": "Honour Rae/All The Skills- Book 6- A Deck-Building LitRPG - Honour Rae.epub",
+      "filename": "All The Skills- Book 6- A Deck-Building LitRPG - Honour Rae.epub",
+      "format": "epub",
+      "title": "All The Skills: Book 6: A Deck-Building LitRPG",
+      "author": "Honour Rae",
+      "source": "opf",
+      "beside_audiobook": "Honour Rae",
+      "size_bytes": 3566655,
+      "modified": "2026-08-14T04:15:23.039627Z"
+    },
+    {
       "path": "J. R. Saileri/Rise of the Weakest Summoner- Volume XI - J. R. Saileri.epub",
       "filename": "Rise of the Weakest Summoner- Volume XI - J. R. Saileri.epub",
       "format": "epub",
@@ -1322,6 +1278,50 @@
       "beside_audiobook": "Seirei Tsukai no Blade Dance",
       "size_bytes": 7639817,
       "modified": "2026-06-21T17:50:50.041162Z"
+    },
+    {
+      "path": "Selkie Myth/Beneath the Dragoneye Moons- Immortal War - Selkie Myth.epub",
+      "filename": "Beneath the Dragoneye Moons- Immortal War - Selkie Myth.epub",
+      "format": "epub",
+      "title": "Beneath the Dragoneye Moons: Immortal War",
+      "author": "Selkie Myth",
+      "source": "opf",
+      "beside_audiobook": "Selkie Myth",
+      "size_bytes": 4781397,
+      "modified": "2026-08-14T04:19:27.232505Z"
+    },
+    {
+      "path": "Selkie Myth/Beneath the Dragoneye Moons- Mandate of Heaven - Selkie Myth.epub",
+      "filename": "Beneath the Dragoneye Moons- Mandate of Heaven - Selkie Myth.epub",
+      "format": "epub",
+      "title": "Beneath the Dragoneye Moons: Mandate of Heaven",
+      "author": "Selkie Myth",
+      "source": "opf",
+      "beside_audiobook": "Selkie Myth",
+      "size_bytes": 5219581,
+      "modified": "2026-08-14T04:19:23.681014Z"
+    },
+    {
+      "path": "Selkie Myth/Beneath the Dragoneye Moons- New Horizons - Selkie Myth.epub",
+      "filename": "Beneath the Dragoneye Moons- New Horizons - Selkie Myth.epub",
+      "format": "epub",
+      "title": "Beneath the Dragoneye Moons: New Horizons",
+      "author": "Selkie Myth",
+      "source": "opf",
+      "beside_audiobook": "Selkie Myth",
+      "size_bytes": 5014483,
+      "modified": "2026-08-14T04:19:18.142321Z"
+    },
+    {
+      "path": "Selkie Myth/Beneath the Dragoneye Moons- Return to Remus - Selkie Myth.epub",
+      "filename": "Beneath the Dragoneye Moons- Return to Remus - Selkie Myth.epub",
+      "format": "epub",
+      "title": "Beneath the Dragoneye Moons: Return to Remus",
+      "author": "Selkie Myth",
+      "source": "opf",
+      "beside_audiobook": "Selkie Myth",
+      "size_bytes": 4773583,
+      "modified": "2026-08-14T04:19:12.469595Z"
     },
     {
       "path": "Selkie Myth/BtDEM 1 Oathbound Healer - Selkie Myth - 20250106.epub",
