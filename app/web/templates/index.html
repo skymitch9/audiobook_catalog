@@ -1368,7 +1368,12 @@ function wireAppearance(container){
             genre: coverBtn ? coverBtn.getAttribute('data-genre') : (cells[7].textContent || ''),
             duration_hhmm: coverBtn ? coverBtn.getAttribute('data-duration') : (cells[8].textContent || ''),
             companion_files: coverBtn ? coverBtn.getAttribute('data-companions') : '',
-            desc: coverBtn ? coverBtn.getAttribute('data-desc') : ''
+            desc: coverBtn ? coverBtn.getAttribute('data-desc') : '',
+            // Book of the Day's modal call passes these through (owner-found
+            // gap: this builder predated the Other-versions block, so the
+            // link never rendered from THIS entry point).
+            library_work_id: coverBtn ? coverBtn.getAttribute('data-library-work-id') : '',
+            library_formats: coverBtn ? coverBtn.getAttribute('data-library-formats') : ''
           };
           books.push(book);
         });
