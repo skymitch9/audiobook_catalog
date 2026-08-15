@@ -189,13 +189,16 @@ def test_normalisation_folds_case_whitespace_and_quotes():
 
 
 @requires_platform
-def test_nine_universes_in_the_order_the_owner_approved():
+def test_eleven_universes_in_the_order_the_owner_approved():
     # ⚠️ Willverse added 2026-08-12 was the SEVENTH. Marvel and Disney added
-    # 2026-08-15 (owner/coordinator: separate universes; per-item membership is
-    # 'llm'-decided, not yet individually owner-reviewed — see their
-    # `confirmed` fields in data/universes.json). This assertion failing is the
-    # test WORKING: an edit in catalog-platform cannot land in either catalog
-    # unnoticed.
+    # 2026-08-15 (owner/coordinator: separate universes). Same day, revised
+    # again: Star Wars split OUT of Disney on the owner's crossover-potential
+    # criterion, and Alliances was created (owner-approved, 'human'-decided —
+    # not just llm-proposed like the others). Per-item membership on Marvel/
+    # Disney/Star Wars is still 'llm'-decided, not individually owner-
+    # reviewed — see their `confirmed` fields in data/universes.json. This
+    # assertion failing is the test WORKING: an edit in catalog-platform
+    # cannot land in either catalog unnoticed.
     assert uv.universe_names() == [
         "The Cosmere",
         "Runnerverse",
@@ -206,6 +209,8 @@ def test_nine_universes_in_the_order_the_owner_approved():
         "Willverse",
         "Marvel",
         "Disney",
+        "Star Wars",
+        "Alliances",
     ]
 
 
@@ -217,9 +222,17 @@ def test_the_counts_the_owner_signed_off():
         for u in doc["universes"]
     }
     assert counts == {
-        # 32 since 2026-08-15: +22 for Brotherwise Games' Cosmere RPG line and
-        # the Mistborn deckbuilder, all board-game D1 rows with a null series.
-        "The Cosmere": (5, 32, 8),
+        # 36 since 2026-08-15: +22 for Brotherwise Games' Cosmere RPG line and
+        # the Mistborn deckbuilder (board-game D1, null series), +1 Shards of
+        # Creation ("literally all the gods from the cosmere" — owner), +3 for
+        # Arcanum Unbounded / The Emperor's Soul / Shadows for Silence in the
+        # Forests of Hell — the last two used to be caught by the SERIES
+        # values "Cosmere"/"The Cosmere" (a universe masquerading as a
+        # series); those series fields are now blanked non-destructively at
+        # the source (library_catalog change_log; audiobook_catalog
+        # corrections layer for Arcanum) and caught by title instead, which
+        # is also why `series` below dropped from 5 to 3.
+        "The Cosmere": (3, 36, 8),
         # 12 since 2026-08-12: Turncoat's Truth restored from _refused once the owner
         # verified the co-authored book does sit inside the continuity.
         "Runnerverse": (12, 3, 0),
@@ -238,9 +251,17 @@ def test_the_counts_the_owner_signed_off():
         # series level), 4 audiobook Avengers tie-ins, 1 library "Little
         # Golden Book" row.
         "Marvel": (0, 77, 0),
-        # New 2026-08-15. 4 series claims (3 Star Wars + Toy Story) + 12 title
-        # overrides for the seriesless Disney Books imprint rows.
-        "Disney": (4, 12, 0),
+        # New 2026-08-15, then revised the SAME day: Star Wars split out (see
+        # below), leaving just the Toy Story series claim + 11 seriesless
+        # Disney Books imprint titles (12 minus Star Wars: Ahsoka, moved out).
+        "Disney": (1, 11, 0),
+        # New 2026-08-15, split out of Disney on the owner's crossover-
+        # potential criterion: 3 series (High Republic, Legends, Boba Fett) +
+        # 1 title override (Ahsoka, seriesless) — moved verbatim from Disney.
+        "Star Wars": (3, 1, 0),
+        # New 2026-08-15, owner-approved creation (not just llm-proposed):
+        # Stan Lee's Alliances, 1 series claim, both owned volumes.
+        "Alliances": (1, 0, 0),
     }
 
 

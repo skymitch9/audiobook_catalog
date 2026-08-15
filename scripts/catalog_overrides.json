@@ -1990,6 +1990,36 @@
           "https://www.goodreads.com/en/book/show/36466303"
         ]
       }
+    },
+    {
+      "book": "Arcanum Unbounded: The Cosmere Collection - Brandon Sanderson",
+      "match": {
+        "asin": "B01K5Q6VWO"
+      },
+      "set": {
+        "series": ""
+      },
+      "added": "2026-08-15",
+      "evidence": {
+        "series": "Owner, 2026-08-15, via coordinator: Arcanum Unbounded spans ALL the Cosmere series (it collects Elantris/Sel, Mistborn, Stormlight, White Sand and seriesless Cosmere shorts as 9 separate works) so no single series line is true -- 'it's in all the series and is just cosmere.' It is the cross-Cosmere anthology, not part of The Mistborn Saga.",
+        "tags_read": {
+          "©nam": "Arcanum Unbounded: The Cosmere Collection",
+          "©alb": "Arcanum Unbounded: The Cosmere Collection",
+          "©ART": "Brandon Sanderson",
+          "©wrt": "Michael Kramer, Kate Reading",
+          "©day": "2016-11-22",
+          "©gen": "Literature & Fiction:Anthologies & Short Stories:Short Stories",
+          "trkn": "(1, 0)",
+          "SRNM": "The Mistborn Saga",
+          "SRSQ": "absent",
+          "CDEK": "B01K5Q6VWO"
+        },
+        "filename_said": "Arcanum Unbounded- The Cosmere Collection",
+        "sources": [
+          "https://en.wikipedia.org/wiki/Arcanum_Unbounded:_The_Cosmere_Collection",
+          "https://www.goodreads.com/book/show/28595941-arcanum-unbounded"
+        ]
+      }
     }
   ],
   "_not_corrected_on_purpose": {
