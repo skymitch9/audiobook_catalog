@@ -189,13 +189,13 @@ def test_normalisation_folds_case_whitespace_and_quotes():
 
 
 @requires_platform
-def test_seven_universes_in_the_order_the_owner_approved():
-    # ⚠️ Willverse added 2026-08-12 as the SEVENTH, and it is the first reversed
-    # refusal: held out twice — once as an unconfirmed authorial hint, once because
-    # the household appeared to own only one member series — and admitted only when
-    # The Last Horizon was confirmed as Iteration 119, giving two owned series to
-    # span. This assertion failing is the test WORKING: an edit in catalog-platform
-    # cannot land in either catalog unnoticed.
+def test_nine_universes_in_the_order_the_owner_approved():
+    # ⚠️ Willverse added 2026-08-12 was the SEVENTH. Marvel and Disney added
+    # 2026-08-15 (owner/coordinator: separate universes; per-item membership is
+    # 'llm'-decided, not yet individually owner-reviewed — see their
+    # `confirmed` fields in data/universes.json). This assertion failing is the
+    # test WORKING: an edit in catalog-platform cannot land in either catalog
+    # unnoticed.
     assert uv.universe_names() == [
         "The Cosmere",
         "Runnerverse",
@@ -204,6 +204,8 @@ def test_seven_universes_in_the_order_the_owner_approved():
         "Riordanverse",
         "Solaria",
         "Willverse",
+        "Marvel",
+        "Disney",
     ]
 
 
@@ -215,17 +217,30 @@ def test_the_counts_the_owner_signed_off():
         for u in doc["universes"]
     }
     assert counts == {
-        "The Cosmere": (5, 10, 8),
+        # 32 since 2026-08-15: +22 for Brotherwise Games' Cosmere RPG line and
+        # the Mistborn deckbuilder, all board-game D1 rows with a null series.
+        "The Cosmere": (5, 32, 8),
         # 12 since 2026-08-12: Turncoat's Truth restored from _refused once the owner
         # verified the co-authored book does sit inside the continuity.
         "Runnerverse": (12, 3, 0),
-        "CAL Verse": (9, 0, 0),
+        # +1 since 2026-08-15: 'Divine Dungeon the Game' — not a new universe,
+        # since canonicalNames already folds 'divine dungeon universe' onto
+        # CAL Verse.
+        "CAL Verse": (9, 1, 0),
         "Maasverse": (3, 0, 0),
         "Riordanverse": (3, 0, 0),
         "Solaria": (2, 0, 0),
         # Cradle and The Last Horizon are owned; The Elder Empire and The
         # Traveler's Gate are listed so a future purchase files itself.
         "Willverse": (4, 0, 0),
+        # New 2026-08-15. 77 title overrides: 72 Marvel/X-Men/Deadpool
+        # board-game rows inside the mixed "Dice Throne" series (unclaimed at
+        # series level), 4 audiobook Avengers tie-ins, 1 library "Little
+        # Golden Book" row.
+        "Marvel": (0, 77, 0),
+        # New 2026-08-15. 4 series claims (3 Star Wars + Toy Story) + 12 title
+        # overrides for the seriesless Disney Books imprint rows.
+        "Disney": (4, 12, 0),
     }
 
 
