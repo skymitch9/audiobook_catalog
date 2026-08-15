@@ -206,7 +206,7 @@ def test_normalisation_folds_case_whitespace_and_quotes():
 
 
 @requires_platform
-def test_thirteen_universes_in_the_order_the_owner_approved():
+def test_sixteen_universes_in_the_order_the_owner_approved():
     # ⚠️ Willverse added 2026-08-12 was the SEVENTH. Marvel and Disney added
     # 2026-08-15 (owner/coordinator: separate universes). Same day, revised
     # again: Star Wars split OUT of Disney on the owner's crossover-potential
@@ -217,7 +217,9 @@ def test_thirteen_universes_in_the_order_the_owner_approved():
     # assertion failing is the test WORKING: an edit in catalog-platform
     # cannot land in either catalog unnoticed. Cytoverse (12th) and Reckoners
     # (13th) were created later the same day during the estate-wide orphan
-    # sweep, both owner-approved and both "human"-decided.
+    # sweep, both owner-approved and both "human"-decided. Middle-earth (14th),
+    # Dungeon Crawler Carl (15th) and Innworld (16th) followed within the hour,
+    # when the owner ruled on that sweep's verdict table.
     assert uv.universe_names() == [
         "The Cosmere",
         "Runnerverse",
@@ -232,6 +234,9 @@ def test_thirteen_universes_in_the_order_the_owner_approved():
         "Alliances",
         "Cytoverse",
         "Reckoners",
+        "Middle-earth",
+        "Dungeon Crawler Carl",
+        "Innworld",
     ]
 
 
@@ -294,7 +299,12 @@ def test_the_counts_the_owner_signed_off():
         # Christmas (library work #197, the first Disney row found outside this
         # catalog). Each was tested against the owner's crossover-potential
         # criterion one at a time rather than swept.
-        "Disney": (2, 20, 0),
+        # +1 override on the owner's Winnie-the-Pooh ruling, which also settled
+        # a general criterion (Disney's new `criterion` field): FRANCHISE-
+        # inclusive, so a kid-recognisable Disney property belongs even where
+        # the row's own provenance is not Disney's — "My First Winnie-the-Pooh"
+        # is credited to A. A. Milne.
+        "Disney": (2, 21, 0),
         # New 2026-08-15, split out of Disney on the owner's crossover-
         # potential criterion: 3 series (High Republic, Legends, Boba Fett) +
         # 1 title override (Ahsoka, seriesless) — moved verbatim from Disney.
@@ -318,6 +328,25 @@ def test_the_counts_the_owner_signed_off():
         # none at all in either catalog — the two facts that make this a
         # universe rather than just a series.
         "Reckoners": (2, 1, 0),
+        # New 2026-08-15. 1 series (the 5 LotR audiobooks here) + 13 title
+        # overrides, and the override count is the point: the 12 Ascension game
+        # rows and the LotR 5e book are filed under "Ascension" and "D&D",
+        # neither claimable at series level because both also hold unrelated
+        # products. The clearest case in the file of a universe saying what no
+        # series name says.
+        "Middle-earth": (1, 13, 0),
+        # New 2026-08-15. ONE series claim covering 8 audiobooks here, 6
+        # library works and 29 board-game rows — the games only reachable
+        # because Board_Game_Catalog set series="Dungeon Crawler Carl" on ids
+        # 570-598 the same day. Universe is the only tier a games row can join
+        # the estate at (work_fold is null for games by design), which is what
+        # earns a single-series franchise a universe here.
+        "Dungeon Crawler Carl": (1, 0, 0),
+        # New 2026-08-15. Named for pirateaba's world, not for The Wandering
+        # Inn, so neither of its two series is elevated over the other
+        # (Solaria's naming rule). Singer of Terandria is set on a continent of
+        # the same world; the household owns Gravesong and Huntsong.
+        "Innworld": (2, 0, 0),
     }
 
 
