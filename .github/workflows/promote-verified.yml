@@ -1,0 +1,70 @@
+name: Promote + Verify
+
+# One button for the whole promote ceremony (normalization item 3): runs
+# scripts/promote_and_verify.py in CI so the owner doesn't have to run the
+# pre-flight check → dispatch promote.yml → watch it → find + watch the
+# deploy.yml run it triggers → verify the live site, by hand.
+#
+# This workflow is a convenience wrapper only. promote.yml is still the sole
+# writer of `prod` — this just drives it and reports the result. Refuses
+# (non-zero exit, no promote happens) if main's tip isn't CI-green.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branch to promote'
+        default: 'main'
+      force:
+        description: 'Skip the catalog-shrink guard (forwarded to promote.yml)'
+        type: boolean
+        default: false
+      dry_run:
+        description: 'Pre-flight only — stop before dispatching promote.yml'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: write   # dispatch + list/watch promote.yml and deploy.yml runs
+  checks: read     # `gh run watch` reads check-run status
+
+concurrency:
+  group: "promote"   # same group promote.yml uses — never race a manual promote
+  cancel-in-progress: false
+
+jobs:
+  promote-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+    - name: 📥 Checkout ${{ inputs.ref }}
+      uses: actions/checkout@v5
+      with:
+        ref: ${{ inputs.ref }}
+        fetch-depth: 0  # full history + tags: the script needs the last prod-* tag
+
+    - name: 🐍 Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: 📦 Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: 🚀 Run the promote ceremony
+      env:
+        GH_TOKEN: ${{ github.token }}
+        REF: ${{ inputs.ref }}
+        FORCE: ${{ inputs.force }}
+        DRY_RUN: ${{ inputs.dry_run }}
+      run: |
+        args=(--ref "$REF")
+        if [ "$FORCE" = "true" ]; then
+          args+=(--force)
+        fi
+        if [ "$DRY_RUN" = "true" ]; then
+          args+=(--dry-run)
+        fi
+        python scripts/promote_and_verify.py "${args[@]}"
