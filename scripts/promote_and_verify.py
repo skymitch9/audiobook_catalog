@@ -292,7 +292,10 @@ def dispatch_and_watch_promote(ref: str, force: bool) -> dict:
     run_cmd(["gh"] + args)
 
     run_id = _poll_for_new_run("promote.yml", not_before)
-    run_info = gh_json(["run", "view", str(run_id), "--json", "url,htmlUrl"]) or {}
+    # `url` only — gh has no `htmlUrl` field; requesting one kills the whole
+    # command (found on this script's FIRST real run, after dispatch, so the
+    # promote proceeded server-side while the watch died client-side).
+    run_info = gh_json(["run", "view", str(run_id), "--json", "url"]) or {}
     url = run_info.get("url") or f"(run id {run_id})"
     print(f"Watching promote run: {url}")
     watch_result = subprocess.run(["gh", "run", "watch", str(run_id), "--exit-status"], cwd=str(PROJECT_ROOT))
