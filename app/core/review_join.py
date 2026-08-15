@@ -110,10 +110,26 @@ def work_key_for(title: Optional[str], author: Optional[str]) -> str:
     works with the corrected, series-free title field (CORRECTABLE_FIELDS),
     not raw decorated tag text, so the gap only matters for a title that
     still carries series/volume wording at the moment of the edit. The
-    key-move warning says so rather than silently claiming exactness (also
-    unlike the library side, this catalog has no authorless sentinel -
-    every credited book here has a real author string).
+    key-move warning says so rather than silently claiming exactness.
+
+    ⚠️ Fixed 2026-08-14 (catalog-platform/data/title-key-fixtures.json caught
+    it): this used to fold the '?unknown' sentinel through normalise_title
+    like any other author string, producing 'title|unknown' -
+    indistinguishable from a REAL 'Unknown'-credited book, exactly the
+    collision titles.ts::workKeyFor's own sentinel bypass exists to prevent.
+    This catalog has no authorless books today (every credited book here has
+    a real author string), so the bug was never reachable in practice - but
+    the estate-wide contract is that '?unknown' is the SAME sentinel on both
+    sides, and a function claiming to mirror workKeyFor must honour it even
+    for inputs this repo does not currently produce. '?unknown' is
+    hardcoded rather than imported because there is no shared runtime to
+    import it FROM (see this module's own header); it must stay byte-for-
+    byte equal to library_catalog/packages/core/src/constants.ts's
+    UNKNOWN_AUTHOR.
     """
+    _UNKNOWN_AUTHOR_SENTINEL = "?unknown"
+    if author == _UNKNOWN_AUTHOR_SENTINEL:
+        return f"{normalise_title(title)}|{_UNKNOWN_AUTHOR_SENTINEL}"
     return f"{normalise_title(title)}|{normalise_title(primary_author(author))}"
 
 

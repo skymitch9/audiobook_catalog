@@ -229,11 +229,35 @@ def next_due_milestone(milestones: List[Dict[str, Any]], now_ms: int) -> Optiona
     return best
 
 
-def member_position(milestones: List[Dict[str, Any]], progress: Dict[str, Any]) -> int:
+def member_position(
+    milestones: List[Dict[str, Any]], progress: Dict[str, Any], chaptered: Optional[bool] = None
+) -> int:
     """
-    Mirror of memberSchedulePosition(): effective milestone position from a
-    progress doc. Chapter-mapped milestones (chEnd) count as complete once
-    chapterIndex reaches chEnd; else milestonePosition. -1 = not started.
+    Mirror of memberSchedulePosition(milestones, progress, chaptered): effective
+    milestone position from a progress doc. Chapter-mapped milestones (chEnd)
+    count as complete once chapterIndex reaches chEnd; else milestonePosition.
+    -1 = not started.
+
+    ⚠️ `chaptered` is optional here and INFERRED from milestone shape (any
+    chEnd present) when omitted — that inference is what this function did
+    before this parameter existed, kept as the default for existing callers.
+    But it is NOT what the JS canon does: `memberSchedulePosition` takes
+    `chaptered` as an explicit argument, sourced from `hasChapters()`
+    (`read.chapterTitles.length > 0`) — a fact about the READ, not about
+    whether any one milestone happens to carry `chEnd`.
+
+    In production the two signals are set atomically together at read
+    creation (`site/club-reads.js:startRead` stamps `chapterTitles` and
+    `milestones` from the same `bookChapters` object in one write), so
+    inference is safe for every read this app has ever created. It is NOT
+    safe in general: catalog-platform/data/club-fixtures.json carries two
+    ADVERSARIAL cases where an explicit `chaptered` disagrees with what the
+    milestone shape implies, and passing `chaptered=None` there reproduces a
+    REAL measured divergence from the JS canon (position 1 vs 0, and -1 vs 2
+    — see title-key-fixtures.json's sibling club-fixtures.json and
+    tests/test_club_fixtures.py). Callers that have the read doc in hand
+    should pass `chaptered=bool(read.get("chapterTitles"))` explicitly, as
+    `on_track_summary` below now does, rather than lean on the inference.
     """
     mlist = milestones or []
     last = max((int(m.get("position", 0)) for m in mlist), default=-1)
@@ -241,9 +265,18 @@ def member_position(milestones: List[Dict[str, Any]], progress: Dict[str, Any]) 
         return -1
     if progress.get("finished"):
         return last
-    chaptered = any(isinstance(m.get("chEnd"), (int, float)) for m in mlist)
-    ch = progress.get("chapterIndex")
-    if chaptered and isinstance(ch, (int, float)) and not isinstance(ch, bool):
+    if chaptered is None:
+        chaptered = any(isinstance(m.get("chEnd"), (int, float)) for m in mlist)
+    if chaptered:
+        # Mirrors the JS branch exactly: once chaptered is true, the function
+        # NEVER falls back to milestonePosition, even when chapterIndex is
+        # missing or not a number — that reads as chapterIndex = -1, same as
+        # memberSchedulePosition's `typeof progress.chapterIndex === 'number'
+        # ? progress.chapterIndex : -1`. An earlier version of this function
+        # fell through to milestonePosition here instead, which is wrong
+        # whenever chaptered is true but chapterIndex is absent.
+        ch = progress.get("chapterIndex")
+        ch = ch if isinstance(ch, (int, float)) and not isinstance(ch, bool) else -1
         best = -1
         for m in mlist:
             end = m.get("chEnd")
@@ -254,18 +287,29 @@ def member_position(milestones: List[Dict[str, Any]], progress: Dict[str, Any]) 
     return int(pos) if isinstance(pos, (int, float)) and not isinstance(pos, bool) else -1
 
 
-def on_track_summary(milestones: List[Dict[str, Any]], progress_docs: List[Dict[str, Any]], now_ms: int) -> Optional[str]:
+def on_track_summary(
+    milestones: List[Dict[str, Any]],
+    progress_docs: List[Dict[str, Any]],
+    now_ms: int,
+    chaptered: Optional[bool] = None,
+) -> Optional[str]:
     """
     'N of M readers on track' against the schedule (mirrors scheduleStatus():
     a member is on track when no past-due milestone is beyond their position).
     None when nobody has a progress doc yet.
+
+    `chaptered` should be `bool(read.get("chapterTitles"))` — the same signal
+    JS's `hasChapters()` reads — whenever the caller has the read doc, which
+    `build_embed` below does. Left `None` (member_position's shape-inference
+    fallback) only for callers, like the existing unit tests, that predate
+    this parameter and never had a read doc to read it from.
     """
     if not progress_docs:
         return None
     due_positions = past_due_positions(milestones, now_ms)
     on_track = 0
     for p in progress_docs:
-        pos = member_position(milestones, p)
+        pos = member_position(milestones, p, chaptered)
         behind_by = sum(1 for d in due_positions if d > pos)
         if behind_by == 0:
             on_track += 1
@@ -561,7 +605,7 @@ def build_embed(event: Dict[str, Any], club: Dict[str, Any], link: str, now_ms: 
         nxt = next_due_milestone(milestones, now_ms)
         if nxt:
             lines.append(f"\nNext up: **{nxt.get('label', '?')}** by <t:{_due_of(nxt) // 1000}:D>.")
-        summary = on_track_summary(milestones, progress_docs or [], now_ms)
+        summary = on_track_summary(milestones, progress_docs or [], now_ms, bool(read.get("chapterTitles")))
         embed = {"title": f"⏰ Reading check-in — {read.get('bookTitle') or 'a book'}",
                  "description": _clip("\n".join(lines)), "color": COLOR_AMBER}
         if summary:
