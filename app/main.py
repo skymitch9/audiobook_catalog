@@ -74,6 +74,19 @@ def main() -> None:
     except Exception as e:  # noqa: BLE001 — reference data must never stop a build
         print(f"[WARN] Universe coverage report failed: {e}", file=sys.stderr)
 
+    # 0b) Actually stamp `universe` and `series_gap` onto every row —
+    #     report_coverage above is print-only by its own contract (see its
+    #     docstring), so surfacing the results on the CSV/site is this
+    #     separate pass. Split into app/core/reference_stamps.py, mirroring
+    #     app/library_link.py's stamp_after_build/_safe split, so that
+    #     module's own try/except is the only branching this call site adds
+    #     (keeps main() under the repo's flake8 complexity ceiling). Does NOT
+    #     consult library_catalog or app/library_link.py's cross-catalog
+    #     matching — series gaps are this catalog's own holdings only.
+    from app.core.reference_stamps import stamp_reference_data_safe
+
+    stamp_reference_data_safe(rows)
+
     # 0) Record first-seen dates for any new books (drives "Recently Added"
     #    and the upload-history view; immune to file moves/re-syncs)
     from app.additions_log import update_additions_log

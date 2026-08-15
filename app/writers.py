@@ -37,6 +37,12 @@ CSV_FIELDNAMES = [
     # never a guess.
     "library_work_id",
     "library_formats",
+    # Shared-universe name (app/core/universes.py::universe_for) and the
+    # per-series owned-volumes/gap summary (app/core/series_gaps.py), both
+    # stamped in app/main.py right after rows are built. Blank means "no
+    # universe" / "nothing to report" — the ordinary answer, not an error.
+    "universe",
+    "series_gap",
 ]
 
 
