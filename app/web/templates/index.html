@@ -548,6 +548,10 @@ html[data-theme="cyberpunk"] #recently-added h2{ letter-spacing:1px !important; 
         <option value="rating|num">Sort by Rating</option>
         <option value="_mytbr|filter">My TBR List</option>
         <option value="_myreviews|filter">My Reviews</option>
+        <!-- Universe filter options — server-rendered per build from the
+             universes actually present (see _universe_filter_options() in
+             app/web/html_builder.py). Empty string when none resolved. -->
+        {{UNIVERSE_FILTER_OPTIONS}}
       </select>
       <div style="display:flex;gap:4px;flex-wrap:wrap">
         <button id="ab-search-btn" class="btn">Search</button>
@@ -634,6 +638,11 @@ html[data-theme="cyberpunk"] #recently-added h2{ letter-spacing:1px !important; 
       <div class="meta-grid" style="margin-top:6px">
         <div class="label">Series</div><div id="m-series"></div>
         <div class="label">#</div><div id="m-index"></div>
+        <!-- Shared-universe name and per-series gap summary — both blank on
+             most books, so both rows start hidden and only appear (see
+             openModal()) when the payload actually carries a value. -->
+        <div class="label" id="m-universe-label" style="display:none">Universe</div><div id="m-universe" style="display:none"></div>
+        <div class="label" id="m-gap-label" style="display:none">Series Gaps</div><div id="m-gap" style="display:none"></div>
         <div class="label">Author</div><div id="m-author"></div>
         <div class="label">Narrator</div><div id="m-narrator"></div>
         <div class="label">Year</div><div id="m-year"></div>
@@ -929,6 +938,10 @@ function wireAppearance(container){
   var modalTitle=document.getElementById("modal-title");
   var mSeries=document.getElementById("m-series");
   var mIndex=document.getElementById("m-index");
+  var mUniverseLabel=document.getElementById("m-universe-label");
+  var mUniverse=document.getElementById("m-universe");
+  var mGapLabel=document.getElementById("m-gap-label");
+  var mGap=document.getElementById("m-gap");
   var mAuthor=document.getElementById("m-author");
   var mNarrator=document.getElementById("m-narrator");
   var mYear=document.getElementById("m-year");
@@ -976,7 +989,8 @@ function wireAppearance(container){
       // of which name it happens to carry.
       duration:d.duration||d.duration_hhmm||"",
       desc:d.desc||"", companions:d.companions||"",
-      libraryWorkId:d.libraryWorkId||"", libraryFormats:d.libraryFormats||""
+      libraryWorkId:d.libraryWorkId||"", libraryFormats:d.libraryFormats||"",
+      universe:d.universe||"", seriesGap:d.seriesGap||""
     };
   }
 
@@ -986,6 +1000,23 @@ function wireAppearance(container){
     modalTitle.textContent=payload.title||"";
     mSeries.textContent=payload.series||"";
     mIndex.textContent=payload.index||"";
+
+    // Shared-universe name / series-gap summary — most books have neither,
+    // so the row is hidden entirely rather than shown blank (unlike Genre,
+    // which always shows its row even when empty).
+    if(payload.universe){
+      mUniverse.textContent=payload.universe;
+      mUniverseLabel.style.display=""; mUniverse.style.display="";
+    } else {
+      mUniverseLabel.style.display="none"; mUniverse.style.display="none";
+    }
+    if(payload.seriesGap){
+      mGap.textContent=payload.seriesGap;
+      mGapLabel.style.display=""; mGap.style.display="";
+    } else {
+      mGapLabel.style.display="none"; mGap.style.display="none";
+    }
+
     mAuthor.textContent=payload.author||"";
     mNarrator.textContent=payload.narrator||"";
     mYear.textContent=payload.year||"";
@@ -1213,38 +1244,66 @@ function wireAppearance(container){
     if(sortAscBtn) sortAscBtn.addEventListener("click", function(){ doSort(true); });
     if(sortDescBtn)sortDescBtn.addEventListener("click", function(){ doSort(false); });
 
-    // Sort dropdown triggers sort on change (desc for rating/series#, asc for others)
+    // Sort dropdown triggers sort on change (desc for rating/series#, asc for others).
+    // Shared by both the dropdown's own "change" and the Search button, since
+    // both need to re-apply whatever the dropdown is currently set to.
     var descDefaultSorts = {rating:true, series_index_sort:true};
-    if(sortSelect) sortSelect.addEventListener("change", function(){
+    function _dispatchSortSelectAction(){
       var parts = sortSelect.value.split("|");
       var key = parts[0], type = parts[1];
       if (type === 'filter') {
-        // Reading list filter — handled async
-        filterByReadingList(key);
+        if (key === '_universe_clear') {
+          clearUniverseFilter();
+        } else if (key.indexOf('_universe:') === 0) {
+          // Universe filter — synchronous, no reading-list/Firestore lookup.
+          filterByUniverse(key.slice('_universe:'.length));
+        } else {
+          // Reading list / reviews filter — handled async
+          filterByReadingList(key);
+        }
       } else {
         // Clear any reading list filter first
         clearReadingListFilter();
         doSort(!descDefaultSorts[key]);
       }
-    });
+    }
+    if(sortSelect) sortSelect.addEventListener("change", _dispatchSortSelectAction);
 
     var searchBtn=document.getElementById("ab-search-btn");
     if(searchBtn) searchBtn.addEventListener("click", function(){
       _applySearch(search.value);
-      var parts = sortSelect.value.split("|");
-      var key = parts[0], type = parts[1];
-      if (type === 'filter') {
-        filterByReadingList(key);
-      } else {
-        clearReadingListFilter();
-        doSort(!descDefaultSorts[key]);
-      }
+      _dispatchSortSelectAction();
     });
 
     // Reading list filter functions
     function clearReadingListFilter() {
       document.querySelectorAll("#ab-table tbody tr").forEach(function(r){ delete r.dataset.rlFilter; });
       document.querySelectorAll("#ab-cards .ab-card").forEach(function(c){ delete c.dataset.rlFilter; });
+    }
+
+    // Universe filter — reuses the exact same choke point as My TBR List /
+    // My Reviews (dataset.searchMatch + renderPage()), but is synchronous:
+    // the universe is already stamped server-side onto every row/card as
+    // data-universe (see _book_data_attrs in app/web/html_builder.py), so
+    // there's no Firestore round-trip needed to know who matches.
+    function filterByUniverse(universeName) {
+      document.querySelectorAll("#ab-table tbody tr").forEach(function(r){
+        r.dataset.searchMatch = (r.getAttribute("data-universe")===universeName) ? "1" : "0";
+      });
+      document.querySelectorAll("#ab-cards .ab-card").forEach(function(c){
+        c.dataset.searchMatch = (c.getAttribute("data-universe")===universeName) ? "1" : "0";
+      });
+      currentPage = 1;
+      renderPage();
+    }
+    // "All Books (clear Universe filter)" — resets searchMatch the same way
+    // an empty search box does, so a Universe filter never leaves rows
+    // stuck hidden with no way back except retyping into search.
+    function clearUniverseFilter() {
+      document.querySelectorAll("#ab-table tbody tr").forEach(function(r){ r.dataset.searchMatch="1"; });
+      document.querySelectorAll("#ab-cards .ab-card").forEach(function(c){ c.dataset.searchMatch="1"; });
+      currentPage = 1;
+      renderPage();
     }
 
     async function filterByReadingList(filterKey, forUser) {

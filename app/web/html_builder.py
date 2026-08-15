@@ -87,6 +87,10 @@ def _book_data_attrs(r: Dict[str, str], cover_url: Optional[str] = None) -> str:
             # "Other versions available" — see CSV_FIELDNAMES in writers.py.
             f'data-library-work-id="{_esc(r.get("library_work_id",""))}"',
             f'data-library-formats="{_esc(r.get("library_formats",""))}"',
+            # Shared-universe name and per-series gap summary — see
+            # CSV_FIELDNAMES in writers.py. Blank on most rows; that's ordinary.
+            f'data-universe="{_esc(r.get("universe",""))}"',
+            f'data-series-gap="{_esc(r.get("series_gap",""))}"',
         ]
     )
 
@@ -129,7 +133,13 @@ def _row_cells(r: Dict[str, str]) -> str:
 
 
 def _table_rows_html(rows: List[Dict[str, str]]) -> str:
-    return "".join(f"<tr>{_row_cells(r)}</tr>" for r in rows)
+    # data-universe on the <tr> itself (not part of the book-modal contract —
+    # that lives only inside the cover button's _book_data_attrs) is the
+    # table-view half of the Universe filter idiom in templates/index.html:
+    # filterByUniverse() reads it straight off each row, the same way
+    # _card_html's outer .ab-card div already carries the full attribute set
+    # for the card view.
+    return "".join(f'<tr data-universe="{_esc(r.get("universe",""))}">{_row_cells(r)}</tr>' for r in rows)
 
 
 def _card_html(r: Dict[str, str]) -> str:
@@ -168,6 +178,30 @@ def _card_html(r: Dict[str, str]) -> str:
 
 def _cards_html(rows: List[Dict[str, str]]) -> str:
     return "".join(_card_html(r) for r in rows)
+
+
+def _universe_filter_options(rows: List[Dict[str, str]]) -> str:
+    """
+    <option> elements for the Universe section of #ab-sort — the "hide/show"
+    filter idiom this site already has (`_mytbr|filter` / `_myreviews|filter`,
+    wired at the sortSelect `change` handler in templates/index.html).
+
+    Built server-side, once per build, from the distinct `universe` values
+    ACTUALLY PRESENT on these rows — never the full platform universe list
+    (app/core/universes.py), because not every universe has audiobooks in
+    this catalog. Empty when no row resolved to a universe (e.g. the
+    catalog-platform checkout was absent for this build): the whole section
+    is then simply missing from the dropdown, same "quietly absent, not a
+    guess" posture as the rest of this feature.
+
+    Filter values follow the existing idiom's shape: `_universe:<Name>|filter`.
+    A leading "clear" option is only offered when there's something to clear.
+    """
+    names = sorted({r.get("universe", "") for r in rows if r.get("universe")})
+    if not names:
+        return ""
+    options = "".join(f'<option value="_universe:{_esc(name)}|filter">Universe: {_esc(name)}</option>' for name in names)
+    return '<option value="_universe_clear|filter">All Books (clear Universe filter)</option>' + options
 
 
 def _load_author_map() -> str:
@@ -317,6 +351,7 @@ def render_index_html(
         )
         .replace("{{TABLE_ROWS}}", table_rows)
         .replace("{{CARDS}}", cards)
+        .replace("{{UNIVERSE_FILTER_OPTIONS}}", _universe_filter_options(rows))
         .replace("{{RECENTLY_ADDED}}", _recently_added_html(rows, additions))
         .replace("{{UPLOAD_HISTORY}}", _upload_history_html(rows, additions))
         .replace("{{AUTHOR_MAP_JSON}}", author_map_json)
