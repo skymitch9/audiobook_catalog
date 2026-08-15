@@ -141,7 +141,18 @@ def test_fires_of_december_is_a_seriesless_standalone_that_is_cosmere():
 
 @requires_platform
 def test_an_exclusion_beats_a_series_that_would_otherwise_claim_the_row():
-    assert uv.universe_for(title="Lux - A Texas Reckoners Novel", series="The Stormlight Archive") is None
+    # ⚠️ Rewritten 2026-08-15 alongside the fixture of the same name. It was
+    # Lux with series "The Stormlight Archive"; Lux stopped being an exclusion
+    # when the owner approved the Reckoners universe, because an exclusion is a
+    # GLOBAL stop and would have blocked Reckoners' own claim on that row. The
+    # Frugal Wizard is the exclusion this mechanism was built for.
+    assert (
+        uv.universe_for(
+            title="The Frugal Wizard’s Handbook for Surviving Medieval England",
+            series="The Stormlight Archive",
+        )
+        is None
+    )
 
 
 @requires_platform
@@ -164,8 +175,14 @@ def test_titles_match_exactly_never_by_substring():
 
 @requires_platform
 def test_not_series_never_returns_a_universe():
-    assert uv.universe_for(title="Steelheart", series="Reckoners") is None
-    assert uv.universe_for(title="Skyward", series="The Skyward Series") is None
+    # ⚠️ Reckoners and The Skyward Series became universes of their own on
+    # 2026-08-15 (owner-approved), so those two rows now resolve — and that does
+    # NOT overturn the refusal being tested. The Cosmere's notSeries still lists
+    # both, and "not Cosmere" is all it ever claimed, so the assertion is stated
+    # that way now. Legion, claimed by nothing, still pins the plain None.
+    assert uv.universe_for(title="Steelheart", series="Reckoners") != "The Cosmere"
+    assert uv.universe_for(title="Skyward", series="The Skyward Series") != "The Cosmere"
+    assert uv.universe_for(title="Legion", series="Legion") is None
 
 
 @requires_platform
@@ -189,7 +206,7 @@ def test_normalisation_folds_case_whitespace_and_quotes():
 
 
 @requires_platform
-def test_eleven_universes_in_the_order_the_owner_approved():
+def test_thirteen_universes_in_the_order_the_owner_approved():
     # ⚠️ Willverse added 2026-08-12 was the SEVENTH. Marvel and Disney added
     # 2026-08-15 (owner/coordinator: separate universes). Same day, revised
     # again: Star Wars split OUT of Disney on the owner's crossover-potential
@@ -198,7 +215,9 @@ def test_eleven_universes_in_the_order_the_owner_approved():
     # Disney/Star Wars is still 'llm'-decided, not individually owner-
     # reviewed — see their `confirmed` fields in data/universes.json. This
     # assertion failing is the test WORKING: an edit in catalog-platform
-    # cannot land in either catalog unnoticed.
+    # cannot land in either catalog unnoticed. Cytoverse (12th) and Reckoners
+    # (13th) were created later the same day during the estate-wide orphan
+    # sweep, both owner-approved and both "human"-decided.
     assert uv.universe_names() == [
         "The Cosmere",
         "Runnerverse",
@@ -211,6 +230,8 @@ def test_eleven_universes_in_the_order_the_owner_approved():
         "Disney",
         "Star Wars",
         "Alliances",
+        "Cytoverse",
+        "Reckoners",
     ]
 
 
@@ -232,7 +253,15 @@ def test_the_counts_the_owner_signed_off():
         # the source (library_catalog change_log; audiobook_catalog
         # corrections layer for Arcanum) and caught by title instead, which
         # is also why `series` below dropped from 5 to 3.
-        "The Cosmere": (3, 36, 8),
+        # series 3 -> 4 later on 2026-08-15: +White Sand, the Cosmere
+        # graphic-novel line (library work #90). An author-keyed scan cannot
+        # find it — `authors` reads "Julius Gopez Rik Hoskin", the artist and
+        # scripter, so the word Sanderson is nowhere on the row. Exclusions
+        # 8 -> 5: Snapshot, Lux and Firstborn / Defending Elysium moved out,
+        # because an exclusion is a GLOBAL stop and would have blocked the new
+        # Reckoners/Cytoverse overrides on those exact titles. The Cosmere
+        # still refuses all three, via notSeries and the new entries' own why.
+        "The Cosmere": (4, 36, 5),
         # 12 since 2026-08-12: Turncoat's Truth restored from _refused once the owner
         # verified the co-authored book does sit inside the continuity.
         "Runnerverse": (12, 3, 0),
@@ -250,18 +279,45 @@ def test_the_counts_the_owner_signed_off():
         # board-game rows inside the mixed "Dice Throne" series (unclaimed at
         # series level), 4 audiobook Avengers tie-ins, 1 library "Little
         # Golden Book" row.
-        "Marvel": (0, 77, 0),
+        # +1 later on 2026-08-15: "Panther Patience - Spidey and His Amazing
+        # Friends" — a Disney Junior imprint row with Marvel characters, so it
+        # goes to Marvel and not Disney, like the Age of Ultron tie-ins.
+        "Marvel": (0, 78, 0),
         # New 2026-08-15, then revised the SAME day: Star Wars split out (see
         # below), leaving just the Toy Story series claim + 11 seriesless
         # Disney Books imprint titles (12 minus Star Wars: Ahsoka, moved out).
-        "Disney": (1, 11, 0),
+        # 1 -> 2 series and 11 -> 20 overrides later the same day: the first
+        # pass keyed on the literal word "Disney" IN THE TITLE, and half the
+        # imprint's rows do not carry it. Re-run by author = "Disney Books" and
+        # the set closes: +Lady and the Tramp (a real series value), +3 Frozen,
+        # +3 Mickey/Minnie, +Peter Pan, +The Lion King, +The Nightmare Before
+        # Christmas (library work #197, the first Disney row found outside this
+        # catalog). Each was tested against the owner's crossover-potential
+        # criterion one at a time rather than swept.
+        "Disney": (2, 20, 0),
         # New 2026-08-15, split out of Disney on the owner's crossover-
         # potential criterion: 3 series (High Republic, Legends, Boba Fett) +
         # 1 title override (Ahsoka, seriesless) — moved verbatim from Disney.
-        "Star Wars": (3, 1, 0),
+        # +1 series later the same day: "Darth Vader and Family", Jeffrey
+        # Brown's licensed Chronicle Books picture-book line (library work
+        # #190, "Goodnight Darth Vader").
+        "Star Wars": (4, 1, 0),
         # New 2026-08-15, owner-approved creation (not just llm-proposed):
         # Stan Lee's Alliances, 1 series claim, both owned volumes.
         "Alliances": (1, 0, 0),
+        # New 2026-08-15, owner-approved during the estate-wide orphan sweep.
+        # Sanderson's non-Cosmere SF continuity: the "The Skyward Series" claim
+        # covers 7 audiobooks here, and the override covers library work #8
+        # "Firstborn / Defending Elysium", which carries no series at all —
+        # Defending Elysium's own ebook edition is subtitled "A Cytoverse
+        # Novella".
+        "Cytoverse": (1, 1, 0),
+        # New 2026-08-15, owner-approved during the same sweep. Two series
+        # because the spin-off carries a DIFFERENT series value ("Texas
+        # Reckoners series", on Lux), and one override because Snapshot carries
+        # none at all in either catalog — the two facts that make this a
+        # universe rather than just a series.
+        "Reckoners": (2, 1, 0),
     }
 
 

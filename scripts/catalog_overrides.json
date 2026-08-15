@@ -42,7 +42,9 @@
     "harry potter": "Harry Potter",
     "harry potter (full-cast editions)": "Harry Potter",
     "fae & alchemy": "Fae & Alchemy",
-    "the fae & alchemy series": "Fae & Alchemy"
+    "the fae & alchemy series": "Fae & Alchemy",
+    "dark healer": "The Dark Healer",
+    "the dark healer": "The Dark Healer"
   },
   "overrides": [
     {
@@ -2019,6 +2021,610 @@
           "https://en.wikipedia.org/wiki/Arcanum_Unbounded:_The_Cosmere_Collection",
           "https://www.goodreads.com/book/show/28595941-arcanum-unbounded"
         ]
+      }
+    },
+    {
+      "book": "World's Only Hero: An Apocalyptic LitRPG Adventure - Dakota Krout",
+      "match": {
+        "author": "Dakota Krout",
+        "title": "World's Only Hero: An Apocalyptic LitRPG Adventure"
+      },
+      "set": {
+        "series": "Chance Encounter",
+        "series_index": "1"
+      },
+      "added": "2026-08-15",
+      "evidence": {
+        "series": "catalog-platform data/universes.json CAL Verse notThisSeries has recorded since 2026-08-11 that this title belongs to Chance Encounter: 'the library files it there; the audio row is seriesless'. library_catalog D1 work #36 'World's Only Hero' carries series 'Chance Encounter' index 1, and the two rows are already joined (library_work_id 36 in site/catalog.csv). Tags carry no SRNM at all, so nothing on disk contradicts this.",
+        "series_index": "library_catalog work #36 series_index_display 1; first Chance Encounter volume, published 2026.",
+        "tags_read": {
+          "©nam": "World's Only Hero: An Apocalyptic LitRPG Adventure",
+          "©alb": "World's Only Hero: An Apocalyptic LitRPG Adventure",
+          "©ART": "Dakota Krout",
+          "©wrt": "Justin Thomas James",
+          "©day": "2026",
+          "©gen": "Audiobook",
+          "trkn": "absent",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "World's Only Hero",
+        "sources": [
+          "https://us.amazon.com/Worlds-Only-Hero-Apocalyptic-Adventure/dp/B0GYZJR3TN"
+        ]
+      }
+    },
+    {
+      "book": "Tress of the Emerald Sea - Brandon Sanderson",
+      "match": {
+        "author": "Brandon Sanderson",
+        "title": "Tress of the Emerald Sea"
+      },
+      "set": {
+        "series": "Secret Projects",
+        "series_index": "1"
+      },
+      "added": "2026-08-15",
+      "evidence": {
+        "series": "library_catalog D1 files all five Year-of-Sanderson books under series 'Secret Projects' (works #31 Tress=1, #28 Frugal Wizard=2, #37 Yumi=3, #29 Sunlit Man=4, #4 Isles=5), and each of those works is already joined to this exact audio row through library_work_id in site/catalog.csv. The audio side carried no series at all, so the household's own Secret Projects ladder existed in one catalog and not the other. The one audio row that DID carry 'Secret Projects' is the duplicate Isles listing, which is direct evidence of the intended spelling. Universe resolution is unaffected either way: Secret Projects is deliberately NOT a claimed series in catalog-platform data/universes.json (it is the file's own mixed-series counterexample), so each of these five still resolves by exact title - four as The Cosmere overrides and The Frugal Wizard's Handbook as the Cosmere exclusion.",
+        "series_index": "library_catalog work #31 series_index_display 1; Secret Project #1, published January 2023.",
+        "tags_read": {
+          "©nam": "Tress of the Emerald Sea",
+          "©alb": "Tress of the Emerald Sea",
+          "©ART": "Brandon Sanderson",
+          "©wrt": "Brandon Sanderson",
+          "©day": "2023",
+          "©gen": "Fantasy",
+          "trkn": "absent",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "Tress_of_the_Emerald_Sea_by_Brandon_Sanderson",
+        "sources": [
+          "https://www.fantasticfiction.com/s/brandon-sanderson/secret-projects/"
+        ]
+      }
+    },
+    {
+      "book": "The Frugal Wizard’s Handbook for Surviving Medieval England - Brandon Sanderson",
+      "match": {
+        "author": "Brandon Sanderson",
+        "title": "The Frugal Wizard’s Handbook for Surviving Medieval England"
+      },
+      "set": {
+        "series": "Secret Projects",
+        "series_index": "2"
+      },
+      "added": "2026-08-15",
+      "evidence": {
+        "series": "library_catalog D1 files all five Year-of-Sanderson books under series 'Secret Projects' (works #31 Tress=1, #28 Frugal Wizard=2, #37 Yumi=3, #29 Sunlit Man=4, #4 Isles=5), and each of those works is already joined to this exact audio row through library_work_id in site/catalog.csv. The audio side carried no series at all, so the household's own Secret Projects ladder existed in one catalog and not the other. The one audio row that DID carry 'Secret Projects' is the duplicate Isles listing, which is direct evidence of the intended spelling. Universe resolution is unaffected either way: Secret Projects is deliberately NOT a claimed series in catalog-platform data/universes.json (it is the file's own mixed-series counterexample), so each of these five still resolves by exact title - four as The Cosmere overrides and The Frugal Wizard's Handbook as the Cosmere exclusion.",
+        "series_index": "library_catalog work #28 series_index_display 2; Secret Project #2, published April 2023.",
+        "tags_read": {
+          "©nam": "The Frugal Wizard’s Handbook for Surviving Medieval England",
+          "©alb": "The Frugal Wizard’s Handbook for Surviving Medieval England",
+          "©ART": "Brandon Sanderson",
+          "©wrt": "Brandon Sanderson",
+          "©day": "2023",
+          "©gen": "Science Fiction",
+          "trkn": "absent",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "The_Frugal_Wizard_s_Handbook_for_Surviving_Medieval_England_by_Brandon_Sanderson",
+        "sources": [
+          "https://www.fantasticfiction.com/s/brandon-sanderson/secret-projects/"
+        ]
+      }
+    },
+    {
+      "book": "Yumi and the Nightmare Painter - Brandon Sanderson",
+      "match": {
+        "author": "Brandon Sanderson",
+        "title": "Yumi and the Nightmare Painter"
+      },
+      "set": {
+        "series": "Secret Projects",
+        "series_index": "3"
+      },
+      "added": "2026-08-15",
+      "evidence": {
+        "series": "library_catalog D1 files all five Year-of-Sanderson books under series 'Secret Projects' (works #31 Tress=1, #28 Frugal Wizard=2, #37 Yumi=3, #29 Sunlit Man=4, #4 Isles=5), and each of those works is already joined to this exact audio row through library_work_id in site/catalog.csv. The audio side carried no series at all, so the household's own Secret Projects ladder existed in one catalog and not the other. The one audio row that DID carry 'Secret Projects' is the duplicate Isles listing, which is direct evidence of the intended spelling. Universe resolution is unaffected either way: Secret Projects is deliberately NOT a claimed series in catalog-platform data/universes.json (it is the file's own mixed-series counterexample), so each of these five still resolves by exact title - four as The Cosmere overrides and The Frugal Wizard's Handbook as the Cosmere exclusion.",
+        "series_index": "library_catalog work #37 series_index_display 3; Secret Project #3, published July 2023.",
+        "tags_read": {
+          "©nam": "Yumi and the Nightmare Painter",
+          "©alb": "Yumi and the Nightmare Painter",
+          "©ART": "Brandon Sanderson",
+          "©wrt": "Brandon Sanderson",
+          "©day": "2023",
+          "©gen": "Fantasy",
+          "trkn": "(1, 53)",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "Yumi_and_the_Nightmare_Painter_by_Brandon_Sanderson",
+        "sources": [
+          "https://www.fantasticfiction.com/s/brandon-sanderson/secret-projects/"
+        ]
+      }
+    },
+    {
+      "book": "The Sunlit Man - Brandon Sanderson",
+      "match": {
+        "author": "Brandon Sanderson",
+        "title": "The Sunlit Man"
+      },
+      "set": {
+        "series": "Secret Projects",
+        "series_index": "4"
+      },
+      "added": "2026-08-15",
+      "evidence": {
+        "series": "library_catalog D1 files all five Year-of-Sanderson books under series 'Secret Projects' (works #31 Tress=1, #28 Frugal Wizard=2, #37 Yumi=3, #29 Sunlit Man=4, #4 Isles=5), and each of those works is already joined to this exact audio row through library_work_id in site/catalog.csv. The audio side carried no series at all, so the household's own Secret Projects ladder existed in one catalog and not the other. The one audio row that DID carry 'Secret Projects' is the duplicate Isles listing, which is direct evidence of the intended spelling. Universe resolution is unaffected either way: Secret Projects is deliberately NOT a claimed series in catalog-platform data/universes.json (it is the file's own mixed-series counterexample), so each of these five still resolves by exact title - four as The Cosmere overrides and The Frugal Wizard's Handbook as the Cosmere exclusion.",
+        "series_index": "library_catalog work #29 series_index_display 4; Secret Project #4, published October 2023.",
+        "tags_read": {
+          "©nam": "The Sunlit Man",
+          "©alb": "The Sunlit Man",
+          "©ART": "Brandon Sanderson",
+          "©wrt": "Brandon Sanderson",
+          "©day": "2023",
+          "©gen": "Science Fiction",
+          "trkn": "(1, 59)",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "The_Sunlit_Man_by_Brandon_Sanderson",
+        "sources": [
+          "https://www.fantasticfiction.com/s/brandon-sanderson/secret-projects/"
+        ]
+      }
+    },
+    {
+      "book": "Isles of the Emberdark - A Cosmere Novel Secret Projects, Book 5 - Brandon Sanderson",
+      "match": {
+        "asin": "B0F4RQQC4N"
+      },
+      "set": {
+        "title": "Isles of the Emberdark"
+      },
+      "added": "2026-08-15",
+      "evidence": {
+        "title": "Closes the gap catalog-platform data/universes.fixtures.json has recorded as a _knownGap since 2026-08-11 and prescribes exactly this fix for: 'the audiobook row Isles of the Emberdark - A Cosmere Novel Secret Projects, Book 5 does not resolve, and the fix for it belongs in audiobook_catalog corrections layer, not in a looser match here' (universes.json _lookup.exactTitlesOnly says the same). The trailing string is Audible marketing copy plus the series and volume, both of which this row already carries correctly in its own series/series_index fields. The m4b's own album tag reads exactly 'Isles of the Emberdark' - the clean title is on the file, not inferred. Key-move checked before applying: 0 reviews were joined to the old title, and the new key matches the household's other copy of the same book, which is correct.",
+        "tags_read": {
+          "©nam": "Isles of the Emberdark - A Cosmere Novel Secret Projects, Book 5",
+          "©alb": "Isles of the Emberdark",
+          "©ART": "Brandon Sanderson",
+          "©wrt": "Kaleo Griffith, Jennifer Jill Araya",
+          "©day": "2025-07-10",
+          "©gen": "Science Fiction & Fantasy:Fantasy:Action & Adventure",
+          "trkn": "(1, 0)",
+          "SRNM": "Secret Projects",
+          "SRSQ": "5",
+          "CDEK": "B0F4RQQC4N"
+        },
+        "filename_said": "Isles of the Emberdark - A Cosmere Novel Secret Projects, Book 5",
+        "sources": [
+          "https://www.fantasticfiction.com/s/brandon-sanderson/secret-projects/"
+        ]
+      }
+    },
+    {
+      "book": "Isles of the Emberdark - Brandon Sanderson",
+      "match": {
+        "author": "Brandon Sanderson",
+        "title": "Isles of the Emberdark"
+      },
+      "set": {
+        "series": "Secret Projects",
+        "series_index": "5"
+      },
+      "added": "2026-08-15",
+      "evidence": {
+        "series": "library_catalog D1 work #4 'Isles of the Emberdark' carries series 'Secret Projects' index 5 and is joined to this exact audio row (library_work_id 4 in site/catalog.csv). The household's second copy of this book - the Audible m4b with the marketing subtitle - already carries 'Secret Projects' 5 from its own SRNM/SRSQ tags, so this is the same series value the catalog already holds for the same book, not a new claim.",
+        "series_index": "library_catalog work #4 series_index_display 5; Secret Project #5, and the sibling audio row's SRSQ tag reads 5.",
+        "tags_read": {
+          "©nam": "Isles of the Emberdark",
+          "©alb": "Isles of the Emberdark",
+          "©ART": "Brandon Sanderson",
+          "©wrt": "Brandon Sanderson",
+          "©day": "2025",
+          "©gen": "Fantasy",
+          "trkn": "(1, 81)",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "Isles_of_the_Emberdark_by_Brandon_Sanderson",
+        "sources": [
+          "https://www.fantasticfiction.com/s/brandon-sanderson/secret-projects/"
+        ]
+      }
+    },
+    {
+      "book": "End of King: Rise of the Cheat Potion Maker, Book 7 - Alvin Atwater",
+      "match": {
+        "author": "Alvin Atwater",
+        "title": "End of King: Rise of the Cheat Potion Maker, Book 7"
+      },
+      "set": {
+        "series": "Rise of the Cheat Potion Maker",
+        "series_index": "7"
+      },
+      "added": "2026-08-15",
+      "evidence": {
+        "series": "The row's own published title ends '...: Rise of the Cheat Potion Maker, Book 7' while its series field is blank - the All-The-Skills shape: the series is spelled inside the title and nowhere the catalog can group on. site/catalog.csv already holds four rows under the exact spelling 'Rise of the Cheat Potion Maker' (Alvin Atwater), so this row is the fifth rung of a ladder that already exists here.",
+        "series_index": "Book 7, stated in the row's own title.",
+        "tags_read": {
+          "©nam": "End of King: Rise of the Cheat Potion Maker, Book 7",
+          "©alb": "End of King: Rise of the Cheat Potion Maker, Book 7",
+          "©ART": "Alvin Atwater",
+          "©wrt": "Matt Hicks, Allie Piper",
+          "©day": "2026",
+          "©gen": "Audiobook",
+          "trkn": "absent",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "End of King"
+      }
+    },
+    {
+      "book": "Reincarnated as a Sword, Vol. 17 - Light Novel - Yuu Tanaka",
+      "match": {
+        "asin": "B0G95V8ZL2"
+      },
+      "set": {
+        "series": "Reincarnated as a Sword",
+        "series_index": "17"
+      },
+      "added": "2026-08-15",
+      "evidence": {
+        "series": "Blank series field on a row whose title reads 'Reincarnated as a Sword, Vol. 17 - Light Novel'. site/catalog.csv already holds seventeen rows under the exact spelling 'Reincarnated as a Sword' (Yuu Tanaka); this volume was the one that fell out of its own ladder.",
+        "series_index": "Vol. 17, stated in the row's own title.",
+        "tags_read": {
+          "©nam": "Reincarnated as a Sword, Vol. 17 - Light Novel",
+          "©alb": "Reincarnated as a Sword, Vol. 17",
+          "©ART": "Yuu Tanaka",
+          "©wrt": "Josh Hurley",
+          "©day": "2025-12-19",
+          "©gen": "Science Fiction & Fantasy:Fantasy:Action & Adventure",
+          "trkn": "(1, 0)",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "B0G95V8ZL2"
+        },
+        "filename_said": "Reincarnated as a Sword, Vol. 17 - Light Novel"
+      }
+    },
+    {
+      "book": "Skeleton Knight in Another World, Vol. 1 - Light Novel - Ennki Hakari",
+      "match": {
+        "author": "Ennki Hakari",
+        "title": "Skeleton Knight in Another World, Vol. 1 - Light Novel"
+      },
+      "set": {
+        "series": "Skeleton Knight in Another World",
+        "series_index": "1"
+      },
+      "added": "2026-08-15",
+      "evidence": {
+        "series": "Blank series field on a row whose title reads 'Skeleton Knight in Another World, Vol. 1 - Light Novel'. site/catalog.csv already holds five rows under the exact spelling 'Skeleton Knight in Another World' (Ennki Hakari); volume 1 was missing from its own ladder.",
+        "series_index": "Vol. 1, stated in the row's own title.",
+        "tags_read": {
+          "©nam": "Skeleton Knight in Another World, Vol. 1 - Light Novel",
+          "©alb": "Skeleton Knight in Another World, Vol. 1",
+          "©ART": "Ennki Hakari",
+          "©wrt": "Fred Berman",
+          "©day": "2025-10-17",
+          "©gen": "Teen & Young Adult:Literature & Fiction",
+          "trkn": "(1, 0)",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "Skeleton Knight in Another World, Vol. 1 - Light Novel"
+      }
+    },
+    {
+      "book": "Hell Mode, Volume 2 - Hamuo, Taishi - Translator",
+      "match": {
+        "author": "Hamuo",
+        "title": "Hell Mode, Volume 2"
+      },
+      "set": {
+        "series": "Hell Mode",
+        "series_index": "2"
+      },
+      "added": "2026-08-15",
+      "evidence": {
+        "series": "Blank series field on a row whose title reads 'Hell Mode, Volume 2'. site/catalog.csv already holds a row under the exact spelling 'Hell Mode' (Hamuo), so this is the second rung of a ladder that exists here.",
+        "series_index": "Volume 2, stated in the row's own title.",
+        "tags_read": {
+          "©nam": "Hell Mode, Volume 2",
+          "©alb": "Hell Mode, Volume 2",
+          "©ART": "Hamuo, Taishi - translator",
+          "©wrt": "Diontae Black",
+          "©day": "2023-11-28",
+          "©gen": "Science Fiction & Fantasy:Fantasy:Action & Adventure",
+          "trkn": "(1, 0)",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "Hell Mode, Volume 2"
+      }
+    },
+    {
+      "book": "Hell Mode, Volume 3 - Hamuo, Taishi - Translator",
+      "match": {
+        "author": "Hamuo",
+        "title": "Hell Mode, Volume 3"
+      },
+      "set": {
+        "series": "Hell Mode",
+        "series_index": "3"
+      },
+      "added": "2026-08-15",
+      "evidence": {
+        "series": "Blank series field on a row whose title reads 'Hell Mode, Volume 3'. site/catalog.csv already holds a row under the exact spelling 'Hell Mode' (Hamuo), so this is the third rung of a ladder that exists here.",
+        "series_index": "Volume 3, stated in the row's own title.",
+        "tags_read": {
+          "©nam": "Hell Mode, Volume 3",
+          "©alb": "Hell Mode, Volume 3",
+          "©ART": "Hamuo, Taishi - translator",
+          "©wrt": "Diontae Black",
+          "©day": "2024-02-06",
+          "©gen": "Science Fiction & Fantasy:Fantasy:Action & Adventure",
+          "trkn": "(1, 0)",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "Hell Mode, Volume 3"
+      }
+    },
+    {
+      "book": "The Witch of Webs: The Wandering Inn, Book 12 - Pirateaba",
+      "match": {
+        "author": "Pirateaba",
+        "title": "The Witch of Webs: The Wandering Inn, Book 12"
+      },
+      "set": {
+        "series": "The Wandering Inn",
+        "series_index": "12"
+      },
+      "added": "2026-08-15",
+      "evidence": {
+        "series": "Blank series field on a row whose title reads 'The Witch of Webs: The Wandering Inn, Book 12'. site/catalog.csv already holds fifteen rows under the exact spelling 'The Wandering Inn' (pirateaba), and library_catalog D1 spells it identically on its four print volumes - so this row was the only member of the household's largest single ladder that could not be grouped.",
+        "series_index": "Book 12, stated in the row's own title.",
+        "tags_read": {
+          "©nam": "The Witch of Webs: The Wandering Inn, Book 12",
+          "©alb": "The Witch of Webs: The Wandering Inn, Book 12",
+          "©ART": "pirateaba",
+          "©wrt": "Andrea Parsneau",
+          "©day": "2024",
+          "©gen": "Audiobook",
+          "trkn": "absent",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "The Witch of Webs"
+      }
+    },
+    {
+      "book": "Eldritch: The Eating Woods, Book 2 - Keri Lake",
+      "match": {
+        "author": "Keri Lake",
+        "title": "Eldritch: The Eating Woods, Book 2"
+      },
+      "set": {
+        "series": "The Eating Woods",
+        "series_index": "2"
+      },
+      "added": "2026-08-15",
+      "evidence": {
+        "series": "Blank series field on a row whose title reads 'Eldritch: The Eating Woods, Book 2'. site/catalog.csv already holds a row under the exact spelling 'The Eating Woods' (Keri Lake), so this is the second rung of a ladder that exists here.",
+        "series_index": "Book 2, stated in the row's own title.",
+        "tags_read": {
+          "©nam": "Eldritch: The Eating Woods, Book 2",
+          "©alb": "Eldritch: The Eating Woods, Book 2",
+          "©ART": "Keri Lake",
+          "©wrt": "James Cassidy, Melissa Barr",
+          "©day": "2026",
+          "©gen": "Audiobook",
+          "trkn": "absent",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "Eldritch"
+      }
+    },
+    {
+      "book": "Bringing Home the Rain: The Redemption of Howard Marsh: The Jubal County Saga, Book 1 - Bob Mcgough",
+      "match": {
+        "author": "Bob Mcgough",
+        "title": "Bringing Home the Rain: The Redemption of Howard Marsh: The Jubal County Saga, Book 1"
+      },
+      "set": {
+        "series": "The Jubal County Saga",
+        "series_index": "1"
+      },
+      "added": "2026-08-15",
+      "evidence": {
+        "series": "Blank series field on a row whose title reads '...: The Jubal County Saga, Book 1'. site/catalog.csv already holds three rows under the exact spelling 'The Jubal County Saga' (Bob McGough), so volume 1 was the one rung missing from its own ladder.",
+        "series_index": "Book 1, stated in the row's own title.",
+        "tags_read": {
+          "©nam": "Bringing Home the Rain: The Redemption of Howard Marsh: The Jubal County Saga, Book 1",
+          "©alb": "Bringing Home the Rain: The Redemption of Howard Marsh: The Jubal County Saga, Book 1",
+          "©ART": "Bob McGough",
+          "©wrt": "John Solo",
+          "©day": "2024",
+          "©gen": "Audiobook",
+          "trkn": "absent",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "Bringing Home the Rain- The Redemption of Howard Marsh"
+      }
+    },
+    {
+      "book": "Feathers of Dawn: The Graveyard Trees, Book 1 - Jess Galaxie",
+      "match": {
+        "author": "Jess Galaxie",
+        "title": "Feathers of Dawn: The Graveyard Trees, Book 1"
+      },
+      "set": {
+        "series": "The Graveyard Trees",
+        "series_index": "1"
+      },
+      "added": "2026-08-15",
+      "evidence": {
+        "series": "Blank series field on a row whose title reads 'Feathers of Dawn: The Graveyard Trees, Book 1'. Its sibling 'Armor of Dusk: The Graveyard Trees, Book 2' (same author, Jess Galaxie) is blank too, so the household owns two consecutive volumes of a series that reads as two unrelated standalones - the exact shape catalog-platform data/universes.json records for the Otherlife trilogy in its seriesToCreate note.",
+        "series_index": "Book 1, stated in the row's own title.",
+        "tags_read": {
+          "©nam": "Feathers of Dawn: The Graveyard Trees, Book 1",
+          "©alb": "Feathers of Dawn: The Graveyard Trees, Book 1",
+          "©ART": "Jess Galaxie",
+          "©wrt": "Mac Rae",
+          "©day": "2025",
+          "©gen": "Audiobook",
+          "trkn": "absent",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "Feathers of Dawn",
+        "sources": [
+          "https://www.goodreads.com/series/392437-the-graveyard-trees"
+        ]
+      }
+    },
+    {
+      "book": "Armor of Dusk: The Graveyard Trees, Book 2 - Jess Galaxie",
+      "match": {
+        "author": "Jess Galaxie",
+        "title": "Armor of Dusk: The Graveyard Trees, Book 2"
+      },
+      "set": {
+        "series": "The Graveyard Trees",
+        "series_index": "2"
+      },
+      "added": "2026-08-15",
+      "evidence": {
+        "series": "Blank series field on a row whose title reads 'Armor of Dusk: The Graveyard Trees, Book 2'. Its sibling 'Feathers of Dawn: The Graveyard Trees, Book 1' (same author, Jess Galaxie) is blank too; both are corrected together so the two owned volumes group.",
+        "series_index": "Book 2, stated in the row's own title.",
+        "tags_read": {
+          "©nam": "Armor of Dusk: The Graveyard Trees, Book 2",
+          "©alb": "Armor of Dusk: The Graveyard Trees, Book 2",
+          "©ART": "Jess Galaxie",
+          "©wrt": "Mac Rae",
+          "©day": "2025",
+          "©gen": "Audiobook",
+          "trkn": "absent",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "Armor of Dusk",
+        "sources": [
+          "https://www.goodreads.com/series/392437-the-graveyard-trees"
+        ]
+      }
+    },
+    {
+      "book": "Ship of Magic Part 1: The Liveship Traders, Book 1 - Robin Hobb",
+      "match": {
+        "author": "Robin Hobb",
+        "title": "Ship of Magic Part 1: The Liveship Traders, Book 1"
+      },
+      "set": {
+        "series": "The Liveship Traders",
+        "series_index": "1"
+      },
+      "added": "2026-08-15",
+      "evidence": {
+        "series": "The series field read 'Ship of Magic Part' - a parse artifact, not a series: the title 'Ship of Magic Part 1: The Liveship Traders, Book 1' was split at the wrong point, leaving the book's own title in the series slot with the word 'Part' hanging off it. The real series is named in that same title: Robin Hobb's The Liveship Traders, of which Ship of Magic is volume 1.",
+        "series_index": "Book 1, stated in the row's own title; Ship of Magic is the first Liveship Traders novel.",
+        "tags_read": {
+          "©nam": "Ship of Magic Part 1: The Liveship Traders, Book 1",
+          "©alb": "Ship of Magic: The Liveship Traders, Book 1",
+          "©ART": "Robin Hobb",
+          "©wrt": "Anne Flosnik",
+          "©day": "2200",
+          "©gen": "Audiobook",
+          "trkn": "absent",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "Ship of Magic",
+        "sources": [
+          "https://en.wikipedia.org/wiki/Liveship_Traders"
+        ]
+      }
+    },
+    {
+      "book": "Eye of the Tiger - A Paranormal Space Opera Adventure (Star Justice, Book 1) - Michael-scott Earle",
+      "match": {
+        "asin": "B07D2M1HFN"
+      },
+      "set": {
+        "series": "Star Justice",
+        "series_index": "1"
+      },
+      "added": "2026-08-15",
+      "evidence": {
+        "series": "The series field read 'Star Justice, Book' - a parse artifact from the title 'Eye of the Tiger - A Paranormal Space Opera Adventure (Star Justice, Book 1)', which left the trailing word 'Book' attached to the series name. The catalog's own other Michael-Scott Earle row, 'Star Justice Book 2: Space Witch', carries the clean spelling 'Star Justice', so the two volumes of one series were filed as two series.",
+        "series_index": "Book 1, stated in the row's own title.",
+        "tags_read": {
+          "©nam": "Eye of the Tiger - A Paranormal Space Opera Adventure (Star Justice, Book 1)",
+          "©alb": "Eye of the Tiger",
+          "©ART": "Michael-Scott Earle",
+          "©wrt": "Luke Daniels",
+          "©day": "2018-05-16",
+          "©gen": "Science Fiction & Fantasy:Fantasy:Paranormal & Urban:Paranormal",
+          "trkn": "(1, 0)",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "B07D2M1HFN"
+        },
+        "filename_said": "Eye of the Tiger"
+      }
+    },
+    {
+      "book": "Just Mercy (Adapted for Young Adults) - A True Story of the Fight for Justice - Bryan Stevenson",
+      "match": {
+        "asin": "0525635912"
+      },
+      "set": {
+        "series": "",
+        "series_index": ""
+      },
+      "added": "2026-08-15",
+      "evidence": {
+        "series": "Not a series at all - a parse artifact. The title parser split 'Just Mercy (Adapted for Young Adults)' at the parenthesis and read the edition note as a series/volume pair, leaving series='Adapted for' and series_index='Young Adults'. Bryan Stevenson's Just Mercy is a standalone work of non-fiction; this row is its young-adult adaptation, which is an edition, not a volume. The m4b carries no SRNM/SRSQ, so nothing on disk contradicts blanking it.",
+        "series_index": "Blanked with the series: 'Young Adults' is half of the same mis-parse, and an index with no series is meaningless.",
+        "tags_read": {
+          "©nam": "Just Mercy (Adapted for Young Adults) - A True Story of the Fight for Justice",
+          "©alb": "Just Mercy (Adapted for Young Adults)",
+          "©ART": "Bryan Stevenson",
+          "©wrt": "Bryan Stevenson",
+          "©day": "2018-09-18",
+          "©gen": "Teen & Young Adult:Biographies",
+          "trkn": "(1, 0)",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "0525635912"
+        },
+        "filename_said": "Just Mercy (Adapted for Young Adults)"
       }
     }
   ],
