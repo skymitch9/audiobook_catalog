@@ -7588,5 +7588,99 @@
   "warnings": [],
   "source": "none",
   "checked_at": 1786777787
+ },
+ "Blood Moon": {
+  "warnings": [
+   {
+    "label": "Confinement",
+    "source_url": "https://app.thestorygraph.com/book_reviews/d8e02091-07b8-49ab-88fb-f303e1fdf6c6/content_warning/57?page=2"
+   },
+   {
+    "label": "Death",
+    "source_url": "https://app.thestorygraph.com/book_reviews/d8e02091-07b8-49ab-88fb-f303e1fdf6c6/content_warning/57?page=2"
+   },
+   {
+    "label": "Gun violence",
+    "source_url": "https://app.thestorygraph.com/book_reviews/d8e02091-07b8-49ab-88fb-f303e1fdf6c6/content_warning/57?page=2"
+   },
+   {
+    "label": "Torture",
+    "source_url": "https://app.thestorygraph.com/book_reviews/d8e02091-07b8-49ab-88fb-f303e1fdf6c6/content_warning/57?page=2"
+   },
+   {
+    "label": "Toxic relationship",
+    "source_url": "https://app.thestorygraph.com/book_reviews/d8e02091-07b8-49ab-88fb-f303e1fdf6c6/content_warning/57?page=2"
+   },
+   {
+    "label": "Violence",
+    "source_url": "https://app.thestorygraph.com/book_reviews/d8e02091-07b8-49ab-88fb-f303e1fdf6c6/content_warning/57?page=2"
+   },
+   {
+    "label": "Blood",
+    "source_url": "https://app.thestorygraph.com/book_reviews/d8e02091-07b8-49ab-88fb-f303e1fdf6c6/content_warning/57?page=2"
+   },
+   {
+    "label": "Kidnapping",
+    "source_url": "https://app.thestorygraph.com/book_reviews/d8e02091-07b8-49ab-88fb-f303e1fdf6c6/content_warning/57?page=2"
+   },
+   {
+    "label": "Stalking",
+    "source_url": "https://app.thestorygraph.com/book_reviews/d8e02091-07b8-49ab-88fb-f303e1fdf6c6/content_warning/57?page=2"
+   },
+   {
+    "label": "Car accident",
+    "source_url": "https://app.thestorygraph.com/book_reviews/d8e02091-07b8-49ab-88fb-f303e1fdf6c6/content_warning/57?page=2"
+   },
+   {
+    "label": "Murder",
+    "source_url": "https://app.thestorygraph.com/book_reviews/d8e02091-07b8-49ab-88fb-f303e1fdf6c6/content_warning/57?page=2"
+   },
+   {
+    "label": "Gaslighting",
+    "source_url": "https://app.thestorygraph.com/book_reviews/d8e02091-07b8-49ab-88fb-f303e1fdf6c6/content_warning/57?page=2"
+   },
+   {
+    "label": "Toxic friendship",
+    "source_url": "https://app.thestorygraph.com/book_reviews/d8e02091-07b8-49ab-88fb-f303e1fdf6c6/content_warning/57?page=2"
+   },
+   {
+    "label": "Abandonment",
+    "source_url": "https://app.thestorygraph.com/book_reviews/d8e02091-07b8-49ab-88fb-f303e1fdf6c6/content_warning/57?page=2"
+   },
+   {
+    "label": "Alcohol",
+    "source_url": "https://app.thestorygraph.com/book_reviews/d8e02091-07b8-49ab-88fb-f303e1fdf6c6/content_warning/57?page=2"
+   },
+   {
+    "label": "Injury/Injury detail",
+    "source_url": "https://app.thestorygraph.com/book_reviews/d8e02091-07b8-49ab-88fb-f303e1fdf6c6/content_warning/57?page=2"
+   },
+   {
+    "label": "Emotional abuse",
+    "source_url": "https://app.thestorygraph.com/book_reviews/d8e02091-07b8-49ab-88fb-f303e1fdf6c6/content_warning/57?page=2"
+   },
+   {
+    "label": "Mental illness",
+    "source_url": "https://app.thestorygraph.com/book_reviews/d8e02091-07b8-49ab-88fb-f303e1fdf6c6/content_warning/57?page=2"
+   },
+   {
+    "label": "Grief",
+    "source_url": "https://app.thestorygraph.com/book_reviews/d8e02091-07b8-49ab-88fb-f303e1fdf6c6/content_warning/57?page=2"
+   },
+   {
+    "label": "Graphic violence",
+    "source_url": "https://www.pinereadsreview.com/blog/blood-moon-britany-s-lewis/"
+   },
+   {
+    "label": "Foul language",
+    "source_url": "https://www.pinereadsreview.com/blog/blood-moon-britany-s-lewis/"
+   },
+   {
+    "label": "Gore",
+    "source_url": "https://takemeawayyy.com/blood-moon-by-britney-s-lewis/"
+   }
+  ],
+  "source": "web",
+  "checked_at": 1786867630
  }
 }
