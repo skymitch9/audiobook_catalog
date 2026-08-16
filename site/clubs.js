@@ -193,23 +193,48 @@ export function clubFeatureEnabled(club, key) {
 
 /**
  * Club-doc fields that rules gate behind the manager roster once a club is
- * claimed, SPLIT by tier (three-tier model, 2026-08-14):
- *   STRUCTURAL — canManageClub only (roster uid or site admin).
+ * claimed, SPLIT by tier. Three field-tiers as of 2026-08-16 (the site-ROLE
+ * three-tier model — admin/moderator/club-mod — is a separate concept; see
+ * the "Club manager enforcement" comment in firestore.rules):
+ *   STRUCTURAL  — canManageClub (roster uid or site admin). The "club
+ *     island": joinMode, features — a club mod runs these day to day.
  *   OPERATIONAL — canOperateClub (adds the site moderator).
+ *   RESTRICTED  — canAdministerClub (site admin only, NOT the club roster;
+ *     2026-08-16 tightening, owner-approved). discordWebhookMask + the
+ *     settings/discord subdoc holding the real URL, and managerUids itself.
+ *     Rationale, kept here because it is the reasoning a future editor of
+ *     this list needs:
+ *       - the Discord webhook is an outbound CAPABILITY (whoever sets it
+ *         decides where club activity broadcasts) — not delegable to a
+ *         per-club mod, same trust boundary as pipeline_requests/site
+ *         admin-only deletes elsewhere in this codebase.
+ *       - managerUids is the roster mods sit in; letting a mod rewrite it
+ *         is peer-escalation (appointing/removing other mods) — the same
+ *         class of move the estate ladder (docs/info/ROLES.md) outlaws
+ *         with "grant only strictly beneath your own role".
+ *     Everything else about running a club's actual reading — the book,
+ *     reads, schedule/milestones, finish/abandon, the blind-ratings reveal,
+ *     next meeting — stays exactly as available to a club mod as before;
+ *     this tier is deliberately narrow.
  * ⚠️ MUST match clubStructuralFieldsChanged() / clubOperationalFieldsChanged()
- * in firestore.rules — the test suite pins these lists as the contract.
+ * / clubRestrictedFieldsChanged() in firestore.rules — the test suite pins
+ * these lists as the contract.
  */
 export const STRUCTURAL_CLUB_FIELDS = [
-  'joinMode', 'features', 'discordWebhookMask', 'managerUids',
+  'joinMode', 'features',
 ];
 
 export const OPERATIONAL_CLUB_FIELDS = [
   'nextMeetingAt', 'nextMeetingNotes',
 ];
 
+export const RESTRICTED_CLUB_FIELDS = [
+  'discordWebhookMask', 'managerUids',
+];
+
 /** The union — every manager-gated club-doc field, whichever tier. */
 export const MANAGED_CLUB_FIELDS = [
-  ...STRUCTURAL_CLUB_FIELDS, ...OPERATIONAL_CLUB_FIELDS,
+  ...STRUCTURAL_CLUB_FIELDS, ...OPERATIONAL_CLUB_FIELDS, ...RESTRICTED_CLUB_FIELDS,
 ];
 
 /**
@@ -267,12 +292,26 @@ export function canOperateClub(club, uid, siteRole = null) {
 }
 
 /**
+ * Mirror of the firestore.rules RESTRICTED gate (2026-08-16 tightening):
+ * the Discord webhook and the manager roster itself (RESTRICTED_CLUB_FIELDS)
+ * — site admin ONLY, never the club's own manager roster. Unclaimed clubs
+ * stay open (transition safety, same migration path as canManageClub): a
+ * club with no roster at all predates the uid layer entirely and behaves as
+ * it always has. Deliberately does not take a `uid` — roster membership
+ * never satisfies this gate once the club is claimed.
+ */
+export function canAdministerClub(club, siteAdmin = false) {
+  return !isClubClaimed(club) || !!siteAdmin;
+}
+
+/**
  * Stamp the caller's uid into the club's manager roster ("secure your
  * role"). On an unclaimed club this is the trust-on-first-use claim and
- * rules allow it for anyone signed in; on a claimed club rules only allow
- * it for an existing manager uid or the site admin — so a moderator on an
- * already-claimed club needs a bound manager (or the admin) to do this for
- * them, which the caller should surface as guidance, not retry.
+ * rules allow it for anyone signed in; on a claimed club, managerUids is
+ * RESTRICTED (2026-08-16) — only the site admin may write it, not even an
+ * existing bound manager — so anyone claiming after the first is directed
+ * to ask the site admin, which the caller should surface as guidance, not
+ * retry.
  */
 export async function claimManagerRole(db, clubId, uid, session, role) {
   if (!uid) {
@@ -292,7 +331,7 @@ export async function claimManagerRole(db, clubId, uid, session, role) {
     if (e && (e.code === 'permission-denied' || /permission/i.test(e.message || ''))) {
       return {
         success: false,
-        error: 'This club is already secured. Ask a bound host/mod (or the site admin) to add your account.',
+        error: 'This club is already secured. Ask the site admin to add your account.',
       };
     }
     return { success: false, error: e.message };
@@ -309,6 +348,11 @@ export async function claimManagerRole(db, clubId, uid, session, role) {
 // (write-only, same pattern as pipeline_requests); the server-side Discord
 // notifier reads it via the service account, which bypasses rules. The
 // public club doc keeps only a masked tail (discordWebhookMask) for display.
+//
+// ⚠️ RESTRICTED (2026-08-16): setting/clearing the webhook — both this
+// subdoc and discordWebhookMask on the club doc — is SITE-ADMIN ONLY, not a
+// club-mod action, even for a bound host/mod. See RESTRICTED_CLUB_FIELDS
+// above for the rationale (outbound capability, not delegable per-club).
 
 const DISCORD_WEBHOOK_RE =
   /^https:\/\/(discord\.com|discordapp\.com)\/api\/webhooks\/\d+\/[\w-]+$/;
@@ -325,7 +369,8 @@ export function maskWebhookUrl(url) {
 }
 
 /**
- * Save the club's Discord webhook (manager action, enforced in the UI).
+ * Save the club's Discord webhook (site-admin action, enforced in the UI
+ * and in firestore.rules — RESTRICTED_CLUB_FIELDS, 2026-08-16).
  * Full URL -> write-only settings subdoc; masked tail -> club doc.
  */
 export async function setClubDiscordWebhook(db, clubId, url, session) {
@@ -348,7 +393,10 @@ export async function setClubDiscordWebhook(db, clubId, url, session) {
   }
 }
 
-/** Remove the club's Discord webhook (manager action, enforced in the UI). */
+/**
+ * Remove the club's Discord webhook (site-admin action, enforced in the UI
+ * and in firestore.rules — RESTRICTED_CLUB_FIELDS, 2026-08-16).
+ */
 export async function clearClubDiscordWebhook(db, clubId) {
   try {
     await deleteDoc(doc(db, col('clubs'), clubId, 'settings', 'discord'));

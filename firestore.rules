@@ -137,7 +137,13 @@ service cloud.firestore {
     //                 schedule, polls management, next-meeting fields,
     //                 membership ops and content deletes. NOT features/
     //                 webhook/identity/roster/club-or-read deletes/site-wide.
-    //   (club mods  — managerUids on the club doc, full powers there.)
+    //   (club mods  — managerUids on the club doc: full powers over the
+    //                 "club island" — book/reads, schedule, features,
+    //                 joinMode, finish/abandon, ratings reveal, next
+    //                 meeting — EXCEPT the two RESTRICTED fields below
+    //                 (Discord webhook, managerUids itself), which are
+    //                 site-admin only even for a bound host/mod, since
+    //                 2026-08-16.)
     function siteRoleIs(r) {
       return request.auth != null
              && exists(/databases/$(database)/documents/site_roles/$(request.auth.uid))
@@ -165,6 +171,21 @@ service cloud.firestore {
       return canManageClub(club) || isSiteModerator();
     }
 
+    // The RESTRICTED gate (2026-08-16 tightening, owner-approved): site
+    // admin ONLY, never the club's own manager roster — not even a bound
+    // host/mod. Guards the two fields that are either an outbound
+    // CAPABILITY (the Discord webhook: whoever sets it decides where club
+    // activity broadcasts) or PEER-ESCALATION (managerUids: a mod
+    // appointing/removing other mods) — the same class the estate ladder
+    // (docs/info/ROLES.md) outlaws with "grant only strictly beneath your
+    // own role". Unclaimed clubs stay open (transition safety, same
+    // migration path as canManageClub) since they predate the uid layer.
+    // Deliberately does NOT admit isClubManager — that is the whole point
+    // of this tier.
+    function canAdministerClub(club) {
+      return !clubClaimed(club) || isSiteAdmin();
+    }
+
     // Parent club doc for subcollection rules. clubCol is 'clubs' or
     // 'clubs_dev' so prod and dev blocks share one implementation.
     function parentClub(clubCol, clubId) {
@@ -177,14 +198,18 @@ service cloud.firestore {
     }
 
     // Club-doc fields only a manager may change once the club is claimed,
-    // SPLIT by tier (2026-08-14 three-tier model):
-    //   STRUCTURAL — canManageClub only (roster uid or site admin):
-    //     joinMode, features, discordWebhookMask, managerUids.
+    // SPLIT by tier — three field-tiers as of 2026-08-16 (a separate
+    // concept from the site_roles three-tier model above):
+    //   STRUCTURAL  — canManageClub only (roster uid or site admin), the
+    //     "club island" a mod runs day to day: joinMode, features.
     //   OPERATIONAL — canOperateClub (adds the site moderator):
     //     nextMeetingAt, nextMeetingNotes.
+    //   RESTRICTED  — canAdministerClub (site admin only, NOT the club
+    //     roster, 2026-08-16 tightening): discordWebhookMask, managerUids.
+    //     See canAdministerClub's comment above for the rationale.
     // ⚠️ Keep these lists in step with STRUCTURAL_CLUB_FIELDS /
-    // OPERATIONAL_CLUB_FIELDS in site/clubs.js (MANAGED_CLUB_FIELDS is
-    // their union; the test suite pins all three).
+    // OPERATIONAL_CLUB_FIELDS / RESTRICTED_CLUB_FIELDS in site/clubs.js
+    // (MANAGED_CLUB_FIELDS is their union; the test suite pins all four).
     // Everything else stays writable exactly as before, because member (and
     // legacy/anonymous) actions write the club doc too: joins/leaves touch
     // memberSlugs/invitedSlugs/memberCount, host-leave transfers touch
@@ -193,12 +218,20 @@ service cloud.firestore {
     // name/description/emoji/promptsEnabled. Those stay display-layer.
     function clubStructuralFieldsChanged() {
       return request.resource.data.diff(resource.data).affectedKeys().hasAny(
-        ['joinMode', 'features', 'discordWebhookMask', 'managerUids']);
+        ['joinMode', 'features']);
     }
 
     function clubOperationalFieldsChanged() {
       return request.resource.data.diff(resource.data).affectedKeys().hasAny(
         ['nextMeetingAt', 'nextMeetingNotes']);
+    }
+
+    // RESTRICTED (2026-08-16): the Discord webhook mask and the manager
+    // roster itself — site admin only, never a club mod. See
+    // canAdministerClub() and RESTRICTED_CLUB_FIELDS in site/clubs.js.
+    function clubRestrictedFieldsChanged() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny(
+        ['discordWebhookMask', 'managerUids']);
     }
 
     // Read-doc fields gated the same way, split by tier:
@@ -500,7 +533,8 @@ service cloud.firestore {
       // hostDisplayName survive.
       allow update: if validClub() && validManagerUids()
                     && (!clubStructuralFieldsChanged() || canManageClub(resource.data))
-                    && (!clubOperationalFieldsChanged() || canOperateClub(resource.data));
+                    && (!clubOperationalFieldsChanged() || canOperateClub(resource.data))
+                    && (!clubRestrictedFieldsChanged() || canAdministerClub(resource.data));
       // Open on unclaimed clubs (deleteClub was always a UI-gated member
       // action no rule could check); once claimed, only a manager uid or the
       // site admin may delete the club doc.
@@ -534,17 +568,20 @@ service cloud.firestore {
       // ⚠️ `allow read: if false` is the security control, not an oversight —
       // same pattern as pipeline_requests. This doc holds the club's Discord
       // webhook URL, which is a CAPABILITY: anyone reading it can post to the
-      // club's channel. Browsers write it (managers) and never read it back;
-      // the club doc carries only a masked tail (discordWebhookMask) for
-      // display. The server-side Discord notifier and the announcements
-      // engine read/write here via the service account, which bypasses
-      // rules. Since 2026-08-14 writes and deletes are also uid-gated once
-      // the club is claimed (webhook save/clear are manager actions).
+      // club's channel. Browsers write it and never read it back; the club
+      // doc carries only a masked tail (discordWebhookMask) for display. The
+      // server-side Discord notifier and the announcements engine read/write
+      // here via the service account, which bypasses rules. Since 2026-08-14
+      // writes and deletes were manager-gated once claimed; since 2026-08-16
+      // that gate is RESTRICTED (canAdministerClub, site admin only) — a
+      // bound club host/mod can no longer set or clear the webhook, because
+      // it decides where club activity broadcasts (see canAdministerClub's
+      // comment above).
       match /settings/{settingId} {
         allow read: if false;
         allow create, update: if validClubSettings()
-                              && canManageClub(parentClub('clubs', clubId));
-        allow delete: if canManageClub(parentClub('clubs', clubId));
+                              && canAdministerClub(parentClub('clubs', clubId));
+        allow delete: if canAdministerClub(parentClub('clubs', clubId));
       }
 
       // Untagged (club-wide) or read-section-tagged (see validPoll's caller,
@@ -685,7 +722,8 @@ service cloud.firestore {
                             && request.resource.data.managerUids.keys().hasOnly([request.auth.uid])));
       allow update: if validClub() && validManagerUids()
                     && (!clubStructuralFieldsChanged() || canManageClub(resource.data))
-                    && (!clubOperationalFieldsChanged() || canOperateClub(resource.data));
+                    && (!clubOperationalFieldsChanged() || canOperateClub(resource.data))
+                    && (!clubRestrictedFieldsChanged() || canAdministerClub(resource.data));
       allow delete: if canManageClub(resource.data);
 
       match /members/{memberId} {
@@ -711,8 +749,8 @@ service cloud.firestore {
       match /settings/{settingId} {
         allow read: if false;
         allow create, update: if validClubSettings()
-                              && canManageClub(parentClub('clubs_dev', clubId));
-        allow delete: if canManageClub(parentClub('clubs_dev', clubId));
+                              && canAdministerClub(parentClub('clubs_dev', clubId));
+        allow delete: if canAdministerClub(parentClub('clubs_dev', clubId));
       }
 
       // Mirrors /clubs/{clubId}/polls — see the capability/gating note there.
