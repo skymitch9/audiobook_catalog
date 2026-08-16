@@ -29,8 +29,23 @@ permissions:
   actions: write   # dispatch + list/watch promote.yml and deploy.yml runs
   checks: read     # `gh run watch` reads check-run status
 
+# ⚠️ DELIBERATELY NOT THE "promote" GROUP — that caused a DEADLOCK.
+#
+# This workflow's whole job is to DISPATCH promote.yml and watch it. When both
+# declared `group: "promote"` with cancel-in-progress: false, this run held the
+# group, the promote.yml run it dispatched queued behind it forever, and this
+# run sat waiting for a child that could never start. Observed 2026-08-16: 25
+# minutes in "Run the promote ceremony" with `prod` never moving, and the
+# dispatched run stuck at `pending` the whole time. Neither can ever finish.
+#
+# The original comment said "same group promote.yml uses — never race a manual
+# promote", and that instinct was right; the implementation made a parent wait
+# on its own child's lock. Serialising the actual WRITE is promote.yml's job
+# and it still has `group: "promote"` — nothing can race a manual promote. This
+# group only stops two verify-ceremonies running at once, which is all it ever
+# needed to do.
 concurrency:
-  group: "promote"   # same group promote.yml uses — never race a manual promote
+  group: "promote-verified"
   cancel-in-progress: false
 
 jobs:
