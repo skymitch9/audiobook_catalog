@@ -9,6 +9,7 @@ import {
 import { col } from './fb-env.js';
 import { coverUrl } from './covers-base.js';
 import { slugifyName } from './identity.js';
+import { describeActionError } from './permission-ux.js';
 
 export const MAX_ACTIVE_READS = 2;
 export const MAX_MILESTONES = 400;
@@ -309,7 +310,7 @@ export async function setReadSchedule(db, clubId, readId, dueAts) {
     await updateDoc(readRef, { milestones, scheduleUpdatedAt: serverTimestamp() });
     return { success: true };
   } catch (e) {
-    return { success: false, error: e.message };
+    return { success: false, error: describeActionError(e, { need: 'the host, moderator, or site moderator role' }) };
   }
 }
 
@@ -511,7 +512,7 @@ export async function startRead(db, clubId, input, session) {
     await refreshClubAvatar(db, clubId);
     return { success: true, readId: readRef.id };
   } catch (e) {
-    return { success: false, error: e.message };
+    return { success: false, error: describeActionError(e) };
   }
 }
 
@@ -586,7 +587,12 @@ export async function removeRead(db, clubId, readId) {
     await refreshClubAvatar(db, clubId);
     return { success: true };
   } catch (e) {
-    return { success: false, error: `Remove failed: ${e.message} — try a hard refresh and sign in again if this persists.` };
+    return {
+      success: false,
+      error: describeActionError(e, {
+        fallback: `Remove failed: ${e.message} — try a hard refresh and sign in again if this persists.`,
+      }),
+    };
   }
 }
 
@@ -601,7 +607,7 @@ export async function updateReadLabel(db, clubId, readId, label) {
     await updateDoc(doc(db, col('clubs'), clubId, 'reads', readId), { slotLabel: trimmed });
     return { success: true };
   } catch (e) {
-    return { success: false, error: e.message };
+    return { success: false, error: describeActionError(e) };
   }
 }
 
@@ -638,7 +644,13 @@ export async function finishRead(db, clubId, readId, status) {
     await refreshClubAvatar(db, clubId);
     return { success: true };
   } catch (e) {
-    return { success: false, error: `Finish failed: ${e.message} — try a hard refresh and sign in again if this persists.` };
+    return {
+      success: false,
+      error: describeActionError(e, {
+        need: 'the club host/moderator role, or site admin',
+        fallback: `Finish failed: ${e.message} — try a hard refresh and sign in again if this persists.`,
+      }),
+    };
   }
 }
 
@@ -680,7 +692,7 @@ export async function addTbrItem(db, clubId, book, session) {
     });
     return { success: true, itemId: itemRef.id };
   } catch (e) {
-    return { success: false, error: e.message };
+    return { success: false, error: describeActionError(e) };
   }
 }
 
@@ -690,7 +702,7 @@ export async function removeTbrItem(db, clubId, itemId) {
     await deleteDoc(doc(db, col('clubs'), clubId, 'tbr', itemId));
     return { success: true };
   } catch (e) {
-    return { success: false, error: e.message };
+    return { success: false, error: describeActionError(e) };
   }
 }
 
@@ -712,7 +724,7 @@ export async function toggleTbrVote(db, clubId, itemId, session) {
     });
     return { success: true };
   } catch (e) {
-    return { success: false, error: e.message };
+    return { success: false, error: describeActionError(e) };
   }
 }
 
@@ -754,7 +766,7 @@ export async function addComment(db, clubId, readId, input, session) {
     await updateDoc(doc(db, col('clubs'), clubId, 'reads', readId), { commentCount: increment(1) });
     return { success: true, commentId: commentRef.id };
   } catch (e) {
-    return { success: false, error: e.message };
+    return { success: false, error: describeActionError(e) };
   }
 }
 
@@ -780,7 +792,7 @@ export async function toggleReaction(db, clubId, readId, commentId, emoji, sessi
     });
     return { success: true };
   } catch (e) {
-    return { success: false, error: e.message };
+    return { success: false, error: describeActionError(e) };
   }
 }
 
@@ -796,7 +808,7 @@ export async function togglePin(db, clubId, readId, commentId) {
     });
     return { success: true };
   } catch (e) {
-    return { success: false, error: e.message };
+    return { success: false, error: describeActionError(e, { need: 'the host or moderator role' }) };
   }
 }
 
@@ -823,7 +835,7 @@ export async function addQuote(db, clubId, readId, input, session) {
     });
     return { success: true, quoteId: ref.id };
   } catch (e) {
-    return { success: false, error: e.message };
+    return { success: false, error: describeActionError(e) };
   }
 }
 
@@ -841,7 +853,7 @@ export async function deleteQuote(db, clubId, readId, quoteId) {
     await deleteDoc(doc(db, col('clubs'), clubId, 'reads', readId, 'quotes', quoteId));
     return { success: true };
   } catch (e) {
-    return { success: false, error: e.message };
+    return { success: false, error: describeActionError(e, { need: 'to be the person who saved it, or hold the host/moderator role' }) };
   }
 }
 
@@ -852,7 +864,7 @@ export async function deleteComment(db, clubId, readId, commentId) {
     await updateDoc(doc(db, col('clubs'), clubId, 'reads', readId), { commentCount: increment(-1) });
     return { success: true };
   } catch (e) {
-    return { success: false, error: e.message };
+    return { success: false, error: describeActionError(e, { need: 'to be the comment author, or hold the host/moderator role' }) };
   }
 }
 
@@ -894,7 +906,7 @@ export async function setProgress(db, clubId, readId, position, session, finishe
     });
     return { success: true };
   } catch (e) {
-    return { success: false, error: e.message };
+    return { success: false, error: describeActionError(e) };
   }
 }
 
@@ -923,7 +935,7 @@ export async function setChapterProgress(db, clubId, readId, chapterIndex, sessi
     });
     return { success: true };
   } catch (e) {
-    return { success: false, error: e.message };
+    return { success: false, error: describeActionError(e) };
   }
 }
 
@@ -1424,7 +1436,7 @@ export async function createPoll(db, clubId, input, session) {
     });
     return { success: true, pollId: ref.id };
   } catch (e) {
-    return { success: false, error: e.message };
+    return { success: false, error: describeActionError(e) };
   }
 }
 
@@ -1455,7 +1467,7 @@ export async function setPollStatus(db, clubId, pollId, status) {
     });
     return { success: true };
   } catch (e) {
-    return { success: false, error: e.message };
+    return { success: false, error: describeActionError(e, { need: 'the host or moderator role' }) };
   }
 }
 
@@ -1469,7 +1481,7 @@ export async function deletePoll(db, clubId, pollId) {
     await deleteDoc(doc(db, col('clubs'), clubId, 'polls', pollId));
     return { success: true };
   } catch (e) {
-    return { success: false, error: e.message };
+    return { success: false, error: describeActionError(e, { need: 'the host or moderator role' }) };
   }
 }
 
@@ -1494,7 +1506,7 @@ export async function castVote(db, clubId, pollId, optionIndex, session) {
     });
     return { success: true };
   } catch (e) {
-    return { success: false, error: e.message };
+    return { success: false, error: describeActionError(e) };
   }
 }
 
@@ -1696,7 +1708,7 @@ export async function rateBook(db, clubId, readId, rating, comment, session) {
     storeMyRatingLocally(clubId, readId, slug, rating, commentCheck.comment);
     return { success: true };
   } catch (e) {
-    return { success: false, error: e.message };
+    return { success: false, error: describeActionError(e) };
   }
 }
 
@@ -1713,7 +1725,7 @@ export async function revealRatings(db, clubId, readId) {
     });
     return { success: true };
   } catch (e) {
-    return { success: false, error: e.message };
+    return { success: false, error: describeActionError(e, { need: 'the club host/moderator role, or site admin' }) };
   }
 }
 
@@ -1745,7 +1757,7 @@ export async function deleteRating(db, clubId, readId, slug) {
     });
     return { success: true };
   } catch (e) {
-    return { success: false, error: e.message };
+    return { success: false, error: describeActionError(e) };
   }
 }
 
@@ -1856,7 +1868,7 @@ export async function castRsvp(db, clubId, response, meetingAt, session) {
     });
     return { success: true };
   } catch (e) {
-    return { success: false, error: e.message };
+    return { success: false, error: describeActionError(e) };
   }
 }
 

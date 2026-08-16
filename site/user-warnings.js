@@ -10,6 +10,7 @@
 import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, query, where, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 import { col } from './fb-env.js';
 import { bookIdFromTitle } from './reviews.js';
+import { describeActionError } from './permission-ux.js';
 
 export const MAX_WARNING_LABEL = 80;
 
@@ -39,7 +40,7 @@ export async function addUserWarning(db, bookTitle, label, session) {
     });
     return { success: true, id: docId };
   } catch (e) {
-    return { success: false, error: e.message };
+    return { success: false, error: describeActionError(e) };
   }
 }
 
@@ -75,7 +76,7 @@ export async function requestWarningCheck(db, bookTitle, session) {
     });
     return { success: true };
   } catch (e) {
-    return { success: false, error: e.message };
+    return { success: false, error: describeActionError(e) };
   }
 }
 
@@ -100,6 +101,6 @@ export async function deleteUserWarning(db, warning, session) {
     await deleteDoc(doc(db, col('user_content_warnings'), warning.id));
     return { success: true };
   } catch (e) {
-    return { success: false, error: e.message };
+    return { success: false, error: describeActionError(e) };
   }
 }

@@ -144,6 +144,7 @@
   import {
     watchStatus, loadHistory, requestRun, getToken, setToken,
   } from './pipeline-status.js';
+  import { describeActionError } from './permission-ux.js';
 
   const firebaseConfig = {
     apiKey: "AIzaSyDgAblkxzVxl7nFbd7jXOo6PpuNPsJw11Y",
@@ -165,6 +166,12 @@
     console.warn('Firebase init failed:', e);
   }
 
+  // Human-sentence permission UX (docs/info/ROLES.md §1e, owner requirement
+  // 2026-08-16): never a bare denial, and never the SAME wording for "not
+  // signed in" as for "signed in but not an admin" — those need different
+  // fixes (sign in, vs. ask an admin), and showing one message for both
+  // used to tell an already-signed-in person to "sign in as admin" as if
+  // they weren't signed in at all.
   function checkAccess() {
     const content = document.getElementById('admin-content');
     const session = getSession();
@@ -172,9 +179,23 @@
     // Shared with the nav link in identity.js so the two can never disagree.
     // Presentation only - see the isAdmin() docblock.
     if (!isAdmin(session)) {
-      content.innerHTML = '<div class="denied">⛔ Access denied. Sign in as admin.</div>';
       document.getElementById('pipeline-section').hidden = true;
       document.getElementById('site-role-section').hidden = true;
+      content.innerHTML = '';
+      const box = document.createElement('div');
+      box.className = 'denied';
+      if (!session) {
+        box.textContent = 'This page is for site admins. Sign in above, then reload — an admin account will unlock it.';
+      } else {
+        const p1 = document.createElement('p');
+        p1.textContent = `You're signed in as ${session.displayName}, but this page needs the site admin role.`;
+        const p2 = document.createElement('p');
+        p2.style.cssText = 'margin-top:8px;font-size:.85rem;color:#9fb0c6';
+        p2.textContent = 'Ask an admin if you think you should have access.';
+        box.appendChild(p1);
+        box.appendChild(p2);
+      }
+      content.appendChild(box);
       return;
     }
 
@@ -260,7 +281,7 @@
         msg.textContent = await requestRun(db, session.displayName);
         msg.className = 'pl-msg pl-msg--ok';
       } catch (e) {
-        msg.textContent = e.message || String(e);
+        msg.textContent = describeActionError(e, { fallback: e.message || String(e) });
         msg.className = 'pl-msg pl-msg--err';
       } finally {
         // Long enough that an impatient second click can't stack requests; the

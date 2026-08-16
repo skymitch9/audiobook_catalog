@@ -8,6 +8,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 import { col } from './fb-env.js';
 import { slugifyName } from './identity.js';
+import { describeActionError } from './permission-ux.js';
 
 /**
  * Validate a club name. 3-40 chars after trimming.
@@ -85,7 +86,7 @@ export async function createClub(db, input, session, uid = null) {
     });
     return { success: true, clubId: clubRef.id };
   } catch (e) {
-    return { success: false, error: e.message };
+    return { success: false, error: describeActionError(e) };
   }
 }
 
@@ -334,7 +335,7 @@ export async function claimManagerRole(db, clubId, uid, session, role) {
         error: 'This club is already secured. Ask the site admin to add your account.',
       };
     }
-    return { success: false, error: e.message };
+    return { success: false, error: describeActionError(e) };
   }
 }
 
@@ -389,7 +390,7 @@ export async function setClubDiscordWebhook(db, clubId, url, session) {
     });
     return { success: true };
   } catch (e) {
-    return { success: false, error: e.message };
+    return { success: false, error: describeActionError(e, { need: 'the site admin role' }) };
   }
 }
 
@@ -403,7 +404,7 @@ export async function clearClubDiscordWebhook(db, clubId) {
     await updateDoc(doc(db, col('clubs'), clubId), { discordWebhookMask: '' });
     return { success: true };
   } catch (e) {
-    return { success: false, error: e.message };
+    return { success: false, error: describeActionError(e, { need: 'the site admin role' }) };
   }
 }
 
@@ -465,7 +466,7 @@ export async function updateClubDetails(db, clubId, input) {
     await updateDoc(doc(db, col('clubs'), clubId), updates);
     return { success: true };
   } catch (e) {
-    return { success: false, error: e.message };
+    return { success: false, error: describeActionError(e, { need: 'the host or moderator role for that setting' }) };
   }
 }
 
@@ -497,7 +498,7 @@ export async function dismissRateNudge(db, clubId, slug, readId) {
     await updateDoc(ref, { dismissedRateNudges: arrayUnion(readId) });
     return { success: true };
   } catch (e) {
-    return { success: false, error: e.message };
+    return { success: false, error: describeActionError(e) };
   }
 }
 
@@ -531,7 +532,7 @@ export async function joinClub(db, clubId, session) {
     }
     return { success: true, clubId };
   } catch (e) {
-    return { success: false, error: e.message };
+    return { success: false, error: describeActionError(e) };
   }
 }
 
@@ -582,7 +583,7 @@ export async function leaveClub(db, clubId, session) {
     await deleteDoc(doc(db, col('clubs'), clubId, 'members', slug));
     return { success: true, outcome };
   } catch (e) {
-    return { success: false, error: e.message };
+    return { success: false, error: describeActionError(e) };
   }
 }
 
@@ -607,7 +608,7 @@ export async function removeMemberBySlug(db, clubId, targetSlug) {
     await deleteDoc(doc(db, col('clubs'), clubId, 'members', targetSlug));
     return { success: true };
   } catch (e) {
-    return { success: false, error: e.message };
+    return { success: false, error: describeActionError(e, { need: 'the host or moderator role' }) };
   }
 }
 
@@ -631,7 +632,7 @@ export async function setMemberRole(db, clubId, targetSlug, role) {
     await setDoc(memberRef, { ...memberSnap.data(), role });
     return { success: true };
   } catch (e) {
-    return { success: false, error: e.message };
+    return { success: false, error: describeActionError(e, { need: 'the host role' }) };
   }
 }
 
@@ -650,7 +651,7 @@ export async function requestToJoin(db, clubId, session) {
     });
     return { success: true };
   } catch (e) {
-    return { success: false, error: e.message };
+    return { success: false, error: describeActionError(e) };
   }
 }
 
@@ -686,7 +687,7 @@ export async function acceptRequest(db, clubId, targetSlug) {
     await deleteDoc(reqRef);
     return { success: true };
   } catch (e) {
-    return { success: false, error: e.message };
+    return { success: false, error: describeActionError(e, { need: 'the host or moderator role' }) };
   }
 }
 
@@ -696,7 +697,7 @@ export async function rejectRequest(db, clubId, targetSlug) {
     await deleteDoc(doc(db, col('clubs'), clubId, 'requests', targetSlug));
     return { success: true };
   } catch (e) {
-    return { success: false, error: e.message };
+    return { success: false, error: describeActionError(e, { need: 'the host or moderator role' }) };
   }
 }
 
@@ -728,7 +729,7 @@ export async function inviteMember(db, clubId, displayName) {
     });
     return { success: true };
   } catch (e) {
-    return { success: false, error: e.message };
+    return { success: false, error: describeActionError(e, { need: 'the host or moderator role' }) };
   }
 }
 
@@ -757,7 +758,7 @@ export async function acceptInvite(db, clubId, session) {
     });
     return { success: true };
   } catch (e) {
-    return { success: false, error: e.message };
+    return { success: false, error: describeActionError(e) };
   }
 }
 
@@ -776,7 +777,7 @@ export async function declineInvite(db, clubId, session) {
     await deleteDoc(doc(db, col('clubs'), clubId, 'members', slug));
     return { success: true };
   } catch (e) {
-    return { success: false, error: e.message };
+    return { success: false, error: describeActionError(e) };
   }
 }
 
@@ -792,6 +793,6 @@ export async function deleteClub(db, clubId) {
     await deleteDoc(doc(db, col('clubs'), clubId));
     return { success: true };
   } catch (e) {
-    return { success: false, error: e.message };
+    return { success: false, error: describeActionError(e, { need: 'the host role' }) };
   }
 }

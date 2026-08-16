@@ -16,6 +16,7 @@
 import {
   collection, doc, addDoc, onSnapshot, query, orderBy, limit, getDocs,
 } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+import { describeActionError } from './permission-ux.js';
 
 const TOKEN_KEY = 'pipelineTriggerToken';
 
@@ -144,7 +145,7 @@ export function watchStatus(db, el) {
       el.innerHTML = `<div class="pl-card pl-card--failed">
         <div class="pl-head"><span class="pl-dot pl-dot--failed"></span><strong>Automated Book Pipeline</strong>
         <span class="pl-state">STATUS UNAVAILABLE</span></div>
-        <div class="pl-error">${esc(err.message || err)}</div></div>`;
+        <div class="pl-error">${esc(describeActionError(err, { need: 'the site admin role' }))}</div></div>`;
     },
   );
 }
@@ -174,7 +175,7 @@ export async function loadHistory(db, el, n = 8) {
         <tbody>${rows}</tbody>
       </table>`;
   } catch (e) {
-    el.innerHTML = `<p class="pl-hint">Could not load history: ${esc(e.message || e)}</p>`;
+    el.innerHTML = `<p class="pl-hint">Could not load history: ${esc(describeActionError(e, { need: 'the site admin role' }))}</p>`;
   }
 }
 

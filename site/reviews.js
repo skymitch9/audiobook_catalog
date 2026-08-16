@@ -3,6 +3,7 @@
 
 import { doc, setDoc, getDoc, deleteDoc, serverTimestamp, collection, getDocs } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 import { col } from './fb-env.js';
+import { describeActionError } from './permission-ux.js';
 
 /**
  * Derive a book identifier by slugifying the title.
@@ -70,7 +71,7 @@ export async function submitReview(db, bookId, displayName, rating, text) {
 
     return { success: true };
   } catch (e) {
-    return { success: false, error: e.message };
+    return { success: false, error: describeActionError(e) };
   }
 }
 
@@ -89,10 +90,7 @@ export async function deleteReview(db, bookId, displayName) {
     await deleteDoc(doc(db, col('reviews'), docId));
     return { success: true };
   } catch (e) {
-    if (e && (e.code === 'permission-denied' || /permission/i.test(e.message || ''))) {
-      return { success: false, error: 'Only the site admin can remove reviews.' };
-    }
-    return { success: false, error: e.message };
+    return { success: false, error: describeActionError(e, { need: 'the site admin role' }) };
   }
 }
 
