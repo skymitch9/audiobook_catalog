@@ -40723,7 +40723,12 @@ A Macmillan Audio production from Tor Books" data-library-work-id="" data-librar
              most books, so both rows start hidden and only appear (see
              openModal()) when the payload actually carries a value. -->
         <div class="label" id="m-universe-label" style="display:none">Universe</div><div id="m-universe" style="display:none"></div>
-        <div class="label" id="m-gap-label" style="display:none">Series Gaps</div><div id="m-gap" style="display:none"></div>
+        <!-- ⚠️ Labelled "In this series", NOT "Series gaps": the value only
+             names a gap when one exists between owned volumes, which is 4 of
+             145 series in the live catalog. A "gaps" label on "Volumes 1-16,
+             16.5 owned" reads as a claim about completeness — the one claim
+             app/core/series_gaps.py exists to never make. -->
+        <div class="label" id="m-gap-label" style="display:none">In This Series</div><div id="m-gap" style="display:none"></div>
         <div class="label">Author</div><div id="m-author"></div>
         <div class="label">Narrator</div><div id="m-narrator"></div>
         <div class="label">Year</div><div id="m-year"></div>
