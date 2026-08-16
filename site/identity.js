@@ -79,9 +79,10 @@ function mirrorUser(user, marker) {
   localStorage.setItem('ab_identity_session', 'active');
   localStorage.setItem('ab_identity_method', 'google');
   localStorage.setItem('ab_identity_photo', user.photoURL || '');
-  // Captured so isAdmin() can key on the Google account rather than a
-  // display name, which the user can change in their Google profile at any
-  // time and which would silently drop admin presentation if it did.
+  // ⚠️ Captured for DISPLAY only (and community.html's owner link). This is
+  // no longer what any admin decision keys on: as of 2026-08-16 resolveAdmin()
+  // reads the email off the live Firebase token instead, because anything in
+  // here is editable from devtools and therefore proves nothing.
   localStorage.setItem('ab_identity_email', user.email || '');
   localStorage.setItem(LIVE_MARKER, marker || '1');
 }

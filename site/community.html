@@ -240,8 +240,17 @@ html[data-theme="cyberpunk"] .um-name{letter-spacing:1px}
   const userCountEl = document.getElementById('user-count');
 
   // "Estate admin" entry point, shown to the owner only. A convenience link,
-  // NOT access control — heygabi.ai/admin is its own gate (and the identity
-  // mirror is spoofable by design; see isAdmin's warning in identity.js).
+  // NOT access control — heygabi.ai/admin is its own gate, and this reads the
+  // localStorage mirror, which is editable from devtools. Spoofing it shows
+  // you a link to a page that will then refuse you; it grants nothing.
+  //
+  // ⚠️ Deliberately NOT switched to resolveAdmin() with the rest of the admin
+  // gates on 2026-08-16. Different question: this asks "are you the OWNER"
+  // (for an off-site link), not "do you hold the site admin role". It is also
+  // synchronous, and making it async would delay the page's first render to
+  // decide whether to show one convenience link. If this ever gates anything
+  // on THIS site, it must move to resolveAdmin() — see identity.js.
+  //
   // Community users are display-name-only, so there is no email to carry in
   // a #member fragment; the link lands on the directory itself.
   const _session = getSession();
