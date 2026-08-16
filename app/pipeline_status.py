@@ -109,7 +109,10 @@ def _push(force: bool = False) -> None:
 # Public API — all no-ops when Firestore is unavailable
 # --------------------------------------------------------------------------
 def start_run(trigger: str = "scheduled") -> str:
-    """Begin a run. trigger: 'scheduled' | 'manual' | 'cli'."""
+    """Begin a run. trigger: 'scheduled' | 'manual' | 'cli' | 'reactive'
+    ('reactive' = app/tools/fs_watcher.py fired on a settled library
+    change; like every non-scheduled trigger it fails immediately when the
+    pipeline lock is held rather than deferring)."""
     global _run_id, _run_started, _state
     try:
         _run_started = _now()
@@ -338,9 +341,11 @@ def force_upload_result(ok: bool, configured: bool, reachable: bool | None, mess
 def blocked_run(trigger: str, holder_desc: str) -> None:
     """A run refused to start outright because app/core/pipeline_lock is
     held by someone else. Used by every non-scheduled entry point (manual,
-    --rebuild-only, the watcher's manual trigger) — none of them retry, they
-    fail immediately. See deferral_abandoned() for the scheduled trigger,
-    which retries for up to 2h before giving up."""
+    --rebuild-only, the watcher's manual trigger, fs_watcher's 'reactive'
+    trigger) — none of them retry in-process, they fail immediately
+    (fs_watcher then retries on its own next tick, holding its pending
+    state). See deferral_abandoned() for the scheduled trigger, which
+    retries for up to 2h before giving up."""
     global _state
     try:
         now = _now()
