@@ -66,6 +66,7 @@ import {
   signInWithGoogle, signOutGoogle, handleRedirectResult, renderIdentityBar,
   getEstateStatus, isEstateApproved, renderDevSiteLink,
   getLiveUser, getSiteRole, isSiteAdmin, isSiteModerator,
+  resolveAdmin, whenAdmin,
 } from '../identity.js';
 
 const fakeApp = {};
@@ -78,9 +79,29 @@ function setLegacyMirror(name, method = 'google', email = '') {
   // no ab_identity_live marker — that is what makes it legacy
 }
 
+/**
+ * A mirror row that LOOKS fully signed in — marker and all. Used by the admin
+ * tests to prove the mirror is not consulted: everything a devtools edit could
+ * write is here, and it still grants nothing.
+ */
+function setLiveMirror(name, email = '') {
+  localStorage.setItem('ab_identity_name', name);
+  localStorage.setItem('ab_identity_session', 'active');
+  localStorage.setItem('ab_identity_method', 'google');
+  localStorage.setItem('ab_identity_email', email);
+  localStorage.setItem('ab_identity_live', '1');
+}
+
 beforeEach(() => {
   localStorage.clear();
   sessionStorage.clear();
+  // Also drops identity.js's module-level cached admin answer, which storage
+  // clearing alone cannot reach — without this an admin resolved in one test
+  // would leak into the next.
+  logout();
+  // NOT reset: authCallback. attachAuthMirror only ever subscribes once per
+  // module load, so clearing the ref here would strand every later test that
+  // drives the mirror listener.
   mockStore = {};
   signOutSpy.mockClear();
   signInWithPopupMock.mockReset();
@@ -386,42 +407,156 @@ describe('Residue robustness — the owner-found failure modes', () => {
   });
 });
 
-describe('isAdmin', () => {
-  // PRESENTATION ONLY — see the isAdmin docblock; rules are shape-only (§4a)
-  it('accepts the Google account by email, whatever the display name is', () => {
-    expect(isAdmin({ displayName: 'Skylar', email: 'nbaslamking@gmail.com' })).toBe(true);
-    // Renaming the Google profile must not silently drop admin
-    expect(isAdmin({ displayName: 'totally new name', email: 'nbaslamking@gmail.com' })).toBe(true);
-  });
+describe('Admin gate — the rules-enforced role, not a name (2026-08-16)', () => {
+  // Until 2026-08-16, isAdmin() was:
+  //     ADMIN_EMAILS.includes(email) || ADMIN_NAMES.includes(name)
+  // reading the localStorage MIRROR, where ADMIN_NAMES was ['!Sky','Skylar'].
+  // Anyone could rename their Google profile — or type one key into devtools —
+  // and every admin gate on the site opened. It now answers from
+  // site_roles/{uid}, the same doc firestore.rules enforces, plus an
+  // email-only owner break-glass keyed on the LIVE token.
+  const ADMIN_UID = 'tX912OtdBheUhIe4kLDsGuJwE3D2';
+  const OWNER_EMAIL = 'nbaslamking@gmail.com';
 
-  it('is case- and whitespace-insensitive on the email', () => {
-    expect(isAdmin({ displayName: 'x', email: '  NBaslamKing@Gmail.com ' })).toBe(true);
-  });
+  /** Drive one resolveAdmin() to completion by publishing an auth state. */
+  function resolveWith(user, db = {}) {
+    const p = resolveAdmin(db, fakeApp);
+    authCallback(user);
+    return p;
+  }
 
-  it('still accepts the retired passphrase admin name (legacy sessions)', () => {
-    expect(isAdmin({ displayName: '!Sky', email: '' })).toBe(true);
-  });
-
-  it('rejects everyone else', () => {
-    expect(isAdmin({ displayName: 'Somebody', email: 'someone@example.com' })).toBe(false);
-    expect(isAdmin({ displayName: '', email: '' })).toBe(false);
-    expect(isAdmin(null)).toBe(false);
-  });
-
-  it('does not admit a near-miss name or email', () => {
-    expect(isAdmin({ displayName: '!Sky2', email: '' })).toBe(false);
-    expect(isAdmin({ displayName: 'sky', email: '' })).toBe(false);
-    expect(isAdmin({ displayName: '', email: 'nbaslamking@gmail.com.evil.com' })).toBe(false);
-  });
-
-  it('reads the stored session when called with no argument', () => {
-    localStorage.setItem('ab_identity_name', 'Skylar');
-    localStorage.setItem('ab_identity_session', 'active');
-    localStorage.setItem('ab_identity_email', 'nbaslamking@gmail.com');
-    expect(isAdmin()).toBe(true);
-    localStorage.setItem('ab_identity_email', 'nope@example.com');
-    localStorage.setItem('ab_identity_name', 'Nope');
+  it('defaults to NOT admin before anything resolves — the honest default', () => {
+    // The whole point of the sync/async split: an unresolved gate is closed.
     expect(isAdmin()).toBe(false);
+  });
+
+  it('grants admin for a site_roles doc saying admin, and isAdmin() then reads it', async () => {
+    mockStore[`site_roles/${ADMIN_UID}`] = { role: 'admin' };
+    expect(await resolveWith({ uid: ADMIN_UID, email: 'someone@example.com' })).toBe(true);
+    expect(isAdmin()).toBe(true);
+  });
+
+  // ⚠️ THE REGRESSION TEST. This is the exact spoof the old code accepted.
+  it('REJECTS a display name that used to be on ADMIN_NAMES', async () => {
+    setLiveMirror('Skylar', 'attacker@example.com');
+    // A real live session, a real uid — just no role doc.
+    expect(await resolveWith({ uid: 'uid-attacker', displayName: 'Skylar', email: 'attacker@example.com' })).toBe(false);
+    expect(isAdmin()).toBe(false);
+
+    logout();
+    setLiveMirror('!Sky', '');
+    expect(await resolveWith({ uid: 'uid-attacker2', displayName: '!Sky', email: '' })).toBe(false);
+    expect(isAdmin()).toBe(false);
+  });
+
+  it('ignores the localStorage mirror entirely — even an owner email in it', async () => {
+    // The mirror is devtools-editable, so it proves nothing. Only the live
+    // token's email can trip the break-glass.
+    setLiveMirror('Skylar', OWNER_EMAIL);
+    expect(await resolveWith({ uid: 'uid-attacker', displayName: 'Skylar', email: 'attacker@example.com' })).toBe(false);
+  });
+
+  it('honours the owner break-glass on the LIVE token email, with no role doc at all', async () => {
+    // The incident case: site_roles empty/broken, owner still needs the page
+    // that fixes site_roles.
+    expect(mockStore[`site_roles/${ADMIN_UID}`]).toBeUndefined();
+    expect(await resolveWith({ uid: ADMIN_UID, email: OWNER_EMAIL })).toBe(true);
+  });
+
+  it('is case- and whitespace-insensitive on the break-glass email', async () => {
+    expect(await resolveWith({ uid: ADMIN_UID, email: '  NBaslamKing@Gmail.com ' })).toBe(true);
+  });
+
+  it('does not admit a near-miss break-glass email', async () => {
+    expect(await resolveWith({ uid: 'uid-evil', email: 'nbaslamking@gmail.com.evil.com' })).toBe(false);
+  });
+
+  it('rejects a non-admin role, a missing role, and a signed-out session', async () => {
+    mockStore['site_roles/uid-mod'] = { role: 'moderator' };
+    expect(await resolveWith({ uid: 'uid-mod', email: 'mod@example.com' })).toBe(false);
+
+    logout();
+    expect(await resolveWith({ uid: 'uid-nobody', email: 'nobody@example.com' })).toBe(false);
+
+    logout();
+    expect(await resolveWith(null)).toBe(false);
+  });
+
+  it('rejects a legacy/stub mirror — a name with no live account behind it', async () => {
+    // The dev-lane stub and v1 legacy captures both land here: getLiveUser
+    // resolves null, so there is no uid to look a role up for.
+    setLegacyMirror('Skylar', 'google', OWNER_EMAIL);
+    expect(await resolveWith(null)).toBe(false);
+  });
+
+  it('FAILS CLOSED when the role read throws', async () => {
+    // "We could not tell" must never render as admin.
+    Object.defineProperty(mockStore, `site_roles/${ADMIN_UID}`, {
+      configurable: true,
+      get() { throw new Error('permission-denied'); },
+    });
+    expect(await resolveWith({ uid: ADMIN_UID, email: 'someone@example.com' })).toBe(false);
+    expect(isAdmin()).toBe(false);
+  });
+
+  it('caches: N gates on a page cost ONE role read', async () => {
+    mockStore[`site_roles/${ADMIN_UID}`] = { role: 'admin' };
+    const first = resolveAdmin({}, fakeApp);
+    const second = resolveAdmin({}, fakeApp);
+    expect(second).toBe(first); // same in-flight promise, not a second read
+    authCallback({ uid: ADMIN_UID, email: 'someone@example.com' });
+    expect(await first).toBe(true);
+    expect(await resolveAdmin({}, fakeApp)).toBe(true); // served from cache
+  });
+
+  it('logout() forgets the cached admin answer', async () => {
+    mockStore[`site_roles/${ADMIN_UID}`] = { role: 'admin' };
+    expect(await resolveWith({ uid: ADMIN_UID })).toBe(true);
+    expect(isAdmin()).toBe(true);
+    logout();
+    expect(isAdmin()).toBe(false);
+  });
+
+  it('a sign-in by a different account drops the previous admin answer', async () => {
+    mockStore[`site_roles/${ADMIN_UID}`] = { role: 'admin' };
+    expect(await resolveWith({ uid: ADMIN_UID })).toBe(true);
+    // mirrorUser() runs on every auth publication; a new person invalidates it
+    signInWithPopupMock.mockResolvedValue({
+      user: { uid: 'uid-other', displayName: 'Someone', email: 'other@example.com', photoURL: '' },
+    });
+    await signInWithGoogle(fakeApp);
+    expect(isAdmin()).toBe(false);
+  });
+
+  it('whenAdmin runs its callback only for a confirmed admin', async () => {
+    mockStore[`site_roles/${ADMIN_UID}`] = { role: 'admin' };
+    const shown = vi.fn();
+    const p1 = whenAdmin({}, fakeApp, shown);
+    authCallback({ uid: ADMIN_UID });
+    await p1;
+    expect(shown).toHaveBeenCalledTimes(1);
+
+    logout();
+    const notShown = vi.fn();
+    const p2 = whenAdmin({}, fakeApp, notShown);
+    authCallback({ uid: 'uid-nobody' });
+    await p2;
+    expect(notShown).not.toHaveBeenCalled();
+  });
+
+  it('the client-side ADMIN_NAMES list is gone from the module', async () => {
+    const mod = await import('../identity.js');
+    expect(mod.ADMIN_NAMES).toBeUndefined();
+    // ADMIN_EMAILS survives ONLY as the owner break-glass — email, never name.
+    expect(mod.ADMIN_EMAILS).toEqual([OWNER_EMAIL]);
+  });
+
+  it('warns loudly if called with the retired isAdmin(session) signature', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    isAdmin({ displayName: 'Skylar', email: OWNER_EMAIL });
+    expect(warn).toHaveBeenCalled();
+    expect(String(warn.mock.calls[0][0])).toContain('isAdmin()');
+    warn.mockRestore();
   });
 });
 

@@ -71,6 +71,10 @@ function sweepMirror() {
  * ab_identity_* keys this writer does not own (v1 residue included). */
 function mirrorUser(user, marker) {
   sweepMirror();
+  // A different person may now be signed in — drop any cached admin answer so
+  // the next resolveAdmin() asks site_roles about THIS uid. (Defined in the
+  // admin section below; hoisted.)
+  resetAdminCache();
   localStorage.setItem('ab_identity_name', user.displayName || user.email);
   localStorage.setItem('ab_identity_session', 'active');
   localStorage.setItem('ab_identity_method', 'google');
@@ -86,12 +90,14 @@ function mirrorUser(user, marker) {
  * Clear the mirror — the WHOLE ab_identity_* family, tagged or not, so a
  * sign-out always lands in a truly signed-out UI whatever residue any lane's
  * code left behind. Public as `logout()` for legacy sessions and tests.
- * Also drops the per-session estate-approval cache: a signed-out (or
- * revoked-and-signed-out) person must not keep a cached "approved".
+ * Also drops the per-session estate-approval cache and the cached admin
+ * answer: a signed-out (or revoked-and-signed-out) person must not keep a
+ * cached "approved", nor a cached "admin".
  */
 export function logout() {
   sweepMirror();
   clearEstateCache();
+  resetAdminCache();
 }
 
 let _mirrorAttached = false;
@@ -197,35 +203,161 @@ export function getSession() {
   return { displayName: name, photoURL, method, email, legacy };
 }
 
-// Accounts treated as admin. Both lanes (dev and prod) use the same list —
-// they are the same person and the same Firebase project.
-//   - emails come from Google SSO (stable; survives a display-name change)
-//   - names cover retired passphrase identities that may live on as legacy
-//     sessions until their one-time Google upgrade
-export const ADMIN_EMAILS = ['nbaslamking@gmail.com'];
-export const ADMIN_NAMES = ['!Sky', 'Skylar'];
+// ==================== Admin — ONE source of truth ====================
+//
+// Admin is a ROLE, not a name. The answer comes from site_roles/{uid} — the
+// very doc firestore.rules consults (see getSiteRole further down) — so what
+// the UI offers and what the server allows agree by construction.
+//
+// ⚠️ What this replaced, 2026-08-16. isAdmin() used to be:
+//
+//     return ADMIN_EMAILS.includes(email) || ADMIN_NAMES.includes(name);
+//
+// where `name` was the Google DISPLAY NAME read out of the localStorage
+// mirror, matched against a hardcoded ADMIN_NAMES = ['!Sky', 'Skylar'].
+// Anyone could rename their Google profile to "Skylar" — or simply type the
+// key into devtools — and every isAdmin() gate on the site opened for them.
+//
+// It was TRUE that this protected nothing at the time (rules were shape-only,
+// the pipeline trigger is token-protected), and the docblock said so. That is
+// exactly why it was dangerous: it was a loaded gun aimed at the NEXT feature.
+// An author reaching for the obvious-looking isAdmin() would inherit a
+// name-spoofable gate and nothing whatsoever would warn them. The list is gone.
 
 /**
- * Is this session an admin?
+ * Owner break-glass — EMAIL ONLY, deliberately.
  *
- * PRESENTATION ONLY — this decides what the UI shows, nothing more. The
- * session comes from a localStorage mirror, so anyone can set
- * ab_identity_name and pass this check. It is not, and cannot be, an access
- * control: enforcing it needs request.auth in firestore.rules, which §4a
- * (catalog-platform PLATFORM.md) deliberately rules out. Never rely on it to
- * protect an action that matters; the pipeline trigger is protected by a
- * token the client never ships instead. See the 2026-08-04 handoff in
- * docs/TODO.md.
+ * Why it exists: an incident that empties, corrupts or mis-writes site_roles
+ * must not lock the owner out of the admin page he needs in order to FIX
+ * site_roles. This mirrors the estate pattern (owner email always wins) and
+ * is the only reason a hardcoded value survives here.
  *
- * @param {{displayName?: string, email?: string}|null} [session] defaults to getSession()
+ * ⚠️ This is NOT a general "admins" list. Do not add anybody else. Roles are
+ * granted at heygabi.ai/admin, or scripts/seed_site_admin.py as break-glass.
+ *
+ * ⚠️ EMAIL only, never a display name, and never an email out of the
+ * localStorage mirror. resolveAdmin() reads it from getLiveUser(), i.e. from
+ * a verified Google ID token that Firebase Auth stands behind. A display name
+ * cannot appear here at all: Google lets anyone set theirs to any string, so
+ * it identifies nobody. A mirror email is devtools-editable, so it proves
+ * nothing either. Only the live token does.
+ */
+export const ADMIN_EMAILS = ['nbaslamking@gmail.com'];
+
+/**
+ * The cached answer. Starts false, and false is where every failure path
+ * leaves it — "we could not tell" must never render as admin.
+ */
+let _adminAnswer = false;
+
+/** One shared in-flight promise, so N gates on a page cost ONE Firestore read. */
+let _adminInFlight = null;
+
+/**
+ * Forget the cached answer. Called whenever WHO is signed in may have changed
+ * (sign-in, sign-out, account switch) so a previous person's admin answer can
+ * never survive into the next person's session.
+ */
+function resetAdminCache() {
+  _adminAnswer = false;
+  _adminInFlight = null;
+}
+
+/**
+ * Resolve — once per page load — whether the live session is a site admin.
+ *
+ * The async half of the pair. Order of questions:
+ *   1. Is there a LIVE Firebase user? No live user (signed out, or a legacy /
+ *      stub mirror with nothing verifiable behind it) means no admin, full
+ *      stop. This is the step the old code skipped entirely.
+ *   2. Owner break-glass on the token's verified email (see ADMIN_EMAILS).
+ *   3. Otherwise the rules-enforced role: site_roles/{uid}.role === 'admin',
+ *      read through roleForUser() — the same single implementation getSiteRole
+ *      uses, so the gate and the admin page's role panel cannot disagree.
+ *
+ * Never rejects. Every error path answers false — the gate stays closed.
+ *
+ * @param {import('firebase/firestore').Firestore} db
+ * @param {import('firebase/app').FirebaseApp} app
+ * @returns {Promise<boolean>}
+ */
+export function resolveAdmin(db, app) {
+  if (_adminInFlight) return _adminInFlight;
+  _adminInFlight = (async () => {
+    try {
+      const user = await getLiveUser(app);
+      if (!user) return false;
+      if (ADMIN_EMAILS.includes((user.email || '').trim().toLowerCase())) return true;
+      const role = await roleForUser(db, user);
+      return !!role && role.role === 'admin';
+    } catch (e) {
+      return false; // fail closed — no answer is not a yes
+    }
+  })().then((ok) => {
+    _adminAnswer = ok;
+    return ok;
+  });
+  return _adminInFlight;
+}
+
+/**
+ * The admin answer, synchronously, from the cache resolveAdmin() filled.
+ *
+ * WHAT THIS IS: a read of the rules-enforced site_roles/{uid} role (plus the
+ * owner break-glass above), fetched once per page load.
+ *
+ * WHAT THIS IS NOT:
+ *   - NOT a list. Do not re-add ADMIN_NAMES, a testers array, or any other
+ *     client-side roster. That was the bug this replaced; see the section
+ *     header. If you want to grant somebody admin, grant them the ROLE.
+ *   - NOT keyed on display name. Nothing in this module is, any more.
+ *   - NOT an access control by itself. It decides what the UI SHOWS. What the
+ *     server ALLOWS is decided by firestore.rules reading the same site_roles
+ *     doc, and by the token guarding the pipeline trigger. Those are the
+ *     enforcement; this exists so we do not offer a control that would be
+ *     refused. Do keep it honest anyway — it is now the same answer.
+ *   - NOT answerable before resolveAdmin() has settled.
+ *
+ * ⚠️ Returns FALSE until resolveAdmin(db, app) settles, on purpose. Two ways
+ * to get this wrong were rejected:
+ *   - defaulting to TRUE (or rendering first and hiding after) flashes admin
+ *     controls at every visitor for the length of a Firestore read;
+ *   - blocking the page on that read delays sign-in and first paint for
+ *     everyone, to answer a question that concerns one person.
+ * So: every admin-only control ships HIDDEN in its markup and is REVEALED on
+ * resolve — never hidden after the fact. A caller who forgets to resolve gets
+ * "not admin", which hides a control that should have shown: visible,
+ * reportable, and harmless. The opposite default is not.
+ *
  * @returns {boolean}
  */
-export function isAdmin(session) {
-  const s = session === undefined ? getSession() : session;
-  if (!s) return false;
-  const email = (s.email || '').trim().toLowerCase();
-  const name = (s.displayName || '').trim();
-  return ADMIN_EMAILS.includes(email) || ADMIN_NAMES.includes(name);
+export function isAdmin(...args) {
+  if (args.length) {
+    // The old signature was isAdmin(session). Anything still passing one is
+    // reading a name-based answer that no longer exists — say so loudly
+    // rather than silently ignoring the argument.
+    console.warn(
+      '[Identity] isAdmin() takes no arguments — admin is a role now, not a session name. '
+      + 'Call resolveAdmin(db, app) first, then read isAdmin(). See its docblock.',
+    );
+  }
+  return _adminAnswer;
+}
+
+/**
+ * The reveal. Runs `show` iff the live session resolves to admin — the
+ * standard shape for an admin-only control, whose markup ships hidden and
+ * which this is the only thing that unhides. `show` never runs on a failure.
+ *
+ * @param {import('firebase/firestore').Firestore} db
+ * @param {import('firebase/app').FirebaseApp} app
+ * @param {() => void} show
+ * @returns {Promise<void>}
+ */
+export function whenAdmin(db, app, show) {
+  return resolveAdmin(db, app)
+    .then((ok) => { if (ok) show(); })
+    .catch(() => { /* fail closed — show nothing */ });
 }
 
 // ==================== Google sign-in ====================
@@ -411,9 +543,11 @@ export async function getLiveUser(app) {
 // site_roles/{uid} is the site's first REAL role: written only server-side
 // (scripts/seed_site_admin.py via the service account; browsers are denied
 // all writes), readable only as your own doc (rules: doc id must equal
-// request.auth.uid; no listing). So unlike isAdmin() above — presentation
-// only, spoofable from devtools — a site_roles answer is enforced end to
-// end: the same doc gates club-manager writes inside firestore.rules.
+// request.auth.uid; no listing). A site_roles answer is enforced end to end:
+// the same doc gates club-manager writes inside firestore.rules.
+//
+// Since 2026-08-16 this is also what isAdmin() answers from — see the admin
+// section above. There is no longer a second, spoofable notion of "admin".
 //
 // ⚠️ The collection is UNSUFFIXED on both lanes (like pipeline_*): a role
 // belongs to the person, not the data lane. Do not wrap it in col().
@@ -424,9 +558,22 @@ export async function getLiveUser(app) {
  * @returns {Promise<{uid: string, role: string}|null>}
  */
 export async function getSiteRole(db, app) {
+  return roleForUser(db, await liveUser(app).catch(() => null));
+}
+
+/**
+ * The ONE implementation of "read this user's site_roles doc". Split out of
+ * getSiteRole so resolveAdmin() can reuse it with a live user it has already
+ * waited for, instead of waiting on auth state a second time or growing a
+ * second copy of this read. Never throws; every failure is "no role".
+ *
+ * @param {import('firebase/firestore').Firestore} db
+ * @param {{uid: string}|null} user
+ * @returns {Promise<{uid: string, role: string}|null>}
+ */
+async function roleForUser(db, user) {
   try {
-    const user = await liveUser(app);
-    if (!user || !user.uid) return null;
+    if (!db || !user || !user.uid) return null;
     const snap = await getDoc(doc(db, 'site_roles', user.uid));
     if (!snap.exists()) return null;
     return { uid: user.uid, ...snap.data() };
@@ -435,7 +582,15 @@ export async function getSiteRole(db, app) {
   }
 }
 
-/** Is the signed-in person the rules-enforced site admin? */
+/**
+ * Is the signed-in person the rules-enforced site admin? The pure role
+ * question, with no owner break-glass.
+ *
+ * ⚠️ For a UI GATE use resolveAdmin()/isAdmin() instead — it wraps this one,
+ * adds the owner break-glass, and caches the answer so N gates on a page cost
+ * one read. Use this directly only when you specifically mean "does the
+ * site_roles doc say admin", ignoring break-glass.
+ */
 export async function isSiteAdmin(db, app) {
   const role = await getSiteRole(db, app);
   return !!role && role.role === 'admin';
@@ -655,6 +810,12 @@ function _renderLoggedOut(containerEl, db, options) {
 // This is presentation-only by construction — Firestore rules are shape-only
 // (§4a) and never consult auth, so the stub grants nothing a devtools
 // localStorage edit would not.
+//
+// ⚠️ Since 2026-08-16 the stub explicitly does NOT confer admin, whatever
+// name or email it is handed. resolveAdmin() starts from getLiveUser(), and a
+// stub mirror has no live Firebase user behind it, so it resolves false. That
+// is correct: automation can exercise the signed-in UI, but the admin surfaces
+// need a real signed-in account holding a real site_roles role.
 if (IS_DEV_LANE && typeof window !== 'undefined') {
   window.__abIdentityStub = {
     /** @param {{displayName?: string, email?: string, photoURL?: string}} user */

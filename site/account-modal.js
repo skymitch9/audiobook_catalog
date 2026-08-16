@@ -8,7 +8,7 @@
 // catalog.csv (index.html scrapes its own table instead; same data).
 
 import { doc, getDoc, setDoc, collection, getDocs, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
-import { getSession, signInWithGoogle, signOutGoogle, isAdmin, handleRedirectResult, renderDevSiteLink } from './identity.js';
+import { getSession, signInWithGoogle, signOutGoogle, whenAdmin, handleRedirectResult, renderDevSiteLink } from './identity.js';
 import { coverUrl } from './covers-base.js';
 import { col } from './fb-env.js';
 import { loadCatalogBooks } from './club-reads.js';
@@ -246,6 +246,12 @@ export function mountAccountModal(db, app, containerEl) {
 
     // Admin portal link — only visible to admins.
     //
+    // The link is REVEALED on resolve, not rendered-then-hidden: whenAdmin()
+    // only ever runs its callback for a confirmed admin, so a non-admin (and
+    // anyone we cannot get an answer for) simply never sees the row appear.
+    // It arrives a beat after the modal opens, which is the cost of asking
+    // site_roles instead of trusting a spoofable local name.
+    //
     // ⚠️ This must stay AFTER the template literal above, not inside it. It was
     // once inserted mid-literal, which closed the string early and left the
     // remaining markup (Currently Reading, Favorite Books) sitting in the file
@@ -256,12 +262,16 @@ export function mountAccountModal(db, app, containerEl) {
     //
     // The DOM result is unchanged: insertAdjacentElement('afterend') still puts
     // the link directly below the logout button.
-    if (isAdmin(session) && !/\/admin\.html$/.test(location.pathname)) {
-      const adminRow = document.createElement('a');
-      adminRow.href = 'admin.html';
-      adminRow.style.cssText = 'display:block;text-align:center;margin-top:10px;padding:10px;border:1px solid var(--border,#2a2a3a);text-decoration:none;color:var(--neon-cyan,#05d9e8);font-weight:700;font-size:.9em';
-      adminRow.textContent = '🔧 Admin Portal';
-      container.querySelector('#am-logout-btn').insertAdjacentElement('afterend', adminRow);
+    if (!/\/admin\.html$/.test(location.pathname)) {
+      whenAdmin(db, app, () => {
+        const logoutBtn = container.querySelector('#am-logout-btn');
+        if (!logoutBtn) return; // modal re-rendered while we were resolving
+        const adminRow = document.createElement('a');
+        adminRow.href = 'admin.html';
+        adminRow.style.cssText = 'display:block;text-align:center;margin-top:10px;padding:10px;border:1px solid var(--border,#2a2a3a);text-decoration:none;color:var(--neon-cyan,#05d9e8);font-weight:700;font-size:.9em';
+        adminRow.textContent = '🔧 Admin Portal';
+        logoutBtn.insertAdjacentElement('afterend', adminRow);
+      });
     }
 
     wireAppearance(container);

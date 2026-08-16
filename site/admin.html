@@ -140,7 +140,7 @@
 <script type="module">
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
   import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
-  import { renderIdentityBar, getSession, isAdmin, handleRedirectResult, getSiteRole } from './identity.js';
+  import { renderIdentityBar, getSession, resolveAdmin, handleRedirectResult, getSiteRole } from './identity.js';
   import {
     watchStatus, loadHistory, requestRun, getToken, setToken,
   } from './pipeline-status.js';
@@ -167,20 +167,57 @@
   // fixes (sign in, vs. ask an admin), and showing one message for both
   // used to tell an already-signed-in person to "sign in as admin" as if
   // they weren't signed in at all.
-  function checkAccess() {
+  //
+  // ⚠️ ASYNC since 2026-08-16. The gate is now the rules-enforced
+  // site_roles/{uid} role (resolveAdmin in identity.js), which arrives a
+  // Firestore read after load instead of instantly from a spoofable local
+  // name. Consequences that must not be "tidied away":
+  //   - Both panels ship `hidden` in the markup and are only ever REVEALED
+  //     here. The interim state, a failed read and a refusal are therefore
+  //     the same closed gate — nothing is shown and then taken back.
+  //   - The interim says so out loud rather than showing a refusal it might
+  //     have to retract, which would read as a denial to the actual admin.
+  //   - The identity bar (and its sign-in button) is wired independently
+  //     below and is NOT gated on this — sign-in keeps working regardless of
+  //     what the role read does.
+  let _accessGen = 0;
+  async function checkAccess() {
+    const gen = ++_accessGen;
     const content = document.getElementById('admin-content');
-    const session = getSession();
+    document.getElementById('pipeline-section').hidden = true;
+    document.getElementById('site-role-section').hidden = true;
+    content.innerHTML = '';
+    const checking = document.createElement('p');
+    checking.style.cssText = 'color:#9fb0c6;font-size:.9rem';
+    checking.textContent = 'Checking your access…';
+    content.appendChild(checking);
 
-    // Shared with the nav link in identity.js so the two can never disagree.
-    // Presentation only - see the isAdmin() docblock.
-    if (!isAdmin(session)) {
-      document.getElementById('pipeline-section').hidden = true;
-      document.getElementById('site-role-section').hidden = true;
-      content.innerHTML = '';
+    const admin = await resolveAdmin(db, app);
+    // An auth change started a newer run while we waited; that one owns the
+    // DOM now. Without this, a sign-out resolving after a sign-in could paint
+    // a stale answer over a fresh one.
+    if (gen !== _accessGen) return;
+
+    const session = getSession();
+    content.innerHTML = '';
+
+    if (!admin) {
       const box = document.createElement('div');
       box.className = 'denied';
       if (!session) {
         box.textContent = 'This page is for site admins. Sign in above, then reload — an admin account will unlock it.';
+      } else if (session.legacy) {
+        // Distinct cause, distinct fix: there IS a name here, but no live
+        // Google session behind it, so no uid and therefore no role to read.
+        // Telling this person to "ask an admin" would send them after
+        // permission they may already hold.
+        const p1 = document.createElement('p');
+        p1.textContent = `You're signed in as ${session.displayName}, but this is an older session with no Google account behind it.`;
+        const p2 = document.createElement('p');
+        p2.style.cssText = 'margin-top:8px;font-size:.85rem;color:#9fb0c6';
+        p2.textContent = 'Sign in with Google above, then reload — your role is looked up from that account.';
+        box.appendChild(p1);
+        box.appendChild(p2);
       } else {
         const p1 = document.createElement('p');
         p1.textContent = `You're signed in as ${session.displayName}, but this page needs the site admin role.`;
@@ -194,15 +231,16 @@
       return;
     }
 
-    content.innerHTML = '';
     initPipelinePanel(session);
     initSiteRolePanel();
   }
 
   // Site role: the OWN doc from the rules-enforced site_roles collection.
-  // Unlike the isAdmin() gate above (client-side presentation), this answer
-  // is enforced end to end — the same doc powers the site-admin clause in
-  // firestore.rules. Browsers cannot list the collection (own-doc reads
+  // This is the same answer the gate above now uses (resolveAdmin reads this
+  // doc), shown here in full so the page can name the exact role and uid it
+  // was let in on. It is enforced end to end — the same doc powers the
+  // site-admin clause in firestore.rules. Browsers cannot list the
+  // collection (own-doc reads
   // only), so a full roster stays a server-side concern; this panel is
   // honest about that.
   async function initSiteRolePanel() {
