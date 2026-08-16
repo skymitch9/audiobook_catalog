@@ -249,6 +249,82 @@ def fail_run(exc: BaseException) -> None:
 
 
 # --------------------------------------------------------------------------
+# Fine-grained manual step controls (owner ask 2026-08-16, catalog-platform
+# /status Operations section: "give us fine control over each part of the
+# pipeline in case we need to do part way steps"). See
+# scripts/sync_to_drive.py's run_step()/STEP_INFO for the dispatcher this
+# backs.
+# --------------------------------------------------------------------------
+def start_step_run(step_key: str, step_label: str, trigger: str) -> str:
+    """Begin a STANDALONE single-step run. Deliberately NOT start_run(): that
+    function scaffolds the full 7-entry STEPS list and its companion step()
+    marks every entry BEFORE the given index 'done' on the assumption of
+    sequential progression through the whole pipeline — true for a full run,
+    false for an isolated step. Running 'upload' alone must never make the
+    status page claim 'sort' also ran just now. So this scaffolds only the
+    ONE step that is actually running, already 'active' (no separate call to
+    step() needed). finish_run() itself needs no change: it walks
+    _state['steps'] generically by state, not by position, so closing a
+    single-step card correctly marks that one step done/failed and leaves
+    nothing 'pending' to fall through to 'skipped'."""
+    global _run_id, _run_started, _state
+    try:
+        _run_started = _now()
+        _run_id = _run_started.replace(":", "").replace("-", "")[:15]
+        _state = {
+            "runId": _run_id,
+            "state": "running",
+            "trigger": trigger,
+            "startedAt": _run_started,
+            "updatedAt": _run_started,
+            "host": os.getenv("COMPUTERNAME") or "unknown",
+            "stepIndex": 0,
+            "stepKey": step_key,
+            "stepLabel": step_label,
+            "steps": [{"key": step_key, "label": step_label, "state": "active", "detail": ""}],
+            "progress": None,
+            "error": None,
+            "summary": {},
+        }
+        _push(force=True)
+    except Exception:
+        pass
+    return _run_id or ""
+
+
+def force_upload_result(ok: bool, configured: bool, reachable: bool | None, message: str) -> None:
+    """Publish the standalone 'force full upload to the shelf server' result
+    (owner ask 2026-08-16; see scripts/sync_to_server.py) to ITS OWN doc,
+    `shelf_upload_status/current` — deliberately NOT `pipeline_status/current`.
+    That doc is the pipeline's own health signal (the /status page's primary
+    'Automated Book Pipeline' row); overwriting it here would make a
+    force-upload run masquerade as a pipeline outcome. Same never-raise,
+    silent-no-op-without-credentials contract as every other function in this
+    module — a status-backend outage must never cost the underlying transfer.
+    """
+    db = _client()
+    if db is None:
+        return
+    try:
+        state = (
+            "not_configured" if not configured
+            else "unreachable" if not reachable
+            else "success" if ok
+            else "failed"
+        )
+        doc = {
+            "ok": ok,
+            "state": state,
+            "message": message,
+            "updatedAt": _now(),
+            "host": os.getenv("COMPUTERNAME") or "unknown",
+        }
+        db.collection(f"shelf_upload_status{_lane_suffix()}").document("current").set(doc)
+    except Exception:
+        pass
+
+
+# --------------------------------------------------------------------------
 # Single-flight lock reporting (2026-08-16, docs/info/ROLES.md §1c/§1d) —
 # "a blocked run must FAIL LOUDLY AND VISIBLE, never silently no-op — print
 # who holds the lock and since when, and write it to pipeline_status so the

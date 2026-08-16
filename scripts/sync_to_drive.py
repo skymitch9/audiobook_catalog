@@ -1503,6 +1503,237 @@ def _run_rebuild_only_body(trigger: str = "manual") -> None:
 
 
 # ---------------------------------------------------------------------------
+# Fine-grained manual step controls (owner ask 2026-08-16, catalog-platform
+# /status Operations section: "give us fine control over each part of the
+# pipeline in case we need to do part way steps... make sure we cant break
+# stuff"). Each of the 7 stages pipeline_status.STEPS already names can be
+# run ALONE, on demand — but every one of them goes through run_step()
+# below, which takes the EXACT SAME single-flight lock
+# (app/core/pipeline_lock.py) as the scheduled 8h run, the full manual
+# pipeline, and --rebuild-only, so a manual step and any other run can NEVER
+# overlap. THAT LOCK is the actual safety mechanism.
+#
+# STEP_INFO's "kind" classification below only drives the UI's confirmation
+# tier on the catalog-platform side (ops.ts / admin.js / status.js) — it
+# MUST mirror that repo's copy (there is no shared module between the two
+# repos, same as KNOWN_BACKUP_PREFIXES's documented duplication story on
+# that side). kind is one of:
+#   read-only  — audit, detect: no local/Drive/git mutation.
+#   mutating   — sort (moves local files), folders (writes the local Drive
+#                folder cache + reads Drive), upload (real Drive writes).
+#   publishing — catalog (rebuilds site/ on disk), publish (git commit+push,
+#                which is what actually ships to the live site).
+#
+# Like run_pipeline()'s non-scheduled path, a manual step NEVER defers —
+# blocked means refused immediately, loudly, and reported to pipeline_status
+# (blocked_run()) so the status page shows who holds the lock and since when.
+# ---------------------------------------------------------------------------
+
+STEP_INFO: dict[str, dict[str, str]] = {
+    "audit": {"label": "Purchase audit", "kind": "read-only"},
+    "sort": {"label": "Sort books", "kind": "mutating"},
+    "detect": {"label": "Detect new books", "kind": "read-only"},
+    "folders": {"label": "Read Drive folders", "kind": "mutating"},
+    "upload": {"label": "Upload to Drive", "kind": "mutating"},
+    "catalog": {"label": "Rebuild catalog", "kind": "publishing"},
+    "publish": {"label": "Commit & deploy", "kind": "publishing"},
+}
+STEP_CHOICES: tuple[str, ...] = tuple(STEP_INFO.keys())
+
+
+def _step_audit() -> None:
+    """Read-only: audits recent Audible purchases against the catalog.
+    Writes no local files, moves nothing, uploads nothing."""
+    from app.tools.audit_new_purchases import run_audit
+    run_audit()
+    pstatus.step_detail("audit", "checked")
+
+
+def _step_sort() -> None:
+    """Mutating: moves files on local disk (OpenAudible export -> author
+    folders) and files loose companion docs. Idempotent — an already-filed
+    book is skipped, not re-moved."""
+    moved = sort_books(dry_run=False)
+    filed = sort_companion_files(dry_run=False)
+    pstatus.step_detail("sort", f"{len(moved)} sorted, {len(filed)} companions filed")
+    pstatus.set_summary(sorted=len(moved), companionsFiled=len(filed))
+
+
+def _step_detect() -> None:
+    """Read-only: scans the library against the upload manifest and reports
+    how many files are new. Writes nothing."""
+    manifest = load_manifest()
+    new_files = detect_new_books(manifest)
+    pstatus.step_detail("detect", f"{len(new_files)} to upload")
+    pstatus.set_summary(toUpload=len(new_files))
+
+
+def _step_folders() -> None:
+    """Mutating: reads every author folder from Google Drive and refreshes
+    the local cache file (drive_folders_cache.json) — no book file is
+    touched, but it is real network I/O against a live Drive folder and a
+    real local write, hence 'mutating' rather than 'read-only'."""
+    from scripts import drive_auth
+    service = drive_auth.build_drive_service()
+    if not service:
+        raise RuntimeError(
+            "Google Drive auth failed — run scripts/sync_to_drive.py interactively "
+            "first to complete OAuth setup."
+        )
+    folders = fetch_all_drive_folders(service)
+    save_drive_folders_cache(folders)
+    pstatus.step_detail("folders", f"{len(folders)} folders")
+    pstatus.set_summary(folders=len(folders))
+
+
+def _step_upload() -> None:
+    """Mutating: uploads whatever detect_new_books() currently finds. Always
+    runs its own fresh detect internally (never trusts a stale count) so
+    this is safe and correct to click on its own — the 'needs detect first'
+    UI hint is an advisory, not a hard requirement, precisely because this
+    step is self-sufficient. A no-op (0 new files) is a success, not a
+    failure — mirrors run_pipeline()'s own STEP 2 gate."""
+    from app.config import ROOT_DIR
+    from scripts import drive_auth
+
+    manifest = load_manifest()
+    new_files = detect_new_books(manifest)
+    pstatus.step_detail("upload", f"0/{len(new_files)}")
+    if not new_files:
+        pstatus.set_summary(idle=True, uploaded=0, toUpload=0)
+        pstatus.step_detail("upload", "nothing to upload (0 new files)")
+        return
+
+    service = drive_auth.build_drive_service()
+    if not service:
+        raise RuntimeError(
+            "Google Drive auth failed — run scripts/sync_to_drive.py interactively "
+            "first to complete OAuth setup."
+        )
+
+    drive_folders = load_drive_folders_cache()
+    if drive_folders is None:
+        drive_folders = fetch_all_drive_folders(service)
+        save_drive_folders_cache(drive_folders)
+
+    aliases = load_author_aliases()
+    manifest_updates, outcome, _new_folders, resolved_links = _upload_new_files(
+        new_files, ROOT_DIR, aliases, drive_folders, service, dry_run=False,
+    )
+    manifest.update(manifest_updates)
+    save_manifest(manifest)
+    save_drive_folders_cache(drive_folders)
+    persist_author_links(resolved_links)
+
+    pstatus.step_detail(
+        "upload",
+        f"{outcome.uploaded_count} uploaded, {outcome.already_count} already there, "
+        f"{outcome.misplaced_count} misplaced, {outcome.failed_count} failed",
+    )
+    pstatus.set_summary(
+        uploaded=outcome.uploaded_count, skipped=outcome.already_count,
+        misplaced=outcome.misplaced_count, misplacedFiles=outcome.misplaced,
+        failed=outcome.failed_count, warnings=outcome.warnings(),
+    )
+    if outcome.failed_count:
+        raise RuntimeError(f"{outcome.failed_count} file(s) failed to upload — see the log above")
+
+
+def _step_catalog() -> None:
+    """Publishing (local): rebuilds site/ from what's on disk (catalog,
+    chapters, content warnings, covers -> R2) but does NOT commit/push —
+    that is the separate 'publish' step. Same STEP 5/5.5/5.7 bodies as
+    --rebuild-only, split out so a rebuild can be inspected before shipping."""
+    from app.main import main as catalog_main
+    catalog_main()
+    try:
+        import csv as _csv
+        from app.config import SITE_DIR as _SD
+        with open(_SD / "catalog.csv", encoding="utf-8") as _f:
+            total = sum(1 for _ in _csv.DictReader(_f))
+        pstatus.step_detail("catalog", f"{total} books")
+        pstatus.set_summary(books=total)
+    except Exception:
+        pass
+
+    try:
+        from app.tools.extract_chapters import run_extraction
+        run_extraction()
+    except Exception as e:
+        print(f"  [WARN] Chapter extraction failed: {e}")
+
+    try:
+        from scripts.upload_covers_r2 import main as upload_covers_main
+        rc = upload_covers_main([])
+        if rc != 0:
+            print("  [WARN] Some covers failed to upload — they will retry next run.")
+    except Exception as e:
+        print(f"  [WARN] Cover upload failed: {e}")
+
+
+def _step_publish() -> None:
+    """Publishing (live): commits + pushes whatever is currently staged on
+    disk (site/catalog.csv, index.html, etc. — the same explicit allowlist
+    _auto_commit_and_push() always used) and clears any flagged
+    content-warning requests. A no-op when nothing changed, same as every
+    other caller of _auto_commit_and_push()."""
+    _auto_commit_and_push()
+    try:
+        from app.tools.fetch_content_warnings import fulfill_requests
+        fulfill_requests()
+    except Exception as e:
+        print(f"  [WARN] Warning-request fulfillment failed: {e}")
+
+
+_STEP_HANDLERS = {
+    "audit": _step_audit,
+    "sort": _step_sort,
+    "detect": _step_detect,
+    "folders": _step_folders,
+    "upload": _step_upload,
+    "catalog": _step_catalog,
+    "publish": _step_publish,
+}
+
+
+def run_step(step: str, trigger: str = "manual-step") -> None:
+    """Public entry point for ONE isolated pipeline stage. Takes the
+    single-flight lock (see the module note above) and always fails
+    LOUDLY+IMMEDIATELY when it is held — a manual step never defers, same
+    stance as run_pipeline()'s non-scheduled path and run_rebuild_only()."""
+    if step not in STEP_INFO:
+        raise ValueError(f"unknown pipeline step {step!r} — choices: {', '.join(STEP_CHOICES)}")
+
+    try:
+        lock = pipeline_lock.acquire(trigger)
+    except pipeline_lock.PipelineLockHeld as held:
+        print(f"\n[LOCK] BLOCKED: pipeline lock held by {held.holder.describe()}")
+        print(f"[LOCK] Refusing to start step '{step}' — another run is already in flight.")
+        pstatus.blocked_run(trigger, held.holder.describe())
+        raise
+
+    try:
+        _run_step_body(step, trigger)
+    finally:
+        lock.release()
+
+
+def _run_step_body(step: str, trigger: str) -> None:
+    """Callers MUST already hold the single-flight lock — use run_step()
+    above, never this directly, outside of a test."""
+    info = STEP_INFO[step]
+    print("=" * 60)
+    print(f"  Audiobook Pipeline — single step: {step} ({info['label']})")
+    print(f"  {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print("=" * 60)
+    pstatus.start_step_run(step, info["label"], trigger)
+    print(f"  {pstatus.status_note()}")
+    _STEP_HANDLERS[step]()
+    pstatus.finish_run("success")
+    print("=" * 60)
+
+
+# ---------------------------------------------------------------------------
 # Auto-commit and push (for autonomous operation)
 # ---------------------------------------------------------------------------
 
@@ -1629,6 +1860,20 @@ def main():
             "see since STEP 2 only looks for new files to upload."
         ),
     )
+    parser.add_argument(
+        "--step",
+        choices=STEP_CHOICES,
+        default=None,
+        help=(
+            "Run ONE pipeline stage in isolation (fine-grained manual control, "
+            "catalog-platform /status Operations section) instead of the whole "
+            "pipeline: audit, sort, detect, folders, upload, catalog, or "
+            "publish. Takes the exact same single-flight lock as every other "
+            "run, so it can never overlap another run — it fails loudly and "
+            "immediately (never defers) if the lock is held. Mutually "
+            "exclusive with --sort-only/--upload-only/--rebuild-only/--dry-run."
+        ),
+    )
     args = parser.parse_args()
 
     if args.sort_only and args.upload_only:
@@ -1645,6 +1890,10 @@ def main():
         # --dry-run to preview here. Fail loudly rather than silently
         # ignoring one of the two flags.
         print("ERROR: --rebuild-only has no dry-run mode (app.main always writes).")
+        sys.exit(1)
+
+    if args.step and (args.sort_only or args.upload_only or args.rebuild_only or args.dry_run):
+        print("ERROR: --step cannot be combined with --sort-only/--upload-only/--rebuild-only/--dry-run.")
         sys.exit(1)
 
     if args.refresh_cache and DRIVE_FOLDERS_CACHE_PATH.exists():
@@ -1669,7 +1918,9 @@ def main():
     # loudly and immediately instead, which is what the owner's spec asks
     # for outside the one real scheduled slot.
     try:
-        if args.rebuild_only:
+        if args.step:
+            run_step(args.step, trigger=f"manual-step:{args.step}")
+        elif args.rebuild_only:
             run_rebuild_only(trigger=os.getenv("PIPELINE_TRIGGER", "manual-rebuild"))
         else:
             run_pipeline(

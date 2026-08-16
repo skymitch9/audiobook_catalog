@@ -41,6 +41,21 @@ LAST_RUN_PATH = PROJECT_ROOT / "output_files" / "pipeline_last_manual_run.txt"
 LOG_PATH = PROJECT_ROOT / "output_files" / "pipeline_8h.log"
 STALE_LOCK_HOURS = 6
 
+# Fine-grained manual step controls (owner ask 2026-08-16, catalog-platform
+# /status Operations section) — a `pipeline_requests` doc may now carry an
+# OPTIONAL `step` field alongside token/requestedAt/requestedBy. Deliberately
+# hardcoded here rather than imported from scripts.sync_to_drive: this
+# module's whole design is "know as little as possible about the pipeline
+# internals, just orchestrate subprocesses" (it never imports sync_to_drive
+# even for a full run — see _run_pipeline()). MUST mirror
+# scripts/sync_to_drive.py's STEP_INFO keys exactly — a
+# tests/test_pipeline_watcher.py assertion pins the two in sync.
+PIPELINE_STEP_CHOICES = frozenset({"audit", "sort", "detect", "folders", "upload", "catalog", "publish"})
+# The standalone "force full upload to the shelf server" control (see
+# scripts/sync_to_server.py) — NOT a pipeline step (no entry in
+# PIPELINE_STEP_CHOICES / STEP_INFO), recognized as its own special marker.
+FORCE_UPLOAD_STEP = "force-upload-server"
+
 
 def _token() -> str:
     return (os.getenv("PIPELINE_TRIGGER_TOKEN") or "").strip()
@@ -114,6 +129,57 @@ def _run_pipeline() -> int:
         LOCK_PATH.unlink(missing_ok=True)
 
 
+def _run_pipeline_step(step: str) -> int:
+    """Run ONE pipeline stage via `sync_to_drive.py --step <step>` — a single
+    subprocess instead of _run_pipeline()'s two-command chain (there is no
+    need to also run auto_acquire for an isolated step; the step itself
+    decides what it touches). Same watcher-tick lock file, same log file.
+    The actual cross-run safety guarantee (never overlapping the 8h
+    scheduled run or another manual invocation) comes from
+    scripts/sync_to_drive.py's run_step() taking app/core/pipeline_lock.py's
+    single-flight lock internally — this function's LOCK_PATH only stops two
+    watcher TICKS overlapping, same role it already plays for _run_pipeline().
+    """
+    env = dict(os.environ, PYTHONIOENCODING="utf-8", PIPELINE_TRIGGER="manual")
+    LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    LOCK_PATH.write_text(datetime.now(timezone.utc).isoformat(), encoding="utf-8")
+    try:
+        with open(LOG_PATH, "a", encoding="utf-8", errors="replace") as log:
+            log.write(f"\n================= MANUAL STEP '{step}' {datetime.now()} =================\n")
+            log.flush()
+            cmd = [sys.executable, str(PROJECT_ROOT / "scripts" / "sync_to_drive.py"), "--step", step]
+            _log(f"running: {' '.join(cmd[1:])}")
+            rc = subprocess.call(cmd, cwd=str(PROJECT_ROOT), env=env, stdout=log, stderr=log)
+            _log(f"  exit={rc}")
+        LAST_RUN_PATH.write_text(datetime.now(timezone.utc).isoformat(), encoding="utf-8")
+        return rc
+    finally:
+        LOCK_PATH.unlink(missing_ok=True)
+
+
+def _run_force_upload() -> int:
+    """Run the standalone shelf-server reconciliation (scripts/
+    sync_to_server.py) — NOT a pipeline step. Uses the same watcher-tick
+    lock/log as every other subprocess this watcher runs; sync_to_server.py
+    takes its own copy of app/core/pipeline_lock.py's single-flight lock
+    internally (defense in depth — see that script's run_locked())."""
+    env = dict(os.environ, PYTHONIOENCODING="utf-8")
+    LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    LOCK_PATH.write_text(datetime.now(timezone.utc).isoformat(), encoding="utf-8")
+    try:
+        with open(LOG_PATH, "a", encoding="utf-8", errors="replace") as log:
+            log.write(f"\n================= FORCE UPLOAD TO SHELF SERVER {datetime.now()} =================\n")
+            log.flush()
+            cmd = [sys.executable, str(PROJECT_ROOT / "scripts" / "sync_to_server.py")]
+            _log(f"running: {' '.join(cmd[1:])}")
+            rc = subprocess.call(cmd, cwd=str(PROJECT_ROOT), env=env, stdout=log, stderr=log)
+            _log(f"  exit={rc}")
+        LAST_RUN_PATH.write_text(datetime.now(timezone.utc).isoformat(), encoding="utf-8")
+        return rc
+    finally:
+        LOCK_PATH.unlink(missing_ok=True)
+
+
 def poll_once() -> int:
     """Check for a valid pending request and run the pipeline if there is one.
 
@@ -159,6 +225,16 @@ def poll_once() -> int:
             _log(f"discarding request {d.id}: stale or unparseable timestamp")
             d.reference.delete()
             continue
+        # Optional `step` field (fine-grained manual controls, 2026-08-16) —
+        # blank/absent means "run the whole pipeline" (unchanged behaviour).
+        # Anything present that isn't a known step or the force-upload
+        # marker is a malformed/forged request — discard it the same as a
+        # bad token, never guess what it meant.
+        step = data.get("step") or None
+        if step is not None and step not in PIPELINE_STEP_CHOICES and step != FORCE_UPLOAD_STEP:
+            _log(f"discarding request {d.id}: unknown step {step!r}")
+            d.reference.delete()
+            continue
         valid.append((d, data))
 
     if not valid:
@@ -179,9 +255,19 @@ def poll_once() -> int:
         return 0
 
     who = valid[0][1].get("requestedBy", "?")
-    _log(f"valid request from {who} — starting pipeline")
-    _run_pipeline()
-    _log("pipeline finished")
+    step = valid[0][1].get("step") or None
+    if step == FORCE_UPLOAD_STEP:
+        _log(f"valid force-upload-to-server request from {who} — running")
+        _run_force_upload()
+        _log("force-upload finished")
+    elif step:
+        _log(f"valid step request from {who} — running step '{step}'")
+        _run_pipeline_step(step)
+        _log(f"step '{step}' finished")
+    else:
+        _log(f"valid request from {who} — starting pipeline")
+        _run_pipeline()
+        _log("pipeline finished")
     return 0
 
 

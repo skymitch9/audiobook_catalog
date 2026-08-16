@@ -858,13 +858,33 @@ service cloud.firestore {
     // Worst case for an attacker who knows the schema: they can write junk
     // docs that the watcher ignores and deletes. No execution, no disclosure.
 
+    // `step` (2026-08-16, fine-grained manual controls — catalog-platform
+    // /status Operations section): OPTIONAL field naming ONE pipeline stage
+    // to run instead of the whole thing, or the standalone
+    // "force-upload-server" marker (scripts/sync_to_server.py — deliberately
+    // not a pipeline stage). Bounded to the exact set app/tools/
+    // pipeline_watcher.py and scripts/sync_to_drive.py's STEP_INFO
+    // recognize — anything else is what a forged/malformed request would
+    // carry, and the watcher already discards those, but the rule itself
+    // should not admit garbage into the collection either. Absent/blank
+    // means "run the whole pipeline" (unchanged, backward compatible with
+    // every existing writer of this doc shape).
+    function validPipelineStep() {
+      return !('step' in request.resource.data)
+             || request.resource.data.step in [
+               'audit', 'sort', 'detect', 'folders', 'upload', 'catalog',
+               'publish', 'force-upload-server'
+             ];
+    }
+
     function validPipelineRequest() {
       return request.resource.data.token is string
              && request.resource.data.token.size() >= 16
              && request.resource.data.token.size() <= 200
              && request.resource.data.requestedAt is string
              && request.resource.data.requestedBy is string
-             && request.resource.data.requestedBy.size() <= 80;
+             && request.resource.data.requestedBy.size() <= 80
+             && validPipelineStep();
     }
 
     match /pipeline_status/{docId} {
@@ -897,6 +917,23 @@ service cloud.firestore {
       allow read: if false;
       allow create: if validPipelineRequest();
       allow update, delete: if false;
+    }
+
+    // ---- Shelf-server force-upload result (2026-08-16) ----
+    //
+    // scripts/sync_to_server.py's own status doc (app/pipeline_status.py's
+    // force_upload_result()) — deliberately SEPARATE from pipeline_status/
+    // pipeline_runs above, so a force-upload run can never masquerade as a
+    // pipeline outcome on the status page's primary "Automated Book
+    // Pipeline" row. Same read-open/write-service-account-only shape.
+    match /shelf_upload_status/{docId} {
+      allow read: if true;
+      allow write: if false;   // service account only
+    }
+
+    match /shelf_upload_status_dev/{docId} {
+      allow read: if true;
+      allow write: if false;
     }
   }
 }
