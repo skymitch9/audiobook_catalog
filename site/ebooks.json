@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-08-16T17:11:41.230947Z",
+  "generated_at": "2026-08-16T23:00:40.055817Z",
   "root": "C:/Users/nbasl/OpenAudible/books",
-  "count": 156,
+  "count": 168,
   "ebooks": [
     {
       "path": "Brandon Sanderson/Defiant.pdf",
@@ -961,6 +961,50 @@
       "modified": "2025-05-03T20:22:09.255447Z"
     },
     {
+      "path": "My First Secret - Sci-FiPNR origin story - K. Rose - K. Rose.epub",
+      "filename": "My First Secret - Sci-FiPNR origin story - K. Rose - K. Rose.epub",
+      "format": "epub",
+      "title": "My First Secret - Sci-FiPNR origin story - K. Rose",
+      "author": "K. Rose",
+      "source": "opf",
+      "beside_audiobook": null,
+      "size_bytes": 381083,
+      "modified": "2026-08-16T19:51:27.558208Z"
+    },
+    {
+      "path": "My First Secret - Sci-FiPNR origin story - K. Rose_1.epub",
+      "filename": "My First Secret - Sci-FiPNR origin story - K. Rose_1.epub",
+      "format": "epub",
+      "title": "My First Secret - Sci-FiPNR origin story - K. Rose",
+      "author": "K. Rose",
+      "source": "opf",
+      "beside_audiobook": null,
+      "size_bytes": 381082,
+      "modified": "2026-08-16T20:10:05.465461Z"
+    },
+    {
+      "path": "My First Secret - Sci-FiPNR origin story - K. Rose_2.epub",
+      "filename": "My First Secret - Sci-FiPNR origin story - K. Rose_2.epub",
+      "format": "epub",
+      "title": "My First Secret - Sci-FiPNR origin story - K. Rose",
+      "author": "K. Rose",
+      "source": "opf",
+      "beside_audiobook": null,
+      "size_bytes": 381083,
+      "modified": "2026-08-16T20:19:39.775431Z"
+    },
+    {
+      "path": "My First Secret - Sci-FiPNR origin story - K. Rose_3.epub",
+      "filename": "My First Secret - Sci-FiPNR origin story - K. Rose_3.epub",
+      "format": "epub",
+      "title": "My First Secret - Sci-FiPNR origin story - K. Rose",
+      "author": "K. Rose",
+      "source": "opf",
+      "beside_audiobook": null,
+      "size_bytes": 381083,
+      "modified": "2026-08-16T20:24:48.625979Z"
+    },
+    {
       "path": "Neal Shusterman/The Toll.pdf",
       "filename": "The Toll.pdf",
       "format": "pdf",
@@ -1544,6 +1588,50 @@
       "modified": "2026-08-10T02:20:50.261353Z"
     },
     {
+      "path": "The Assassin King (The Symphony of Ages Book 6) - Sample - Elizabeth Haydon.epub",
+      "filename": "The Assassin King (The Symphony of Ages Book 6) - Sample - Elizabeth Haydon.epub",
+      "format": "epub",
+      "title": "The Assassin King (The Symphony of Ages Book 6) - Sample",
+      "author": "Elizabeth Haydon",
+      "source": "opf",
+      "beside_audiobook": null,
+      "size_bytes": 975843,
+      "modified": "2026-08-16T19:51:02.619454Z"
+    },
+    {
+      "path": "The Assassin King (The Symphony of Ages Book 6)_nodrm.epub",
+      "filename": "The Assassin King (The Symphony of Ages Book 6)_nodrm.epub",
+      "format": "epub",
+      "title": "The Assassin King (The Symphony of Ages Book 6) - Sample",
+      "author": "Elizabeth Haydon",
+      "source": "opf",
+      "beside_audiobook": null,
+      "size_bytes": 975845,
+      "modified": "2026-08-16T20:09:46.068673Z"
+    },
+    {
+      "path": "The Assassin King (The Symphony of Ages Book 6)_nodrm_1.epub",
+      "filename": "The Assassin King (The Symphony of Ages Book 6)_nodrm_1.epub",
+      "format": "epub",
+      "title": "The Assassin King (The Symphony of Ages Book 6) - Sample",
+      "author": "Elizabeth Haydon",
+      "source": "opf",
+      "beside_audiobook": null,
+      "size_bytes": 975845,
+      "modified": "2026-08-16T20:19:19.774059Z"
+    },
+    {
+      "path": "The Assassin King (The Symphony of Ages Book 6)_nodrm_2.epub",
+      "filename": "The Assassin King (The Symphony of Ages Book 6)_nodrm_2.epub",
+      "format": "epub",
+      "title": "The Assassin King (The Symphony of Ages Book 6) - Sample",
+      "author": "Elizabeth Haydon",
+      "source": "opf",
+      "beside_audiobook": null,
+      "size_bytes": 975845,
+      "modified": "2026-08-16T20:24:28.041224Z"
+    },
+    {
       "path": "The Navigators/John (LifeChange Book 20) - The Navigators.epub",
       "filename": "John (LifeChange Book 20) - The Navigators.epub",
       "format": "epub",
@@ -1553,6 +1641,50 @@
       "beside_audiobook": "The Navigators",
       "size_bytes": 6644795,
       "modified": "2026-08-10T02:20:41.570638Z"
+    },
+    {
+      "path": "WADW - Ava Cuvay - Ava Cuvay.epub",
+      "filename": "WADW - Ava Cuvay - Ava Cuvay.epub",
+      "format": "epub",
+      "title": "WADW - Ava Cuvay",
+      "author": "Ava Cuvay",
+      "source": "opf",
+      "beside_audiobook": null,
+      "size_bytes": 345593,
+      "modified": "2026-08-16T19:51:28.516395Z"
+    },
+    {
+      "path": "WADW - Ava Cuvay_1.epub",
+      "filename": "WADW - Ava Cuvay_1.epub",
+      "format": "epub",
+      "title": "WADW - Ava Cuvay",
+      "author": "Ava Cuvay",
+      "source": "opf",
+      "beside_audiobook": null,
+      "size_bytes": 345592,
+      "modified": "2026-08-16T20:10:06.068568Z"
+    },
+    {
+      "path": "WADW - Ava Cuvay_2.epub",
+      "filename": "WADW - Ava Cuvay_2.epub",
+      "format": "epub",
+      "title": "WADW - Ava Cuvay",
+      "author": "Ava Cuvay",
+      "source": "opf",
+      "beside_audiobook": null,
+      "size_bytes": 345592,
+      "modified": "2026-08-16T20:19:41.012894Z"
+    },
+    {
+      "path": "WADW - Ava Cuvay_3.epub",
+      "filename": "WADW - Ava Cuvay_3.epub",
+      "format": "epub",
+      "title": "WADW - Ava Cuvay",
+      "author": "Ava Cuvay",
+      "source": "opf",
+      "beside_audiobook": null,
+      "size_bytes": 345593,
+      "modified": "2026-08-16T20:24:49.435170Z"
     },
     {
       "path": "Will Wight/Blackflame (Cradle Book 3) - Will Wight.epub",
