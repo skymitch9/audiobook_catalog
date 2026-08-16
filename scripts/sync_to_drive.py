@@ -9,10 +9,13 @@ Workflow:
 5. Upload: Push new files to Google Drive, creating author folders only when truly new
 
 Usage:
-    python scripts/sync_to_drive.py              # Full pipeline (sort + upload)
-    python scripts/sync_to_drive.py --sort-only  # Just sort, don't upload
-    python scripts/sync_to_drive.py --upload-only # Just upload new files (skip sort)
-    python scripts/sync_to_drive.py --dry-run    # Preview without making changes
+    python scripts/sync_to_drive.py                # Full pipeline (sort + upload)
+    python scripts/sync_to_drive.py --sort-only    # Just sort, don't upload
+    python scripts/sync_to_drive.py --upload-only  # Just upload new files (skip sort)
+    python scripts/sync_to_drive.py --dry-run      # Preview without making changes
+    python scripts/sync_to_drive.py --rebuild-only # Rebuild+publish only (metadata fix
+                                                    # on an already-uploaded book; skips
+                                                    # sort/detect/upload entirely)
 """
 
 from __future__ import annotations
@@ -1267,6 +1270,147 @@ def run_pipeline(
 
 
 # ---------------------------------------------------------------------------
+# Rebuild-only (for metadata-only fixes on books already uploaded)
+#
+# Why this exists (2026-08-16): STEP 2 gates the normal pipeline on "are
+# there new files to upload?" — a tag fix on an ALREADY-uploaded book (e.g.
+# adding a missing narrator to its m4b) changes nothing on disk that STEP 2
+# looks at, so a normal run prints "Nothing to upload. All books are
+# synced!" and exits before STEP 5 ever rebuilds the catalog. The only
+# previous fix was calling `python -m app.main` directly, which rebuilds the
+# catalog but does not commit/push it — undocumented tribal knowledge, and a
+# rebuilt-but-uncommitted site is easy to leave behind by accident.
+#
+# This function runs the same STEP 5 (catalog rebuild) through STEP 6
+# (commit + push) as a normal pipeline run, plus content-warning request
+# fulfillment (which already runs unconditionally on every non-dry run) —
+# and nothing before STEP 5. It deliberately does NOT touch sort, detect, or
+# upload, and does NOT call _upload_new_files, so the upload manifest is
+# untouched and no book can be mistaken for newly-uploaded here.
+#
+# Per-step reasoning for what belongs in a rebuild-only run:
+#   STEP 5   (catalog rebuild)      INCLUDE — the whole point of the flag:
+#            refresh catalog.csv/index.html/stats.html from the tag fix.
+#   STEP 5.5 (chapter extraction)   INCLUDE — keyed off `title` already
+#            present in site/chapters.json (app/tools/extract_chapters.py),
+#            not off the upload manifest. An already-processed book is
+#            skipped via that cache same as always; harmless to call.
+#   STEP 5.6 (content warnings)     INCLUDE — gated on STEP 5.5's own
+#            `new_books` list (titles that just got a first-time chapters
+#            entry), which will be empty for an existing book. Naturally a
+#            no-op here; included so a rebuild-only run stays complete for
+#            the rare case a book's chapters genuinely hadn't been
+#            extracted yet.
+#   STEP 5.7 (covers -> R2)         INCLUDE — idempotent sha256 diff against
+#            covers_manifest.json, independent of the manifest/new-book
+#            concept; a tag fix can include a corrected cover, so this must
+#            run for the fix to actually publish.
+#   index push / STEP 6 (commit+push) INCLUDE — required so the tag fix
+#            actually ships instead of sitting rebuilt-but-uncommitted, same
+#            failure mode this flag exists to close.
+#   fulfill_requests()              INCLUDE — already runs unconditionally
+#            on every non-dry run regardless of uploaded_count; excluding it
+#            here would make --rebuild-only behave differently from a normal
+#            publish for no reason.
+#   STEP 0 (purchase audit), STEP 1/1a (sort), STEP 1b (ebook manifest),
+#   STEP 2 (detect), STEP 3 (Drive folders), STEP 4 (upload)  EXCLUDED —
+#            these are precisely the sort/detect/upload path the flag is
+#            named to skip.
+#
+# NOT a false "new book": additions_log.update_additions_log() keys off
+# title|author already present in site/additions_log.json — re-tagging an
+# existing book's narrator does not change that key, so no new entry is
+# logged. The Discord "new book" announcement is a separate CI step
+# (app/tools/detect_new_books.py in .github/workflows/deploy.yml) that
+# diffs site/catalog.csv by the same title|author key against its own
+# snapshot — it also never looks at the upload manifest, so nothing here
+# can trigger a false "new book" Discord post for a book everyone already
+# has.
+# ---------------------------------------------------------------------------
+
+
+def run_rebuild_only(trigger: str = "manual") -> None:
+    """Rebuild the catalog/site from what's on disk and publish it, WITHOUT
+    sort/detect/upload. See the module note above this function for the
+    per-step reasoning."""
+    print("=" * 60)
+    print("  Audiobook Pipeline - Rebuild Only (no sort/detect/upload)")
+    print(f"  {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print("=" * 60)
+
+    pstatus.start_run(trigger=trigger)
+    print(f"  {pstatus.status_note()}")
+
+    print("\n[REBUILD-ONLY] Rebuilding catalog (STEP 5)...")
+    pstatus.step("catalog")
+    try:
+        from app.main import main as catalog_main
+        catalog_main()
+        print("  Catalog rebuilt.")
+        try:
+            import csv as _csv
+            from app.config import SITE_DIR as _SD
+            with open(_SD / "catalog.csv", encoding="utf-8") as _f:
+                _total = sum(1 for _ in _csv.DictReader(_f))
+            pstatus.step_detail("catalog", f"{_total} books")
+            pstatus.set_summary(books=_total)
+        except Exception:
+            pass
+    except Exception as e:
+        print(f"  [WARN] Catalog rebuild failed: {e}")
+        pstatus.step_detail("catalog", f"FAILED: {e}")
+        pstatus.finish_run("failed", f"Catalog rebuild failed: {e}")
+        return
+
+    # STEP 5.5: chapters for any book whose chapters.json entry is still
+    # missing (independent of the upload manifest — see module note above).
+    print("\n[REBUILD-ONLY] Extracting chapters (STEP 5.5)...")
+    chapter_stats = None
+    try:
+        from app.tools.extract_chapters import run_extraction
+        chapter_stats = run_extraction()
+    except Exception as e:
+        print(f"  [WARN] Chapter extraction failed: {e}")
+
+    new_books = (chapter_stats or {}).get("new_books") or []
+    pstatus.set_summary(newBooks=[t for t, _a in new_books] if new_books else [])
+    if new_books:
+        print(f"\n[REBUILD-ONLY] Content warnings for {len(new_books)} book(s) (STEP 5.6)...")
+        try:
+            from app.tools.fetch_content_warnings import check_new_books
+            check_new_books(new_books)
+        except Exception as e:
+            print(f"  [WARN] Content-warning fetch failed: {e}")
+
+    # STEP 5.7: covers -> R2, before the commit (same ordering as the normal
+    # pipeline — an uncommitted-but-uploaded cover is fine, the reverse is a
+    # broken image).
+    print("\n[REBUILD-ONLY] Uploading covers to R2 (STEP 5.7)...")
+    try:
+        from scripts.upload_covers_r2 import main as upload_covers_main
+        rc = upload_covers_main([])
+        if rc != 0:
+            print("  [WARN] Some covers failed to upload — they will retry next run.")
+    except Exception as e:
+        print(f"  [WARN] Cover upload failed: {e}")
+
+    print("\n[REBUILD-ONLY] Auto-commit & push (STEP 6)...")
+    pstatus.step("publish")
+    _auto_commit_and_push()
+
+    # Same as run_pipeline: clears any flagged content-warning requests,
+    # unconditional on every non-dry run.
+    try:
+        from app.tools.fetch_content_warnings import fulfill_requests
+        fulfill_requests()
+    except Exception as e:
+        print(f"  [WARN] Warning-request fulfillment failed: {e}")
+
+    print("=" * 60)
+    pstatus.finish_run("success")
+
+
+# ---------------------------------------------------------------------------
 # Auto-commit and push (for autonomous operation)
 # ---------------------------------------------------------------------------
 
@@ -1318,13 +1462,24 @@ def _auto_commit_and_push() -> None:
 
         print(f"  Committed: {commit_msg}")
 
-        # Pull with rebase to avoid push failures when remote has diverged
+        # Pull with rebase to avoid push failures when remote has diverged.
+        # --autostash (2026-08-16): without it, ANY uncommitted file in the
+        # tree at this moment (a human editing, an agent mid-work elsewhere
+        # in the repo) makes the rebase fail outright — the code below then
+        # just warns and "attempts push anyway", so the catalog commit made
+        # above stays local-only forever while the log reads WARN and the
+        # run otherwise looks successful. --autostash stashes any
+        # uncommitted changes before the rebase and reapplies them after, so
+        # someone else's in-progress edit no longer blocks this push. It
+        # does not change what gets staged/committed above (still the
+        # explicit allowlist a few lines up) — it only makes the pull step
+        # tolerant of unrelated uncommitted files sitting in the tree.
         pull_result = subprocess.run(
-            ["git", "pull", "--rebase"],
+            ["git", "pull", "--rebase", "--autostash"],
             capture_output=True, text=True, cwd=str(PROJECT_ROOT),
         )
         if pull_result.returncode != 0:
-            print(f"  [WARN] Pull --rebase failed: {pull_result.stderr.strip()}")
+            print(f"  [WARN] Pull --rebase --autostash failed: {pull_result.stderr.strip()}")
             print("  Attempting push anyway...")
 
         # Push
@@ -1371,10 +1526,33 @@ def main():
         action="store_true",
         help="Force refresh of Drive folder cache",
     )
+    parser.add_argument(
+        "--rebuild-only",
+        action="store_true",
+        help=(
+            "Skip sort/detect/upload entirely and just rebuild + publish the "
+            "catalog/site from what's already on disk (STEP 5 onward). For "
+            "metadata-only fixes on a book that's already uploaded — e.g. "
+            "adding a missing narrator tag — which the normal pipeline can't "
+            "see since STEP 2 only looks for new files to upload."
+        ),
+    )
     args = parser.parse_args()
 
     if args.sort_only and args.upload_only:
         print("ERROR: Cannot use --sort-only and --upload-only together.")
+        sys.exit(1)
+
+    if args.rebuild_only and (args.sort_only or args.upload_only):
+        print("ERROR: Cannot use --rebuild-only with --sort-only or --upload-only.")
+        sys.exit(1)
+
+    if args.rebuild_only and args.dry_run:
+        # app.main.main() (STEP 5) has no dry-run mode of its own — it always
+        # writes catalog.csv/index.html/etc — so there is nothing honest for
+        # --dry-run to preview here. Fail loudly rather than silently
+        # ignoring one of the two flags.
+        print("ERROR: --rebuild-only has no dry-run mode (app.main always writes).")
         sys.exit(1)
 
     if args.refresh_cache and DRIVE_FOLDERS_CACHE_PATH.exists():
@@ -1384,12 +1562,15 @@ def main():
     # A crash must still close out the status doc, otherwise the panel shows a
     # run stuck "running" forever and there is no way to tell from off-site.
     try:
-        run_pipeline(
-            sort_only=args.sort_only,
-            upload_only=args.upload_only,
-            dry_run=args.dry_run,
-            trigger=os.getenv("PIPELINE_TRIGGER", "scheduled"),
-        )
+        if args.rebuild_only:
+            run_rebuild_only(trigger=os.getenv("PIPELINE_TRIGGER", "manual-rebuild"))
+        else:
+            run_pipeline(
+                sort_only=args.sort_only,
+                upload_only=args.upload_only,
+                dry_run=args.dry_run,
+                trigger=os.getenv("PIPELINE_TRIGGER", "scheduled"),
+            )
     except BaseException as e:
         pstatus.fail_run(e)
         raise
