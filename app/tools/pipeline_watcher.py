@@ -25,10 +25,12 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import hmac
 import os
 import subprocess
 import sys
 import time
+from typing import Optional
 from datetime import datetime, timedelta, timezone
 
 from app.config import PROJECT_ROOT
@@ -180,6 +182,59 @@ def _run_force_upload() -> int:
         LOCK_PATH.unlink(missing_ok=True)
 
 
+def _reject_reason(data: dict, token: str, cutoff: datetime) -> Optional[str]:
+    """Why this request must be discarded, or None if it is good.
+
+    ⚠️ Extracted from poll_once() 2026-08-16 to fix a LINT FAILURE that had
+    been blocking promotion: flake8 C901 'poll_once' is too complex (17)
+    against a ceiling of 15, red since the fine-grained step controls added
+    their branch. The promote guard refused to ship while CI was red, which is
+    the guard working — so this is the fix, not a suppression.
+
+    Behaviour is deliberately UNCHANGED: same three checks, same order, same
+    strings. Only the shape moved. Every rejected request is still deleted by
+    the caller, and a bad `step` is still treated exactly like a bad token —
+    discarded, never guessed at.
+    """
+    # Constant-time-ish compare; these are short strings so the practical risk
+    # is nil, but there is no reason to leak a prefix match either.
+    if not hmac.compare_digest(str(data.get("token", "")), token):
+        return f"bad token (from {data.get('requestedBy', '?')})"
+
+    try:
+        when = datetime.fromisoformat(str(data.get("requestedAt", "")).replace("Z", "+00:00"))
+    except Exception:
+        when = None
+    if when is None or when < cutoff:
+        return "stale or unparseable timestamp"
+
+    # Optional `step` field (fine-grained manual controls, 2026-08-16) —
+    # blank/absent means "run the whole pipeline" (unchanged behaviour).
+    step = data.get("step") or None
+    if step is not None and step not in PIPELINE_STEP_CHOICES and step != FORCE_UPLOAD_STEP:
+        return f"unknown step {step!r}"
+
+    return None
+
+
+def _accept_requests(docs, token: str) -> list:
+    """Split the fetched request docs into the ones worth running.
+
+    Deletes the rejects as it goes, exactly as the inline loop did.
+    """
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=MAX_REQUEST_AGE_MIN)
+    valid = []
+    for d in docs:
+        data = d.to_dict() or {}
+        reason = _reject_reason(data, token, cutoff)
+        if reason is not None:
+            _log(f"discarding request {d.id}: {reason}")
+            d.reference.delete()
+            continue
+        valid.append((d, data))
+    return valid
+
+
 def poll_once() -> int:
     """Check for a valid pending request and run the pipeline if there is one.
 
@@ -206,36 +261,7 @@ def poll_once() -> int:
     if not docs:
         return 0
 
-    cutoff = datetime.now(timezone.utc) - timedelta(minutes=MAX_REQUEST_AGE_MIN)
-    valid = []
-    for d in docs:
-        data = d.to_dict() or {}
-        # Constant-time-ish compare; these are short strings so the practical
-        # risk is nil, but there is no reason to leak a prefix match either.
-        import hmac
-        if not hmac.compare_digest(str(data.get("token", "")), token):
-            _log(f"discarding request {d.id}: bad token (from {data.get('requestedBy', '?')})")
-            d.reference.delete()
-            continue
-        try:
-            when = datetime.fromisoformat(str(data.get("requestedAt", "")).replace("Z", "+00:00"))
-        except Exception:
-            when = None
-        if when is None or when < cutoff:
-            _log(f"discarding request {d.id}: stale or unparseable timestamp")
-            d.reference.delete()
-            continue
-        # Optional `step` field (fine-grained manual controls, 2026-08-16) —
-        # blank/absent means "run the whole pipeline" (unchanged behaviour).
-        # Anything present that isn't a known step or the force-upload
-        # marker is a malformed/forged request — discard it the same as a
-        # bad token, never guess what it meant.
-        step = data.get("step") or None
-        if step is not None and step not in PIPELINE_STEP_CHOICES and step != FORCE_UPLOAD_STEP:
-            _log(f"discarding request {d.id}: unknown step {step!r}")
-            d.reference.delete()
-            continue
-        valid.append((d, data))
+    valid = _accept_requests(docs, token)
 
     if not valid:
         return 0
