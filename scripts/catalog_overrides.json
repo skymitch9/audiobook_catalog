@@ -2919,49 +2919,52 @@
     },
     {
       "match": {
-        "author": "Luke Chmilenko",
-        "file": "Ascend Online - Ascend Online, Book 1.m4b"
+        "asin": "B073PG4DX8",
+        "title": "Ascend Online - Ascend Online, Book 1",
+        "author": "Luke Chmilenko"
       },
       "set": {
         "series": "Ascend Online"
       },
       "added": "2026-08-16",
       "evidence": {
-        "series": "SRNM reads 'Ascend Online [publication order]' — Audible's shelf-ordering annotation leaking into the series name, not a different series. Three independent sources agree on the real name: the filename says 'Ascend Online, Book 1', the album tag says 'Ascend Online', and canonical_series has mapped 'ascend online [publication order]' -> 'Ascend Online' since before this entry — which is why the CATALOG has always been right. Only the m4b tag was wrong.",
-        "why_keyed_on_file": "⚠️ Keyed on match.file, not match.title. A first attempt keyed on title matched NOTHING and planned 0 writes — the scan reads the ©nam tag, which is not the bare book name here. The filename is exact, known, and compared with the same _norm().",
-        "why_an_override_and_not_the_sweep": "The sweep's canonical_series respelling of an ALREADY-PRESENT SRNM is the DISARMED uncurated path (owner decision 2026-08-11: never measured safe library-wide; --commit without a source flag exits 2 and refuses). Curating these three by hand is the armed route that disarm deliberately leaves open, and keeps the blast radius at three named files.",
+        "series": "SRNM read 'Ascend Online [publication order]' — Audible's own shelf-ordering annotation leaking into the series name, not a different series. Three independent sources agree: the filename says 'Ascend Online, Book 1', the album tag says 'Ascend Online', and canonical_series has mapped 'ascend online [publication order]' -> 'Ascend Online' since before this entry — which is why the CATALOG was always right. Only the m4b tag was wrong.",
+        "why_keyed_on_asin": "⚠️ Two earlier attempts were wrong and both are worth remembering. Keyed on TITLE alone it matched nothing (0 writes planned): the scan reads ©nam, which here is the full 'Book - Series, Book N' string, not the bare book name. Keyed on FILE it matched, but the repo's validator rejected it — 'needs an asin, or a title AND an author (a file key alone drifts)'. ASIN is the schema's own most-stable key, surviving renames and retagging; title+author are carried too so the entry stays readable and satisfies the validator twice over.",
+        "why_an_override_and_not_the_sweep": "The sweep's canonical_series respelling of an ALREADY-PRESENT SRNM is the DISARMED uncurated path (owner decision 2026-08-11; --commit without a source flag exits 2 and refuses). Curating by hand is the armed route that disarm deliberately leaves open, keeping the blast radius at three named files.",
         "matters_for": "The shelf server reads m4b tags DIRECTLY (Audiobookshelf), so unlike the website — which canonical_series fixes at build time — it would show 'Ascend Online [publication order]' as a separate series."
       }
     },
     {
       "match": {
-        "author": "Luke Chmilenko",
-        "file": "Legacy of the Fallen - Ascend Online, Book 2.m4b"
+        "asin": "B07C51WW3Q",
+        "title": "Legacy of the Fallen - Ascend Online, Book 2",
+        "author": "Luke Chmilenko"
       },
       "set": {
         "series": "Ascend Online"
       },
       "added": "2026-08-16",
       "evidence": {
-        "series": "SRNM reads 'Ascend Online [publication order]' — Audible's shelf-ordering annotation leaking into the series name, not a different series. Three independent sources agree on the real name: the filename says 'Ascend Online, Book 2', the album tag says 'Ascend Online', and canonical_series has mapped 'ascend online [publication order]' -> 'Ascend Online' since before this entry — which is why the CATALOG has always been right. Only the m4b tag was wrong.",
-        "why_keyed_on_file": "⚠️ Keyed on match.file, not match.title. A first attempt keyed on title matched NOTHING and planned 0 writes — the scan reads the ©nam tag, which is not the bare book name here. The filename is exact, known, and compared with the same _norm().",
-        "why_an_override_and_not_the_sweep": "The sweep's canonical_series respelling of an ALREADY-PRESENT SRNM is the DISARMED uncurated path (owner decision 2026-08-11: never measured safe library-wide; --commit without a source flag exits 2 and refuses). Curating these three by hand is the armed route that disarm deliberately leaves open, and keeps the blast radius at three named files.",
+        "series": "SRNM read 'Ascend Online [publication order]' — Audible's own shelf-ordering annotation leaking into the series name, not a different series. Three independent sources agree: the filename says 'Ascend Online, Book 2', the album tag says 'Ascend Online', and canonical_series has mapped 'ascend online [publication order]' -> 'Ascend Online' since before this entry — which is why the CATALOG was always right. Only the m4b tag was wrong.",
+        "why_keyed_on_asin": "⚠️ Two earlier attempts were wrong and both are worth remembering. Keyed on TITLE alone it matched nothing (0 writes planned): the scan reads ©nam, which here is the full 'Book - Series, Book N' string, not the bare book name. Keyed on FILE it matched, but the repo's validator rejected it — 'needs an asin, or a title AND an author (a file key alone drifts)'. ASIN is the schema's own most-stable key, surviving renames and retagging; title+author are carried too so the entry stays readable and satisfies the validator twice over.",
+        "why_an_override_and_not_the_sweep": "The sweep's canonical_series respelling of an ALREADY-PRESENT SRNM is the DISARMED uncurated path (owner decision 2026-08-11; --commit without a source flag exits 2 and refuses). Curating by hand is the armed route that disarm deliberately leaves open, keeping the blast radius at three named files.",
         "matters_for": "The shelf server reads m4b tags DIRECTLY (Audiobookshelf), so unlike the website — which canonical_series fixes at build time — it would show 'Ascend Online [publication order]' as a separate series."
       }
     },
     {
       "match": {
-        "author": "Luke Chmilenko",
-        "file": "Hell to Pay - Ascend Online, Book 3.m4b"
+        "asin": "B075NG21VQ",
+        "title": "Hell to Pay - Ascend Online, Book 3",
+        "author": "Luke Chmilenko"
       },
       "set": {
         "series": "Ascend Online"
       },
       "added": "2026-08-16",
       "evidence": {
-        "series": "SRNM reads 'Ascend Online [publication order]' — Audible's shelf-ordering annotation leaking into the series name, not a different series. Three independent sources agree on the real name: the filename says 'Ascend Online, Book 3', the album tag says 'Ascend Online', and canonical_series has mapped 'ascend online [publication order]' -> 'Ascend Online' since before this entry — which is why the CATALOG has always been right. Only the m4b tag was wrong.",
-        "why_keyed_on_file": "⚠️ Keyed on match.file, not match.title. A first attempt keyed on title matched NOTHING and planned 0 writes — the scan reads the ©nam tag, which is not the bare book name here. The filename is exact, known, and compared with the same _norm().",
-        "why_an_override_and_not_the_sweep": "The sweep's canonical_series respelling of an ALREADY-PRESENT SRNM is the DISARMED uncurated path (owner decision 2026-08-11: never measured safe library-wide; --commit without a source flag exits 2 and refuses). Curating these three by hand is the armed route that disarm deliberately leaves open, and keeps the blast radius at three named files.",
+        "series": "SRNM read 'Ascend Online [publication order]' — Audible's own shelf-ordering annotation leaking into the series name, not a different series. Three independent sources agree: the filename says 'Ascend Online, Book 3', the album tag says 'Ascend Online', and canonical_series has mapped 'ascend online [publication order]' -> 'Ascend Online' since before this entry — which is why the CATALOG was always right. Only the m4b tag was wrong.",
+        "why_keyed_on_asin": "⚠️ Two earlier attempts were wrong and both are worth remembering. Keyed on TITLE alone it matched nothing (0 writes planned): the scan reads ©nam, which here is the full 'Book - Series, Book N' string, not the bare book name. Keyed on FILE it matched, but the repo's validator rejected it — 'needs an asin, or a title AND an author (a file key alone drifts)'. ASIN is the schema's own most-stable key, surviving renames and retagging; title+author are carried too so the entry stays readable and satisfies the validator twice over.",
+        "why_an_override_and_not_the_sweep": "The sweep's canonical_series respelling of an ALREADY-PRESENT SRNM is the DISARMED uncurated path (owner decision 2026-08-11; --commit without a source flag exits 2 and refuses). Curating by hand is the armed route that disarm deliberately leaves open, keeping the blast radius at three named files.",
         "matters_for": "The shelf server reads m4b tags DIRECTLY (Audiobookshelf), so unlike the website — which canonical_series fixes at build time — it would show 'Ascend Online [publication order]' as a separate series."
       }
     }

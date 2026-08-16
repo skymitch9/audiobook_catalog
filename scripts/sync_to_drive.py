@@ -1089,6 +1089,47 @@ def _run_pipeline_body(
         rc = build_manifest(dry=dry_run)
         if rc != 0:
             print("  [WARN] Ebook manifest build reported failure — see above.")
+        elif not dry_run:
+            # RECORD THAT IT HAPPENED (2026-08-16, owner-approved).
+            #
+            # ⚠️ This exists because heygabi.ai/status was GUESSING. Its ebook
+            # row had to answer "should the published manifest have moved?" and
+            # nothing in the status doc said so, so it inferred — first from
+            # wall-clock freshness, then from the run's `trigger` string, then
+            # from `steps[].publish.state`. Each inference was correct about the
+            # case that prompted it and wrong about the next one; the owner
+            # reported the same false amber three separate times.
+            #
+            # The inference was also a CROSS-REPO string contract: the reader
+            # lives in catalog-platform, while the trigger names live in
+            # sync_pipeline_8h.bat and pipeline_watcher.py here. Renaming one
+            # silently degraded the row with no error anywhere.
+            #
+            # So state the fact instead of leaving it to be deduced. Read back
+            # what was actually written rather than stamping "now" — the file's
+            # own generated_at is what the status page compares against, and a
+            # timestamp invented here could differ from it.
+            #
+            # ⚠️ Soft, like the build above: set_summary() force-pushes and
+            # swallows its own exceptions, and this whole block is inside the
+            # try. Recording a fact must never be able to break a sync.
+            #
+            # ⚠️ This says the manifest was BUILT, not PUBLISHED — and the gap
+            # between those two is exactly the 2026-08-16 bug (a run that finds
+            # nothing new skips `publish`, so the built manifest never reaches
+            # the site). The status page needs BOTH this field and
+            # steps[].publish.state === 'done'. Do not let a later change treat
+            # this field alone as "the site is up to date".
+            try:
+                import json as _json
+                _m = _json.loads((PROJECT_ROOT / "site" / "ebooks.json").read_text(encoding="utf-8"))
+                pstatus.set_summary(
+                    ebookManifestAt=_m.get("generated_at"),
+                    ebookCount=_m.get("count"),
+                )
+                print(f"  [status] ebookManifestAt={_m.get('generated_at')} count={_m.get('count')}")
+            except Exception as e:  # noqa: BLE001 - recording is best-effort
+                print(f"  [WARN] Could not record ebookManifestAt: {e}")
     except Exception as e:
         print(f"  [WARN] Ebook manifest refresh failed: {e}")
 
