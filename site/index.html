@@ -41625,7 +41625,7 @@ function wireAppearance(container){
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
   import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
   import { coverUrl } from './covers-base.js';
-  import { getSession, signInWithGoogle, signOutGoogle, isAdmin, handleRedirectResult, renderDevSiteLink, getSiteRole } from './identity.js';
+  import { getSession, signInWithGoogle, signOutGoogle, whenAdmin, handleRedirectResult, renderDevSiteLink, getSiteRole } from './identity.js';
   import { submitReview, getReviews, renderStars, bookIdFromTitle, computeAverageRating, formatDate, deleteReview } from './reviews.js';
   import { addUserWarning, getUserWarnings, deleteUserWarning, requestWarningCheck, getWarningRequest } from './user-warnings.js';
   import { col, FIREBASE_CONFIG } from './fb-env.js';
@@ -41816,11 +41816,15 @@ function wireAppearance(container){
       });
     }
 
-    // Admin link
-    if (isAdmin(session)) {
+    // Admin link — revealed, never hidden after the fact. #auth-admin-link
+    // ships display:none in the markup above, and the rules-enforced role
+    // (site_roles/{uid}, via whenAdmin) is the only thing that unhides it. A
+    // non-admin, a failed read, or a session we cannot verify all leave it
+    // exactly as it shipped: gone.
+    whenAdmin(db, app, () => {
       const adminLink = container.querySelector('#auth-admin-link');
       if (adminLink) adminLink.style.display = 'block';
-    }
+    });
 
     // Fetch review stats from Firestore
     (async () => {
