@@ -22,6 +22,7 @@ the manual tool treats as distinct).
 """
 from __future__ import annotations
 
+import math
 import re
 from typing import Any, Dict, Iterable, List
 
@@ -35,6 +36,29 @@ _RANGE_RE = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*[-–—]\s*(\d+(?:\.\d+)?)\s*$")
 _MAX_RANGE_WIDTH = 50
 
 
+def _expand_range(lo: float, hi: float) -> List[float]:
+    """
+    Every volume a ranged index says this catalog owns.
+
+    ⚠️ The FRACTIONAL-ENDPOINT case is the one that bites, and it was a real
+    bug: this catalog holds a single Black Ocean omnibus tagged "1-16.5".
+    Returning only the two named endpoints (1 and 16.5) left 2..16 looking
+    unowned, which made compute_series_gaps() ready to report a fifteen-volume
+    hole in a series the shelf owns end to end. An omnibus spanning 1-16.5
+    contains every volume in that span, so the whole numbers inside it are
+    expanded; the fractional endpoints are kept as owned in their own right.
+
+    A REVERSED or absurdly wide span (see _MAX_RANGE_WIDTH) is almost
+    certainly a mis-tagged value - a date, an ISBN fragment - so it degrades
+    to its two discrete endpoints rather than allocating an enormous
+    "owned" list.
+    """
+    if hi < lo or (hi - lo) > _MAX_RANGE_WIDTH:
+        return [lo, hi]
+    whole = [float(n) for n in range(math.ceil(lo), math.floor(hi) + 1)]
+    return sorted({lo, hi, *whole})
+
+
 def _owned_numbers_for_row(display: str) -> List[float]:
     """
     The volume number(s) ONE row's series_index_display contributes.
@@ -45,9 +69,7 @@ def _owned_numbers_for_row(display: str) -> List[float]:
     sort key. Reusing that alone here would silently under-count - a row
     tagged "3-4" (an omnibus/bind-up) really does mean this catalog owns
     both 3 and 4. So this function reparses series_index_display itself and
-    treats "3-4" as owning EVERY whole number from 3 through 4 inclusive.
-    An egregiously wide range (see _MAX_RANGE_WIDTH) is treated as unparsable
-    instead, to avoid a mistagged value inflating the owned set.
+    hands the span to _expand_range().
 
     Anything that isn't a clean number or number-range - blank, "N/A", free
     text - contributes nothing. Never raises.
@@ -60,12 +82,7 @@ def _owned_numbers_for_row(display: str) -> List[float]:
 
     m = _RANGE_RE.match(s)
     if m:
-        lo, hi = float(m.group(1)), float(m.group(2))
-        if lo == int(lo) and hi == int(hi) and lo <= hi and (hi - lo) <= _MAX_RANGE_WIDTH:
-            return [float(n) for n in range(int(lo), int(hi) + 1)]
-        # Not a sane integer span (reversed, fractional, or absurdly wide) -
-        # fall back to just the two named endpoints rather than nothing.
-        return [lo, hi]
+        return _expand_range(float(m.group(1)), float(m.group(2)))
 
     try:
         return [float(s)]
@@ -134,15 +151,19 @@ def compute_series_gaps(rows: Iterable[Dict[str, Any]]) -> Dict[str, str]:
         lo, hi = owned[0], owned[-1]
         owned_str = _format_run(owned)
 
-        if lo == int(lo) and hi == int(hi):
-            full_span = set(range(int(lo), int(hi) + 1))
-            owned_whole = {int(n) for n in owned if n == int(n)}
-            missing = sorted(float(n) for n in (full_span - owned_whole))
-        else:
-            # Fractional bounds (e.g. the series' first tagged index is a
-            # "0.5" prequel novella) can't anchor a whole-number gap scan -
-            # there is no missing set to compute, only what's owned.
-            missing = []
+        # The whole numbers inside the owned span. ceil/floor so a fractional
+        # BOUND narrows the scan instead of cancelling it.
+        # ⚠️ Cancelling was a real bug: The Dresden Files owns 1-4 and 6-17
+        # plus a "17.5" novella, and because the highest owned number was
+        # fractional the whole scan bailed out and the missing volume 5 was
+        # never reported. A fractional low bound (a "0.5" prequel novella)
+        # had the same effect from the other end.
+        # ⚠️ floor(hi) is what keeps this honest: the scan NEVER runs past the
+        # highest number owned, so this still claims nothing about volumes
+        # beyond the shelf - no total, no denominator, no "missing book 18".
+        first, last = math.ceil(lo), math.floor(hi)
+        owned_whole = {int(n) for n in owned if n == int(n)}
+        missing = sorted(float(n) for n in range(first, last + 1) if n not in owned_whole)
 
         if missing:
             result[series] = f"Volumes {owned_str} owned — gap: {_format_run(missing)}"

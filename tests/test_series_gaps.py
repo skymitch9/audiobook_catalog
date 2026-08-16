@@ -41,7 +41,7 @@ class TestComputeSeriesGaps(unittest.TestCase):
         gaps = compute_series_gaps(rows)
         self.assertEqual(gaps["Delta"], "Volumes 1-4, 6 owned — gap: 5")
 
-    def test_a_wide_reversed_or_fractional_range_falls_back_to_its_endpoints(self):
+    def test_a_wide_or_reversed_range_falls_back_to_its_endpoints(self):
         # "9999-1" is nonsensical as a span (reversed) - treated as two
         # discrete points (9999, 1) rather than expanded or dropped.
         rows = [row("Zeta", "1"), row("Zeta", "9999-1")]
@@ -49,6 +49,41 @@ class TestComputeSeriesGaps(unittest.TestCase):
         self.assertIn("Zeta", gaps)
         self.assertIn("1", gaps["Zeta"])
         self.assertIn("9999", gaps["Zeta"])
+
+    def test_a_range_with_a_fractional_endpoint_still_expands_its_whole_span(self):
+        # Regression, from real catalog data: the only Black Ocean row is one
+        # omnibus tagged "1-16.5". Keeping just the two named endpoints made
+        # 2..16 look unowned and was one half of a bogus fifteen-volume gap.
+        # An omnibus spanning 1-16.5 owns everything in between.
+        rows = [row("Black Ocean", "1-16.5")]
+        gaps = compute_series_gaps(rows)
+        self.assertEqual(gaps["Black Ocean"], "Volumes 1-16, 16.5 owned")
+        self.assertNotIn("gap", gaps["Black Ocean"])
+
+    def test_a_fractional_high_bound_does_not_cancel_the_gap_scan(self):
+        # Regression, from real catalog data: The Dresden Files owns 1-4 and
+        # 6-17 plus a "17.5" novella. The fractional HIGHEST owned number used
+        # to abort the whole-number scan, so the genuinely missing volume 5
+        # was silently never reported.
+        owned = ["1", "2", "3", "4", "6", "7", "12.5", "13", "17", "17.5"]
+        rows = [row("Dresden", i) for i in owned]
+        gaps = compute_series_gaps(rows)
+        # 12.5 is owned but is a novella, so whole-number 12 is still a gap:
+        # a fractional index can never fill a whole-number hole.
+        self.assertEqual(gaps["Dresden"], "Volumes 1-4, 6-7, 12.5, 13, 17, 17.5 owned — gap: 5, 8-12, 14-16")
+
+    def test_the_scan_never_runs_past_the_highest_owned_volume(self):
+        # The honesty rule: a fractional top (17.5) must not let the scan
+        # reach 18 and invent a "missing" volume the catalog cannot know
+        # exists. floor(hi) is what enforces it.
+        rows = [row("Tail", "1"), row("Tail", "2"), row("Tail", "2.5")]
+        gaps = compute_series_gaps(rows)
+        self.assertEqual(gaps["Tail"], "Volumes 1-2, 2.5 owned")
+
+    def test_a_fractional_low_bound_does_not_cancel_the_gap_scan_either(self):
+        rows = [row("Prequel", "0.5"), row("Prequel", "1"), row("Prequel", "3")]
+        gaps = compute_series_gaps(rows)
+        self.assertEqual(gaps["Prequel"], "Volumes 0.5, 1, 3 owned — gap: 2")
 
     def test_non_numeric_and_blank_indices_do_not_crash_and_are_ignored(self):
         rows = [
