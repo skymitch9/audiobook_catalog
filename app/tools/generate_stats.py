@@ -136,28 +136,26 @@ def generate_stats_html(stats: Dict[str, Any], generated_at: str) -> str:
     """Generate HTML for the stats page.
 
     ⚠️ THIS FILE HOLDS THE LAST INLINE FIREBASE CONFIG IN THE REPO, AND ITS
-    authDomain DISAGREES WITH EVERY OTHER PAGE.
+    authDomain WAS WRONG HERE, AND IS NOW FIXED (2026-08-16).
 
-    On 2026-08-16 the other nine configs were consolidated into the single
-    exported FIREBASE_CONFIG in site/fb-env.js. This one was deliberately
-    NOT consolidated, because doing so would CHANGE a value rather than just
-    move it: the emitted config below still carries the pre-SSO-flip
-    authDomain "audiobook-catalog.firebaseapp.com", while fb-env.js (and
-    every other page) carries "auth.heygabi.ai". The SSO flip updated the
-    other nine by hand and missed this one.
+    ⚠️ Kept as a warning, not as history. This generator emitted
+    authDomain "audiobook-catalog.firebaseapp.com" long after the SSO flip
+    moved every other surface to "auth.heygabi.ai". It was missed for one
+    reason worth remembering: the flip updated PAGES, and this is a
+    GENERATOR. Grepping site/*.html showed the stale value in the generated
+    site/stats.html, where fixing it would have been silently reverted by the
+    next stats rebuild — a fix that appears to work and does not.
 
-    Why it is not currently breaking anything: the generated stats.html uses
-    Firestore ONLY (no getAuth, no firebase-auth import, no sign-in), and
-    /profiles and /reviews are `allow read: if true` in firestore.rules — so
-    authDomain is inert on this page. It is a latent trap, not a live outage:
-    the moment this page gains a sign-in, or those reads stop being public,
-    it would authenticate against the wrong domain.
+    It was inert rather than broken: this page imports initializeApp and
+    Firestore only — no getAuth, no firebase-auth, no sign-in — and
+    firestore.rules allows public read on /reviews and /profiles, so nothing
+    here ever consumed authDomain. That is exactly what made it a trap: the
+    day this page gains a sign-in, or those reads stop being public, it would
+    have authenticated against the wrong domain with no prior symptom.
 
-    THE FIX (a deliberate one-line value change, not a refactor — verify
-    stats.html still loads afterwards): replace the inline object below with
-    an import of FIREBASE_CONFIG from './fb-env.js', exactly as the other
-    pages do. Note the emitted block is inside an f-string, so braces in it
-    must stay doubled.
+    ⚠️ If you add auth to this page, do NOT re-inline a config here — read it
+    from site/fb-env.js's FIREBASE_CONFIG, which is what the other nine
+    surfaces now do.
     """
 
     def format_listening_time(stats_data):
@@ -506,7 +504,7 @@ html[data-theme="cyberpunk"] .nav-link{{clip-path:polygon(6px 0, 100% 0, calc(10
 
   const app = initializeApp({{
     apiKey: "AIzaSyDgAblkxzVxl7nFbd7jXOo6PpuNPsJw11Y",
-    authDomain: "audiobook-catalog.firebaseapp.com",
+    authDomain: "auth.heygabi.ai",
     projectId: "audiobook-catalog",
     storageBucket: "audiobook-catalog.firebasestorage.app",
     messagingSenderId: "68492219785",
