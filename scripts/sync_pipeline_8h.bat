@@ -5,8 +5,19 @@ rem      purchase audit -> Discord ping if downloads needed -> container stop
 rem   2. full sync: sort/ingest new books (incl. container downloads), upload
 rem      to Drive, rebuild catalog, extract chapters, fetch content warnings,
 rem      fulfill warning requests, auto-commit to main (deploys /dev/)
+rem
+rem PIPELINE_TRIGGER=scheduled (2026-08-16, docs/info/ROLES.md SS1d) marks
+rem this as the ONE true 8-hourly slot: if the single-flight pipeline lock
+rem is held (app/core/pipeline_lock.py) when this fires, sync_to_drive.py's
+rem defer/retry logic (app/core/pipeline_schedule.py) waits up to 2h for it
+rem to clear before giving up on this slot -- every other invocation (a
+rem human running this script by hand, --rebuild-only, the remote "run now"
+rem watcher trigger) defaults to trigger=manual and fails immediately
+rem instead of waiting. Do not remove this line without also revisiting
+rem pipeline_schedule.py's docstring.
 cd /d "C:\Users\nbasl\OneDrive\Documents\vs-code-repos\bookbuddy\audiobook_catalog"
 set PYTHONIOENCODING=utf-8
+set PIPELINE_TRIGGER=scheduled
 echo ================= %date% %time% ================= >> output_files\pipeline_8h.log
 python -m app.tools.auto_acquire --notify --stop-after >> output_files\pipeline_8h.log 2>&1
 python scripts\sync_to_drive.py >> output_files\pipeline_8h.log 2>&1

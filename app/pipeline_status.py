@@ -248,6 +248,131 @@ def fail_run(exc: BaseException) -> None:
         pass
 
 
+# --------------------------------------------------------------------------
+# Single-flight lock reporting (2026-08-16, docs/info/ROLES.md §1c/§1d) —
+# "a blocked run must FAIL LOUDLY AND VISIBLE, never silently no-op — print
+# who holds the lock and since when, and write it to pipeline_status so the
+# /status page can show it." These write pipeline_status/current directly
+# (self-contained snapshots; they don't go through start_run()/_state since
+# no run actually began) and, for the abandon case, a pipeline_runs history
+# entry too — a skipped scheduled slot must be as visible in history as a
+# failed run, never a silent gap. Same "never raise" contract as the rest of
+# this module.
+# --------------------------------------------------------------------------
+def blocked_run(trigger: str, holder_desc: str) -> None:
+    """A run refused to start outright because app/core/pipeline_lock is
+    held by someone else. Used by every non-scheduled entry point (manual,
+    --rebuild-only, the watcher's manual trigger) — none of them retry, they
+    fail immediately. See deferral_abandoned() for the scheduled trigger,
+    which retries for up to 2h before giving up."""
+    global _state
+    try:
+        now = _now()
+        _state = {
+            "runId": None,
+            "state": "blocked",
+            "trigger": trigger,
+            "startedAt": now,
+            "updatedAt": now,
+            "finishedAt": now,
+            "host": os.getenv("COMPUTERNAME") or "unknown",
+            "stepIndex": -1,
+            "stepKey": None,
+            "stepLabel": None,
+            "steps": [],
+            "progress": None,
+            "error": f"Blocked: pipeline lock held by {holder_desc}. Refused to start (trigger={trigger} does not retry).",
+            "summary": {},
+        }
+        _push(force=True)
+    except Exception:
+        pass
+
+
+def deferring(trigger: str, holder_desc: str, deferring_since: str, attempt: int, note: str = "") -> None:
+    """Heartbeat published while the SCHEDULED trigger retries against a
+    held lock (app/core/pipeline_schedule.py). Overwrites
+    pipeline_status/current on every attempt; no history entry yet — one is
+    written only once the deferral resolves, either here-adjacent via
+    deferral_abandoned() or by the normal start_run()/finish_run() pair once
+    the lock clears and the real run begins."""
+    global _state
+    try:
+        now = _now()
+        _state = {
+            "runId": None,
+            "state": "deferred",
+            "trigger": trigger,
+            "startedAt": deferring_since,
+            "updatedAt": now,
+            "finishedAt": None,
+            "host": os.getenv("COMPUTERNAME") or "unknown",
+            "stepIndex": -1,
+            "stepKey": None,
+            "stepLabel": None,
+            "steps": [],
+            "progress": None,
+            "error": f"Deferred (attempt {attempt}): blocked by {holder_desc}. {note}".strip(),
+            "summary": {"deferringSince": deferring_since, "attempt": attempt},
+        }
+        _push(force=True)
+    except Exception:
+        pass
+
+
+def deferral_abandoned(trigger: str, holder_desc: str, deferring_since: str, attempts: int, recovered: bool = False) -> None:
+    """The 2h defer window elapsed still blocked (or — 'recovered' — a
+    crashed deferral's overdue abandonment is being surfaced late by a
+    later invocation, so it is never silently lost). Writes BOTH the live
+    card and a real pipeline_runs history entry: a skipped scheduled slot
+    must be as visible in history as a failed run."""
+    global _state
+    try:
+        now = _now()
+        run_id = deferring_since.replace(":", "").replace("-", "")[:15] + "-deferred"
+        if recovered:
+            prefix = "RECOVERED (an earlier deferral crashed without logging its own abandonment): "
+        else:
+            prefix = ""
+        error = (
+            f"{prefix}ABANDONED after {attempts} retr{'y' if attempts == 1 else 'ies'} "
+            f"over up to 2h: still blocked by {holder_desc} when the defer window "
+            f"elapsed (deferring since {deferring_since}). This scheduled slot was "
+            "skipped — the NEXT 8h slot proceeds normally on its original schedule."
+        )
+        _state = {
+            "runId": run_id,
+            "state": "skipped",
+            "trigger": trigger,
+            "startedAt": deferring_since,
+            "updatedAt": now,
+            "finishedAt": now,
+            "host": os.getenv("COMPUTERNAME") or "unknown",
+            "stepIndex": -1,
+            "stepKey": None,
+            "stepLabel": None,
+            "steps": [],
+            "progress": None,
+            "error": error,
+            "summary": {"deferringSince": deferring_since, "attempts": attempts},
+        }
+        try:
+            started = datetime.fromisoformat(deferring_since)
+            _state["durationSec"] = round((datetime.now(timezone.utc) - started).total_seconds())
+        except Exception:
+            pass
+        _push(force=True)
+
+        db = _client()
+        if db is not None:
+            try:
+                db.collection(f"pipeline_runs{_lane_suffix()}").document(run_id).set(_state)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+
 def status_note() -> str:
     """One line for the console so a silent no-op is visible in the log."""
     if _client() is not None:

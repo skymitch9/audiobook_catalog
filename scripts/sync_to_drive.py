@@ -64,6 +64,16 @@ except Exception:  # pragma: no cover - defensive
             return lambda *a, **k: ""
     pstatus = _NoStatus()
 
+# Single-flight lock + scheduled-trigger defer/retry (2026-08-16,
+# docs/info/ROLES.md §1c/§1d). See app/core/pipeline_lock.py and
+# app/core/pipeline_schedule.py for the full design; run_pipeline() and
+# run_rebuild_only() below are the two functions that actually take the
+# lock, so every entry point (normal run, --sort-only, --upload-only,
+# --rebuild-only, and the remote-trigger watcher, which runs this same
+# script as a subprocess) is covered no matter how it's invoked.
+from app.core import pipeline_lock
+from app.core import pipeline_schedule
+
 # OpenAudible export location
 OPENAUDIBLE_BOOKS_DIR = Path(os.getenv("ROOT_DIR", r"C:\Users\nbasl\OpenAudible\books"))
 # Books downloaded by the Dockerized OpenAudible (scratch runtime dir) get
@@ -935,9 +945,65 @@ def run_pipeline(
     sort_only: bool = False,
     upload_only: bool = False,
     dry_run: bool = False,
-    trigger: str = "scheduled",
+    trigger: str = "manual",
 ) -> None:
-    """Run the full audiobook pipeline."""
+    """Public entry point: takes the single-flight lock (see
+    app/core/pipeline_lock.py), then runs _run_pipeline_body().
+
+    ⚠️ --dry-run is the one deliberate exception: it makes no filesystem,
+    Drive, or git changes (see the `dry_run` branches in sort_books() and
+    upload_file_to_drive(), and the `if not dry_run` guard around STEP 6's
+    commit/push), so there is nothing for mutual exclusion to protect —
+    requiring it to queue behind or refuse next to a real run would only
+    get in the way of using it as a safe-anytime preview.
+
+    trigger == "scheduled" is the ONLY value that defers instead of failing
+    immediately when blocked — see app/core/pipeline_schedule.py. It is set
+    exclusively by scripts/sync_pipeline_8h.bat (`set PIPELINE_TRIGGER=scheduled`),
+    the real 8-hourly Task Scheduler job. Every other trigger (the default
+    "manual", "manual-rebuild", or the watcher's "manual") fails LOUDLY the
+    instant the lock is held — see pipeline_lock.PipelineLockHeld below.
+    """
+    if dry_run:
+        _run_pipeline_body(sort_only=sort_only, upload_only=upload_only, dry_run=dry_run, trigger=trigger)
+        return
+
+    if trigger == "scheduled":
+        pipeline_schedule.run_with_defer(
+            lambda: _run_pipeline_body(
+                sort_only=sort_only, upload_only=upload_only, dry_run=dry_run, trigger=trigger
+            )
+        )
+        return
+
+    try:
+        lock = pipeline_lock.acquire(trigger)
+    except pipeline_lock.PipelineLockHeld as held:
+        print(f"\n[LOCK] BLOCKED: pipeline lock held by {held.holder.describe()}")
+        print("[LOCK] Refusing to start — another run is already in flight. "
+              "(Only the scheduled 8h trigger retries; this one does not.)")
+        pstatus.blocked_run(trigger, held.holder.describe())
+        # Re-raise (not sys.exit here) so main()'s dispatcher can tell "blocked,
+        # already reported" apart from a genuine crash — see main()'s specific
+        # `except pipeline_lock.PipelineLockHeld` clause, which must NOT also
+        # call pstatus.fail_run() and clobber the message just written above.
+        raise
+
+    try:
+        _run_pipeline_body(sort_only=sort_only, upload_only=upload_only, dry_run=dry_run, trigger=trigger)
+    finally:
+        lock.release()
+
+
+def _run_pipeline_body(
+    sort_only: bool = False,
+    upload_only: bool = False,
+    dry_run: bool = False,
+    trigger: str = "manual",
+) -> None:
+    """Run the full audiobook pipeline. Callers MUST already hold the
+    single-flight lock (or be in --dry-run mode, which needs none) — use
+    run_pipeline() above, never this directly, outside of a test."""
     print("=" * 60)
     print("  Audiobook Pipeline - Sort & Upload to Google Drive")
     print(f"  {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
@@ -1330,9 +1396,35 @@ def run_pipeline(
 
 
 def run_rebuild_only(trigger: str = "manual") -> None:
+    """Public entry point: takes the single-flight lock, then runs
+    _run_rebuild_only_body(). Always fails LOUDLY and immediately when the
+    lock is held — never defers, regardless of `trigger`. The owner's defer
+    rule (app/core/pipeline_schedule.py) is specifically for the 8h
+    scheduled trigger, and scripts/sync_pipeline_8h.bat never passes
+    --rebuild-only for that slot, so there is no real path by which this
+    function should ever wait rather than refuse."""
+    try:
+        lock = pipeline_lock.acquire(trigger)
+    except pipeline_lock.PipelineLockHeld as held:
+        print(f"\n[LOCK] BLOCKED: pipeline lock held by {held.holder.describe()}")
+        print("[LOCK] Refusing to start --rebuild-only — another run is already in flight.")
+        pstatus.blocked_run(trigger, held.holder.describe())
+        # Re-raise (see the matching comment in run_pipeline()) so main() can
+        # set a nonzero exit code without pstatus.fail_run() clobbering the
+        # blocked-status message just written above.
+        raise
+
+    try:
+        _run_rebuild_only_body(trigger=trigger)
+    finally:
+        lock.release()
+
+
+def _run_rebuild_only_body(trigger: str = "manual") -> None:
     """Rebuild the catalog/site from what's on disk and publish it, WITHOUT
     sort/detect/upload. See the module note above this function for the
-    per-step reasoning."""
+    per-step reasoning. Callers MUST already hold the single-flight lock —
+    use run_rebuild_only() above, never this directly, outside of a test."""
     print("=" * 60)
     print("  Audiobook Pipeline - Rebuild Only (no sort/detect/upload)")
     print(f"  {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
@@ -1561,6 +1653,21 @@ def main():
 
     # A crash must still close out the status doc, otherwise the panel shows a
     # run stuck "running" forever and there is no way to tell from off-site.
+    #
+    # ⚠️ PIPELINE_TRIGGER default changed 2026-08-16 from "scheduled" to
+    # "manual" (docs/info/ROLES.md §1d): the "scheduled" value is now
+    # reserved EXCLUSIVELY for the true 8h Task Scheduler firing — it is the
+    # one trigger that defers-and-retries for up to 2h instead of failing
+    # immediately when the pipeline lock is held (app/core/pipeline_schedule.py).
+    # scripts/sync_pipeline_8h.bat sets PIPELINE_TRIGGER=scheduled explicitly
+    # for that reason. Before this change, a human typing this command by
+    # hand got the SAME "scheduled" default — meaning a blocked manual run
+    # would have silently sat retrying for up to 2 hours instead of telling
+    # them right away that something else is running. Defaulting to "manual"
+    # makes every other invocation (a human at a terminal, --rebuild-only's
+    # own "manual-rebuild" default, the watcher's explicit "manual") fail
+    # loudly and immediately instead, which is what the owner's spec asks
+    # for outside the one real scheduled slot.
     try:
         if args.rebuild_only:
             run_rebuild_only(trigger=os.getenv("PIPELINE_TRIGGER", "manual-rebuild"))
@@ -1569,8 +1676,13 @@ def main():
                 sort_only=args.sort_only,
                 upload_only=args.upload_only,
                 dry_run=args.dry_run,
-                trigger=os.getenv("PIPELINE_TRIGGER", "scheduled"),
+                trigger=os.getenv("PIPELINE_TRIGGER", "manual"),
             )
+    except pipeline_lock.PipelineLockHeld:
+        # Already printed and reported to pipeline_status inside run_pipeline()/
+        # run_rebuild_only() — calling pstatus.fail_run() here would overwrite
+        # that clear "blocked by X since Y" message with a generic traceback.
+        sys.exit(1)
     except BaseException as e:
         pstatus.fail_run(e)
         raise
