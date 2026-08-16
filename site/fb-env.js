@@ -8,6 +8,31 @@
 // The prod lane (Pages site root, built from the prod branch) resolves to the
 // unsuffixed names and behaves exactly as before.
 
+/**
+ * The ONE Firebase web config for this project.
+ *
+ * ⚠️ Every page that calls initializeApp() must import this rather than
+ * inlining the object. Before 2026-08-16 the config was pasted inline in ten
+ * places; the SSO flip that moved authDomain to auth.heygabi.ai had to edit
+ * each one by hand and MISSED app/tools/generate_stats.py, which still emits
+ * the pre-flip "audiobook-catalog.firebaseapp.com". That is the exact failure
+ * this export exists to prevent — change the value here, once.
+ *
+ * These values are public by design (they identify the project to Firebase and
+ * ship in the page source); access control lives in firestore.rules, not here.
+ *
+ * ⚠️ authDomain is auth.heygabi.ai — a custom domain, NOT the default
+ * *.firebaseapp.com. Google sign-in depends on it. Do not "correct" it back.
+ */
+export const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDgAblkxzVxl7nFbd7jXOo6PpuNPsJw11Y",
+  authDomain: "auth.heygabi.ai",
+  projectId: "audiobook-catalog",
+  storageBucket: "audiobook-catalog.firebasestorage.app",
+  messagingSenderId: "68492219785",
+  appId: "1:68492219785:web:7cbe57dda8712377f0bd58"
+};
+
 const DEV_HOSTNAMES = ['localhost', '127.0.0.1'];
 
 /**

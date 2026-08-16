@@ -581,7 +581,7 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
   import { getFirestore, collection, getDocs } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
   import { coverUrl } from './covers-base.js';
-  import { col } from './fb-env.js';
+  import { col, FIREBASE_CONFIG } from './fb-env.js';
   import { getSession, slugifyName, getLiveUser, getSiteRole } from './identity.js';
   import { mountAccountModal } from './account-modal.js';
   import { bookIdFromTitle, submitReview, renderStars } from './reviews.js';
@@ -608,14 +608,8 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
   import { loadSeen, syncSeen } from './club-notify.js';
   import { buildMeetingIcs, icsFilename, downloadIcsFile } from './ics.js?v=20260814g';
 
-  const firebaseConfig = {
-    apiKey: "AIzaSyDgAblkxzVxl7nFbd7jXOo6PpuNPsJw11Y",
-    authDomain: "auth.heygabi.ai",
-    storageBucket: "audiobook-catalog.firebasestorage.app",
-    projectId: "audiobook-catalog",
-    messagingSenderId: "68492219785",
-    appId: "1:68492219785:web:7cbe57dda8712377f0bd58"
-  };
+  // Canonical copy lives in site/fb-env.js
+  const firebaseConfig = FIREBASE_CONFIG;
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
   mountAccountModal(db, app, document.getElementById('identity-bar'));

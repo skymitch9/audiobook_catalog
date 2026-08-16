@@ -525,15 +525,10 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
   import { addUserWarning, getUserWarnings, deleteUserWarning } from './user-warnings.js';
   import { markReadSeen } from './club-notify.js';
   import { submitReview, bookIdFromTitle, getReviews, renderStars } from './reviews.js';
+  import { FIREBASE_CONFIG } from './fb-env.js';
 
-  const firebaseConfig = {
-    apiKey: "AIzaSyDgAblkxzVxl7nFbd7jXOo6PpuNPsJw11Y",
-    authDomain: "auth.heygabi.ai",
-    projectId: "audiobook-catalog",
-    storageBucket: "audiobook-catalog.firebasestorage.app",
-    messagingSenderId: "68492219785",
-    appId: "1:68492219785:web:7cbe57dda8712377f0bd58"
-  };
+  // Canonical copy lives in site/fb-env.js
+  const firebaseConfig = FIREBASE_CONFIG;
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
   mountAccountModal(db, app, document.getElementById('identity-bar'));

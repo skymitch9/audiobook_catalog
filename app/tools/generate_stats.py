@@ -133,8 +133,33 @@ def calculate_stats(csv_path: Path) -> Dict[str, Any]:
 
 
 def generate_stats_html(stats: Dict[str, Any], generated_at: str) -> str:
-    """Generate HTML for the stats page"""
-    
+    """Generate HTML for the stats page.
+
+    ⚠️ THIS FILE HOLDS THE LAST INLINE FIREBASE CONFIG IN THE REPO, AND ITS
+    authDomain DISAGREES WITH EVERY OTHER PAGE.
+
+    On 2026-08-16 the other nine configs were consolidated into the single
+    exported FIREBASE_CONFIG in site/fb-env.js. This one was deliberately
+    NOT consolidated, because doing so would CHANGE a value rather than just
+    move it: the emitted config below still carries the pre-SSO-flip
+    authDomain "audiobook-catalog.firebaseapp.com", while fb-env.js (and
+    every other page) carries "auth.heygabi.ai". The SSO flip updated the
+    other nine by hand and missed this one.
+
+    Why it is not currently breaking anything: the generated stats.html uses
+    Firestore ONLY (no getAuth, no firebase-auth import, no sign-in), and
+    /profiles and /reviews are `allow read: if true` in firestore.rules — so
+    authDomain is inert on this page. It is a latent trap, not a live outage:
+    the moment this page gains a sign-in, or those reads stop being public,
+    it would authenticate against the wrong domain.
+
+    THE FIX (a deliberate one-line value change, not a refactor — verify
+    stats.html still loads afterwards): replace the inline object below with
+    an import of FIREBASE_CONFIG from './fb-env.js', exactly as the other
+    pages do. Note the emitted block is inside an f-string, so braces in it
+    must stay doubled.
+    """
+
     def format_listening_time(stats_data):
         listening = stats_data['listening_time']
         if listening['years'] >= 1:
