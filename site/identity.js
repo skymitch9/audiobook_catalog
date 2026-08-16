@@ -464,13 +464,21 @@ export async function getEstateStatus(app) {
     const cacheKey = ESTATE_CACHE_PREFIX + user.uid;
     try {
       const cached = sessionStorage.getItem(cacheKey);
-      if (cached) return JSON.parse(cached);
+      if (cached) {
+        // TTL'd since 2026-08-15 (owner: role grants should not need a hard
+        // refresh): entries are {v, at} and expire after 10 minutes, so an
+        // approval or role granted mid-session shows up on the next page
+        // load within minutes, not the next browser session. A legacy
+        // bare-answer entry has no `at` and reads as expired.
+        const parsed = JSON.parse(cached);
+        if (parsed && parsed.at && Date.now() - parsed.at < 10 * 60 * 1000) return parsed.v;
+      }
     } catch (e) { /* unreadable cache — fall through to a fresh fetch */ }
     const token = await user.getIdToken();
     const res = await fetch(ESTATE_ME_URL, { headers: { Authorization: 'Bearer ' + token } });
     if (!res.ok) return null; // a failure is not an answer — do not cache it
     const answer = await res.json();
-    try { sessionStorage.setItem(cacheKey, JSON.stringify(answer)); } catch (e) { /* full — refetch next time */ }
+    try { sessionStorage.setItem(cacheKey, JSON.stringify({ v: answer, at: Date.now() })); } catch (e) { /* full — refetch next time */ }
     return answer;
   } catch (e) {
     return null; // fetch failed / offline — the gate simply stays closed
