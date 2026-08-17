@@ -500,9 +500,11 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
   import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
   import { coverUrl } from './covers-base.js';
-  import { getSession, slugifyName, resolveSiteAccess } from './identity.js';
+  import { getSession, slugifyName, resolveSiteAccess, getLiveUser } from './identity.js';
   import { mountAccountModal } from './account-modal.js';
-  import { getClub, getMembers, clubFeatureEnabled } from './clubs.js?v=20260817a';
+  import {
+    getClub, getMembers, clubFeatureEnabled, isManagerUid, canOperateClub,
+  } from './clubs.js?v=20260817b';
   import {
     getRead, getComments, addComment, deleteComment,
     toggleReaction, togglePin, REACTION_EMOJI,
@@ -566,8 +568,9 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
   const myRole = () => (members.find(m => m.slug === mySlug) || {}).role || null;
   // Site admin gets the host/mod controls on every read — same break-glass
   // as club.html. The site MODERATOR (three-tier model) gets the OPERATIONAL
-  // subset: content deletes, schedule, polls — never the reveal flip or the
-  // AI-prompt/pin host tools. Resolves async; re-render.
+  // subset: content deletes, schedule, polls, and — since the 2026-08-17
+  // MANAGECLUB SPLIT — the ratings REVEAL; never the AI-prompt/pin host
+  // tools. Resolves async; re-render.
   // Phase 2 of the auth migration: the answer comes from the worker's
   // /api/me capability list (server-verified) via resolveSiteAccess, which
   // falls back to the old site_roles read if the worker is unreachable —
@@ -576,10 +579,31 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
   resolveSiteAccess(db, app).then((access) => {
     if (access) { siteAccess = access; if (read) render(); }
   }).catch(() => {});
+  // The Firebase Auth uid, for the club-island gates that key on managerUids
+  // (the reveal control since the 2026-08-17 MANAGECLUB SPLIT). Null for a
+  // signed-out or legacy display-name session, which changes nothing.
+  let liveUid = null;
+  getLiveUser(app).then((user) => {
+    liveUid = user ? user.uid : null;
+    if (read) render();
+  }).catch(() => {});
   const siteCan = (cap) => !!siteAccess && siteAccess.capabilities.includes(cap);
   const isMod = () => ['host', 'moderator'].includes(myRole()) || siteCan('manageClub');
   // The operational gate — mirrors canOperateClub in clubs.js/firestore.rules.
   const canOperate = () => isMod() || siteCan('operateClub');
+  // The READ LIFECYCLE gate (MANAGECLUB SPLIT, 2026-08-17). On this page that
+  // is the ratings reveal. It was isMod() — display-name host/mod plus the
+  // site admin — which both drew the button for a display-name host rules
+  // would refuse AND hid it from the site moderator rules now admits.
+  //
+  // Two halves, the same idiom club.html uses for the webhook: `mayRunReads`
+  // is the UI precondition (who should see a manager control at all), and
+  // canOperateClub() is the RULES MIRROR (who the write actually succeeds
+  // for). Both must hold, or the control is not drawn and the banner says why.
+  const mayRunReads = () => canOperate() || isManagerUid(club, liveUid);
+  const siteRoleName = () =>
+    (siteCan('manageClub') ? 'admin' : (siteCan('operateClub') ? 'moderator' : null));
+  const canRunReads = () => mayRunReads() && canOperateClub(club, liveUid, siteRoleName());
   // Reader content-note removal (the 2026-08-17 delete split): your own note
   // always, anyone's note for a site moderator+ — 'operateClub' is exactly the
   // capability firestore.rules' canDeleteUserWarning() and the worker's
@@ -913,8 +937,15 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
       </div>` : '';
 
     if (!revealed) {
-      const revealBtn = isMod() && count > 0
+      // The reveal is a read-lifecycle action: this club's bound managers, or
+      // a site moderator (MANAGECLUB SPLIT, 2026-08-17). Someone whose
+      // display-name role says host but whose account is not on the roster
+      // gets the reason instead of a button rules would refuse.
+      const revealBtn = canRunReads() && count > 0
         ? `<button class="reveal-btn" id="reveal-ratings-btn">🎉 Reveal ratings</button>` : '';
+      const revealNote = (!revealBtn && mayRunReads() && count > 0)
+        ? 'Revealing is done by the accounts on this club\'s manager roster, or by a site moderator — yours isn\'t one of them yet, so the button would be refused. Secure your role on the club page, or ask a site moderator or admin to add your account.'
+        : '';
       const mineTxt = canRate
         ? (mine ? `Your rating: ${renderStars(mine.rating)}${mine.comment ? ` — "${escapeHtml(mine.comment)}"` : ''}`
                 : "You haven't rated yet — only you can see your own pick until reveal.")
@@ -922,6 +953,7 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
       return `
         <div class="rate-banner">
           <div class="rate-banner-head">🌟 Blind ratings — ${count} of ${members.length} member${members.length !== 1 ? 's' : ''} rated so far. Ratings stay hidden until revealed.${revealBtn ? `<span style="margin-left:auto">${revealBtn}</span>` : ''}</div>
+          ${revealNote ? `<div class="rate-mine">${revealNote}</div>` : ''}
           ${mineTxt ? `<div class="rate-mine">${mineTxt}</div>` : ''}
           ${composer}
         </div>`;

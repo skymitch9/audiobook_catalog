@@ -552,9 +552,14 @@ export async function getReads(db, clubId) {
 }
 
 /**
- * Remove a read entirely (any member — "the book we're reading" is
- * club-editable). Frees its active slot and deletes its comments and
+ * Remove a read entirely. Frees its active slot and deletes its comments and
  * progress docs.
+ *
+ * ⚠️ The docstring here used to say "any member — the book we're reading is
+ * club-editable", which stopped being true when the uid layer landed
+ * (2026-08-14 gated the delete on canManageClub). Since the 2026-08-17
+ * MANAGECLUB SPLIT the gate is canOperateClub: this club's bound managers, or
+ * a site moderator. Unclaimed clubs stay open, as they always were.
  */
 export async function removeRead(db, clubId, readId) {
   const clubRef = doc(db, col('clubs'), clubId);
@@ -601,6 +606,10 @@ export async function removeRead(db, clubId, readId) {
     return {
       success: false,
       error: describeActionError(e, {
+        // MANAGECLUB SPLIT, 2026-08-17: removing a read is canOperateClub —
+        // this call had no `need` at all, so a rules refusal read as a bare
+        // "you don't have permission" with nothing to act on.
+        need: "this club's manager role, or the site moderator role",
         fallback: `Remove failed: ${e.message} — try a hard refresh and sign in again if this persists.`,
       }),
     };
@@ -686,7 +695,9 @@ export async function finishRead(db, clubId, readId, status) {
     return {
       success: false,
       error: describeActionError(e, {
-        need: 'the club host/moderator role, or site admin',
+        // MANAGECLUB SPLIT, 2026-08-17: the gate is canOperateClub, so the
+        // refusal names what it actually needs — same wording as the webhook.
+        need: "this club's manager role, or the site moderator role",
         fallback: `Finish failed: ${e.message} — try a hard refresh and sign in again if this persists.`,
       }),
     };
@@ -1790,9 +1801,11 @@ export async function rateBook(db, clubId, readId, rating, comment, session) {
 }
 
 /**
- * Reveal a read's ratings (manager action, enforced in the UI + rules on
- * claimed clubs via MANAGED_READ_FIELDS). Stamps revealedAt so
- * isRatingAfterReveal has a real instant to compare against.
+ * Reveal a read's ratings — a READ-LIFECYCLE action (LIFECYCLE_READ_FIELDS),
+ * enforced in the UI and, on claimed clubs, by firestore.rules'
+ * canOperateClub since the 2026-08-17 MANAGECLUB SPLIT: this club's bound
+ * managers, or a site moderator. Stamps revealedAt so isRatingAfterReveal has
+ * a real instant to compare against.
  */
 export async function revealRatings(db, clubId, readId) {
   let succeeded = false; // the shadow report's outcome bit — see the finally
@@ -1804,7 +1817,11 @@ export async function revealRatings(db, clubId, readId) {
     succeeded = true;
     return { success: true };
   } catch (e) {
-    return { success: false, error: describeActionError(e, { need: 'the club host/moderator role, or site admin' }) };
+    return {
+      success: false,
+      // MANAGECLUB SPLIT, 2026-08-17 — the reveal is canOperateClub now.
+      error: describeActionError(e, { need: "this club's manager role, or the site moderator role" }),
+    };
   } finally {
     reportGate('read.revealRatings', { clubId, succeeded }); // Phase 1 shadow — fire-and-forget
   }

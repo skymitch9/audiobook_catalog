@@ -152,8 +152,11 @@ service cloud.firestore {
     //                 site-wide review removal (see /reviews).
     //   'moderator' — the OPERATIONAL subset across ALL clubs: reading
     //                 schedule, polls management, next-meeting fields,
-    //                 membership ops and content deletes. NOT features/
-    //                 webhook/identity/roster/club-or-read deletes/site-wide.
+    //                 membership ops, content deletes and — since the
+    //                 2026-08-17 MANAGECLUB SPLIT — the READ LIFECYCLE
+    //                 (finish/abandon, remove a read, reveal its ratings).
+    //                 NOT features/joinMode/webhook/identity/roster, and
+    //                 NOT the CLUB delete, which stays the destructive row.
     //   (club mods  — managerUids on the club doc: full powers over the
     //                 "club island" — book/reads, schedule, features,
     //                 joinMode, finish/abandon, ratings reveal, next
@@ -183,7 +186,8 @@ service cloud.firestore {
 
     // The OPERATIONAL gate: everything canManageClub admits, plus the site
     // moderator — people + content flow across all clubs (schedule, polls,
-    // next meeting), never the structural fields below.
+    // next meeting, and since 2026-08-17 the read lifecycle), never the
+    // structural fields below and never the club delete.
     function canOperateClub(club) {
       return canManageClub(club) || isSiteModerator();
     }
@@ -300,21 +304,48 @@ service cloud.firestore {
         ['managerUids']);
     }
 
-    // Read-doc fields gated the same way, split by tier:
-    //   STRUCTURAL — club-level lifecycle (finish/abandon), slot, and the
+    // Read-doc fields gated the same way, split by tier — THREE tiers as of
+    // the 2026-08-17 MANAGECLUB SPLIT (owner decision, option B):
+    //   LIFECYCLE   — finishing/abandoning a read (status, finishedAt) and the
     //     blind-ratings reveal flip (ratingsRevealed/revealedAt — see the
-    //     ratings subcollection below): canManageClub only.
+    //     ratings subcollection below): canOperateClub, i.e. the club's own
+    //     managers AND the site moderator. See below for why it moved.
+    //   STRUCTURAL  — the slot ASSIGNMENT itself: canManageClub only.
     //   OPERATIONAL — the reading schedule (milestones carry dueAt,
     //     scheduleUpdatedAt): canOperateClub, i.e. site moderator included.
     // commentCount (bumped by every commenter), slotLabel (member-editable)
     // and ratingCount (bumped by every rater, same open pattern as
     // commentCount) stay open, as does CREATE — starting a read is a
     // member action.
-    // ⚠️ Keep these lists in step with STRUCTURAL_READ_FIELDS /
-    // OPERATIONAL_READ_FIELDS in site/clubs.js.
+    //
+    // ⚠️ WHY LIFECYCLE LEFT STRUCTURAL (2026-08-17). The owner's line is
+    // "running the reading" vs "destroying the thing": finishing a read,
+    // removing one and revealing its ratings are the day-to-day work of
+    // whoever runs a club, so they take the same gate as the schedule, the
+    // polls and the membership ops. Deleting the CLUB and editing its
+    // structure (joinMode, features) are the irreversible half and did NOT
+    // move — canManageClub, site-admin floor, exactly as before.
+    // The practical widening is the SITE MODERATOR: a club's own bound
+    // managers already passed canManageClub, and now moderator+ passes too,
+    // which is the "moderators+ keep override everywhere" rule the club
+    // package established. scripts/smoke_club_manager_rules.py pins every arm.
+    //
+    // ⚠️ `slot` stays STRUCTURAL and is deliberately left behind. Measured
+    // 2026-08-17 against site/club-reads.js: nothing UPDATES it — startRead
+    // stamps it at create (open, a member action) and finish/remove edit the
+    // CLUB's activeSlots array instead. So this tier guards re-slotting an
+    // existing read, which no client does and no lifecycle action needs.
+    //
+    // ⚠️ Keep these lists in step with LIFECYCLE_READ_FIELDS /
+    // STRUCTURAL_READ_FIELDS / OPERATIONAL_READ_FIELDS in site/clubs.js.
+    function readLifecycleFieldsChanged() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny(
+        ['status', 'finishedAt', 'ratingsRevealed', 'revealedAt']);
+    }
+
     function readStructuralFieldsChanged() {
       return request.resource.data.diff(resource.data).affectedKeys().hasAny(
-        ['status', 'finishedAt', 'slot', 'ratingsRevealed', 'revealedAt']);
+        ['slot']);
     }
 
     function readOperationalFieldsChanged() {
@@ -748,21 +779,29 @@ service cloud.firestore {
 
       match /reads/{readId} {
         allow read: if true;
-        // Create stays open: starting a read is a member action. Lifecycle
-        // fields (readStructuralFieldsChanged) are manager actions once the
-        // club is claimed; the reading schedule (operational) accepts the
-        // site moderator too; commentCount bumps and slot labels stay open
-        // for every member write path.
+        // Create stays open: starting a read is a member action. LIFECYCLE
+        // fields (finish/abandon + the ratings reveal) take canOperateClub
+        // since the 2026-08-17 MANAGECLUB SPLIT — the club's own managers, or
+        // a site moderator; the slot ASSIGNMENT stays canManageClub; the
+        // reading schedule (operational) accepts the site moderator too;
+        // commentCount bumps and slot labels stay open for every member
+        // write path.
         allow create: if validClubRead();
         allow update: if validClubRead()
+                      && (!readLifecycleFieldsChanged()
+                          || canOperateClub(parentClub('clubs', clubId)))
                       && (!readStructuralFieldsChanged()
                           || canManageClub(parentClub('clubs', clubId)))
                       && (!readOperationalFieldsChanged()
                           || canOperateClub(parentClub('clubs', clubId)));
-        // Removing a read deletes discussions — manager UI action; gated
-        // once the club is claimed, open (as it always was) before that.
-        // Deliberately NOT canOperateClub: read deletes are structural.
-        allow delete: if canManageClub(parentClub('clubs', clubId));
+        // Removing a read deletes its discussions — a manager UI action;
+        // gated once the club is claimed, open (as it always was) before
+        // that. ⚠️ canOperateClub since the 2026-08-17 MANAGECLUB SPLIT: this
+        // clause used to read canManageClub with the note "read deletes are
+        // structural", which the owner's option B overruled — removing a read
+        // is running the club. The DESTRUCTIVE row is the club delete itself
+        // (see /clubs/{clubId} above), and that one still takes canManageClub.
+        allow delete: if canOperateClub(parentClub('clubs', clubId));
 
         match /comments/{commentId} {
           allow read: if true;
@@ -914,13 +953,17 @@ service cloud.firestore {
 
       match /reads/{readId} {
         allow read: if true;
+        // Same three tiers as the prod lane — see the /clubs/{clubId}/reads
+        // block above for the 2026-08-17 MANAGECLUB SPLIT reasoning.
         allow create: if validClubRead();
         allow update: if validClubRead()
+                      && (!readLifecycleFieldsChanged()
+                          || canOperateClub(parentClub('clubs_dev', clubId)))
                       && (!readStructuralFieldsChanged()
                           || canManageClub(parentClub('clubs_dev', clubId)))
                       && (!readOperationalFieldsChanged()
                           || canOperateClub(parentClub('clubs_dev', clubId)));
-        allow delete: if canManageClub(parentClub('clubs_dev', clubId));
+        allow delete: if canOperateClub(parentClub('clubs_dev', clubId));
 
         match /comments/{commentId} {
           allow read: if true;

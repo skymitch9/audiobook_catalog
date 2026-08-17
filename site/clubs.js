@@ -269,15 +269,36 @@ export const MANAGED_CLUB_FIELDS = [
 ];
 
 /**
- * Read-doc fields rules gate the same way, split by tier:
- *   STRUCTURAL — club-level lifecycle (finish/abandon), slot, the
- *     blind-ratings reveal flip: canManageClub only.
+ * Read-doc fields rules gate the same way, split by tier — THREE tiers since
+ * the 2026-08-17 MANAGECLUB SPLIT (owner decision, option B):
+ *   LIFECYCLE   — finish/abandon (status, finishedAt) and the blind-ratings
+ *     reveal flip (ratingsRevealed, revealedAt): canOperateClub — the club's
+ *     own managers, or a site moderator.
+ *   STRUCTURAL  — the slot ASSIGNMENT: canManageClub only.
  *   OPERATIONAL — the reading schedule: canOperateClub (site moderator too).
- * ⚠️ MUST match readStructuralFieldsChanged() / readOperationalFieldsChanged()
- * in firestore.rules.
+ *
+ * ⚠️ WHY LIFECYCLE SPLIT OUT. The owner's line is "running the reading" vs
+ * "destroying the thing". Finishing a read, removing one and revealing its
+ * ratings are what whoever runs a club does week to week, so they sit with the
+ * schedule and the polls; DELETING THE CLUB and editing its structure
+ * (joinMode, features) are irreversible and did NOT move. The change a person
+ * sees is the site MODERATOR arm — a club's own bound managers already passed
+ * canManageClub on their own club.
+ *
+ * ⚠️ `slot` stays behind in STRUCTURAL on purpose. Measured 2026-08-17 against
+ * club-reads.js: no client ever UPDATES it — startRead stamps it at create
+ * (open, a member action) and finish/remove edit the club's activeSlots array
+ * instead. The tier guards re-slotting an existing read, which nothing does.
+ *
+ * ⚠️ MUST match readLifecycleFieldsChanged() / readStructuralFieldsChanged() /
+ * readOperationalFieldsChanged() in firestore.rules.
  */
+export const LIFECYCLE_READ_FIELDS = [
+  'status', 'finishedAt', 'ratingsRevealed', 'revealedAt',
+];
+
 export const STRUCTURAL_READ_FIELDS = [
-  'status', 'finishedAt', 'slot', 'ratingsRevealed', 'revealedAt',
+  'slot',
 ];
 
 export const OPERATIONAL_READ_FIELDS = [
@@ -286,7 +307,7 @@ export const OPERATIONAL_READ_FIELDS = [
 
 /** The union — every manager-gated read-doc field, whichever tier. */
 export const MANAGED_READ_FIELDS = [
-  ...STRUCTURAL_READ_FIELDS, ...OPERATIONAL_READ_FIELDS,
+  ...LIFECYCLE_READ_FIELDS, ...STRUCTURAL_READ_FIELDS, ...OPERATIONAL_READ_FIELDS,
 ];
 
 /** Does this club have a non-empty manager-uid roster? */

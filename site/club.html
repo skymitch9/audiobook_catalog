@@ -427,6 +427,15 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
       <div id="edit-reads-list"></div>
       <div class="er-hint">Finished the book yourself? Use "I'm finished" on the book's discussion page instead — these buttons end the read for the whole club.</div>
     </div>
+    <!-- The worded refusal for the read lifecycle, mirroring the webhook one
+         above: shown to someone whose display-name role says host/moderator
+         but whose Google account is not bound to this club's manager roster.
+         Rules would refuse the write, so we say why instead of drawing three
+         buttons that fail. (MANAGECLUB SPLIT, 2026-08-17.) -->
+    <div class="field" id="edit-reads-restricted-field" style="display:none">
+      <label>Active reads — CLUB-level actions</label>
+      <small style="color:var(--muted)">Finishing, removing and revealing ratings on this club's reads are done by the accounts bound to its manager roster, or by a site moderator — and yours isn't one of them yet, so these controls would be refused rather than saved. Secure your role from the banner at the top of the club (if the club is still unclaimed), or ask a site moderator or admin to add your account to this club's managers.</small>
+    </div>
     <div class="field" id="edit-meeting-field" style="display:none">
       <label for="edit-meeting-at">Next meeting</label>
       <input id="edit-meeting-at" type="datetime-local" />
@@ -596,7 +605,7 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
     clubFeatureEnabled, isValidDiscordWebhook, setClubDiscordWebhook, clearClubDiscordWebhook,
     isClubClaimed, isManagerUid, canManageClub, canOperateClub, canAdministerClub,
     canClaimManagerRole, claimManagerRole,
-  } from './clubs.js?v=20260817a';
+  } from './clubs.js?v=20260817b';
   import {
     getReads, startRead, removeRead, finishRead, getComments, updateReadLabel, splitByDuration, parseManualMilestones,
     loadCatalogBooks, MAX_ACTIVE_READS, groupChapters,
@@ -1732,7 +1741,7 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
         Object.entries(club.managerUids).map(([uid, m]) =>
           `<div>${escapeHtml((m && m.displayName) || uid)} — ${escapeHtml((m && m.role) || 'host')}${uid === liveUid ? ' (you)' : ''}</div>`
         ).join('')
-        + '<div style="margin-top:4px">Only these accounts can run the club (schedules, reads, features, join mode). Adding/removing accounts here and the Discord webhook are site-admin only.</div>';
+        + '<div style="margin-top:4px">Only these accounts can run the club (schedules, reads, features, join mode, Discord webhook). Adding or removing accounts on this roster is done by a site moderator or admin — never by the club\'s own managers.</div>';
     } else {
       rosterField.style.display = 'none';
     }
@@ -1786,10 +1795,24 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
       document.getElementById('edit-webhook-clear').checked = false;
     }
 
-    // Club-level read management (hosts/mods): Finish/Abandon/Remove live
-    // here, off the read cards, so nobody ends a club read by accident.
+    // Club-level read management: Finish/Abandon/Remove live here, off the
+    // read cards, so nobody ends a club read by accident.
+    //
+    // ⚠️ WIDENED 2026-08-17 (owner decision, the MANAGECLUB SPLIT): these are
+    // the READ LIFECYCLE, which rules now gate with canOperateClub — the
+    // club's own bound managers, or a site MODERATOR. It was isMod() alone:
+    // display-name host/mod plus the site admin, which drew the buttons for a
+    // display-name host rules would refuse and hid them from the site
+    // moderator rules now admits. Same idiom as the webhook field above: a UI
+    // precondition (who should SEE a manager control at all) AND the rules
+    // mirror (who the write would actually succeed for), with a worded
+    // refusal in between rather than a button that fails.
+    const mayRunReads = canOperate() || isManagerUid(club, liveUid);
+    const canRunReads = mayRunReads && canOperateClub(club, liveUid, siteRoleName());
     const readsField = document.getElementById('edit-reads-field');
-    if (isMod() && active.length) {
+    document.getElementById('edit-reads-restricted-field').style.display =
+      (mayRunReads && !canRunReads && active.length) ? 'block' : 'none';
+    if (canRunReads && active.length) {
       readsField.style.display = 'block';
       document.getElementById('edit-reads-list').innerHTML = active.map(r => `
         <div class="er-row">

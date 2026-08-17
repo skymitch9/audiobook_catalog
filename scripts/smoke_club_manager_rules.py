@@ -185,7 +185,140 @@ st, _ = call('PATCH', doc_url(club_path, ['joinMode']),
              {'fields': {'joinMode': {'stringValue': 'open'}}}, token=tok_b)
 check('B cannot change joinMode', st, 403)
 
+# ────────────────────────────────────────────────────────────────────────
+# The MANAGECLUB SPLIT, 2026-08-17 (owner decision, option B)
+#
+# Read-lifecycle actions — finishing a read, removing one, revealing its
+# ratings — moved from canManageClub to canOperateClub, so THIS club's bound
+# managers and any site MODERATOR hold them. The genuinely destructive rows
+# (the club delete, the club's structural fields) did not move.
+#
+# The moderator arm is the half that actually changed, and it cannot be
+# exercised with an ID token alone: site_roles is `allow write: if false` for
+# every browser, so the role doc is seeded through the service account (which
+# bypasses rules, exactly as scripts/seed_site_admin.py does) and deleted
+# again below. ⚠️ It is seeded LATE on purpose — a site moderator also passes
+# the ROSTER gate, so seeding it earlier would silently weaken every roster
+# assertion above.
+# ────────────────────────────────────────────────────────────────────────
+
+read_path = f'{club_path}/reads/r1'
+
+
+def seed_read():
+    """A fresh active read (validClubRead: bookTitle + status). Create is an
+    open member action, so any token can put it back between arms."""
+    call('DELETE', doc_url(read_path), token=tok_a)
+    return call('PATCH', doc_url(read_path), {'fields': {
+        'bookTitle': {'stringValue': 'Smoke Read'},
+        'status': {'stringValue': 'active'},
+        'slot': {'integerValue': '1'},
+    }}, token=tok_a)
+
+
+def finish_patch(token):
+    """The exact write finishRead makes: status + finishedAt."""
+    return call('PATCH', doc_url(read_path, ['status', 'finishedAt']), {'fields': {
+        'bookTitle': {'stringValue': 'Smoke Read'},
+        'status': {'stringValue': 'finished'},
+        'finishedAt': {'timestampValue': '2026-08-17T00:00:00Z'},
+    }}, token=token)
+
+
+def reveal_patch(token):
+    """The exact write revealRatings makes: ratingsRevealed + revealedAt."""
+    return call('PATCH', doc_url(read_path, ['ratingsRevealed', 'revealedAt']), {'fields': {
+        'bookTitle': {'stringValue': 'Smoke Read'},
+        'status': {'stringValue': 'active'},
+        'ratingsRevealed': {'booleanValue': True},
+        'revealedAt': {'timestampValue': '2026-08-17T00:00:00Z'},
+    }}, token=token)
+
+
+def slot_patch(token, slot='2'):
+    """STRUCTURAL — the slot ASSIGNMENT, which did NOT move to operateClub."""
+    return call('PATCH', doc_url(read_path, ['slot']), {'fields': {
+        'bookTitle': {'stringValue': 'Smoke Read'},
+        'status': {'stringValue': 'active'},
+        'slot': {'integerValue': slot},
+    }}, token=token)
+
+
+print('\n-- the READ LIFECYCLE (the MANAGECLUB SPLIT) --')
+st, _ = seed_read()
+check('setup: a read is created on the claimed club (open, a member action)', st, 200)
+
+st, _ = finish_patch(tok_b)
+check('B, signed in but managing nothing, cannot FINISH the read', st, 403)
+
+st, _ = finish_patch(None)
+check('anonymous cannot finish the read', st, 403)
+
+st, _ = finish_patch(tok_a)
+check('A, the bound manager, FINISHES their own club’s read', st, 200)
+
+seed_read()
+st, _ = reveal_patch(tok_b)
+check('B cannot REVEAL the ratings', st, 403)
+st, _ = reveal_patch(tok_a)
+check('A reveals the ratings on their own club’s read', st, 200)
+
+seed_read()
+st, _ = call('DELETE', doc_url(read_path), token=tok_b)
+check('B cannot REMOVE the read', st, 403)
+st, _ = call('DELETE', doc_url(read_path), token=tok_a)
+check('A removes the read', st, 200)
+
+print('\n-- the site MODERATOR arm (what the split actually widened) --')
+seed_read()
+st, _ = slot_patch(tok_b)
+check('pre-check: B holds nothing on this club yet', st, 403)
+
+import firebase_admin                                        # noqa: E402
+from firebase_admin import credentials, firestore            # noqa: E402
+
+_app = firebase_admin.initialize_app(
+    credentials.Certificate('scripts/firebase_service_account.json'))
+_fs = firestore.client()
+_fs.collection('site_roles').document(uid_b).set({
+    'role': 'moderator', 'seededBy': 'smoke_club_manager_rules.py',
+})
+print(f'seeded site_roles/{uid_b} = moderator (service account, bypasses rules)')
+
+st, _ = finish_patch(tok_b)
+check('a site MODERATOR finishes a read on a club they do NOT manage', st, 200)
+
+seed_read()
+st, _ = reveal_patch(tok_b)
+check('a site MODERATOR reveals ratings on a club they do NOT manage', st, 200)
+
+seed_read()
+st, _ = call('DELETE', doc_url(read_path), token=tok_b)
+check('a site MODERATOR removes a read on a club they do NOT manage', st, 200)
+
+print('\n-- ⚠️ the DESTRUCTIVE half did NOT move (option B’s other line) --')
+seed_read()
+st, _ = slot_patch(tok_b)
+check('a site moderator is STILL refused the read’s slot (structural)', st, 403)
+
+st, _ = call('PATCH', doc_url(club_path, ['joinMode']),
+             {'fields': {'joinMode': {'stringValue': 'application'}}}, token=tok_b)
+check('a site moderator is STILL refused joinMode (structural)', st, 403)
+
+st, _ = call('DELETE', doc_url(club_path), token=tok_b)
+check('a site moderator is STILL refused DELETING THE CLUB', st, 403)
+
+st, _ = call('GET', doc_url(club_path))
+check('…and the club is still there, unharmed', st, 200)
+
 print('\n-- cleanup --')
+_fs.collection('site_roles').document(uid_b).delete()
+gone = _fs.collection('site_roles').document(uid_b).get()
+check('the seeded moderator role doc is deleted', gone.exists, False)
+firebase_admin.delete_app(_app)
+call('DELETE', doc_url(read_path), token=tok_a)
+st, _ = call('GET', doc_url(read_path))
+check('the scratch read is gone', st, 404)
 call('DELETE', doc_url(f'{club_path}/settings/discord'), token=tok_a)
 st, _ = call('DELETE', doc_url(club_path), token=tok_a)
 check('the scratch club is deleted', st, 200)

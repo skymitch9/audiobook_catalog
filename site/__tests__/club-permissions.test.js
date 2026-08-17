@@ -92,7 +92,7 @@ import {
   MANAGED_CLUB_FIELDS, MANAGED_READ_FIELDS,
   STRUCTURAL_CLUB_FIELDS, OPERATIONAL_CLUB_FIELDS, RESTRICTED_CLUB_FIELDS,
   ADMINISTERED_CLUB_FIELDS, ROSTER_CLUB_FIELDS,
-  STRUCTURAL_READ_FIELDS, OPERATIONAL_READ_FIELDS,
+  LIFECYCLE_READ_FIELDS, STRUCTURAL_READ_FIELDS, OPERATIONAL_READ_FIELDS,
   isClubClaimed, isManagerUid, canManageClub, canOperateClub, canAdministerClub,
   canClaimManagerRole, claimManagerRole, createClub,
 } from '../clubs.js';
@@ -117,10 +117,12 @@ describe('rules contract — the field lists rules gate behind the roster', () =
   // ⚠️ These arrays are duplicated in firestore.rules
   // (clubStructuralFieldsChanged / clubOperationalFieldsChanged /
   // clubWebhookFieldChanged / clubManagerRosterChanged /
-  // readStructuralFieldsChanged / readOperationalFieldsChanged) because
-  // rules cannot import JS. These tests are the tripwire that keeps them in
-  // step — including the three-tier split (2026-08-14), the RESTRICTED tier
-  // (2026-08-16) and its split into ADMINISTERED + ROSTER (2026-08-17).
+  // readLifecycleFieldsChanged / readStructuralFieldsChanged /
+  // readOperationalFieldsChanged) because rules cannot import JS. These tests
+  // are the tripwire that keeps them in step — including the three-tier split
+  // (2026-08-14), the RESTRICTED tier (2026-08-16), its split into
+  // ADMINISTERED + ROSTER (2026-08-17) and the MANAGECLUB SPLIT that moved
+  // the read LIFECYCLE off canManageClub the same day.
   it('STRUCTURAL_CLUB_FIELDS pins the club-mod-reachable "club island" fields', () => {
     // joinMode + features stay club-mod territory — the owner explicitly
     // preserved these ("let a club mod change the books and stuff like they
@@ -171,10 +173,22 @@ describe('rules contract — the field lists rules gate behind the roster', () =
     for (const f of OPERATIONAL_CLUB_FIELDS) expect(RESTRICTED_CLUB_FIELDS).not.toContain(f);
   });
 
-  it('STRUCTURAL_READ_FIELDS pins lifecycle + the reveal flip as manager/admin-only', () => {
-    expect([...STRUCTURAL_READ_FIELDS].sort()).toEqual([
-      'finishedAt', 'ratingsRevealed', 'revealedAt', 'slot', 'status',
+  // ⚠️ THE MANAGECLUB SPLIT, 2026-08-17 (owner decision, option B). These
+  // four fields WERE in STRUCTURAL_READ_FIELDS (canManageClub); finishing a
+  // read and revealing its ratings are now canOperateClub, so this club's
+  // bound managers AND a site moderator hold them. A change that folds them
+  // back into STRUCTURAL, or that drags `slot` out with them, fails here.
+  it('LIFECYCLE_READ_FIELDS pins finish/abandon + the reveal flip as moderator-reachable', () => {
+    expect([...LIFECYCLE_READ_FIELDS].sort()).toEqual([
+      'finishedAt', 'ratingsRevealed', 'revealedAt', 'status',
     ]);
+  });
+
+  it('STRUCTURAL_READ_FIELDS is the slot assignment alone — manager/admin-only', () => {
+    // Measured against club-reads.js 2026-08-17: nothing UPDATES `slot` (it is
+    // stamped at create, an open member action), so this tier guards
+    // re-slotting an existing read and nothing else.
+    expect([...STRUCTURAL_READ_FIELDS].sort()).toEqual(['slot']);
   });
 
   it('OPERATIONAL_READ_FIELDS pins the reading schedule as moderator-reachable', () => {
@@ -183,18 +197,25 @@ describe('rules contract — the field lists rules gate behind the roster', () =
     ]);
   });
 
-  it('MANAGED_READ_FIELDS is exactly the union of the two tiers', () => {
+  it('MANAGED_READ_FIELDS is exactly the union of the three tiers', () => {
+    // ⚠️ The UNION is unchanged by the split — the same seven fields are
+    // manager-gated, they just answer to different gates now. If this list
+    // shrinks, a field silently became member-writable.
     expect([...MANAGED_READ_FIELDS].sort()).toEqual([
       'finishedAt', 'milestones', 'ratingsRevealed', 'revealedAt',
       'scheduleUpdatedAt', 'slot', 'status',
     ]);
     expect([...MANAGED_READ_FIELDS].sort()).toEqual(
-      [...STRUCTURAL_READ_FIELDS, ...OPERATIONAL_READ_FIELDS].sort());
+      [...LIFECYCLE_READ_FIELDS, ...STRUCTURAL_READ_FIELDS, ...OPERATIONAL_READ_FIELDS].sort());
   });
 
   it('no field sits in both tiers — a field has exactly one gate', () => {
     for (const f of STRUCTURAL_CLUB_FIELDS) expect(OPERATIONAL_CLUB_FIELDS).not.toContain(f);
     for (const f of STRUCTURAL_READ_FIELDS) expect(OPERATIONAL_READ_FIELDS).not.toContain(f);
+    for (const f of LIFECYCLE_READ_FIELDS) {
+      expect(STRUCTURAL_READ_FIELDS).not.toContain(f);
+      expect(OPERATIONAL_READ_FIELDS).not.toContain(f);
+    }
   });
 
   it('member-action fields are NOT manager-gated, including RESTRICTED (joins/leaves/comments must keep working)', () => {
@@ -271,8 +292,38 @@ describe('canOperateClub — the OPERATIONAL gate (three-tier model)', () => {
 
   it('the moderator does NOT pass the STRUCTURAL gate (canManageClub)', () => {
     // The distinction that IS the three-tier model: moderator operates,
-    // never manages — features/webhook/identity/roster/deletes stay closed.
+    // never manages — features/joinMode/roster/CLUB-delete stay closed.
     expect(canManageClub(claimed, OTHER, false)).toBe(false);
+  });
+
+  /* ── the MANAGECLUB SPLIT, 2026-08-17 (owner decision, option B) ─────── */
+
+  it('SPLIT: the read lifecycle is reachable by a manager, a moderator — not a member', () => {
+    // The four LIFECYCLE_READ_FIELDS and the read DELETE all gate on this one
+    // function now. Manager of THIS club → yes; site moderator → yes (the arm
+    // that actually changed); an ordinary signed-in member → no.
+    expect(canOperateClub(claimed, UID)).toBe(true);                // this club's manager
+    expect(canOperateClub(claimed, OTHER, 'moderator')).toBe(true); // site moderator
+    expect(canOperateClub(claimed, OTHER)).toBe(false);             // plain member
+    expect(canOperateClub(claimed, null)).toBe(false);              // legacy session
+  });
+
+  it('SPLIT: a manager of ANOTHER club gets nothing here — the island is one club wide', () => {
+    const someoneElsesClub = { managerUids: { [OTHER]: { role: 'host' } } };
+    expect(canOperateClub(someoneElsesClub, UID)).toBe(false);
+  });
+
+  it('SPLIT: the DESTRUCTIVE half did not move — the CLUB delete stays canManageClub', () => {
+    // ⚠️ THE GUARD. firestore.rules gates `allow delete` on /clubs/{clubId}
+    // with canManageClub, and the structural fields (joinMode, features) with
+    // it too. A change lowering either to canOperateClub — i.e. handing club
+    // deletion to every site moderator — fails right here.
+    expect(canManageClub(claimed, OTHER, false)).toBe(false);       // moderator refused
+    expect(canManageClub(claimed, OTHER, true)).toBe(true);         // site admin only
+    expect(STRUCTURAL_CLUB_FIELDS).toEqual(expect.arrayContaining(['joinMode', 'features']));
+    // …and the lifecycle fields are NOT in the club-doc structural list, so
+    // nothing dragged them back across the line.
+    for (const f of LIFECYCLE_READ_FIELDS) expect(STRUCTURAL_CLUB_FIELDS).not.toContain(f);
   });
 });
 
@@ -366,12 +417,18 @@ describe('club-mod boundary — what a claimed club\'s own roster CAN and CANNOT
     expect(canOperateClub(claimed, UID)).toBe(true);
   });
 
-  it('CAN: read-doc STRUCTURAL fields (status/finishedAt/slot/ratingsRevealed/revealedAt — finish, abandon, blind-ratings reveal)', () => {
+  it('CAN: read-doc LIFECYCLE fields (status/finishedAt/ratingsRevealed/revealedAt — finish, abandon, blind-ratings reveal)', () => {
     // Read-doc gating uses the same canManageClub/canOperateClub mirrors
-    // against the parent club; STRUCTURAL_READ_FIELDS/OPERATIONAL_READ_FIELDS
-    // were NOT touched by this change (see the field-tier pinning tests).
-    expect(STRUCTURAL_READ_FIELDS).toEqual(
-      expect.arrayContaining(['status', 'finishedAt', 'slot', 'ratingsRevealed', 'revealedAt']));
+    // against the parent club. Since the 2026-08-17 MANAGECLUB SPLIT these
+    // four answer to canOperateClub — the bound manager still passes (the
+    // island is inside canManageClub, which canOperateClub subsumes).
+    expect(LIFECYCLE_READ_FIELDS).toEqual(
+      expect.arrayContaining(['status', 'finishedAt', 'ratingsRevealed', 'revealedAt']));
+    expect(canOperateClub(claimed, UID)).toBe(true);
+  });
+
+  it('CAN: read-doc STRUCTURAL field (slot — the assignment nothing updates)', () => {
+    expect(STRUCTURAL_READ_FIELDS).toEqual(expect.arrayContaining(['slot']));
     expect(canManageClub(claimed, UID)).toBe(true);
   });
 
