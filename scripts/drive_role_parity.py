@@ -6,8 +6,19 @@ role... I want this always to match. We can also do this backwards and make
 sure all the people with contribute in drive are contributors in ours."
 
 ⚠️ Roles are the source of truth; Drive is downstream (ROLES.md §2). This
-script REPORTS drift in both directions. It does not fix anything on its own
-run, ever — see the safety model below.
+script REPORTS drift in both directions, and — since 2026-08-17 — can APPLY
+the role→Drive direction. Drive→role stays report-only forever.
+
+⚠️ IT NOW RUNS UNATTENDED. Owner order 2026-08-17 ("Wire it… with auto
+apply"): scripts/sync_to_drive.py STEP 8 runs this every pipeline cycle with
+`--commit --apply-to-drive --json-summary`. Two things follow, and neither is
+optional:
+  * every rail in the SAFETY MODEL below is now load-bearing without a human
+    in the loop — nobody reads the report before the change lands; and
+  * a rail on HOW MANY people change in one tick was added, because the
+    existing rails only govern WHO. See MASS_DRIFT_CAP.
+The decision half (plan_drive_changes + fuse_check) is pure and unit-tested;
+the Drive-mutating half executes a plan and decides nothing.
 
 Three sources, three different trust levels:
   (a) Drive permissions on the GABI folder — ground truth for who can open
@@ -66,7 +77,9 @@ SAFETY MODEL:
                          — that tier isn't implemented, so there is no role
                          to enforce yet; forcing a level here would be
                          exactly the naive reconciliation ROLES.md warns
-                         against.
+                         against,
+                         and refuses the WHOLE plan if it would change more
+                         than MASS_DRIFT_CAP people in one run (the fuse).
       --apply-to-roles   report-only, always. Prints what role each Drive
                          permission level implies (writer -> contributor,
                          reader -> reader) as a suggestion for the owner to
@@ -82,6 +95,16 @@ Usage (from the repo root):
     python scripts/drive_role_parity.py                       # report only
     python scripts/drive_role_parity.py --commit --apply-to-drive   # mutate
     python scripts/drive_role_parity.py --commit --apply-to-roles   # report
+    python scripts/drive_role_parity.py --commit --apply-to-drive --json-summary
+                                        # what STEP 8 runs every cycle
+    DRIVE_PARITY_FUSE_OVERRIDE=1 python scripts/drive_role_parity.py \
+        --commit --apply-to-drive       # a human overriding a tripped fuse
+
+⚠️ On Windows, set PYTHONIOENCODING=utf-8 when capturing this script's output
+from another process: the report prints em-dashes and ⚠️, and a cp1252 pipe
+raises UnicodeEncodeError mid-report. STEP 8 sets it explicitly for exactly
+this reason — the console reconfigure() at the top of this file fixes the
+terminal case, not a captured pipe's encoding.
 """
 
 from __future__ import annotations
@@ -138,6 +161,47 @@ DRIVE_LEVEL_TO_IMPLIED_ROLE = {
     "reader": "reader",
     "none": "viewer",
 }
+
+# ---------------------------------------------------------------------------
+# THE FUSE — blast-radius protection for the AUTO-APPLY (owner order
+# 2026-08-17: "Wire it… with auto apply", fulfilling ROLES.md §2's "I want
+# this always to match"). Wired at scripts/sync_to_drive.py STEP 8.
+#
+# Wiring this script into the 8-hourly pipeline turned a reviewed, human-run
+# reconciliation into an unattended one. Every rail in the SAFETY MODEL above
+# still holds — the owner's accounts, the exception list, the unknown-tier
+# skip, Drive→role forever report-only — but every one of them is a rail on
+# WHO gets changed. None of them is a rail on HOW MANY.
+#
+# That is the gap this constant closes. The apply set is derived from THREE
+# systems (Drive, D1, Firestore). If any one of them answers
+# wrongly-but-parseably — a truncated D1 result, a Firestore read taken
+# mid-migration, an OAuth token that silently re-authorised as a different
+# account and so returns a different folder's permissions — the plan does not
+# come out empty, it comes out BIG. Genuine drift is the opposite shape: one
+# person at a time, because one person at a time gets demoted or signs up. A
+# single tick that wants to change four people is not four coincidences; it
+# is one bad read.
+#
+# So: if a tick's would-apply set exceeds this cap, apply NOTHING that tick
+# and say so loudly. Deliberate single-person drift (a demotion) still flows
+# within the tick it happens in — which is the entire point of auto-apply — and
+# a mass change stops for a human.
+#
+# ⚠️ 3, not 1 and not 10. 1 trips on the ordinary case of one person demoted
+# in the same 8h window another is granted, and a fuse that trips on normal
+# traffic gets overridden by reflex until it means nothing. 10 is larger than
+# the whole non-owner Drive population has ever drifted in a day (15 non-owner
+# permissions total, measured 2026-08-16). Same style as SWEEP_LIMIT: a small
+# named number carrying its reasoning, never a bare literal at the call site.
+#
+# ⚠️ The override is an ENVIRONMENT VARIABLE, not a flag, on purpose (global
+# rule: an escape hatch is deliberately awkward, never an easy flag). A flag
+# would eventually be pasted into the scheduled command line and the fuse
+# would be off forever with nobody noticing.
+# ---------------------------------------------------------------------------
+MASS_DRIFT_CAP = 3
+FUSE_OVERRIDE_ENV = "DRIVE_PARITY_FUSE_OVERRIDE"
 
 
 def normalize_email(email: str) -> str:
@@ -454,6 +518,31 @@ def classify(
             return email
         return f"{email} (alias: Drive perm held as {alias['drive_account']})"
 
+    def drive_account_of(email: str) -> str:
+        """The address the Drive PERMISSION is actually held under.
+
+        ⚠️ Not the same as the canonical identity when an alias is folded:
+        the row is keyed by the site account, but Drive knows the person by
+        the other address. Anything that mutates Drive must look the
+        permission up by THIS one or it will find nothing and (worse) could
+        be tempted to create a permission for an address Drive has never
+        seen. See apply_to_drive().
+        """
+        alias = alias_display.get(email)
+        return alias["drive_account"] if alias else email
+
+    def row(email: str) -> dict:
+        """Every bucket row carries the machine-readable identity fields
+        alongside the human `email` string. `email` is for the REPORT (it
+        embeds the alias note); `raw_email` is what code compares against
+        OWNER_PROTECTED_EMAILS and the exception list — string-matching a
+        display label is how a protected account leaks past a rail."""
+        return {
+            "raw_email": email,
+            "drive_account": drive_account_of(email),
+            "email": display_email(email),
+        }
+
     buckets = {
         "owner_protected": [],
         "excepted_pending_outreach": [],
@@ -477,7 +566,7 @@ def classify(
         if email == drive_owner_email:
             buckets["owner_protected"].append(
                 {
-                    "email": display_email(email),
+                    **row(email),
                     "drive": "owner",
                     "estate": _estate_desc(estate_row, estate_rows),
                     "site_role": site_role or "(none)",
@@ -497,7 +586,7 @@ def classify(
             exc = pending_outreach[email]
             buckets["excepted_pending_outreach"].append(
                 {
-                    "email": display_email(email),
+                    **row(email),
                     "drive": drive_level,
                     "estate": _estate_desc(estate_row, estate_rows),
                     "implies_role": exc.get("implies_role", DRIVE_LEVEL_TO_IMPLIED_ROLE.get(drive_level)),
@@ -514,7 +603,7 @@ def classify(
             exc = permanent_exceptions[email]
             buckets["excepted_permanent"].append(
                 {
-                    "email": display_email(email),
+                    **row(email),
                     "drive": drive_level,
                     "estate": _estate_desc(estate_row, estate_rows),
                     "reason": exc.get("reason", "(no reason recorded)"),
@@ -529,10 +618,18 @@ def classify(
             if drive_level != "none":
                 buckets["mismatch"].append(
                     {
-                        "email": display_email(email),
+                        **row(email),
                         "drive": drive_level,
                         "estate": "UNKNOWN — estate directory unreadable this run",
                         "difference": "Cannot classify without estate directory status.",
+                        # ⚠️ drive_fix stays None on this path, always. The
+                        # estate directory is one of the two inputs that
+                        # decides the correct level; with it unreadable the
+                        # only honest plan is no plan. An auto-apply that
+                        # "reconciled" against a half-read world is exactly
+                        # the mass-drift shape MASS_DRIFT_CAP exists for, and
+                        # this is the cheaper place to stop it.
+                        "drive_fix": None,
                         "action": (action or "Re-run once D1 is reachable before drawing conclusions.")
                     }
                 )
@@ -545,7 +642,7 @@ def classify(
         if estate_row is None and drive_level != "none":
             buckets["drive_only_untriaged"].append(
                 {
-                    "email": display_email(email),
+                    **row(email),
                     "drive": drive_level,
                     "estate": "not in estate directory",
                     "implies_role": DRIVE_LEVEL_TO_IMPLIED_ROLE.get(drive_level),
@@ -563,16 +660,45 @@ def classify(
         if estate_row is not None and status in ("pending", "revoked") and drive_level != "none":
             buckets["mismatch"].append(
                 {
-                    "email": display_email(email),
+                    **row(email),
                     "drive": drive_level,
                     "estate": f"{status} (estate_user.status)",
                     "difference": f"Estate status is '{status}' but Drive still grants "
                     f"{drive_level} access.",
+                    # A KNOWN role decision: the estate directory says this
+                    # person is pending or revoked, and roles are the source
+                    # of truth, so Drive comes off. Owner-protected accounts
+                    # are excluded here AND again in plan_drive_changes() —
+                    # the rail that matters most gets two independent checks.
+                    "drive_fix": None if is_owner_protected else "remove",
                     "action": action
                     or (
                         f"Revoke Drive access (status={status}), or approve them in the "
                         "estate directory if access should continue."
                     ),
+                }
+            )
+            continue
+
+        # ---- pending/revoked AND no Drive access: the correct END STATE ----
+        # ⚠️ Found 2026-08-17 by running the reconciler for real immediately
+        # after it applied its first change. Removing a revoked person's Drive
+        # permission moved them from `mismatch` (revoked-but-has-access) to...
+        # `mismatch` again, via the unclassified fallback — because no branch
+        # described "revoked, and correctly holds nothing". So the very act of
+        # fixing the drift left a permanent phantom finding, which the /status
+        # row would have rendered as drift that never clears and no amount of
+        # reconciling could ever remove. A row that cannot go green trains
+        # everyone to ignore the colour.
+        if estate_row is not None and status in ("pending", "revoked") and drive_level == "none":
+            buckets["ok"].append(
+                {
+                    **row(email),
+                    "drive": "none",
+                    "estate": f"{status} (estate_user.status)",
+                    "note": f"Correct: estate status is '{status}' and Drive grants nothing. "
+                    "Nothing to reconcile — this is what a completed revocation "
+                    "looks like.",
                 }
             )
             continue
@@ -585,7 +711,7 @@ def classify(
                     note += " [OWNER-PROTECTED account]"
                 buckets["ok"].append(
                     {
-                        "email": display_email(email),
+                        **row(email),
                         "drive": drive_level,
                         "estate": f"approved, site_roles={site_role} (implies contributor+)",
                         "note": note,
@@ -594,11 +720,17 @@ def classify(
             else:
                 buckets["mismatch"].append(
                     {
-                        "email": display_email(email),
+                        **row(email),
                         "drive": drive_level,
                         "estate": f"approved, site_roles={site_role} (implies contributor+ -> Drive writer)",
                         "difference": f"Site role implies Drive writer; actual Drive level is "
                         f"'{drive_level}'.",
+                        # The other KNOWN role decision: an explicit
+                        # admin/moderator doc in Firestore is a stored role,
+                        # so the Drive level it implies is enforceable. (The
+                        # unimplemented reader/contributor tiers never reach
+                        # here — they have no storage to disagree with.)
+                        "drive_fix": None if is_owner_protected else "writer",
                         "action": action or f"Upgrade Drive permission to writer to match site role {site_role}.",
                     }
                 )
@@ -609,7 +741,7 @@ def classify(
             in_gap_list = email in estate_only_gap
             buckets["role_only"].append(
                 {
-                    "email": display_email(email),
+                    **row(email),
                     "drive": "none",
                     "estate": "approved (no elevated site role on file)",
                     "note": (
@@ -630,7 +762,7 @@ def classify(
         if estate_row is not None and status == "approved" and drive_level != "none":
             buckets["ok"].append(
                 {
-                    "email": display_email(email),
+                    **row(email),
                     "drive": drive_level,
                     "estate": "approved (no elevated site role on file)",
                     "note": (
@@ -647,10 +779,13 @@ def classify(
         # ---- fallback: nothing matched (should be rare) ----
         buckets["mismatch"].append(
             {
-                "email": display_email(email),
+                **row(email),
                 "drive": drive_level,
                 "estate": _estate_desc(estate_row, estate_rows),
                 "difference": "Unclassified combination — inspect by hand.",
+                # No fix: "we don't know what this is" can never be a reason
+                # to change someone's access unattended.
+                "drive_fix": None,
                 "action": action or "Manual review needed.",
             }
         )
@@ -786,18 +921,165 @@ def print_report(
 
 
 # ---------------------------------------------------------------------------
-# --apply-to-drive: mutate Drive to match roles (never run by this task)
+# --apply-to-drive: the PURE decision half
+#
+# plan_drive_changes() and fuse_check() take dicts in and return dicts out.
+# No Drive, no D1, no Firestore, no clock. That is deliberate and it is the
+# whole reason this can be trusted unattended: the two questions that decide
+# whether a real person keeps access — "who is in the apply set" and "is this
+# set too big to be real drift" — are answerable in a unit test, and they are
+# (tests/test_drive_role_parity.py). The Drive-mutating half below does no
+# deciding; it executes a plan it was handed.
 # ---------------------------------------------------------------------------
 
-def apply_to_drive(folder_id, drive_owner_email, buckets, dry_run: bool):
-    """Roles win; Drive is edited to match. Only acts on rows where a role
-    is actually known (site_roles admin/moderator mismatches, and
-    pending/revoked-with-Drive-access). Never invents a level for
-    'approved, no elevated role' rows — that tier isn't implemented.
-    Always skips owner_protected, excepted, and non-user permissions
-    (those never even reach `buckets['mismatch']`/`buckets['drive_only_untriaged']`
-    in a form this function would act on, by construction of classify()).
+
+def plan_drive_changes(buckets: dict, exceptions: dict) -> list[dict]:
+    """PURE. Buckets + the exception list in, the apply set out.
+
+    Reads ONLY `buckets['mismatch']`, and only rows carrying an explicit
+    `drive_fix` — the two cases where a role is actually STORED somewhere and
+    can therefore be enforced (an admin/moderator site_roles doc; an estate
+    status of pending/revoked). Every other bucket is unreachable from here
+    by design, and each for its own reason:
+
+      * `role_only` / the "approved, no elevated role" rows — the
+        reader/contributor tiers have no per-user storage yet (ROLES.md §2),
+        so there is no role to enforce. Forcing a level here would be the
+        naive reconciliation ROLES.md warns against, and it would GRANT
+        access (see the global rule: act on access-reducing orders, confirm
+        access-increasing ones).
+      * `drive_only_untriaged` — a person nobody has triaged. Revoking them
+        unattended is precisely what the exception list exists to prevent
+        happening by accident.
+      * `owner_protected` / `excepted_*` — filtered again below even though
+        classify() already routed them away from `mismatch`. The rails that
+        protect real people's access get two independent checks, so that a
+        future refactor of classify() cannot silently disarm one.
+
+    Returns a list of {"action", "email", "drive_account", "from", "reason"}.
     """
+    excepted = set(exceptions.get("pending_outreach") or {}) | set(
+        exceptions.get("permanent_exceptions") or {}
+    )
+
+    planned: list[dict] = []
+    for r in buckets.get("mismatch", []):
+        email = r.get("raw_email") or r.get("email")
+        fix = r.get("drive_fix")
+        if not fix:
+            continue  # unknown tier, unreadable estate, unclassified — no plan
+        if email in OWNER_PROTECTED_EMAILS:
+            continue  # rail: the owner's own accounts, never, under any flag
+        if email in excepted:
+            continue  # rail: the migration queue and permanent carve-outs
+        planned.append(
+            {
+                "action": "remove" if fix == "remove" else "update_to_writer",
+                "email": email,
+                "drive_account": r.get("drive_account") or email,
+                "from": r.get("drive"),
+                "reason": r.get("difference", ""),
+            }
+        )
+    return planned
+
+
+def fuse_check(planned: list[dict], cap: int = MASS_DRIFT_CAP, override: bool = False):
+    """PURE. -> (allowed: bool, reason: str). See MASS_DRIFT_CAP above.
+
+    All-or-nothing on purpose: a set that is too big to trust is not made
+    trustworthy by applying the first three of it. Half of a bad plan is
+    still a bad plan, and it is a harder one to undo because nobody can tell
+    from the outside which half ran.
+    """
+    n = len(planned)
+    if n <= cap:
+        return True, f"{n} change(s), within the cap of {cap}"
+    if override:
+        return True, (
+            f"{n} change(s) EXCEEDS the cap of {cap}, but {FUSE_OVERRIDE_ENV}=1 "
+            "was set — a human deliberately overrode the fuse."
+        )
+    return False, (
+        f"parity wants to change {n} people — that smells like a data problem, "
+        f"not drift; run manually to review (cap is {cap}). NOTHING was applied "
+        f"this tick. If the number is genuinely correct, re-run with "
+        f"{FUSE_OVERRIDE_ENV}=1 set."
+    )
+
+
+# ---------------------------------------------------------------------------
+# --apply-to-drive: the IMPURE half — executes a plan, decides nothing
+# ---------------------------------------------------------------------------
+
+
+def _live_permission(service, folder_id: str, drive_account: str):
+    """Fetch the CURRENT permission for one address. Never trust an id
+    captured earlier in the run: between the report and the apply, a human
+    can have changed the very permission we are about to change."""
+    from googleapiclient.errors import HttpError
+
+    try:
+        resp = (
+            service.permissions()
+            .list(
+                fileId=folder_id,
+                fields="permissions(id,emailAddress,role,type)",
+                supportsAllDrives=True,
+            )
+            .execute()
+        )
+    except HttpError as e:
+        print(f"  [WARN] could not re-read Drive permissions before applying: {e}")
+        return None
+    for p in resp.get("permissions", []):
+        if p.get("type") != "user":
+            continue
+        if normalize_email(p.get("emailAddress", "")) == normalize_email(drive_account):
+            return p
+    return None
+
+
+def apply_to_drive(folder_id, drive_owner_email, buckets, dry_run: bool, exceptions: dict,
+                   fuse_override: bool = False) -> dict:
+    """Roles win; Drive is edited to match. Returns a result dict for the
+    caller's summary (the pipeline's STEP 8 reads it out of --json-summary).
+
+    Never raises for an individual failure: one permission that will not
+    update must not abandon the rest of the plan or the run around it.
+    """
+    planned = plan_drive_changes(buckets, exceptions)
+    allowed, fuse_reason = fuse_check(planned, override=fuse_override)
+
+    result = {
+        "planned": len(planned),
+        "applied": [],
+        "failed": [],
+        "fuse_tripped": not allowed,
+        "fuse_reason": fuse_reason,
+        "cap": MASS_DRIFT_CAP,
+    }
+
+    if not planned:
+        print("apply-to-drive: nothing actionable (no confidently-known-role mismatches).")
+        return result
+
+    print(f"\napply-to-drive: {len(planned)} change(s) planned — {fuse_reason}")
+    for p in planned:
+        where = "" if p["email"] == p["drive_account"] else f" (Drive perm held as {p['drive_account']})"
+        print(f"  - {p['action']}: {p['email']}{where}  [currently {p['from']}]  {p['reason']}")
+
+    if not allowed:
+        print("\n" + "!" * 78)
+        print(f"!! FUSE TRIPPED — {fuse_reason}")
+        print("!" * 78)
+        return result
+
+    if dry_run:
+        for p in planned:
+            print(f"[DRY RUN] would {p['action']} Drive permission for {p['email']}")
+        return result
+
     sys.path.insert(0, str(SCRIPT_DIR))
     import drive_auth  # noqa: E402
     from googleapiclient.discovery import build
@@ -807,32 +1089,43 @@ def apply_to_drive(folder_id, drive_owner_email, buckets, dry_run: bool):
         sys.exit("FATAL: could not obtain Drive credentials for --apply-to-drive.")
     service = build("drive", "v3", credentials=creds)
 
-    planned = []
-    for r in buckets["mismatch"]:
-        email = r["email"]
-        if email in OWNER_PROTECTED_EMAILS:
+    for p in planned:
+        email, act = p["email"], p["action"]
+        perm = _live_permission(service, folder_id, p["drive_account"])
+        if perm is None:
+            # Loud skip, never a guess. The commonest cause is an alias whose
+            # Drive side moved; creating a permission for an address Drive
+            # has never seen would GRANT access, which this direction is not
+            # allowed to do unattended.
+            msg = f"no live Drive permission found for {p['drive_account']} — skipped, not guessed"
+            print(f"  [WARN] {msg}")
+            result["failed"].append({"email": email, "action": act, "error": msg})
             continue
-        if "Upgrade Drive permission to writer" in r.get("action", ""):
-            planned.append(("update_to_writer", email))
-        elif r["estate"].startswith(("pending", "revoked")):
-            planned.append(("remove", email))
-
-    if not planned:
-        print("apply-to-drive: nothing actionable (no confidently-known-role mismatches).")
-        return
-
-    for action, email in planned:
-        if dry_run:
-            print(f"[DRY RUN] would {action} Drive permission for {email}")
+        if perm.get("role") == "owner":
+            msg = f"{email} holds the folder OWNER permission — refused, unconditionally"
+            print(f"  [WARN] {msg}")
+            result["failed"].append({"email": email, "action": act, "error": msg})
             continue
-        # Real mutation path — intentionally never exercised by this task.
-        print(f"[COMMIT] {action} Drive permission for {email}")
-        # Implementation deliberately left minimal/defensive: fetch current
-        # permission id fresh (do not trust a stale in-memory id) before
-        # calling permissions().update()/delete() via `service`.
-        raise NotImplementedError(
-            "Real Drive mutation is intentionally not wired up in this task run."
-        )
+        try:
+            if act == "remove":
+                service.permissions().delete(
+                    fileId=folder_id, permissionId=perm["id"], supportsAllDrives=True
+                ).execute()
+            else:
+                service.permissions().update(
+                    fileId=folder_id,
+                    permissionId=perm["id"],
+                    body={"role": "writer"},
+                    supportsAllDrives=True,
+                ).execute()
+        except Exception as e:  # noqa: BLE001 — one failure must not abandon the plan
+            print(f"  [WARN] {act} FAILED for {email}: {e}")
+            result["failed"].append({"email": email, "action": act, "error": str(e)})
+            continue
+        print(f"  [APPLIED] {act}: {email} (was {perm.get('role')})")
+        result["applied"].append({"email": email, "action": act, "from": perm.get("role")})
+
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -864,6 +1157,15 @@ def main() -> int:
         help="Direction: report-only. Prints what role each Drive permission "
         "implies; NEVER grants a site role. Granting stays a human act in "
         "the admin UI.",
+    )
+    parser.add_argument(
+        "--json-summary",
+        action="store_true",
+        help="Print one machine-readable line, 'PARITY_JSON {...}', as the "
+        "LAST line of output: counts by direction, the fuse verdict, and the "
+        "emails actually changed. Used by scripts/sync_to_drive.py STEP 8 so "
+        "the pipeline can report parity without re-implementing any of this "
+        "script's judgement. Adds output; changes no behaviour.",
     )
     args = parser.parse_args()
 
@@ -908,21 +1210,86 @@ def main() -> int:
         alias_display,
     )
 
+    counts = {name: len(rows) for name, rows in buckets.items()}
+
     if args.apply_to_roles:
         print("\n--apply-to-roles: report-only, as designed. No site roles were "
               "granted or will be — grant them by hand in the admin UI using the "
               "'implies' values above.")
+        _emit_json_summary(args, "report-only-roles", counts, None,
+                           estate_error if estate_rows is None else None)
         return 0
 
+    apply_result = None
     if args.apply_to_drive:
-        print(f"\n--apply-to-drive requested (commit={args.commit}).")
-        apply_to_drive(args.folder_id, drive_owner_email, buckets, dry_run=not args.commit)
+        import os
+
+        fuse_override = os.getenv(FUSE_OVERRIDE_ENV, "") == "1"
+        print(f"\n--apply-to-drive requested (commit={args.commit}, "
+              f"fuse cap={MASS_DRIFT_CAP}, override={fuse_override}).")
+        apply_result = apply_to_drive(
+            args.folder_id, drive_owner_email, buckets,
+            dry_run=not args.commit, exceptions=exceptions,
+            fuse_override=fuse_override,
+        )
 
     if not args.commit:
         print("\nDRY RUN — nothing was written. Pass --commit with a direction "
               "flag to mutate (see --help).")
 
+    _emit_json_summary(
+        args,
+        _summary_state(args, apply_result),
+        counts,
+        apply_result,
+        estate_error if estate_rows is None else None,
+    )
     return 0
+
+
+def _summary_state(args, apply_result) -> str:
+    """The one word STEP 8 and the /status row key off. Deliberately small —
+    a status vocabulary that grows a case per edge case stops being readable
+    on a dashboard."""
+    if not args.apply_to_drive:
+        return "report-only"
+    if apply_result is None:
+        return "report-only"
+    if apply_result["fuse_tripped"]:
+        return "fuse-tripped"
+    if apply_result["applied"]:
+        return "applied"
+    if apply_result["failed"]:
+        return "failed"
+    if apply_result["planned"] and not args.commit:
+        return "drift-pending"  # a dry run that found real, appliable drift
+    return "in-sync"
+
+
+def _emit_json_summary(args, state: str, counts: dict, apply_result, estate_error) -> None:
+    """One line, last, machine-readable — see --json-summary.
+
+    ⚠️ It carries EMAILS (the pipeline log is local). The pipeline puts only
+    COUNTS into pipeline_status, because that doc is world-readable and the
+    /status page renders it: real people's addresses do not belong on a
+    public dashboard. Keep that split.
+    """
+    if not args.json_summary:
+        return
+    payload = {
+        "state": state,
+        "counts": counts,
+        "estateUnreadable": estate_error,
+        "cap": MASS_DRIFT_CAP,
+        "planned": (apply_result or {}).get("planned", 0),
+        "applied": [a["email"] for a in (apply_result or {}).get("applied", [])],
+        "appliedDetail": (apply_result or {}).get("applied", []),
+        "failed": (apply_result or {}).get("failed", []),
+        "fuseTripped": (apply_result or {}).get("fuse_tripped", False),
+        "fuseReason": (apply_result or {}).get("fuse_reason", ""),
+        "at": datetime.now().isoformat(timespec="seconds"),
+    }
+    print("PARITY_JSON " + json.dumps(payload))
 
 
 if __name__ == "__main__":

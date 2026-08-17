@@ -1159,6 +1159,13 @@ def _run_pipeline_body(
         # with a detail line that reads as though it happened.
         if not dry_run:
             _push_estate_index(record_step=False)
+            # STEP 8 — parity runs on the idle path for a stronger reason than
+            # the index does: it has NOTHING to do with books. Drift arrives
+            # when a person is demoted or signs up, which is uncorrelated with
+            # whether the library got a new file this cycle. Wiring it only to
+            # the busy path would mean "always match" held only on the cycles
+            # that happened to upload something.
+            _run_drive_parity()
         print("=" * 60)
         # The common case: an idle scheduled run. Report it as a real success
         # so the panel shows "checked, nothing new" rather than a stale run.
@@ -1393,6 +1400,11 @@ def _run_pipeline_body(
         # REPLACE, so skipping it on a quiet run is how the index goes stale.
         _push_estate_index()
 
+        # STEP 8 — Drive ⇄ role parity. Last, and outside every book-shaped
+        # gate: it reconciles PEOPLE, so nothing earlier in this cycle is a
+        # precondition for it and nothing later depends on it.
+        _run_drive_parity()
+
     # Fulfill any flagged books (site's "Request AI check" button or
     # cw_requests.txt) — full chain including Claude. Runs on EVERY non-dry
     # sync (not just when new books arrived) so the 8-hourly scheduled task
@@ -1456,6 +1468,13 @@ def _run_pipeline_body(
 #   STEP 7   (estate index push)    INCLUDE — since 2026-08-17 this machine
 #            is the index's ONLY writer (see _push_estate_index), so a fix
 #            that never runs it never reaches estate search.
+#   STEP 8   (Drive ⇄ role parity)  EXCLUDE — ⚠️ the one place this ledger
+#            deliberately parts company with STEP 7. Parity mutates PEOPLE'S
+#            ACCESS, and --rebuild-only is a human saying "republish this tag
+#            fix"; quietly demoting someone's Drive permission as a side
+#            effect of that is a surprise with a blast radius, not a
+#            convenience. It costs nothing to omit: the 8h cycle runs parity
+#            on BOTH its paths, so the longest a fix waits is one tick.
 #   fulfill_requests()              INCLUDE — already runs unconditionally
 #            on every non-dry run regardless of uploaded_count; excluding it
 #            here would make --rebuild-only behave differently from a normal
@@ -1909,6 +1928,189 @@ def _push_estate_index(
     )
     _detail(f"index {summary['rows']} rows ({summary['audiobooks']} audiobook + {summary['ebooks']} ebook)")
     pstatus.set_summary(indexRows=summary["rows"], indexEbookRows=summary["ebooks"])
+
+
+# ---------------------------------------------------------------------------
+# STEP 8 — Drive ⇄ role parity: report both directions, AUTO-APPLY role→Drive
+#
+# Owner order 2026-08-17: "Wire it… with auto apply", fulfilling the standing
+# rule recorded in docs/info/ROLES.md §2: "I want this always to match."
+# Before today, scripts/drive_role_parity.py was a thing a human ran and read.
+# Now the 8-hourly cycle runs it, and Drive gets edited with nobody watching.
+#
+# ⚠️ SUBPROCESS, NOT AN IMPORT, and the three reasons are all load-bearing:
+#   1. The parity script's failure mode is sys.exit() with a FATAL message —
+#      that is CORRECT for a script whose missing exception list must never
+#      degrade to "no exceptions". Imported, that same correctness would take
+#      the pipeline down with it. A subprocess turns another domain's fatal
+#      into this domain's WARN without weakening either.
+#   2. PYTHONIOENCODING=utf-8 must be forced on the CHILD. The report prints
+#      em-dashes and ⚠️; captured through a cp1252 pipe it dies mid-report
+#      with UnicodeEncodeError. The script's own stdout.reconfigure() fixes a
+#      terminal, not a captured pipe (see docs/info/gotchas.md).
+#   3. A hard timeout is the only defence against drive_auth.get_credentials()
+#      deciding the token needs re-authorising: it calls run_local_server(),
+#      which opens a BROWSER and blocks forever on an unattended machine. A
+#      killed child is a named skip; a blocked import is a dead 8-hourly run.
+#
+# Placement: LAST, after STEP 7, and on BOTH cycle paths — the normal one and
+# the idle early-return at STEP 2 (the STEP 7 lesson: a step wired only beside
+# the commit skips most cycles, and most cycles are idle). Parity has nothing
+# to do with books, so an idle cycle is exactly as good a tick for it.
+# Deliberately NOT wired into --rebuild-only or the manual `publish` step,
+# unlike STEP 7: those are book-shaped operations a human triggers to
+# republish a tag fix, and silently editing a person's Drive access as a side
+# effect of "rebuild the catalog" is a surprise, not a feature. The 8h cycle
+# is the tick.
+#
+# Failure domain: its OWN, like STEP 7. A parity failure is one named WARN and
+# the cycle continues — the previous permission state simply stands, which is
+# the safe direction, and the next cycle retries.
+#
+# Reporting: pipeline_status SUMMARY fields, not a `publish` step detail.
+#   * STEP 7 already owns that detail line, and step_detail() overwrites;
+#   * the idle path never runs `publish` at all, so a detail written there
+#     would be invisible on exactly the cycles that are most common;
+#   * summary survives both paths untouched.
+#   ⚠️ COUNTS ONLY — never names. pipeline_status/current is world-readable
+#   and the /status page renders it; the emails live in this local log.
+# ---------------------------------------------------------------------------
+
+DRIVE_PARITY_TIMEOUT_S = 300
+DRIVE_PARITY_SCRIPT = SCRIPTS_DIR / "drive_role_parity.py"
+DRIVE_PARITY_TOKEN = SCRIPTS_DIR / "token.json"
+
+
+def _parity_report(state: str, detail: str) -> None:
+    """One place that writes the parity outcome, so every path reports."""
+    pstatus.set_summary(
+        driveParityState=state,
+        driveParityDetail=detail,
+        driveParityAt=datetime.now().isoformat(timespec="seconds"),
+    )
+
+
+def _run_drive_parity(label: str = "[STEP 8] Drive ⇄ role parity (report + auto-apply role→Drive)") -> None:
+    """Run scripts/drive_role_parity.py for this cycle.
+
+    Never raises. Exactly one named line is printed on every path — applied,
+    in sync, fuse tripped, skipped, failed.
+    """
+    import subprocess
+
+    print(f"\n{label}...")
+
+    if not DRIVE_PARITY_TOKEN.exists():
+        # A named skip, never silence: a machine that never reconciles must be
+        # distinguishable from one that reconciles and finds nothing.
+        print(f"  [INFO] Parity SKIPPED: no Drive token at {DRIVE_PARITY_TOKEN} "
+              "(run `python scripts/drive_auth.py` once on this machine).")
+        _parity_report("skipped", "no Drive token on this machine")
+        return
+
+    env = dict(os.environ)
+    env["PYTHONIOENCODING"] = "utf-8"  # see reason 2 in the block above
+    cmd = [
+        sys.executable,
+        str(DRIVE_PARITY_SCRIPT),
+        "--commit",
+        "--apply-to-drive",   # the ONE direction that may write. Drive→role
+                              # is report-only forever and is not requested.
+        "--json-summary",
+    ]
+
+    try:
+        proc = subprocess.run(
+            cmd, cwd=str(PROJECT_ROOT), env=env, capture_output=True,
+            text=True, encoding="utf-8", errors="replace",
+            timeout=DRIVE_PARITY_TIMEOUT_S,
+        )
+    except subprocess.TimeoutExpired:
+        print(f"  [WARN] Parity TIMED OUT after {DRIVE_PARITY_TIMEOUT_S}s and was killed. "
+              "The usual cause is Drive OAuth wanting an interactive browser flow — "
+              "run `python scripts/drive_auth.py` on this machine.")
+        _parity_report("skipped", f"timed out after {DRIVE_PARITY_TIMEOUT_S}s (Drive auth may need a human)")
+        return
+    except Exception as e:  # noqa: BLE001 — independent failure domain, by design
+        print(f"  [WARN] Parity could not be started: {e}")
+        _parity_report("failed", f"could not start: {e}")
+        return
+
+    # The report itself goes to the local log in full — names, levels, every
+    # bucket. This is the audit trail for an unattended mutation, so it is
+    # printed whether the run succeeded or not.
+    if proc.stdout:
+        for line in proc.stdout.splitlines():
+            if not line.startswith("PARITY_JSON "):
+                print(f"  | {line}")
+
+    summary = None
+    for line in (proc.stdout or "").splitlines():
+        if line.startswith("PARITY_JSON "):
+            try:
+                summary = json.loads(line[len("PARITY_JSON "):])
+            except json.JSONDecodeError:
+                summary = None
+
+    if summary is None:
+        tail = (proc.stderr or proc.stdout or "").strip().splitlines()
+        tail = tail[-1] if tail else f"exit {proc.returncode}, no output"
+        # A credentials-shaped failure is a SKIP (nothing is wrong with the
+        # world, this machine just is not set up); anything else is a WARN,
+        # and a missing exception list must always land here rather than in
+        # the skip bucket — silently not-reconciling because the list is gone
+        # is the exact failure that list exists to make loud.
+        creds_shaped = any(
+            s in tail for s in ("Drive credentials", "credentials.json", "service account")
+        )
+        if creds_shaped:
+            print(f"  [INFO] Parity SKIPPED: {tail}")
+            _parity_report("skipped", tail[:200])
+        else:
+            print(f"  [WARN] Parity FAILED: {tail}")
+            print("  [WARN] Permissions are unchanged; the next cycle retries.")
+            _parity_report("failed", tail[:200])
+        return
+
+    _report_parity_summary(summary)
+
+
+def _report_parity_summary(summary: dict) -> None:
+    """Turn STEP 8's PARITY_JSON line into one named console line and one
+    pipeline_status summary entry. Split out from _run_drive_parity() so the
+    process handling and the outcome vocabulary stay separately readable."""
+    state = summary.get("state", "unknown")
+    applied = summary.get("applied", [])
+    counts = summary.get("counts", {})
+    drift = counts.get("mismatch", 0) + counts.get("drive_only_untriaged", 0)
+
+    if state == "applied":
+        # Names to the LOCAL log only — this is the audit trail for a change
+        # made with nobody watching.
+        print(f"  Parity APPLIED {len(applied)} change(s): {', '.join(applied)}")
+        _parity_report("applied", f"{len(applied)} applied, {drift} drift row(s) reported")
+    elif state == "fuse-tripped":
+        print(f"  [WARN] Parity FUSE TRIPPED: {summary.get('fuseReason', '')}")
+        _parity_report(
+            "fuse-tripped",
+            f"{summary.get('planned', 0)} changes wanted, cap {summary.get('cap')} — nothing applied",
+        )
+    elif state == "in-sync":
+        print(f"  Parity in sync — nothing to apply ({drift} row(s) reported for review).")
+        _parity_report("in-sync", f"in sync, {drift} row(s) reported for review")
+    elif state == "failed":
+        failed = summary.get("failed", [])
+        print(f"  [WARN] Parity could not apply {len(failed)} planned change(s).")
+        _parity_report("failed", f"{len(failed)} change(s) failed to apply")
+    else:
+        print(f"  [WARN] Parity finished in an unexpected state: {state}")
+        _parity_report(state, f"unexpected state {state}")
+
+    if summary.get("estateUnreadable"):
+        # Not fatal and not a failure — the script degrades on purpose — but a
+        # cycle that could not read the estate directory made NO role→Drive
+        # decisions, and that must be visible rather than read as "in sync".
+        print(f"  [WARN] Estate directory was unreadable this cycle: {summary['estateUnreadable']}")
 
 
 # ---------------------------------------------------------------------------
