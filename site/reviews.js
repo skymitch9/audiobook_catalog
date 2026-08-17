@@ -72,6 +72,13 @@ export async function submitReview(db, bookId, displayName, rating, text) {
     }
     await setDoc(reviewRef, data, { merge: true });
 
+    // A rating is evidence the book was read, so it settles the intention the
+    // person's TBR entry recorded — retire it NOW instead of waiting for the
+    // library catalog's next sweep (cross-catalog TBR, tbr.md §5–§6). Only
+    // reachable when the write above succeeded; it can never fail a saved
+    // review, because clearTbrForRating swallows its own errors.
+    await clearTbrForRating(db, bookId, displayName);
+
     return { success: true };
   } catch (e) {
     return { success: false, error: describeActionError(e) };
@@ -80,6 +87,39 @@ export async function submitReview(db, bookId, displayName, rating, text) {
     // see gate-shadow.js). submit/update are wired to measure Phase 5's
     // tokenless population, not a role gate.
     reportGate(existed ? 'review.update' : 'review.submit');
+  }
+}
+
+/**
+ * Retire the to-be-read intention a rating settles: delete this person's
+ * entry for the book from the shared `readingLists` store — the SAME delete
+ * the modal's `✓ To Be Read` button performs when it is toggled off, so the
+ * button falls back to `📋 Add to TBR` on its next render.
+ *
+ * ⚠️ The reading-list document id is `{displayNameLower}_{bookId}` — the
+ * REVERSE of a review's `{bookId}_{displayNameLower}` (tbr.md §2). The two
+ * orders may NOT be harmonised: the id is the identity of documents that
+ * already exist in production, and building one with the other's order files
+ * a second document beside somebody's real entry.
+ *
+ * Non-fatal by design, on both counts that matter:
+ *  - it never throws, so a rating that saved is never reported as failed
+ *    because a to-read entry could not be deleted;
+ *  - deleting an absent document is a no-op in Firestore, so a rating EDIT,
+ *    a re-submit, or a book that was never on the list all run harmlessly.
+ *
+ * @param {import('firebase/firestore').Firestore} db
+ * @param {string} bookId
+ * @param {string} displayName
+ * @returns {Promise<{cleared: boolean, error?: string}>}
+ */
+export async function clearTbrForRating(db, bookId, displayName) {
+  const docId = `${(displayName || '').toLowerCase()}_${bookId}`;
+  try {
+    await deleteDoc(doc(db, col('readingLists'), docId));
+    return { cleared: true };
+  } catch (e) {
+    return { cleared: false, error: describeActionError(e) };
   }
 }
 

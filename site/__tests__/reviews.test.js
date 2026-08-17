@@ -91,7 +91,7 @@ vi.mock('firebase/firestore', () => {
   };
 });
 
-import { bookIdFromTitle, computeAverageRating, submitReview, getReviews, renderStars, renderReviewSection, formatDate, deleteReview } from '../reviews.js';
+import { bookIdFromTitle, computeAverageRating, submitReview, getReviews, renderStars, renderReviewSection, formatDate, deleteReview, clearTbrForRating } from '../reviews.js';
 import { col } from '../fb-env.js';
 
 const fakeDb = {};
@@ -527,5 +527,137 @@ describe('Phase 1 shadow reports — review writes', () => {
     expect(mockStore[key]).toBeDefined();
     expect(reportGate).toHaveBeenCalledTimes(1);
     expect(reportGate).toHaveBeenCalledWith('review.delete');
+  });
+});
+
+// ==================== TBR instant-clear (cross-catalog TBR, tbr.md §6) ====================
+//
+// Rating a book is evidence you read it, so it settles the intention your TBR
+// entry recorded. Before this, the audiobook site's own `✓ To Be Read` button
+// went on claiming the book until the library catalog's next sweep deleted the
+// entry; now submitReview retires it at the moment of the rating, with the
+// SAME delete the button's own toggle performs.
+//
+// The shared store is `readingLists` (lane-suffixed by col()), and its
+// document id is `{displayNameLower}_{bookId}` — the REVERSE of a review's
+// `{bookId}_{displayNameLower}`. That reversal is the single most expensive
+// thing to get wrong here, so it is asserted directly rather than implied.
+
+const rlKey = (name, bookId) => `${col('readingLists')}/${name.toLowerCase()}_${bookId}`;
+const reviewKey = (bookId, name) => `${col('reviews')}/${bookId}_${name.toLowerCase()}`;
+
+describe('TBR instant-clear on rating', () => {
+  beforeEach(() => {
+    mockStore = {};
+    timestampCounter = 0;
+  });
+
+  it('a successful rating deletes that person entry from readingLists', async () => {
+    mockStore[rlKey('Jane Doe', 'dune')] = {
+      displayName: 'Jane Doe', bookId: 'dune', bookTitle: 'Dune', status: 'tbr',
+    };
+
+    const r = await submitReview(fakeDb, 'dune', 'Jane Doe', 4, 'excellent');
+
+    expect(r.success).toBe(true);
+    expect(mockStore[rlKey('Jane Doe', 'dune')]).toBeUndefined();
+    expect(mockStore[reviewKey('dune', 'Jane Doe')]).toBeDefined(); // the review still landed
+  });
+
+  it('builds the reading-list id in the REVERSE order to a review id, and never the review order', async () => {
+    // tbr.md §2: the two ids are deliberately mirrored. Writing the review
+    // order into readingLists would file a second document beside somebody's
+    // real entry and their button would disagree with this site forever.
+    mockStore[rlKey('Jane', 'dune')] = { displayName: 'Jane', bookId: 'dune', status: 'tbr' };
+    const wrongOrder = `${col('readingLists')}/dune_jane`;
+    mockStore[wrongOrder] = { __decoy: true };
+
+    await submitReview(fakeDb, 'dune', 'Jane', 5, 'great');
+
+    expect(rlKey('Jane', 'dune')).toBe(`${col('readingLists')}/jane_dune`);
+    expect(rlKey('Jane', 'dune')).not.toBe(reviewKey('dune', 'Jane'));
+    expect(mockStore[`${col('readingLists')}/jane_dune`]).toBeUndefined(); // the real entry went
+    expect(mockStore[wrongOrder]).toBeDefined();                          // the decoy did NOT
+  });
+
+  it('clears only the rater own entry — another person TBR for the same book survives', async () => {
+    mockStore[rlKey('Jane', 'dune')] = { displayName: 'Jane', bookId: 'dune', status: 'tbr' };
+    mockStore[rlKey('Bob', 'dune')] = { displayName: 'Bob', bookId: 'dune', status: 'tbr' };
+
+    await submitReview(fakeDb, 'dune', 'Jane', 3, 'fine');
+
+    expect(mockStore[rlKey('Jane', 'dune')]).toBeUndefined();
+    expect(mockStore[rlKey('Bob', 'dune')]).toBeDefined();
+  });
+
+  it('clears only the rated book — the same person other TBR entries survive', async () => {
+    mockStore[rlKey('Jane', 'dune')] = { displayName: 'Jane', bookId: 'dune', status: 'tbr' };
+    mockStore[rlKey('Jane', 'neuromancer')] = { displayName: 'Jane', bookId: 'neuromancer', status: 'tbr' };
+
+    await submitReview(fakeDb, 'dune', 'Jane', 3, 'fine');
+
+    expect(mockStore[rlKey('Jane', 'dune')]).toBeUndefined();
+    expect(mockStore[rlKey('Jane', 'neuromancer')]).toBeDefined();
+  });
+
+  it('a book that was never on the list is a no-op, and a rating EDIT re-runs harmlessly', async () => {
+    const first = await submitReview(fakeDb, 'dune', 'Jane', 4, 'good');
+    expect(first.success).toBe(true);
+
+    // Nothing was on the list; the re-rate deletes an absent document again.
+    const second = await submitReview(fakeDb, 'dune', 'Jane', 5, 'better on a reread');
+    expect(second.success).toBe(true);
+    expect(mockStore[rlKey('Jane', 'dune')]).toBeUndefined();
+    expect(mockStore[reviewKey('dune', 'Jane')].rating).toBe(5);
+  });
+
+  it('a FAILED review write clears nothing — a rejected rating settles no intention', async () => {
+    mockStore[rlKey('Jane', 'dune')] = { displayName: 'Jane', bookId: 'dune', status: 'tbr' };
+
+    const r = await submitReview(fakeDb, 'dune', 'Jane', 99, 'out of range');
+
+    expect(r.success).toBe(false);
+    expect(mockStore[rlKey('Jane', 'dune')]).toBeDefined(); // still on her list
+  });
+
+  it('a REFUSED reading-list delete never turns a saved review into a failure', async () => {
+    // The __denyDelete seam makes the mock refuse like Firestore would. The
+    // review must still report success: the rating is the thing the person
+    // asked for, and a stale button is not worth reporting it as lost.
+    mockStore[rlKey('Jane', 'dune')] = {
+      displayName: 'Jane', bookId: 'dune', status: 'tbr', __denyDelete: true,
+    };
+
+    const r = await submitReview(fakeDb, 'dune', 'Jane', 4, 'good');
+
+    expect(r.success).toBe(true);
+    expect(r.error).toBeUndefined();
+    expect(mockStore[reviewKey('dune', 'Jane')]).toBeDefined();
+  });
+
+  it('clearTbrForRating reports the refusal in words, never a bare code', async () => {
+    mockStore[rlKey('Jane', 'dune')] = { displayName: 'Jane', status: 'tbr', __denyDelete: true };
+
+    const r = await clearTbrForRating(fakeDb, 'dune', 'Jane');
+
+    expect(r.cleared).toBe(false);
+    expect(typeof r.error).toBe('string');
+    expect(r.error.length).toBeGreaterThan(0);
+    expect(r.error).not.toMatch(/^permission-denied$/);
+  });
+
+  it('is callable on its own and folds the display name case, like the button does', async () => {
+    mockStore[rlKey('Jane Doe', 'dune')] = { displayName: 'Jane Doe', status: 'tbr' };
+
+    const r = await clearTbrForRating(fakeDb, 'dune', 'JANE DOE');
+
+    expect(r.cleared).toBe(true);
+    expect(mockStore[`${col('readingLists')}/jane doe_dune`]).toBeUndefined();
+  });
+
+  it('writes to the lane-suffixed collection, so the dev lane can never clear a prod entry', () => {
+    // col() is the one lane switch (fb-env.js); asserting the key is built
+    // through it is what keeps this delete on the same lane as the button.
+    expect(rlKey('Jane', 'dune').startsWith(`${col('readingLists')}/`)).toBe(true);
   });
 });

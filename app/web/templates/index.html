@@ -2398,6 +2398,13 @@ function wireAppearance(container){
             statusEl.textContent = 'Review saved!';
             // Update table rating cell immediately
             _updateTableRating(bookTitle, bookId);
+            // ⚠️ The renderReadingListButtons call here is LOAD-BEARING, not a
+            // tidy refresh: submitReview has just deleted this person's
+            // readingLists entry for the book (reviews.js clearTbrForRating —
+            // a rating settles the intention, cross-catalog TBR tbr.md §6), so
+            // this is what flips ✓ To Be Read back to 📋 Add to TBR at that
+            // moment instead of on the next page load. Removing it leaves the
+            // button lying about a list the book is no longer on.
             setTimeout(() => { renderReviewSection(bookTitle); renderReadingListButtons(bookTitle); }, 500);
           } else {
             statusEl.textContent = result.error || 'Failed to submit.';
