@@ -54,6 +54,19 @@ site/ebooks.json
 # The publish receipt (which sha256 is in the bucket) — machine-local state,
 # like the covers upload's own bookkeeping.
 scripts/.ebooks_published.json
+# ⚠️ site/ebook_files_manifest.json IS DELIBERATELY NOT NEGATED EITHER, and the
+# reason is the same one as site/ebooks.json above. It is the record of which
+# ebook FILES are in the private `estate-ebooks` bucket (viewer phase 0a,
+# scripts/upload_ebooks_r2.py) and it is keyed on FILE PATHS — i.e. it is a
+# list of the household's books by name, which is exactly the surface the gate
+# closed. `*.json` above already ignores it; this comment exists so nobody
+# "helpfully" adds a negation. ⚠️ This is a deliberate deviation from
+# library_catalog/docs/info/ebook-viewer-design.md §2.1, which said "committed"
+# — see docs/info/ebooks-r2-ingest.md §3. Nothing off this machine needs it:
+# the phase-1a Worker resolves anchor -> path from ebooks.json in the gated
+# bucket, never from this record. site/covers_manifest.json stays negated
+# because it is a list of sha256 hashes, not a list of books.
+# (tests/test_upload_ebooks_r2.py fails if a negation is added.)
 !site/covers_manifest.json
 !vitest.config.js
 !firebase.json
