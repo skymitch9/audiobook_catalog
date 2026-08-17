@@ -91,6 +91,17 @@
   module's header for why keying on the ebook's own spelling fails silently in
   both directions.
 
+  THE DEV-LANE CURTAIN, 2026-08-17 (owner: "i need a way in the estate to
+  manage dev access for ebook ... make devops always able to see dev envs").
+  When this page is served under /dev/, a signed-in visitor without effective
+  dev access is shown a worded curtain instead of the shelf. ⚠️ A CURTAIN, NOT
+  A LOCK: it guards no bytes and is not meant to. The real lock is the estate's
+  `vis_ebooks` grant, enforced server-side on the manifest and on every range,
+  identically on both lanes and untouched by any of this. site/dev-lane.js owns
+  every decision — including why "we could not tell" opens the shelf rather
+  than closing it. ⚠️ Lane-aware, never host-aware: a promoted page makes no
+  extra call at all.
+
   The manifest is fetched client-side WITH A BEARER, so a pipeline refresh
   updates this page with no HTML rebuild. ⚠️ Bearer-per-request, never a
   signed URL: a copied URL must be a 401, and a signed URL cannot be revoked
@@ -446,8 +457,11 @@ h1 .tail{color:var(--accent)}
   box-shadow:0 1px 0 var(--rule)}
 #eb-gate h2{margin:0 0 10px;font-family:var(--serif);font-size:1.35rem;color:var(--ink);font-weight:600}
 #eb-gate p{margin:0 0 18px;color:var(--ink-faint);line-height:1.55;font-size:.95rem}
+/* `text-decoration:none` because this class dresses a <button> AND (since the
+   dev-lane curtain, 2026-08-17) an <a>, and an underlined pill looks broken. */
 #eb-gate .eb-gate-act{display:inline-block;padding:10px 20px;border:0;border-radius:9px;
-  background:var(--accent);color:var(--card);font:inherit;font-weight:600;cursor:pointer}
+  background:var(--accent);color:var(--card);font:inherit;font-weight:600;cursor:pointer;
+  text-decoration:none}
 #eb-gate .eb-gate-act:hover{background:var(--accent-deep)}
 #eb-gate .eb-gate-act[hidden]{display:none}
 .empty{text-align:center;padding:30px;color:var(--ink-faint);font-style:italic;grid-column:1/-1}
@@ -498,6 +512,13 @@ h1 .tail{color:var(--accent)}
     <h2 id="eb-gate-title">The shelf is closed</h2>
     <p id="eb-gate-why">Checking your sign-in…</p>
     <button type="button" class="eb-gate-act" id="eb-gate-signin" hidden>Sign in with Google</button>
+    <!-- THE DEV-LANE CURTAIN's way out, and the ONE absolute link on this page.
+         Everything else here is relative so the /dev/ lane loads dev copies —
+         but this exists precisely to LEAVE the dev lane, and a relative
+         `ebooks` would send a curtained reader straight back to the page that
+         just curtained them. Ships hidden; only site/dev-lane.js's verdict
+         reveals it, and never on a promoted page. -->
+    <a class="eb-gate-act" id="eb-gate-prod" href="https://ebooks.heygabi.ai" hidden>Go to the regular shelf</a>
   </div>
 
   <div class="controls-row" id="eb-controls" hidden>
@@ -973,6 +994,11 @@ h1 .tail{color:var(--accent)}
   import { mountAccountModal } from './account-modal.js';
   import { getLiveUser, getIdToken, signInWithGoogle, handleRedirectResult, getSession, resolveSiteAccess } from './identity.js';
   import { renderEbookNotes } from './ebook-notes.js';
+  // ⚠️ CURTAIN, NOT LOCK. That module's header carries the whole argument; this
+  // page takes no view of its own. The books stay gated by the estate's
+  // `vis_ebooks` grant, server-side, on the manifest and on every range — on
+  // BOTH lanes, and completely untouched by anything below.
+  import { DEV_CURTAIN, devLaneVerdict } from './dev-lane.js';
 
   /** The gated manifest. ⚠️ Its OWN origin — this page is served from
    *  ebooks.heygabi.ai (through the ebooks-door Worker) and from
@@ -984,6 +1010,7 @@ h1 .tail{color:var(--accent)}
   const gateTitle = document.getElementById('eb-gate-title');
   const gateWhy = document.getElementById('eb-gate-why');
   const gateBtn = document.getElementById('eb-gate-signin');
+  const gateProd = document.getElementById('eb-gate-prod');
   const controlsEl = document.getElementById('eb-controls');
   const listEl = document.getElementById('eb-list');
 
@@ -993,6 +1020,10 @@ h1 .tail{color:var(--accent)}
     gateTitle.textContent = title;
     gateWhy.textContent = why;
     gateBtn.hidden = !(opts && opts.signIn);
+    // ⚠️ Only the dev curtain sets this. Every other closed state is reached on
+    // BOTH lanes, and offering "go to the regular shelf" to somebody already on
+    // it would be a link to the page they are looking at.
+    if (gateProd) gateProd.hidden = !(opts && opts.prod);
     gateEl.hidden = false;
     controlsEl.hidden = true;
     listEl.hidden = true;
@@ -1087,6 +1118,28 @@ h1 .tail{color:var(--accent)}
         'These are the household’s own ebook files, so the shelf is not public. Sign in with Google and, if you have been given the ebook grant, it will fill in.',
         { signIn: true },
       );
+      return;
+    }
+
+    // ⚠️ THE DEV-LANE CURTAIN — A CURTAIN, NOT A LOCK (site/dev-lane.js owns
+    // every decision; its header is the thing to read). Three things about
+    // this call site, each load-bearing:
+    //
+    //   * AFTER the signed-out branch. Someone who is not signed in must meet
+    //     "sign in", not "you need dev access" — the second sends them to ask
+    //     a person for something signing in would have given them.
+    //   * BEFORE the manifest fetch, so a curtained visitor never sees a book.
+    //   * LANE-AWARE, NEVER HOST-AWARE: devLaneVerdict answers 'prod-lane'
+    //     immediately, with NO network call, on every promoted page. So
+    //     ebooks.heygabi.ai gains no request, no await and no new way to fail
+    //     — which matters twice over, because the auth Worker's ME_ORIGINS
+    //     does not include that host and the call would be CORS-refused there.
+    //   * 'unknown' (no answer, or an answer without the field — identity.js
+    //     caches /api/estate/me for ten minutes and an older entry predates
+    //     `dev_access`) falls THROUGH and opens the shelf. An outage is not a
+    //     permission decision, and nothing here has ever guarded a byte.
+    if ((await devLaneVerdict(app)) === 'curtain') {
+      closed(DEV_CURTAIN.title, DEV_CURTAIN.why, { prod: true });
       return;
     }
 
