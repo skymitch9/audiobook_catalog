@@ -2967,6 +2967,374 @@
         "why_an_override_and_not_the_sweep": "The sweep's canonical_series respelling of an ALREADY-PRESENT SRNM is the DISARMED uncurated path (owner decision 2026-08-11; --commit without a source flag exits 2 and refuses). Curating by hand is the armed route that disarm deliberately leaves open, keeping the blast radius at three named files.",
         "matters_for": "The shelf server reads m4b tags DIRECTLY (Audiobookshelf), so unlike the website — which canonical_series fixes at build time — it would show 'Ascend Online [publication order]' as a separate series."
       }
+    },
+    {
+      "book": "Bound - Ali Hazelwood",
+      "match": {
+        "asin": "B0FY77R165"
+      },
+      "set": {
+        "series": "Bound and Unbound",
+        "series_index": "1"
+      },
+      "added": "2026-08-16",
+      "evidence": {
+        "series": "NOT the Bride shifter series. Bound is an audio-first dark-academia romance (released 2025-11-11, the file's own ©day) and opens its own two-book series: Audible's series page for this exact product (ASIN B0FY77R165) lists 'Bound and Unbound' with Bound as Book 1 and Unbound (Dean Miller/Tara Fatehi, 2026-07-14) as Book 2. Current Goodreads agrees: 'Bound (Bound and Unbound, #1)'. The author's own page alihazelwood.com/bound carries the audio-only release.",
+        "series_index": "Book 1 of 2 on Audible's own 'Bound and Unbound' series page; Goodreads shows '#1'.",
+        "tags_read": {
+          "©nam": "Bound",
+          "©alb": "Bound",
+          "©ART": "Ali Hazelwood",
+          "©wrt": "Brittany Pressley, William Macleod",
+          "©day": "2025-11-11",
+          "©gen": "Romance:Contemporary",
+          "trkn": "(1, 0)",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "B0FY77R165"
+        },
+        "filename_said": "Bound",
+        "sources": [
+          "https://www.audible.com/series/Bound-and-Unbound-Audiobooks/B0H3PQJTX2",
+          "https://www.goodreads.com/book/show/242109300-bound",
+          "https://alihazelwood.com/bound/"
+        ]
+      }
+    },
+    {
+      "book": "Mate - Ali Hazelwood",
+      "match": {
+        "asin": "B0DYR3DYZT"
+      },
+      "set": {
+        "series": "Bride",
+        "series_index": "2"
+      },
+      "added": "2026-08-16",
+      "evidence": {
+        "series": "Sequel/companion to Bride (2024) in the Vampyre-Were shifter world. Current Goodreads titles it 'Mate (Bride, #2)' and its Bride series page lists exactly two books: Bride #1 (2024), Mate #2 (2025). Audible's own product page for this ASIN (B0DYR3DYZT) calls it 'the highly anticipated companion novel to the New York Times bestselling Bride' but formats no series listing — the series NAME comes from Goodreads, the relationship is confirmed by the publisher copy.",
+        "series_index": "#2 on the Goodreads Bride series page (Bride #1 2024, Mate #2 2025); released 2025-10-07 per the file's own ©day.",
+        "tags_read": {
+          "©nam": "Mate",
+          "©alb": "Mate",
+          "©ART": "Ali Hazelwood",
+          "©wrt": "Ellie Gossage, Teddy Hamilton",
+          "©day": "2025-10-07",
+          "©gen": "Romance:Paranormal",
+          "trkn": "(1, 0)",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "B0DYR3DYZT"
+        },
+        "filename_said": "Mate",
+        "sources": [
+          "https://www.goodreads.com/series/412885-bride",
+          "https://www.goodreads.com/book/show/228256271-mate",
+          "https://www.audible.com/pd/Mate-Audiobook/B0DYR3DYZT"
+        ]
+      }
+    },
+    {
+      "book": "Problematic Summer Romance - Ali Hazelwood",
+      "match": {
+        "asin": "B0DZ8F916S"
+      },
+      "set": {
+        "series": "Not in Love",
+        "series_index": "2"
+      },
+      "added": "2026-08-16",
+      "evidence": {
+        "series": "Companion novel to Not in Love (2024): follows Maya Killgore, sister of Not in Love's Eli, with Conor Harkness from that book. Current Goodreads titles it 'Problematic Summer Romance (Not in Love, #2)' and keeps a 'Not in Love' series page with Not in Love as #1. Published 2025-05-27 by Berkley — matching this file's ©day exactly.",
+        "series_index": "#2 on Goodreads' Not in Love series page; Not in Love (2024) is #1.",
+        "tags_read": {
+          "©nam": "Problematic Summer Romance",
+          "©alb": "Problematic Summer Romance",
+          "©ART": "Ali Hazelwood",
+          "©wrt": "Elizabeth Lamont, Eric Nolan",
+          "©day": "2025-05-27",
+          "©gen": "Romance:Contemporary",
+          "trkn": "(1, 0)",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "B0DZ8F916S"
+        },
+        "filename_said": "Problematic Summer Romance",
+        "sources": [
+          "https://www.goodreads.com/series/413360-not-in-love",
+          "https://www.goodreads.com/book/show/228691356-problematic-summer-romance"
+        ]
+      }
+    },
+    {
+      "book": "The Gender Game - Bella Forrest",
+      "match": {
+        "asin": "B01M4OBD2W"
+      },
+      "set": {
+        "series": "The Gender Game",
+        "series_index": "1"
+      },
+      "added": "2026-08-16",
+      "evidence": {
+        "series": "Opens Bella Forrest's 7-book dystopian series of the same name (The Gender Game, The Gender Secret, The Gender Lie, The Gender War, The Gender Fall, The Gender Plan, The Gender End). Goodreads titles it 'The Gender Game (The Gender Game, #1)' and its series page lists all seven; Barnes & Noble sells it as 'The Gender Game: The Gender Game Book 1'. Same eponymous-first-volume shape as All the Skills — the series sharing the book's title is correct here, not a SERIES_IS_TITLE error.",
+        "series_index": "#1 of 7 on the Goodreads series page; first published 2016 (this file's ©day 2016-10-24 matches).",
+        "tags_read": {
+          "©nam": "The Gender Game",
+          "©alb": "The Gender Game",
+          "©ART": "Bella Forrest",
+          "©wrt": "Rebecca Soler, Zachary Webber",
+          "©day": "2016-10-24",
+          "©gen": "Romance:Science Fiction",
+          "trkn": "(1, 0)",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "B01M4OBD2W"
+        },
+        "filename_said": "The Gender Game",
+        "sources": [
+          "https://www.goodreads.com/series/190222-the-gender-game",
+          "https://www.goodreads.com/book/show/31131467-the-gender-game",
+          "https://www.barnesandnoble.com/w/the-gender-game-bella-forrest/1147689125"
+        ]
+      }
+    },
+    {
+      "book": "New Life as a Max Level Archmage - Arcane Cadence",
+      "match": {
+        "author": "Arcane Cadence",
+        "title": "New Life as a Max Level Archmage"
+      },
+      "set": {
+        "series": "New Life as a Max Level Archmage",
+        "series_index": "1"
+      },
+      "added": "2026-08-16",
+      "evidence": {
+        "series": "LitRPG serialized on Royal Road, audio Book 1 released 2026-05-04 (Tess Irondale narrating). Audible's own series page 'New Life as a Max Level Archmage' lists this product as Book 1 of 2 (Book 2 not yet on Audible US). Current Goodreads keeps a same-named series page and titles the volume 'New Life as a Max Level Archmage, Book 1'. Eponymous first volume — the series sharing the book's title is correct. This file has no CDEK ASIN, so the entry is keyed on title + author per _keying.",
+        "series_index": "Book 1 on Audible's series page and in Goodreads' own volume title 'New Life as a Max Level Archmage, Book 1'.",
+        "tags_read": {
+          "©nam": "New Life as a Max Level Archmage",
+          "©alb": "New Life as a Max Level Archmage",
+          "©ART": "Arcane Cadence",
+          "©wrt": "Tess Irondale",
+          "©day": "2026",
+          "©gen": "Audiobook",
+          "trkn": "absent",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "New Life as a Max Level Archmage",
+        "sources": [
+          "https://www.audible.com/series/New-Life-as-a-Max-Level-Archmage-Audiobooks/B0GZ2RTXDM",
+          "https://www.goodreads.com/series/440487-new-life-as-a-max-level-archmage",
+          "https://www.goodreads.com/book/show/250330385-new-life-as-a-max-level-archmage-book-1",
+          "https://www.royalroad.com/fiction/118891/new-life-as-a-max-level-archmage"
+        ]
+      }
+    },
+    {
+      "book": "Twelve Months - Jim Butcher",
+      "match": {
+        "author": "Jim Butcher",
+        "title": "Twelve Months"
+      },
+      "set": {
+        "series": "The Dresden Files",
+        "series_index": "18"
+      },
+      "added": "2026-08-16",
+      "evidence": {
+        "series": "The 18th Dresden Files novel, published 2026-01-20 by Ace (the file's own ©day matches). Wikipedia, Goodreads ('The Dresden Files, #18'), SFFWorld and Penguin Random House all place it in the series. Spelled 'The Dresden Files' to match this library's own vendor tags on Skin Game, Peace Talks, Battle Ground and The Law (SRNM='The Dresden Files' on all four), so this entry closes the gap without creating a spelling variant.",
+        "series_index": "#18 per Goodreads and SFFWorld; the library's Battle Ground is 17 and The Law is 17.5, so 18 is also the next contiguous volume.",
+        "tags_read": {
+          "©nam": "Twelve Months",
+          "©alb": "Twelve Months",
+          "©ART": "Jim Butcher",
+          "©wrt": "James Marsters",
+          "©day": "2026-01-20",
+          "©gen": "Mystery, Thriller & Suspense:Mystery:Private Investigators",
+          "trkn": "(1, 0)",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "Twelve Months",
+        "sources": [
+          "https://en.wikipedia.org/wiki/Twelve_Months_(The_Dresden_Files)",
+          "https://www.goodreads.com/en/book/show/230337028-twelve-months",
+          "https://www.penguinrandomhouse.com/books/645506/twelve-months-by-jim-butcher/"
+        ]
+      }
+    },
+    {
+      "book": "Soul Gem Collector - Logan Jacobs",
+      "match": {
+        "author": "Logan Jacobs",
+        "title": "Soul Gem Collector"
+      },
+      "set": {
+        "series": "Soul Gem Collector",
+        "series_index": "1"
+      },
+      "added": "2026-08-16",
+      "evidence": {
+        "series": "Opens Logan Jacobs' 6-book magic-academy series of the same name. Audible keeps a 'Soul Gem Collector' series page listing this as Book 1 of 6; the Audible product (B087636CZ3, released 2020-04-16) is narrated by Alex Perone and Marissa Parness — exactly the narrators this filename credits. The filename's own [Soul Gem Collector - 1] bracket agrees as evidence. Eponymous first volume: the series sharing the book's title is correct.",
+        "series_index": "Book 1 of 6 on Audible's series page; the filename bracket says 1.",
+        "tags_read": {
+          "©nam": "Soul Gem Collector",
+          "©alb": "Soul Gem Collector",
+          "©ART": "Logan Jacobs",
+          "©wrt": "Alex Perone, Marissa Parness",
+          "©day": "absent",
+          "©gen": "Fantasy",
+          "trkn": "(1, 0)",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "Logan Jacobs - [Soul Gem Collector - 1] - Soul Gem Collector (Alex Perone, Marissa Parness)",
+        "sources": [
+          "https://www.audible.com/series/Soul-Gem-Collector-Audiobooks/B08B7BVZ32",
+          "https://www.audible.com/pd/Soul-Gem-Collector-Audiobook/B087636CZ3"
+        ]
+      }
+    },
+    {
+      "book": "Viking Rune Smith - Michael-scott Earle",
+      "match": {
+        "author": "Michael-scott Earle",
+        "title": "Viking Rune Smith"
+      },
+      "set": {
+        "series": "Viking Rune Smith",
+        "series_index": "1"
+      },
+      "added": "2026-08-16",
+      "evidence": {
+        "series": "First of Michael-Scott Earle's Viking Rune Smith series (4+ books). Goodreads keeps a 'Viking Rune Smith' series page with this as #1, and the author's own store michaelscottearle.com sells the series under that name; the audiobook is narrated by Christopher Boucher and Jessica Threet — the narrators this filename credits. The filename's own [Viking Rune Smith - 1] bracket agrees as evidence. Eponymous first volume: the series sharing the book's title is correct.",
+        "series_index": "#1 on the Goodreads series page; the filename bracket says 1.",
+        "tags_read": {
+          "©nam": "Viking Rune Smith",
+          "©alb": "Viking Rune Smith",
+          "©ART": "Michael-Scott Earle",
+          "©wrt": "Christopher Boucher and Jessica Threet",
+          "©day": "absent",
+          "©gen": "Fantasy",
+          "trkn": "(1, 0)",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "Michael-Scott Earle - [Viking Rune Smith - 1] - Viking Rune Smith (Christopher Boucher and Jessica Threet)",
+        "sources": [
+          "https://www.goodreads.com/series/320901-viking-rune-smith",
+          "https://www.goodreads.com/en/book/show/58394126-viking-rune-smith",
+          "https://michaelscottearle.com/collections/viking-rune-smith-1/audiobook"
+        ]
+      }
+    },
+    {
+      "book": "Wings of Justice - City of Light, Book 1 - Michael-scott Earle",
+      "match": {
+        "asin": "B01MQWKJ0T"
+      },
+      "set": {
+        "series": "City of Light",
+        "series_index": "1"
+      },
+      "added": "2026-08-16",
+      "evidence": {
+        "series": "First book of Michael-Scott Earle's City of Light series (2016). Goodreads keeps a 'City of Light' series page with 'Wings of Justice (City of Light #1)'; the author's own store sells it as 'City of Light: Wings of Justice - book.1'. The filename and the ©nam tag both carry 'City of Light, Book 1' as evidence. Keyed on the CDEK ASIN B01MQWKJ0T; a second, differently-titled alternate-narration file of the same book gets its own entry.",
+        "series_index": "Book 1, per Goodreads (#1), the author's store, and the file's own title string.",
+        "tags_read": {
+          "©nam": "Wings of Justice - City of Light, Book 1",
+          "©alb": "Wings of Justice",
+          "©ART": "Michael-Scott Earle",
+          "©wrt": "Marielena Alcaraz",
+          "©day": "2016-12-20",
+          "©gen": "Literature & Fiction:Classics",
+          "trkn": "(1, 0)",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "B01MQWKJ0T"
+        },
+        "filename_said": "Wings of Justice - City of Light, Book 1",
+        "sources": [
+          "https://www.goodreads.com/series/349308-city-of-light",
+          "https://www.goodreads.com/book/show/33133083-wings-of-justice",
+          "https://michaelscottearle.com/products/city-of-light-wings-of-justice-book-1"
+        ]
+      }
+    },
+    {
+      "book": "City of Light: Wings of Justice - Michael-scott Earle",
+      "match": {
+        "author": "Michael-scott Earle",
+        "title": "City of Light: Wings of Justice"
+      },
+      "set": {
+        "series": "City of Light",
+        "series_index": "1"
+      },
+      "added": "2026-08-16",
+      "evidence": {
+        "series": "Same book as 'Wings of Justice - City of Light, Book 1.m4b' (ASIN B01MQWKJ0T) in a different narration - the 2019 audio edition; this file's ©nam reads 'City of Light: Wings of Justice' and it has no CDEK, so it is keyed on its own title + author. Goodreads: 'Wings of Justice (City of Light #1)'; the author's own store sells it as 'City of Light: Wings of Justice - book.1'. Owning the same volume twice in different narrations is an accepted shape in this library (see the Tamer note in _not_corrected_on_purpose), so the sweep's DUPLICATE_VOLUME report for this pair is expected.",
+        "series_index": "Book 1, per Goodreads (#1), the author's store, and the file's own title string.",
+        "tags_read": {
+          "©nam": "City of Light: Wings of Justice",
+          "©alb": "City of Light: Wings of Justice",
+          "©ART": "Michael-Scott Earle",
+          "©wrt": "Rebecca Woods, Falcon Scott, and Gabriel Michael",
+          "©day": "2019",
+          "©gen": "Fantasy",
+          "trkn": "(1, 0)",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "Wings of Justice - City of Light, Book 1 - Alternate Narration",
+        "sources": [
+          "https://www.goodreads.com/series/349308-city-of-light",
+          "https://www.goodreads.com/book/show/33133083-wings-of-justice",
+          "https://michaelscottearle.com/products/city-of-light-wings-of-justice-book-1"
+        ]
+      }
+    },
+    {
+      "book": "Taken by the Wolf Audiobook - Kate Rudolph",
+      "match": {
+        "author": "Kate Rudolph",
+        "title": "Taken by the Wolf Audiobook"
+      },
+      "set": {
+        "series": "Southern Basin Pack",
+        "series_index": "1"
+      },
+      "added": "2026-08-16",
+      "evidence": {
+        "series": "Kate Rudolph's enemies-to-lovers witch/shifter romance, sold everywhere as 'Southern Basin Pack Book 1': BookBub and the Amazon Kindle edition both subtitle it '(Southern Basin Pack Book 1)', the deluxe paperback is 'Taken by the Wolf: Southern Basin Pack', and risingshadow lists 'Taken by the Wolf (Southern Basin Pack #1)'. The filename's [Taken by the Wolf Audiobook - 1] bracket carries the index as evidence but has the TITLE in the series slot - the series name comes from the sources, not the filename.",
+        "series_index": "Book 1 per the Amazon/BookBub subtitle and risingshadow's #1; the filename bracket agrees.",
+        "tags_read": {
+          "©nam": "Taken by the Wolf Audiobook",
+          "©alb": "Taken by the Wolf Audiobook",
+          "©ART": "Kate Rudolph",
+          "©wrt": "Michelle Morrie",
+          "©day": "2026",
+          "©gen": "Romance",
+          "trkn": "(1, 0)",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "Kate Rudolph - [Taken by the Wolf Audiobook - 1] - Taken by the Wolf Audiobook (Michelle Morrie)",
+        "sources": [
+          "https://www.bookbub.com/books/taken-by-the-wolf-enemies-to-lovers-witch-shifter-romance-southern-basin-pack-book-1-by-kate-rudolph",
+          "https://www.amazon.com/Taken-Wolf-Enemies-Shifter-Southern-ebook/dp/B0GG7YNNCQ",
+          "https://www.risingshadow.net/book/87452-taken-by-the-wolf"
+        ]
+      }
     }
   ],
   "_not_corrected_on_purpose": {
@@ -2976,6 +3344,15 @@
       "why": "Two different recordings of book 1: 762.8 MB narrated by Christopher Boucher and Jessica Threet, and a 333.8 MB 12.25h edition. Different sizes, different narrators - not duplicate files. The owner owns both.",
       "soDoNot": "'fix' this by deleting one or by renumbering. The sweep will keep reporting it as DUPLICATE_VOLUME because that check cannot know an alternate narration from a mistake; that report is expected here and should be ignored for these two rows.",
       "answered": "the owner, 2026-08-11: 'yes I own Tamer twice with different narration'"
+    },
+    "Two Can Play - Ali Hazelwood is a STANDALONE novella": {
+      "why": "Researched 2026-08-16 for the series-blank sweep. An audio-first enemies-to-lovers novella (ASIN B0DGYXSG66, released 2024-10-01, Kelsey Navarro Foster narrating), later given a print/ebook edition by Berkley (2026-02-10). Penguin Random House's own product page presents it as a standalone novella with no series designation, current Goodreads shows no series parenthetical on its title, and Audible's product page formats no series listing. It shares no world with Bound (Bound and Unbound #1), Mate (Bride #2) or Problematic Summer Romance (Not in Love #2) - each of those got an override the same day.",
+      "soDoNot": "add a series to it, or fold it into Bound and Unbound because both are Hazelwood audio-originals - Audible keeps them unrelated. The sweep will keep reporting SERIES_BLANK for this file; that report is expected and correct.",
+      "sources": [
+        "https://www.penguinrandomhouse.com/books/824774/two-can-play-by-ali-hazelwood/",
+        "https://www.goodreads.com/book/show/217108838-two-can-play",
+        "https://www.audible.com/pd/Two-Can-Play-Audiobook/B0DGYXSG66"
+      ]
     }
   },
   "_not_owned": {
