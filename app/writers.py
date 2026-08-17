@@ -167,14 +167,24 @@ def _copy_static_to_site(site_dir: Path) -> None:
         shutil.copytree(STATIC_DIR, static_dst, dirs_exist_ok=True)
 
 
-def _copy_game_page_to_site(site_dir: Path) -> None:
+#: Template pages copied VERBATIM into site/ on every build — no substitution,
+#: unlike index.html. Edit the copy in app/web/templates/; a rebuild wipes any
+#: edit made to site/<name> directly.
+#:   - guess-game.html: the duration-guessing game page
+#:   - ebooks.html: display-only ebook shelf; renders site/ebooks.json
+#:     client-side (ebook-split design phase 1), so the pipeline's manifest
+#:     refresh updates it with no HTML rebuild
+STATIC_TEMPLATE_PAGES = ("guess-game.html", "ebooks.html")
+
+
+def _copy_template_pages_to_site(site_dir: Path) -> None:
     """
-    Copy the guess-game.html template to site/ for the game page.
+    Copy the verbatim template pages (game, ebooks) into site/.
     """
-    game_src = TEMPLATE_DIR / "guess-game.html"
-    if game_src.exists():
-        game_dst = site_dir / "guess-game.html"
-        shutil.copy2(game_src, game_dst)
+    for name in STATIC_TEMPLATE_PAGES:
+        src = TEMPLATE_DIR / name
+        if src.exists():
+            shutil.copy2(src, site_dir / name)
 
 
 def stage_site_files(
@@ -207,7 +217,7 @@ def stage_site_files(
     #    upload source for scripts/upload_covers_r2.py, not a deploy artifact.
     _copy_covers_to_site(site_dir)
     _copy_static_to_site(site_dir)
-    _copy_game_page_to_site(site_dir)
+    _copy_template_pages_to_site(site_dir)
     _write_covers_base_js(site_dir)
 
     # 3) Render site/index.html with csv_link pointing at the site CSV file name

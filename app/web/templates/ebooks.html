@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en" data-default-theme="cyberpunk" data-default-mode="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<!-- Estate theme system: token contract + pre-paint switcher. Fonts are
+     self-hosted under static/fonts/ (no third-party requests). theme.js is
+     synchronous on purpose so the stored theme/mode land on <html> before
+     first paint; it also migrates the legacy ab_theme key once. -->
+<link rel="stylesheet" href="static/css/estate-theme.css">
+<link rel="stylesheet" href="static/css/ab-bridge.css">
+<script src="static/js/theme.js"></script>
+<title>Ebooks - Audiobook Catalog</title>
+<link rel="icon" type="image/png" href="static/img/favicon.png">
+<!--
+  DISPLAY-ONLY, by design (ebook-split design doc, phase 1): this page renders
+  site/ebooks.json — the manifest the pipeline's sync step 1b rebuilds three
+  times a day — and offers no downloads. File access belongs to the auth
+  migration's file-permissions phase, not here.
+
+  The JSON is fetched client-side (same-origin), so a pipeline refresh of the
+  manifest updates this page with no HTML rebuild. This file is a TEMPLATE:
+  it lives in app/web/templates/ and is copied verbatim to site/ebooks.html by
+  app/writers.py (same convention as guess-game.html). Edit it HERE — edits to
+  site/ebooks.html are wiped by the next build.
+-->
+<style>
+/* Palette lives in static/css/estate-theme.css (the --et-* token contract:
+   cyberpunk / apple / retro, each light + dark) with ab-bridge.css aliasing
+   this page's legacy names (--bg, --neon-*, …) onto it. theme.js stamps
+   data-theme/data-mode on <html>; the old html.light mechanism is gone. */
+*{box-sizing:border-box}
+body{
+  margin:0; padding:20px;
+  min-height:100vh;
+}
+#wrap{max-width:900px;margin:0 auto}
+h1{
+  color:var(--neon-yellow);text-transform:var(--et-title-case);letter-spacing:var(--et-title-spacing);
+  text-shadow:var(--et-glow-title);margin:0 0 8px;
+  font-family:var(--et-font-display);
+}
+.nav-row{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
+.nav-link{
+  display:inline-block;padding:8px 14px;background:var(--bg-2);color:var(--neon-cyan);
+  text-decoration:none;border:1px solid var(--border);font-weight:700;font-size:.85em;
+  text-transform:var(--et-title-case);letter-spacing:.5px;transition:all .2s;
+}
+.nav-link:hover{border-color:var(--neon-cyan);box-shadow:var(--et-glow)}
+.nav-link.active{border-color:var(--neon-cyan,#05d9e8);color:var(--neon-yellow,#fcee0a)}
+
+/* Controls */
+.controls-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center}
+#eb-search{
+  flex:1;min-width:200px;padding:8px 12px;border:1px solid var(--border);
+  background:var(--bg-2);color:var(--text);font-size:.9em;
+  font-family:var(--et-font-mono);
+}
+#eb-search:focus{outline:none;border-color:var(--neon-cyan)}
+#eb-sort{
+  padding:8px 10px;border:1px solid var(--border);background:var(--bg-2);
+  color:var(--text);font-size:.9em;font-family:inherit;
+}
+.format-chip{
+  padding:6px 12px;border:1px solid var(--border);background:var(--bg-2);
+  color:var(--neon-cyan);font-weight:700;font-size:.8em;cursor:pointer;
+  text-transform:uppercase;letter-spacing:.5px;font-family:inherit;
+}
+.format-chip:hover{border-color:var(--neon-cyan)}
+.format-chip.on{border-color:var(--neon-cyan);color:var(--neon-yellow);box-shadow:var(--et-glow)}
+#eb-count{color:var(--muted);font-size:.85em;font-family:var(--et-font-mono)}
+
+/* List */
+.eb-list{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.eb-row{
+  display:flex;gap:12px;align-items:center;flex-wrap:wrap;
+  background:var(--bg-2);border:1px solid var(--border);padding:12px 16px;
+  transition:border-color .2s;
+}
+.eb-row:hover{border-color:var(--neon-magenta)}
+.eb-main{flex:1;min-width:220px}
+.eb-title{font-weight:700;font-size:1.05em;color:var(--text)}
+.eb-author{color:var(--neon-cyan);font-size:.9em;margin-top:2px}
+.eb-folder{color:var(--muted);font-size:.78em;margin-top:3px;font-family:var(--et-font-mono)}
+.eb-badges{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-left:auto}
+.eb-fmt{
+  padding:3px 9px;border:1px solid var(--neon-cyan);color:var(--neon-cyan);
+  font-size:.72em;font-weight:700;letter-spacing:.5px;text-transform:uppercase;
+  font-family:var(--et-font-mono);
+}
+.eb-size{color:var(--muted);font-size:.8em;font-family:var(--et-font-mono);min-width:64px;text-align:right}
+.eb-provisional{
+  padding:3px 9px;border:1px solid var(--neon-magenta);color:var(--neon-magenta);
+  font-size:.72em;letter-spacing:.5px;font-family:var(--et-font-mono);
+  cursor:help;
+}
+.loading{text-align:center;padding:40px;color:var(--muted);font-family:var(--et-font-mono)}
+.empty{text-align:center;padding:30px;color:var(--muted)}
+.load-error{
+  margin-top:16px;padding:16px;border:1px solid var(--neon-magenta);
+  background:var(--bg-2);color:var(--text);
+}
+.eb-footer{
+  margin-top:20px;padding-top:12px;border-top:1px solid var(--border);
+  color:var(--muted);font-size:.82em;line-height:1.5;
+}
+.eb-footer a{color:var(--neon-cyan)}
+#eb-generated{font-family:var(--et-font-mono)}
+@media(max-width:600px){
+  body{padding:10px}
+  .nav-row{gap:6px}
+  .nav-link{flex:1 1 auto;text-align:center;padding:11px 8px;min-height:44px;display:flex;align-items:center;justify-content:center;box-sizing:border-box}
+  #eb-search{width:100%}
+  .eb-badges{margin-left:0;width:100%}
+  .eb-size{text-align:left}
+}
+
+/* Sign-in / user chip (shared identity bar) */
+#identity-bar{margin-left:auto}
+.identity-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.identity-bar__greeting{font-weight:700;color:var(--neon-cyan,#05d9e8)}
+.identity-bar__google-btn{
+  display:inline-flex;align-items:center;padding:8px 14px;border:1px solid var(--border,#2a2a3a);
+  background:var(--bg-2,#12121f);color:var(--text,#e8e6e3);font-weight:700;font-size:.85em;
+  cursor:pointer;transition:all .2s;font-family:inherit;
+}
+.identity-bar__google-btn:hover{border-color:var(--neon-cyan,#05d9e8)}
+.identity-bar__google-btn:disabled{opacity:.6;cursor:wait}
+.identity-bar__logout-btn{
+  background:none;border:1px solid var(--border,#2a2a3a);color:var(--muted,#8a8f98);cursor:pointer;
+  font-size:.75em;padding:4px 10px;font-family:inherit;text-transform:var(--et-title-case);letter-spacing:.5px;
+}
+.identity-bar__logout-btn:hover{border-color:var(--neon-magenta,#ff2a6d);color:var(--neon-magenta,#ff2a6d)}
+
+/* =============== CYBERPUNK IDENTITY RESTORES ===============
+   Same convention as community.html: pre-theme literals scoped to the default
+   theme so the other themes keep their honest token rendering. */
+html[data-theme="cyberpunk"] h1{letter-spacing:2px}
+html[data-theme="cyberpunk"] .nav-link:hover{box-shadow:0 0 8px rgba(5,217,232,.2)}
+html[data-theme="cyberpunk"] .eb-row{clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px))}
+@media(max-width:600px){
+  html[data-theme="cyberpunk"] .eb-row{clip-path:none}
+}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <h1>Ebooks</h1>
+  <div class="nav-row">
+    <a href="index.html" class="nav-link">Catalog</a>
+    <a href="community.html" class="nav-link">Community</a>
+    <a href="clubs.html" class="nav-link">Clubs</a>
+    <a href="stats.html" class="nav-link">Stats</a>
+    <a href="guess-game.html" class="nav-link">Game</a>
+    <a href="ebooks.html" class="nav-link active">Ebooks</a>
+    <div id="identity-bar"></div>
+  </div>
+
+  <div class="controls-row">
+    <input id="eb-search" type="search" placeholder="Search title, author, filename..." aria-label="Search ebooks" />
+    <select id="eb-sort" aria-label="Sort ebooks">
+      <option value="title">Sort by Title</option>
+      <option value="author">Sort by Author</option>
+      <option value="format">Sort by Format</option>
+      <option value="size">Sort by Size</option>
+      <option value="modified">Sort by Newest</option>
+    </select>
+    <span id="eb-format-chips"></span>
+    <span id="eb-count"></span>
+  </div>
+
+  <div id="eb-list" class="eb-list">
+    <div class="loading">Loading ebooks...</div>
+  </div>
+
+  <div class="eb-footer">
+    <div>
+      These are the household's shared ebook files, listed straight from the
+      library. This page is browse-only — the files ride the same
+      household library the audiobooks do (the Google Drive folder linked in
+      the <a href="index.html">catalog page</a> footer covers them).
+    </div>
+    <div style="margin-top:6px">
+      Manifest generated at: <span id="eb-generated">…</span>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var listEl = document.getElementById('eb-list');
+  var searchEl = document.getElementById('eb-search');
+  var sortEl = document.getElementById('eb-sort');
+  var chipsEl = document.getElementById('eb-format-chips');
+  var countEl = document.getElementById('eb-count');
+  var generatedEl = document.getElementById('eb-generated');
+
+  var allBooks = [];
+  var activeFormats = {};   // format -> true while its chip is toggled on
+
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#x27;');
+  }
+
+  function humanSize(bytes) {
+    if (typeof bytes !== 'number' || !(bytes >= 0)) return '';
+    if (bytes >= 1048576) return (bytes / 1048576).toFixed(1) + ' MB';
+    if (bytes >= 1024) return Math.round(bytes / 1024) + ' KB';
+    return bytes + ' B';
+  }
+
+  function sortBooks(books, key) {
+    var byText = function (field) {
+      return function (a, b) {
+        return String(a[field] || '').localeCompare(String(b[field] || '')) ||
+               String(a.title || '').localeCompare(String(b.title || ''));
+      };
+    };
+    var sorted = books.slice();
+    if (key === 'author') sorted.sort(byText('author'));
+    else if (key === 'format') sorted.sort(byText('format'));
+    else if (key === 'size') sorted.sort(function (a, b) { return (b.size_bytes || 0) - (a.size_bytes || 0); });
+    else if (key === 'modified') sorted.sort(function (a, b) { return String(b.modified || '').localeCompare(String(a.modified || '')); });
+    else sorted.sort(byText('title'));
+    return sorted;
+  }
+
+  function visibleBooks() {
+    var q = (searchEl.value || '').toLowerCase().trim();
+    var anyFormat = Object.keys(activeFormats).some(function (f) { return activeFormats[f]; });
+    return allBooks.filter(function (b) {
+      if (anyFormat && !activeFormats[b.format]) return false;
+      if (!q) return true;
+      return String(b.title || '').toLowerCase().indexOf(q) !== -1 ||
+             String(b.author || '').toLowerCase().indexOf(q) !== -1 ||
+             String(b.filename || '').toLowerCase().indexOf(q) !== -1;
+    });
+  }
+
+  function render() {
+    var books = sortBooks(visibleBooks(), sortEl.value);
+    countEl.textContent = books.length + ' of ' + allBooks.length + ' ebook' + (allBooks.length !== 1 ? 's' : '');
+    if (books.length === 0) {
+      listEl.innerHTML = '<div class="empty">No ebooks match.</div>';
+      return;
+    }
+    listEl.innerHTML = books.map(function (b) {
+      // `source` is the manifest's honesty flag: 'opf' means title/author were
+      // read out of the file itself; 'filename' means they were parsed from
+      // the file name and a person should treat them as provisional.
+      var provisional = b.source === 'filename'
+        ? '<span class="eb-provisional" title="Title and author were parsed from the file name, not read from the file&#x27;s own metadata — treat them as provisional.">unverified metadata</span>'
+        : '';
+      var folder = b.beside_audiobook
+        ? '<div class="eb-folder">filed under: ' + esc(b.beside_audiobook) + '</div>'
+        : '';
+      return '<div class="eb-row">' +
+        '<div class="eb-main">' +
+          '<div class="eb-title">' + esc(b.title) + '</div>' +
+          (b.author ? '<div class="eb-author">' + esc(b.author) + '</div>' : '') +
+          folder +
+        '</div>' +
+        '<div class="eb-badges">' +
+          provisional +
+          '<span class="eb-fmt">' + esc(b.format) + '</span>' +
+          '<span class="eb-size">' + humanSize(b.size_bytes) + '</span>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  function renderChips() {
+    var formats = {};
+    allBooks.forEach(function (b) { if (b.format) formats[b.format] = (formats[b.format] || 0) + 1; });
+    chipsEl.innerHTML = Object.keys(formats).sort().map(function (f) {
+      return '<button type="button" class="format-chip" data-format="' + esc(f) + '">' +
+        esc(f) + ' (' + formats[f] + ')</button>';
+    }).join(' ');
+    chipsEl.querySelectorAll('.format-chip').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var f = btn.dataset.format;
+        activeFormats[f] = !activeFormats[f];
+        btn.classList.toggle('on', !!activeFormats[f]);
+        render();
+      });
+    });
+  }
+
+  function load() {
+    // Same-origin fetch: on the dev lane this is /dev/ebooks.json, on prod
+    // /ebooks.json — the relative URL keeps the two lanes honest for free.
+    fetch('ebooks.json', { cache: 'no-cache' })
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status + ' for ebooks.json');
+        return r.json();
+      })
+      .then(function (manifest) {
+        allBooks = Array.isArray(manifest.ebooks) ? manifest.ebooks : [];
+        generatedEl.textContent = manifest.generated_at || 'unknown';
+        renderChips();
+        render();
+      })
+      .catch(function (err) {
+        // A failed load is a failed load — say what happened in words, and do
+        // not dress a network problem up as anything else.
+        console.error('[ebooks] manifest load failed:', err);
+        listEl.innerHTML = '<div class="load-error">Could not load the ebook list ' +
+          '(the ebooks.json manifest did not load). This is a loading problem, not ' +
+          'a permissions one — try a refresh, and if it keeps happening tell Mitch.</div>';
+        generatedEl.textContent = 'unavailable';
+      });
+  }
+
+  searchEl.addEventListener('input', render);
+  sortEl.addEventListener('change', render);
+  load();
+})();
+</script>
+
+<!-- Shared identity bar (sign-in chip), same mount as the other pages.
+     Kept in its own module so a Firebase hiccup can never take the book list
+     down with it — this page's real content needs no account at all. -->
+<script type="module">
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+  import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+  import { FIREBASE_CONFIG } from './fb-env.js';
+  import { mountAccountModal } from './account-modal.js';
+
+  try {
+    const app = initializeApp(FIREBASE_CONFIG);
+    const db = getFirestore(app);
+    mountAccountModal(db, app, document.getElementById('identity-bar'));
+  } catch (e) {
+    console.warn('[ebooks] identity bar failed to mount:', e);
+  }
+</script>
+</body>
+</html>
