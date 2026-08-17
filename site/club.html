@@ -474,12 +474,15 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
         <label for="edit-webhook-clear" style="margin:0;text-transform:none">Remove the saved webhook</label>
       </div>
     </div>
-    <!-- Honest-UI stand-in: shown to a club mod who is NOT a site admin on a
-         CLAIMED club, instead of a control that firestore.rules would just
-         refuse (RESTRICTED_CLUB_FIELDS, 2026-08-16 — see clubs.js). -->
+    <!-- Honest-UI stand-in: shown to a club mod whose account is NOT bound
+         to this club's manager roster, instead of a control firestore.rules
+         would just refuse (ADMINISTERED_CLUB_FIELDS — see clubs.js). Since
+         2026-08-17 a BOUND manager gets the real input; this text is for the
+         person whose display-name role says host but whose Google account
+         was never secured to the club. -->
     <div class="field" id="edit-webhook-restricted-field" style="display:none">
       <label>Discord webhook</label>
-      <small style="color:var(--muted)">Discord setup is handled by a site admin — it decides where club activity broadcasts, so it isn't a club-mod setting. Ask the site admin to set or change it.</small>
+      <small style="color:var(--muted)">This club's Discord webhook is set by the accounts bound to its manager roster, and yours isn't one of them yet — so this control would be refused rather than saved. Secure your role from the banner at the top of the club (if the club is still unclaimed), or ask a site moderator or admin to add your account to this club's managers.</small>
     </div>
     <div class="field" id="edit-joinmode-field" style="display:none">
       <label for="edit-joinmode">Join mode (host setting)</label>
@@ -591,8 +594,9 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
     updateClubDetails, requestToJoin, getRequests, acceptRequest, rejectRequest, inviteMember,
     acceptInvite, declineInvite, dismissRateNudge,
     clubFeatureEnabled, isValidDiscordWebhook, setClubDiscordWebhook, clearClubDiscordWebhook,
-    isClubClaimed, isManagerUid, canManageClub, canOperateClub, canAdministerClub, claimManagerRole,
-  } from './clubs.js?v=20260816b';
+    isClubClaimed, isManagerUid, canManageClub, canOperateClub, canAdministerClub,
+    canClaimManagerRole, claimManagerRole,
+  } from './clubs.js?v=20260817a';
   import {
     getReads, startRead, removeRead, finishRead, getComments, updateReadLabel, splitByDuration, parseManualMilestones,
     loadCatalogBooks, MAX_ACTIVE_READS, groupChapters,
@@ -675,6 +679,9 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
   // 'admin' identically), the moderator badge on the role name itself.
   const isSiteAdminViewer = () => !!siteAccess && siteAccess.capabilities.includes('manageClub');
   const isSiteModViewer = () => !!siteAccess && siteAccess.role === 'moderator';
+  // The same answer in firestore.rules' vocabulary ('admin' | 'moderator' |
+  // null), for the clubs.js gate mirrors that take a siteRole string.
+  const siteRoleName = () => (isSiteAdminViewer() ? 'admin' : (isSiteModViewer() ? 'moderator' : null));
   const isHost = () => myRole() === 'host' || isSiteAdminViewer();
   const isMod = () => isHost() || myRole() === 'moderator';
   // The operational gate: club host/mod, site admin (via isMod) or site
@@ -728,26 +735,43 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
     wireEvents();
   }
 
-  // "Secure your role" banner — the uid-claim migration path. Shown only to
-  // a host/moderator (by display name, as the UI has always decided it) who
-  // has a LIVE Google session whose uid is not yet in the club's manager
-  // roster. First claim on an unclaimed club is trust-on-first-use; on a
-  // claimed club, managerUids is RESTRICTED (2026-08-16) — the write would
-  // be denied by rules even for a bound host/mod, so the banner turns into
-  // guidance instead of a button. Gated on canAdministerClub (not
-  // canManageClub) because claimManagerRole writes managerUids, which is
-  // now the RESTRICTED gate's field, not the STRUCTURAL one.
+  // "Secure your role" banner — the uid-claim path onto the club island.
+  //
+  // ⚠️ WHO SEES THE BUTTON changed 2026-08-17 (owner-approved): an UNCLAIMED
+  // club is first-come-first-served to ANY signed-in member, not only to
+  // whoever the display-name roster calls host or moderator. That old gate
+  // is a large part of why the surface was unusable — the display-name
+  // "host" of a legacy club is often nobody's live Google account, so no one
+  // could claim, and nobody below site admin could ever reach the island.
+  // Rules bind the write to the caller's OWN uid, so the worst this offers
+  // is exactly what it says: the first member to press it becomes manager.
+  //
+  // Once a club IS claimed the button is gone for everyone except a site
+  // moderator/admin (canClaimManagerRole mirrors rules exactly): a second
+  // manager is an override, never a self-service action — see
+  // canWriteManagerRoster in firestore.rules. Anyone else who might have
+  // expected the control gets a sentence saying what happened and who can
+  // fix it, never a button that would be refused.
   function renderClaimBanner() {
-    const uiRole = myRole();
-    if (!liveUid || !['host', 'moderator'].includes(uiRole)) return '';
+    if (!liveUid) return '';
     if (isManagerUid(club, liveUid)) return '';
-    if (canAdministerClub(club, isSiteAdminViewer())) {
-      return `<div class="next-meeting" id="claim-banner">🔐 Club permissions now bind to Google accounts.
-        <strong>Secure your ${escapeHtml(uiRole)} role</strong> so only your account can change club settings.
-        <button id="claim-role-btn" class="nav-link btn-primary" style="padding:4px 10px;font-size:.8em;margin-left:8px">Secure my role</button></div>`;
+    const uiRole = myRole();
+    const claimed = isClubClaimed(club);
+    if (!claimed && !isMember() && !siteRoleName()) return '';
+    if (canClaimManagerRole(club, liveUid, siteRoleName())) {
+      const label = claimed
+        ? 'Add my account'
+        : `Secure my ${escapeHtml(uiRole === 'host' || uiRole === 'moderator' ? uiRole : 'role')}`;
+      const why = claimed
+        ? 'This club already has a manager. As a site moderator or admin you may add your account as well.'
+        : 'Nobody has secured this club yet. Club permissions bind to Google accounts, and the first member to secure it becomes its manager.';
+      return `<div class="next-meeting" id="claim-banner">🔐 ${escapeHtml(why)}
+        <button id="claim-role-btn" class="nav-link btn-primary" style="padding:4px 10px;font-size:.8em;margin-left:8px">${label}</button></div>`;
     }
-    return `<div class="next-meeting">🔐 This club's settings are secured to specific Google accounts,
-      and yours isn't bound yet. Ask the site admin to add you.</div>`;
+    if (!['host', 'moderator'].includes(uiRole)) return '';
+    return `<div class="next-meeting">🔐 This club is managed by specific Google accounts, and yours
+      isn't one of them — so its settings would refuse your changes rather than save them.
+      Ask a site moderator or admin to add your account to this club's managers.</div>`;
   }
 
   // Optional next-meeting banner: renders only when a meeting is set and less
@@ -1232,6 +1256,8 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
     const claimBtn = document.getElementById('claim-role-btn');
     if (claimBtn) claimBtn.addEventListener('click', async () => {
       claimBtn.disabled = true;
+      // The roster entry's `role` is presentation only (rules never read
+      // it); 'host' unless the display-name roster already says moderator.
       const uiRole = myRole() === 'moderator' ? 'moderator' : 'host';
       const r = await claimManagerRole(db, clubId, liveUid, session, uiRole);
       if (r.success) reload(); else { claimBtn.disabled = false; showError(r.error); }
@@ -1737,16 +1763,19 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
       document.getElementById('feat-pace-graph').checked = clubFeatureEnabled(club, 'paceGraph');
     }
 
-    // Discord webhook: RESTRICTED (2026-08-16) — site admin only, never a
-    // club mod, even a bound host/mod. Honest UI: a mod who cannot write it
-    // never sees the input, only an explanation (canAdministerClub mirrors
-    // firestore.rules exactly, including the unclaimed-club open path). The
-    // webhook input is never prefilled — the full URL is write-only by
-    // design; only the masked tail on the club doc says whether one is set.
-    const canAdminister = isMod() && canAdministerClub(club, isSiteAdminViewer());
+    // Discord webhook: since 2026-08-17 this club's OWN bound managers set
+    // it, as do site moderators and admins — canAdministerClub mirrors
+    // firestore.rules exactly, including the unclaimed-club open path. A
+    // bound manager holding no site role at all now sees the real input
+    // (that IS the club-island change); a display-name host whose account
+    // was never secured sees the explanation instead of a control rules
+    // would refuse. The input is never prefilled — the full URL is
+    // write-only by design; only the masked tail says whether one is set.
+    const mayAdminister = isMod() || isManagerUid(club, liveUid);
+    const canAdminister = mayAdminister && canAdministerClub(club, liveUid, siteRoleName());
     document.getElementById('edit-webhook-field').style.display = canAdminister ? 'block' : 'none';
     document.getElementById('edit-webhook-restricted-field').style.display =
-      (isMod() && !canAdminister) ? 'block' : 'none';
+      (mayAdminister && !canAdminister) ? 'block' : 'none';
     if (canAdminister) {
       const mask = club.discordWebhookMask || '';
       document.getElementById('edit-webhook').value = '';

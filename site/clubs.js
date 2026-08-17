@@ -201,26 +201,29 @@ export function clubFeatureEnabled(club, key) {
  *   STRUCTURAL  — canManageClub (roster uid or site admin). The "club
  *     island": joinMode, features — a club mod runs these day to day.
  *   OPERATIONAL — canOperateClub (adds the site moderator).
- *   RESTRICTED  — canAdministerClub (site admin only, NOT the club roster;
- *     2026-08-16 tightening, owner-approved). discordWebhookMask + the
- *     settings/discord subdoc holding the real URL, and managerUids itself.
- *     Rationale, kept here because it is the reasoning a future editor of
- *     this list needs:
- *       - the Discord webhook is an outbound CAPABILITY (whoever sets it
- *         decides where club activity broadcasts) — not delegable to a
- *         per-club mod, same trust boundary as pipeline_requests/site
- *         admin-only deletes elsewhere in this codebase.
- *       - managerUids is the roster mods sit in; letting a mod rewrite it
- *         is peer-escalation (appointing/removing other mods) — the same
- *         class of move the estate ladder (docs/info/ROLES.md) outlaws
- *         with "grant only strictly beneath your own role".
- *     Everything else about running a club's actual reading — the book,
- *     reads, schedule/milestones, finish/abandon, the blind-ratings reveal,
- *     next meeting — stays exactly as available to a club mod as before;
- *     this tier is deliberately narrow.
+ *   ADMINISTERED — canAdministerClub. The club's own settings:
+ *     discordWebhookMask + the settings/discord subdoc holding the real URL.
+ *   ROSTER      — canClaimManagerRole. managerUids itself.
+ *
+ * ⚠️ These last two were ONE tier ("RESTRICTED", site-admin-only) from
+ * 2026-08-16 until 2026-08-17, when the owner approved splitting them. The
+ * reasoning a future editor needs, because it is what changed:
+ *   - the Discord webhook is an outbound CAPABILITY, and that is true — but
+ *     it is ONE CLUB's capability, held by the people who already run that
+ *     club's reading. Delegable to that club's bound managers, and since
+ *     2026-08-17 it is delegated to exactly them (plus site moderator+, so
+ *     the island never out-ranks the ladder).
+ *   - managerUids is the roster the managers sit in; letting a manager
+ *     rewrite it is peer-escalation (appointing other managers) — the class
+ *     of move the estate ladder (docs/info/ROLES.md) outlaws with "grant
+ *     only strictly beneath your own role". NOT delegable, ever. Its one
+ *     open arm is the first claim on an unclaimed club, self-only.
+ *   - keeping them together made the whole surface unusable and, worse,
+ *     self-blocking: claiming is how one BECOMES a manager, so an admin
+ *     floor on it meant nobody below admin could ever reach the island.
  * ⚠️ MUST match clubStructuralFieldsChanged() / clubOperationalFieldsChanged()
- * / clubRestrictedFieldsChanged() in firestore.rules — the test suite pins
- * these lists as the contract.
+ * / clubWebhookFieldChanged() / clubManagerRosterChanged() in
+ * firestore.rules — the test suite pins these lists as the contract.
  */
 export const STRUCTURAL_CLUB_FIELDS = [
   'joinMode', 'features',
@@ -230,8 +233,34 @@ export const OPERATIONAL_CLUB_FIELDS = [
   'nextMeetingAt', 'nextMeetingNotes',
 ];
 
+/**
+ * ADMINISTERED — canAdministerClub. The club's own settings: the Discord
+ * webhook's masked tail (and, off-doc, the settings/discord subdoc holding
+ * the real URL). Since 2026-08-17 the club's OWN bound managers hold this,
+ * as does a site moderator/admin.
+ */
+export const ADMINISTERED_CLUB_FIELDS = [
+  'discordWebhookMask',
+];
+
+/**
+ * ROSTER — canWriteManagerRoster. managerUids alone, on its own gate: a
+ * signed-in person may claim an UNCLAIMED club for themselves, and after
+ * that only a site moderator/admin may add anyone. Never a club manager —
+ * appointing co-managers is peer-escalation.
+ */
+export const ROSTER_CLUB_FIELDS = [
+  'managerUids',
+];
+
+/**
+ * The two tiers above, together — what the single RESTRICTED tier covered
+ * before the 2026-08-17 split. Kept as one name because "the fields no
+ * ordinary member may touch" is still a useful set; the GATES differ, so
+ * never gate on this list.
+ */
 export const RESTRICTED_CLUB_FIELDS = [
-  'discordWebhookMask', 'managerUids',
+  ...ADMINISTERED_CLUB_FIELDS, ...ROSTER_CLUB_FIELDS,
 ];
 
 /** The union — every manager-gated club-doc field, whichever tier. */
@@ -294,26 +323,54 @@ export function canOperateClub(club, uid, siteRole = null) {
 }
 
 /**
- * Mirror of the firestore.rules RESTRICTED gate (2026-08-16 tightening):
- * the Discord webhook and the manager roster itself (RESTRICTED_CLUB_FIELDS)
- * — site admin ONLY, never the club's own manager roster. Unclaimed clubs
- * stay open (transition safety, same migration path as canManageClub): a
- * club with no roster at all predates the uid layer entirely and behaves as
- * it always has. Deliberately does not take a `uid` — roster membership
- * never satisfies this gate once the club is claimed.
+ * Mirror of the firestore.rules ADMINISTERED gate — the club's own settings
+ * (ADMINISTERED_CLUB_FIELDS: the Discord webhook).
+ *
+ * ⚠️ WIDENED 2026-08-17 (owner-approved, the CLUB MANAGER package): the
+ * club's OWN bound managers hold this again. The 2026-08-16 tightening had
+ * made it site-admin-only on the reasoning that a webhook is an outbound
+ * capability — true, but it is ONE CLUB's outbound capability, held by the
+ * people already running that club's reading, and lumping it in with the
+ * manager roster made the whole surface unusable (the roster is the part
+ * that must never be delegated; it moved to canWriteManagerRoster).
+ *
+ * `siteRole` is the site_roles doc's role string ('admin' | 'moderator') or
+ * null — moderator counts, so the club island never out-ranks the ladder.
+ * Unclaimed clubs stay open (transition safety, as with canManageClub).
  */
-export function canAdministerClub(club, siteAdmin = false) {
-  return !isClubClaimed(club) || !!siteAdmin;
+export function canAdministerClub(club, uid = null, siteRole = null) {
+  return !isClubClaimed(club)
+         || isManagerUid(club, uid)
+         || siteRole === 'admin' || siteRole === 'moderator';
+}
+
+/**
+ * Mirror of the firestore.rules ROSTER gate (canWriteManagerRoster): who may
+ * write managerUids at all.
+ *
+ *   - an UNCLAIMED club is first-come-first-served to anyone signed in, and
+ *     they may only ever add THEMSELVES (rules pin that with
+ *     `keys().hasOnly([request.auth.uid])`; the UI never offers otherwise);
+ *   - a CLAIMED club takes a site moderator or admin — never its own
+ *     managers, because appointing co-managers is peer-escalation.
+ *
+ * Deliberately does NOT consult isManagerUid: managership is not an input
+ * here, and adding it would be the escalation this gate exists to refuse.
+ */
+export function canClaimManagerRole(club, uid, siteRole = null) {
+  if (!uid) return false;
+  if (!isClubClaimed(club)) return true;
+  return siteRole === 'admin' || siteRole === 'moderator';
 }
 
 /**
  * Stamp the caller's uid into the club's manager roster ("secure your
- * role"). On an unclaimed club this is the trust-on-first-use claim and
- * rules allow it for anyone signed in; on a claimed club, managerUids is
- * RESTRICTED (2026-08-16) — only the site admin may write it, not even an
- * existing bound manager — so anyone claiming after the first is directed
- * to ask the site admin, which the caller should surface as guidance, not
- * retry.
+ * role"). On an UNCLAIMED club this is the first-come-first-served claim,
+ * open to anyone signed in — rules bind it to the caller's own uid, so this
+ * can only ever add yourself. On a CLAIMED club only a site moderator or
+ * admin may write the roster (not even an existing bound manager: that is
+ * peer-escalation), so anyone arriving second is directed to ask, which the
+ * caller surfaces as guidance rather than a retry.
  */
 export async function claimManagerRole(db, clubId, uid, session, role) {
   if (!uid) {
@@ -333,7 +390,8 @@ export async function claimManagerRole(db, clubId, uid, session, role) {
     if (e && (e.code === 'permission-denied' || /permission/i.test(e.message || ''))) {
       return {
         success: false,
-        error: 'This club is already secured. Ask the site admin to add your account.',
+        error: 'This club already has a manager, so it cannot be claimed again — '
+             + 'ask a site moderator or admin to add your account to its managers.',
       };
     }
     return { success: false, error: describeActionError(e) };
@@ -353,10 +411,11 @@ export async function claimManagerRole(db, clubId, uid, session, role) {
 // notifier reads it via the service account, which bypasses rules. The
 // public club doc keeps only a masked tail (discordWebhookMask) for display.
 //
-// ⚠️ RESTRICTED (2026-08-16): setting/clearing the webhook — both this
-// subdoc and discordWebhookMask on the club doc — is SITE-ADMIN ONLY, not a
-// club-mod action, even for a bound host/mod. See RESTRICTED_CLUB_FIELDS
-// above for the rationale (outbound capability, not delegable per-club).
+// ⚠️ WHO MAY SET IT (2026-08-17, owner-approved): the club's OWN bound
+// managers, plus any site moderator/admin — canAdministerClub. This is a
+// club-scoped capability run by the people who run the club. It was briefly
+// site-admin-only (2026-08-16 → 2026-08-17); see ADMINISTERED_CLUB_FIELDS
+// above for why that did not survive contact with the soak.
 
 const DISCORD_WEBHOOK_RE =
   /^https:\/\/(discord\.com|discordapp\.com)\/api\/webhooks\/\d+\/[\w-]+$/;
@@ -373,8 +432,8 @@ export function maskWebhookUrl(url) {
 }
 
 /**
- * Save the club's Discord webhook (site-admin action, enforced in the UI
- * and in firestore.rules — RESTRICTED_CLUB_FIELDS, 2026-08-16).
+ * Save the club's Discord webhook (a club-manager action since 2026-08-17,
+ * enforced in the UI and in firestore.rules — ADMINISTERED_CLUB_FIELDS).
  * Full URL -> write-only settings subdoc; masked tail -> club doc.
  */
 export async function setClubDiscordWebhook(db, clubId, url, session) {
@@ -393,15 +452,15 @@ export async function setClubDiscordWebhook(db, clubId, url, session) {
     });
     return { success: true };
   } catch (e) {
-    return { success: false, error: describeActionError(e, { need: 'the site admin role' }) };
+    return { success: false, error: describeActionError(e, { need: "this club's manager role, or the site moderator role" }) };
   } finally {
     reportGate('club.setWebhook', { clubId }); // Phase 1 shadow — fire-and-forget
   }
 }
 
 /**
- * Remove the club's Discord webhook (site-admin action, enforced in the UI
- * and in firestore.rules — RESTRICTED_CLUB_FIELDS, 2026-08-16).
+ * Remove the club's Discord webhook (a club-manager action since 2026-08-17,
+ * enforced in the UI and in firestore.rules — ADMINISTERED_CLUB_FIELDS).
  */
 export async function clearClubDiscordWebhook(db, clubId) {
   try {
@@ -409,7 +468,7 @@ export async function clearClubDiscordWebhook(db, clubId) {
     await updateDoc(doc(db, col('clubs'), clubId), { discordWebhookMask: '' });
     return { success: true };
   } catch (e) {
-    return { success: false, error: describeActionError(e, { need: 'the site admin role' }) };
+    return { success: false, error: describeActionError(e, { need: "this club's manager role, or the site moderator role" }) };
   } finally {
     reportGate('club.clearWebhook', { clubId }); // Phase 1 shadow — fire-and-forget
   }

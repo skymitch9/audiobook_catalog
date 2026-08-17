@@ -33,6 +33,17 @@ rules_version = '2';
 // path. The FUTURE tightening step (require claiming / gate more fields) is
 // a separate deliberate deploy — see docs/TODO.md.
 //
+// ⚠️ 2026-08-17 (owner-approved, the CLUB MANAGER package) narrowed the
+// claim window and widened the island, in the same change:
+//   - managerUids left the "open while unclaimed" pool. The only rankless
+//     write that lands now is a SIGNED-IN person adding THEMSELVES to a club
+//     with no managers — never a third party, never onto a claimed roster
+//     (canWriteManagerRoster / selfOnlyManagerClaim below). A second manager
+//     arrives only by a site moderator's or admin's hand.
+//   - a club's own bound managers got their club's Discord webhook back
+//     (canAdministerClub), which 2026-08-16 had taken to site-admin-only.
+// Net: less open than yesterday on the roster, more delegated on the club.
+//
 // Deletes that a normal member action performs (members, club content,
 // reading lists, cw_requests) stay open because no rule can bind a display
 // name to a person. Accepted, documented residual risk.
@@ -146,10 +157,10 @@ service cloud.firestore {
     //   (club mods  — managerUids on the club doc: full powers over the
     //                 "club island" — book/reads, schedule, features,
     //                 joinMode, finish/abandon, ratings reveal, next
-    //                 meeting — EXCEPT the two RESTRICTED fields below
-    //                 (Discord webhook, managerUids itself), which are
-    //                 site-admin only even for a bound host/mod, since
-    //                 2026-08-16.)
+    //                 meeting, AND (2026-08-17) their own club's Discord
+    //                 webhook. The ONE thing a club mod may never touch is
+    //                 managerUids itself: appointing co-managers is
+    //                 peer-escalation. See canWriteManagerRoster below.)
     function siteRoleIs(r) {
       return request.auth != null
              && exists(/databases/$(database)/documents/site_roles/$(request.auth.uid))
@@ -177,19 +188,57 @@ service cloud.firestore {
       return canManageClub(club) || isSiteModerator();
     }
 
-    // The RESTRICTED gate (2026-08-16 tightening, owner-approved): site
-    // admin ONLY, never the club's own manager roster — not even a bound
-    // host/mod. Guards the two fields that are either an outbound
-    // CAPABILITY (the Discord webhook: whoever sets it decides where club
-    // activity broadcasts) or PEER-ESCALATION (managerUids: a mod
-    // appointing/removing other mods) — the same class the estate ladder
-    // (docs/info/ROLES.md) outlaws with "grant only strictly beneath your
-    // own role". Unclaimed clubs stay open (transition safety, same
-    // migration path as canManageClub) since they predate the uid layer.
-    // Deliberately does NOT admit isClubManager — that is the whole point
-    // of this tier.
+    // The ADMINISTRATIVE gate — the club's own settings, chiefly the
+    // Discord webhook.
+    //
+    // ⚠️ CHANGED 2026-08-17 (owner-approved, the CLUB MANAGER package): this
+    // gate now ADMITS the club's own bound manager. The 2026-08-16
+    // tightening had lumped the webhook together with managerUids as one
+    // admin-only tier; the shadow soak then showed the surface was
+    // unexercisable, and the reasoning did not survive the split — the two
+    // fields are different animals:
+    //   - the webhook is an outbound capability scoped to ONE club, held by
+    //     the people who already run that club's reading. Delegable.
+    //   - managerUids is who runs the club at all. Never delegable; it moved
+    //     to canWriteManagerRoster() below, and a manager cannot touch it.
+    // The site MODERATOR is admitted too, so the club island can never
+    // out-rank the estate ladder: a bound manager may hold no site role at
+    // all, and "moderators+ keep override everywhere" is the owner's rule.
+    // Unclaimed clubs stay open (transition safety, as before).
     function canAdministerClub(club) {
-      return !clubClaimed(club) || isSiteAdmin();
+      return !clubClaimed(club) || isClubManager(club)
+             || isSiteModerator() || isSiteAdmin();
+    }
+
+    // The ROSTER gate — writes to managerUids itself, the one thing a club
+    // manager may never do. Three arms, and only three:
+    //
+    //   1. THE CLAIM. A signed-in person may add THEMSELVES to a club that
+    //      has no managers yet — first-come-first-served, the trust-on-
+    //      first-use path the header describes, now bound: the post-merge
+    //      roster must contain their uid AND NOTHING ELSE, so this arm can
+    //      never add a third party and can never fire on a claimed club
+    //      (whose post-merge map still carries the existing managers' keys).
+    //   2 & 3. The OVERRIDE: site moderator or site admin, who may add
+    //      anyone to any club. That is how a SECOND manager arrives —
+    //      deliberately by an estate role's hand, never by a manager's own,
+    //      because a manager appointing co-managers is the peer-escalation
+    //      docs/info/ROLES.md outlaws with "grant only strictly beneath your
+    //      own role".
+    //
+    // ⚠️ Note this is TIGHTER than what shipped before it, not looser: until
+    // today an unclaimed club's managerUids was writable by ANYONE, signed
+    // in or not (the whole doc was open while unclaimed). Now the only
+    // rankless write that lands is a signed-in person claiming themselves.
+    function selfOnlyManagerClaim() {
+      return request.auth != null
+             && !clubClaimed(resource.data)
+             && request.resource.data.managerUids is map
+             && request.resource.data.managerUids.keys().hasOnly([request.auth.uid]);
+    }
+
+    function canWriteManagerRoster() {
+      return selfOnlyManagerClaim() || isSiteModerator() || isSiteAdmin();
     }
 
     // Parent club doc for subcollection rules. clubCol is 'clubs' or
@@ -210,12 +259,17 @@ service cloud.firestore {
     //     "club island" a mod runs day to day: joinMode, features.
     //   OPERATIONAL — canOperateClub (adds the site moderator):
     //     nextMeetingAt, nextMeetingNotes.
-    //   RESTRICTED  — canAdministerClub (site admin only, NOT the club
-    //     roster, 2026-08-16 tightening): discordWebhookMask, managerUids.
-    //     See canAdministerClub's comment above for the rationale.
+    //   ADMINISTERED — canAdministerClub (the club's own managers, plus
+    //     site moderator/admin — 2026-08-17): discordWebhookMask.
+    //   ROSTER      — canWriteManagerRoster (self-claim on an unclaimed
+    //     club, or site moderator/admin — NEVER the club's own managers):
+    //     managerUids. Split out of the old RESTRICTED tier on 2026-08-17;
+    //     see canAdministerClub / canWriteManagerRoster above for why one
+    //     tier could not describe both fields.
     // ⚠️ Keep these lists in step with STRUCTURAL_CLUB_FIELDS /
-    // OPERATIONAL_CLUB_FIELDS / RESTRICTED_CLUB_FIELDS in site/clubs.js
-    // (MANAGED_CLUB_FIELDS is their union; the test suite pins all four).
+    // OPERATIONAL_CLUB_FIELDS / ADMINISTERED_CLUB_FIELDS /
+    // ROSTER_CLUB_FIELDS in site/clubs.js (MANAGED_CLUB_FIELDS is their
+    // union; the test suite pins them all).
     // Everything else stays writable exactly as before, because member (and
     // legacy/anonymous) actions write the club doc too: joins/leaves touch
     // memberSlugs/invitedSlugs/memberCount, host-leave transfers touch
@@ -232,12 +286,18 @@ service cloud.firestore {
         ['nextMeetingAt', 'nextMeetingNotes']);
     }
 
-    // RESTRICTED (2026-08-16): the Discord webhook mask and the manager
-    // roster itself — site admin only, never a club mod. See
-    // canAdministerClub() and RESTRICTED_CLUB_FIELDS in site/clubs.js.
-    function clubRestrictedFieldsChanged() {
+    // ADMINISTERED (2026-08-17): the Discord webhook's masked tail. The
+    // club's own managers may change it; so may a site moderator/admin.
+    function clubWebhookFieldChanged() {
       return request.resource.data.diff(resource.data).affectedKeys().hasAny(
-        ['discordWebhookMask', 'managerUids']);
+        ['discordWebhookMask']);
+    }
+
+    // ROSTER (2026-08-17): managerUids itself — its own gate, because it is
+    // the only club field whose writer decides who ELSE may write the rest.
+    function clubManagerRosterChanged() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny(
+        ['managerUids']);
     }
 
     // Read-doc fields gated the same way, split by tier:
@@ -586,7 +646,10 @@ service cloud.firestore {
       // structural fields require canManageClub, operational fields (next
       // meeting) accept the site moderator too — both open while the club is
       // unclaimed, so every write path of the pre-uid UI still succeeds on
-      // legacy clubs.
+      // legacy clubs. Since 2026-08-17 the old RESTRICTED clause is two:
+      // the webhook mask (canAdministerClub, which the club's own managers
+      // now hold) and managerUids (canWriteManagerRoster — self-claim on an
+      // unclaimed club, or a site moderator/admin, never a club manager).
       //
       // Safe for every write path: on an update request.resource.data is the
       // POST-merge document, and every writer is a partial update
@@ -596,7 +659,8 @@ service cloud.firestore {
       allow update: if validClub() && validManagerUids()
                     && (!clubStructuralFieldsChanged() || canManageClub(resource.data))
                     && (!clubOperationalFieldsChanged() || canOperateClub(resource.data))
-                    && (!clubRestrictedFieldsChanged() || canAdministerClub(resource.data));
+                    && (!clubWebhookFieldChanged() || canAdministerClub(resource.data))
+                    && (!clubManagerRosterChanged() || canWriteManagerRoster());
       // Open on unclaimed clubs (deleteClub was always a UI-gated member
       // action no rule could check); once claimed, only a manager uid or the
       // site admin may delete the club doc.
@@ -634,11 +698,12 @@ service cloud.firestore {
       // doc carries only a masked tail (discordWebhookMask) for display. The
       // server-side Discord notifier and the announcements engine read/write
       // here via the service account, which bypasses rules. Since 2026-08-14
-      // writes and deletes were manager-gated once claimed; since 2026-08-16
-      // that gate is RESTRICTED (canAdministerClub, site admin only) — a
-      // bound club host/mod can no longer set or clear the webhook, because
-      // it decides where club activity broadcasts (see canAdministerClub's
-      // comment above).
+      // writes and deletes are manager-gated once claimed; 2026-08-16 briefly
+      // narrowed that to site admins only, and 2026-08-17 gave it back to the
+      // club's own bound managers (plus site moderator/admin) — the webhook
+      // is one club's outbound capability, run by the people who run that
+      // club. See canAdministerClub's comment above for the whole argument.
+      // The READ stays `if false` regardless of who may write it.
       match /settings/{settingId} {
         allow read: if false;
         allow create, update: if validClubSettings()
@@ -786,7 +851,8 @@ service cloud.firestore {
       allow update: if validClub() && validManagerUids()
                     && (!clubStructuralFieldsChanged() || canManageClub(resource.data))
                     && (!clubOperationalFieldsChanged() || canOperateClub(resource.data))
-                    && (!clubRestrictedFieldsChanged() || canAdministerClub(resource.data));
+                    && (!clubWebhookFieldChanged() || canAdministerClub(resource.data))
+                    && (!clubManagerRosterChanged() || canWriteManagerRoster());
       allow delete: if canManageClub(resource.data);
 
       match /members/{memberId} {
