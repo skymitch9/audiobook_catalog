@@ -76,8 +76,32 @@
   theme — its own — and honours the resolved data-mode stamp for light/dark
   with a prefers-color-scheme fallback so the palette is right even if scripts
   never run.
+
+  READING MODES, 2026-08-17 (owner: "we need to be able to set the pages white
+  and the font black or vice versa as well as make it match the theme").
+  read-mode.js stamps <html data-read-mode="paper|ink">, or removes it for the
+  third mode, "match theme" — which is not a stamp at all but the existing
+  data-mode cascade left to answer. ⚠️ It is a SECOND classic script in <head>
+  for the same reason theme.js is one: reader.js is a module, modules are
+  deferred, and a mode applied after first paint is a flash of white page for
+  everybody who chose black. And it is a FILE rather than an inline stamp
+  because the CSP forbids inline scripts here.
+
+  SWIPE TO TURN, same day (owner: "we need a way to swipe to change pages").
+  ⚠️ Nothing about it is in this file. A reflowable EPUB is turned by foliate's
+  OWN touch handling, which was already vendored; the PDF stage and a
+  fixed-layout EPUB's iframes are wired by reader.js through site/swipe.js. The
+  one thing this page contributes is `touch-action` on the two stages, which is
+  what lets a browser scroll vertically while the gesture is still being judged.
+
+  ⚠️ NO LINK BACK TO THE AUDIOBOOK SITE, since 2026-08-17 (owner: "ebooks has a
+  link to audiobooks on the reader page. remove that we dont need to go back to
+  audiobnook page"). Same decision as the removed 📖 Ebooks button on the
+  audiobook homepage: they are deliberately different sites now. The way out of
+  this page is the SHELF. tests/test_site_pages.py pins it.
 -->
 <script src="static/js/theme.js"></script>
+<script src="read-mode.js"></script>
 <title>Read — The Household Shelf</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%239d4a1c'/%3E%3Cpath d='M32 18c-4.5-3.4-10.5-4.6-17-4.6v32c6.5 0 12.5 1.2 17 4.6 4.5-3.4 10.5-4.6 17-4.6v-32c-6.5 0-12.5 1.2-17 4.6z' fill='%23f6f1e6'/%3E%3Cpath d='M32 18v32' stroke='%239d4a1c' stroke-width='2.5' fill='none'/%3E%3C/svg%3E">
 <style>
@@ -99,18 +123,76 @@
   --serif:Georgia,'Iowan Old Style','Palatino Linotype','Book Antiqua',serif;
   --sans:system-ui,-apple-system,'Segoe UI',sans-serif;
   --mono:ui-monospace,Consolas,'Courier New',monospace;
+
+  /* ⚠️ THE READING SURFACE IS ITS OWN PAIR OF TOKENS, separate from the page
+     chrome. --page/--page-ink are what a BOOK is printed on: the EPUB stage's
+     background and the colours reader.js pushes into foliate through
+     setStyles. In "match theme" they carry the SAME values as --card/--ink,
+     which is what the reader has always done; the two modes below take them
+     somewhere the chrome does not go (pure white, pure black). Keeping them
+     separate is what lets the toolbar stay the shelf's warm cream while the
+     page itself is plain white.
+     ⚠️ LITERAL VALUES, not `var(--card)`. reader.js reads these back out with
+     getComputedStyle to build foliate's stylesheet, and a custom property
+     whose value is another var() reference is the one shape where "what does
+     getComputedStyle return" stops being obvious. Repeating three hex codes
+     costs nothing; a colour that resolves to the empty string in one browser
+     and silently falls back to the hard-coded default in epubStyles() would
+     cost an afternoon. It also keeps this file's own rule — no colour lives
+     in only one scheme. */
+  --page:#fdfaf2; --page-ink:#2c2418;
 }
 html[data-mode="dark"]{
   --paper:#201b13; --card:#2a241a; --ink:#eae1cf; --ink-faint:#a3957c;
   --rule:#453c2c; --accent:#d68f57; --accent-deep:#e5a878; --caution:#d07a6c;
   --stage:#171309;
+  --page:#2a241a; --page-ink:#eae1cf;
 }
 @media (prefers-color-scheme: dark){
   html:not([data-mode="light"]){
     --paper:#201b13; --card:#2a241a; --ink:#eae1cf; --ink-faint:#a3957c;
     --rule:#453c2c; --accent:#d68f57; --accent-deep:#e5a878; --caution:#d07a6c;
     --stage:#171309;
+    --page:#2a241a; --page-ink:#eae1cf;
   }
+}
+
+/* ═══════════════════ THE THREE READING MODES (2026-08-17) ═══════════════════
+   Owner: "we need to be able to set the pages white and the font black or vice
+   versa as well as make it match the theme." site/read-mode.js stamps the
+   attribute BEFORE FIRST PAINT (it is a classic script in <head>, beside
+   theme.js, for exactly that reason) and persists the choice per device.
+
+     paper   white page, black text
+     ink     black page, white text
+     match   NO ATTRIBUTE AT ALL — the blocks above already answer it, in both
+             directions, including for a scriptless load. A third block whose
+             only job was to not exist would be worse than none.
+
+   ⚠️ EACH MODE IS WRITTEN TWICE AND THE SECOND SELECTOR IS THE LOAD-BEARING
+   ONE. `html[data-read-mode="ink"]` scores (0,1,1); the dark fallback above,
+   `html:not([data-mode="light"])` inside a media query, scores (0,2,1) and
+   BEATS it. Written the obvious single-selector way, "paper" silently does
+   nothing for anybody whose OS is dark and who never opened the theme cog —
+   a mode that appears to be selected and changes not one pixel. Adding
+   `[data-mode]` (theme.js always stamps it) ties the score and wins on source
+   order. Both selectors, always, or the mode is a lie in half the world.
+
+   The mode carries the CHROME with it as well as the page: a black page in a
+   cream toolbar reads as a broken render rather than a choice. */
+html[data-read-mode="paper"],
+html[data-read-mode="paper"][data-mode]{
+  --paper:#f2f2f2; --card:#ffffff; --ink:#141414; --ink-faint:#5f5f5f;
+  --rule:#d0d0d0; --accent:#8a3f16; --accent-deep:#6d3110; --caution:#8f2f2b;
+  --stage:#dedede;
+  --page:#ffffff; --page-ink:#000000;
+}
+html[data-read-mode="ink"],
+html[data-read-mode="ink"][data-mode]{
+  --paper:#0c0c0c; --card:#161616; --ink:#f0f0f0; --ink-faint:#9b9b9b;
+  --rule:#343434; --accent:#e0a06a; --accent-deep:#f0b884; --caution:#e08878;
+  --stage:#000000;
+  --page:#000000; --page-ink:#ffffff;
 }
 
 *{box-sizing:border-box}
@@ -168,9 +250,15 @@ h1 .tail{color:var(--accent)}
   text-decoration:none;border-bottom:1px solid var(--rule)}
 .rd-back:hover{border-bottom-color:var(--accent)}
 
+/* ⚠️ `touch-action:pan-y` is what makes SWIPE-TO-TURN cooperate with reading.
+   The browser keeps handling vertical scroll itself (so a long page still
+   scrolls at 60fps while the gesture is undecided) and stops treating a
+   horizontal drag as a scroll, which is what leaves it free to become a page
+   turn. It does NOT disable pinch-zoom: site/swipe.js refuses a turn whenever
+   a second finger appears or the visual viewport is magnified. */
 #rd-stage{position:relative;background:var(--stage);border:1px solid var(--rule);
   border-radius:12px;padding:14px;min-height:60vh;display:flex;
-  align-items:flex-start;justify-content:center;overflow:auto}
+  align-items:flex-start;justify-content:center;overflow:auto;touch-action:pan-y pinch-zoom}
 /* ⚠️ `display:flex` beats the `hidden` attribute's UA `display:none`, so the
    PDF stage needs this or it stays on screen underneath an open EPUB. */
 #rd-stage[hidden]{display:none}
@@ -179,16 +267,56 @@ h1 .tail{color:var(--accent)}
    a dark-mode browser — which reads as "the book failed to load". */
 #rd-canvas{max-width:100%;height:auto;box-shadow:0 2px 14px rgba(0,0,0,.28);
   background:#fff;border-radius:2px}
+/* ⚠️ INK MODE ON A PDF IS AN INVERSION, and it is honest about it. pdf.js
+   renders fixed pages onto a canvas — there is no text layer to recolour and no
+   stylesheet to overrule, so the only lever is the whole rendered image.
+   `invert(1) hue-rotate(180deg)` is the standard pair: invert flips light and
+   dark AND rotates every hue to its opposite, and the hue-rotate puts the hues
+   back, so a black-on-white page becomes white-on-black while a red diagram
+   stays red instead of turning cyan.
+   ⚠️ It inverts PHOTOGRAPHS AND ARTWORK too, and there is no way for it not to.
+   reader.js says so on the page (#rd-mode-note) rather than leaving somebody to
+   discover that a map has gone to negative. "paper" needs no rule: a PDF page
+   is already printed on white. */
+html[data-read-mode="ink"] #rd-canvas{filter:invert(1) hue-rotate(180deg)}
 /* The EPUB stage. foliate-js paginates into a shadow DOM inside <foliate-view>,
    which needs a DEFINITE height to lay columns out against — a percentage of an
-   auto-height parent collapses to nothing and the book renders blank. */
-#rd-book{background:var(--card);border:1px solid var(--rule);border-radius:12px;
+   auto-height parent collapses to nothing and the book renders blank.
+   ⚠️ --page, not --card: this is the surface the book is printed on, and the
+   two part company in paper/ink mode. It must agree with the colours reader.js
+   pushes into foliate through setStyles, or a reflowable book sits as a white
+   rectangle on a black stage with a visible seam at its margin. */
+#rd-book{background:var(--page);border:1px solid var(--rule);border-radius:12px;
   height:min(78vh,940px);overflow:hidden}
 #rd-book[hidden]{display:none}
 #rd-book foliate-view{display:block;width:100%;height:100%}
 #rd-loc{font-family:var(--sans);color:var(--ink-faint);white-space:nowrap;
   overflow:hidden;text-overflow:ellipsis;max-width:26ch}
 .rd-pager[hidden]{display:none}
+
+/* The reading-mode control. Small, but a real 38px touch target: this bar is
+   used one-handed on a phone, where the type-size buttons beside it are already
+   the smallest thing anyone should have to hit. A native <select> on purpose —
+   it gets the platform's own picker (a wheel on iOS, a sheet on Android),
+   keyboard support and a screen-reader name for free, where three custom
+   toggles would need all of it rebuilt. ⚠️ Its <option>s are BUILT by
+   read-mode.js from that file's registry, never written here: a page carrying
+   its own list is exactly how theme.js's theme list drifted across four sites. */
+.rd-mode{display:inline-flex;align-items:center;gap:6px;font-family:var(--sans)}
+.rd-mode-label{color:var(--ink-faint);font-size:.82rem;letter-spacing:.04em;
+  text-transform:uppercase}
+#rd-mode{min-height:38px;padding:6px 9px;border:1px solid var(--rule);
+  border-radius:8px;background:var(--card);color:var(--ink);font:inherit;
+  font-family:var(--sans);font-size:.88rem;cursor:pointer}
+#rd-mode:hover{border-color:var(--accent)}
+#rd-mode:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+/* The honest line under the bar — an inversion that also inverts photographs,
+   or a fixed-layout book whose pages cannot be recoloured at all. It exists so
+   neither of those is something a reader has to discover. Filled and revealed
+   by reader.js; ships hidden and empty. */
+#rd-mode-note{width:100%;margin:-4px 0 6px;font-family:var(--sans);
+  font-size:.8rem;line-height:1.45;color:var(--ink-faint)}
+#rd-mode-note[hidden]{display:none}
 
 /* The cross-device resume offer. A quiet strip above the book, not a modal:
    it must never cover the text it is offering to leave. `display:flex` beats
@@ -244,6 +372,14 @@ h1 .tail{color:var(--accent)}
     <p id="rd-gate-why">Checking your sign-in…</p>
     <button type="button" class="rd-act" id="rd-gate-signin" hidden>Sign in with Google</button>
     <a class="rd-act quiet" id="rd-gate-back" href="ebooks" hidden>Back to the shelf</a>
+    <!-- THE DEV-LANE CURTAIN's way out, and the ONE control on this page that
+         is deliberately absolute rather than relative. Every other link here is
+         relative so the dev lane loads dev copies (see the header) — but this
+         one exists precisely to leave the dev lane, so `ebooks` would send a
+         curtained reader straight back to the page that just curtained them.
+         Ships hidden; site/dev-lane.js's verdict is what reveals it, and it is
+         never shown on a promoted page. -->
+    <a class="rd-act quiet" id="rd-gate-prod" href="https://ebooks.heygabi.ai" hidden>Go to the regular shelf</a>
   </div>
 
   <div id="rd-shell" hidden>
@@ -254,6 +390,16 @@ h1 .tail{color:var(--accent)}
            these zoom the page, on an EPUB they size the type. -->
       <button type="button" id="rd-zoom-out" aria-label="Zoom out">&#x2212;</button>
       <button type="button" id="rd-zoom-in" aria-label="Zoom in">+</button>
+      <!-- READING MODES (owner, 2026-08-17). ⚠️ The <option>s are BUILT by
+           read-mode.js from its own registry and anything written here is
+           replaced — the page owns the control's PLACE, that file owns its
+           contents. This is theme.js's rule, applied for the same reason: a
+           fourth mode must be one edit, not a hunt through markup. The empty
+           element is deliberate, not an oversight. -->
+      <label class="rd-mode" for="rd-mode">
+        <span class="rd-mode-label">Page</span>
+        <select id="rd-mode" aria-label="Page colours"></select>
+      </label>
       <div class="rd-pager" id="rd-pager">
         <button type="button" id="rd-prev" aria-label="Previous page">&#x2190;</button>
         <!-- ⚠️ PDF ONLY. A reflowable EPUB has no stable page number to type
@@ -265,6 +411,11 @@ h1 .tail{color:var(--accent)}
         <span class="rd-pager" id="rd-pager-epub" hidden><span id="rd-loc"></span></span>
         <button type="button" id="rd-next" aria-label="Next page">&#x2192;</button>
       </div>
+      <!-- The one thing a display mode cannot do quietly. See #rd-mode-note's
+           CSS: an inverted PDF inverts its photographs, and a fixed-layout
+           EPUB's pages are images with the type baked in and cannot be
+           recoloured at all. Both get a sentence rather than a surprise. -->
+      <p id="rd-mode-note" hidden></p>
     </div>
 
     <!-- SAVE YOUR SPOT — the cross-device offer, and it is an OFFER.
@@ -289,11 +440,16 @@ h1 .tail{color:var(--accent)}
     <div id="rd-book" hidden></div>
   </div>
 
+  <!-- ⚠️ THE AUDIOBOOK LINK IS GONE, on the owner's word (2026-08-17): "ebooks
+       has a link to audiobooks on the reader page. remove that we dont need to
+       go back to audiobnook page". The two are deliberately different sites —
+       the same decision that removed the 📖 Ebooks button from the audiobook
+       homepage. The way out of the reader is the SHELF, and nothing else. Do
+       not add it back "for convenience"; tests/test_site_pages.py fails on it. -->
   <div class="rd-footer">
     <div>
       One book at a time, streamed straight from the household library — nothing
-      is downloaded to this device. Back to the <a href="ebooks">shelf</a>, or to
-      <a href="https://audiobooks.heygabi.ai">audiobooks &#x2192;</a>.
+      is downloaded to this device. Back to the <a href="ebooks">shelf</a>.
     </div>
   </div>
 </div>

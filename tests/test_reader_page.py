@@ -938,3 +938,366 @@ def test_the_shelf_takes_its_manifest_token_from_identity_too() -> None:
     assert re.search(r"import \{[^}]*\bgetIdToken\b[^}]*\} from './identity.js'", shelf)
     assert "const token = await getIdToken(app);" in shelf
     assert "Your sign-in has lapsed" in shelf
+
+
+# ==========================================================================
+# THE READER FEATURE BATCH — display modes, swipe, and the removed back-link
+# (owner, 2026-08-17)
+#
+# ⚠️ ALL THREE ARE INVISIBLE FAILURES. A display mode that loses a specificity
+# fight looks like a control nobody wired up. A swipe wired past the turn
+# functions turns pages perfectly and stops saving the reader's spot. A
+# re-added convenience link to the audiobook site is a decision quietly
+# reversed. None of them throws, none of them logs, and none of them is
+# visible on the machine that made the change.
+#
+# ⚠️ Stated plainly, as everywhere else in this file: nothing here proves a
+# swipe turns a page or that a mode looks right. That needs a phone and eyes.
+# What is pinned is that the pieces are still connected the way the reasons
+# require.
+# ==========================================================================
+
+READ_MODE_JS = REPO / "site" / "read-mode.js"
+SWIPE_JS = REPO / "site" / "swipe.js"
+DEV_LANE_JS = REPO / "site" / "dev-lane.js"
+
+
+def test_the_three_new_modules_are_TRACKED_IN_GIT_not_merely_on_disk() -> None:
+    """Fourth time this file asks the question; see the pdf.js and zip.js notes.
+
+    ⚠️ `read-mode.js` is the one that would hurt most quietly. It is loaded by
+    a plain <script src> in <head>: untracked, it 404s, `window.readerMode` is
+    never defined, and the mode <select> renders as an EMPTY dropdown — a
+    control that exists, opens, and offers nothing. No error, no console
+    message tying it to a deploy.
+    """
+    required = [
+        "site/read-mode.js",
+        "site/swipe.js",
+        "site/dev-lane.js",
+        "site/__tests__/swipe.test.js",
+        "site/__tests__/dev-lane.test.js",
+    ]
+    out = subprocess.run(
+        ["git", "ls-files", "--", *required],
+        cwd=REPO, capture_output=True, text=True, check=False,
+    )
+    tracked = set(out.stdout.split())
+    for path in required:
+        assert path in tracked, f"{path} is NOT tracked by git"
+        assert (REPO / path).stat().st_size > 0, f"{path} is empty"
+
+
+def test_the_mode_is_stamped_by_a_HEAD_SCRIPT_not_by_the_deferred_module() -> None:
+    """⚠️ A module is deferred BY DEFINITION, so a mode applied in reader.js
+    lands after first paint — a flash of white page on every single load for
+    anybody who chose black. theme.js solves the identical problem the
+    identical way, which is why read-mode.js sits beside it in <head> rather
+    than becoming three more lines of reader.js.
+
+    And it is a FILE, not an inline stamp, because `/read`'s CSP is
+    `script-src 'self'` with no `'unsafe-inline'`: an inline version would work
+    perfectly on a local server and be blocked in production.
+    """
+    html = read(TEMPLATE)
+    head = html[: html.index("</head>")]
+    assert '<script src="read-mode.js"></script>' in head
+    # Still no inline script anywhere — the CSP has not loosened for this.
+    for tag in re.findall(r"<script\b[^>]*>", strip_comments(html)):
+        assert " src=" in tag, f"inline script in read.html would be CSP-blocked: {tag}"
+
+
+def test_the_reading_surface_has_its_own_tokens_separate_from_the_chrome() -> None:
+    """⚠️ `--page` / `--page-ink` are the BOOK; `--card` / `--ink` are the page
+    around it, and the modes are exactly where they part company (paper mode
+    keeps the shelf's warm toolbar and prints the book on plain white).
+
+    reader.js hands foliate the reading-surface pair. Reading the chrome pair
+    there instead gives a cream book inside a white frame — a wrongness nobody
+    can name and everybody sees — and it is a one-word edit away at all times.
+    """
+    html = read(TEMPLATE)
+    # ⚠️ In "match theme" the surface must carry the SAME values as the chrome,
+    # or choosing no mode at all would change the colours for everybody who
+    # never chose one. Pinned per scheme, because "no colour lives in only one
+    # scheme" is this file's own rule and a half-defined surface is a book that
+    # is cream in the dark.
+    assert "--page:#fdfaf2; --page-ink:#2c2418;" in html      # light / :root
+    assert html.count("--page:#2a241a; --page-ink:#eae1cf;") == 2, (
+        "the dark surface must be defined BOTH for the data-mode stamp and for "
+        "the scriptless prefers-color-scheme fallback"
+    )
+    # ⚠️ LITERALS, not `var(--card)`: reader.js reads these back with
+    # getComputedStyle, and a custom property whose value is another var()
+    # reference is the one shape where that read stops being obvious.
+    assert "--page:var(" not in html and "--page-ink:var(" not in html
+    assert "#rd-book{background:var(--page)" in html
+    js = read(READER_JS)
+    assert "cs.getPropertyValue('--page')" in js
+    assert "cs.getPropertyValue('--page-ink')" in js
+    assert "cs.getPropertyValue('--card')" not in js, (
+        "epubStyles must take the reading SURFACE, not the page chrome"
+    )
+
+
+def test_ink_mode_inverts_the_pdf_canvas_and_says_so() -> None:
+    """⚠️ pdf.js renders onto a canvas: there is no text layer to recolour and
+    no stylesheet to overrule, so the only lever is the whole rendered image.
+    `invert(1) hue-rotate(180deg)` is the standard pair — invert flips light
+    and dark AND rotates every hue, and the hue-rotate puts the hues back so a
+    red diagram stays red instead of turning cyan.
+
+    ⚠️ It inverts PHOTOGRAPHS too, and cannot not. The page says so
+    (#rd-mode-note) rather than leaving somebody to find a map gone negative;
+    an affordance that does something other than what it says is worse than one
+    that refuses (ROLES.md §1e).
+    """
+    html = read(TEMPLATE)
+    assert 'html[data-read-mode="ink"] #rd-canvas{filter:invert(1) hue-rotate(180deg)}' in html
+    assert 'id="rd-mode-note"' in html
+    assert "#rd-mode-note[hidden]{display:none}" in html
+    js = strip_comments(read(READER_JS))
+    assert "function updateModeNote()" in js
+    assert "inverts the whole page" in js, "the inversion's cost must be worded"
+
+
+def test_a_fixed_layout_epub_is_TOLD_not_silently_skipped() -> None:
+    """⚠️ MEASURED AT PHASE 2, and it is the reason this whole branch exists:
+    `<foliate-fxl>` has NO `setStyles`, and calling it unconditionally THREW —
+    the reader answered "this book would not open" for a book that opens
+    perfectly. Its pages are images with the type baked in, so no display mode
+    can touch them.
+
+    So the mode themes the chrome and the page says the rest out loud. Silently
+    doing nothing would look exactly like a broken control.
+    """
+    js = strip_comments(read(READER_JS))
+    assert "function applyReadingMode()" in js
+    assert "!state.view.isFixedLayout" in js, (
+        "the reflowable-only restyle must be guarded — the unconditional call "
+        "threw and cost a working book its refusal"
+    )
+    assert "keep their own colours" in js, (
+        "a fixed-layout book's limit must be stated on the page, not skipped"
+    )
+
+
+def test_the_swipe_never_bypasses_the_turn_functions() -> None:
+    """⚠️ THE SILENT ONE, and the exact failure the save-spot build warned the
+    swipe build about in advance (docs/info/reader-page.md §7.6).
+
+    `goNext`/`goPrev` are what run `recordPdfPosition()` and what make foliate
+    raise the `relocate` this file turns into `recordEpubPosition()`. A swipe
+    wired straight to `drawPage()` or `view.next()` turns pages perfectly and
+    stops saving anybody's place — no error, no log, nothing to notice until
+    somebody's book opens at the beginning.
+    """
+    js = strip_comments(read(READER_JS))
+    assert "import { wireSwipe } from './swipe.js';" in js
+    # Both wirings hand over the SHARED turn functions and nothing else.
+    for block_name in ("function wirePdfSwipe()", "function wireFxlSwipe(doc)"):
+        start = js.index(block_name)
+        block = js[start: js.index("});", start)]
+        assert "onNext: () => goNext()" in block, f"{block_name} must turn via goNext"
+        assert "onPrev: () => goPrev()" in block, f"{block_name} must turn via goPrev"
+        assert "drawPage(" not in block, f"{block_name} must not draw a page itself"
+        assert ".next()" not in block and ".prev()" not in block, (
+            f"{block_name} must not drive the renderer directly"
+        )
+
+
+def test_a_reflowable_epub_is_NOT_double_wired_to_foliates_own_swipe() -> None:
+    """⚠️ MEASURED IN THE VENDORED SOURCE BEFORE ANY OF THIS WAS WRITTEN.
+
+    `site/static/foliate/paginator.js` ALREADY binds touchstart/touchmove/
+    touchend — on itself AND on each section's document, which is how it
+    reaches inside the iframe that would otherwise swallow the gesture — drags
+    the columns live, and calls `snap()` on release, crossing a section
+    boundary through `#goTo()` when the flick runs off the end. It even guards
+    `visualViewport.scale > 1` for pinch, and `#afterScroll()` dispatches the
+    `relocate` that saves the reader's spot.
+
+    So a reflowable book swipes for free, and adding a second handler turns TWO
+    pages per flick. The FXL wiring is therefore guarded on `isFixedLayout` —
+    `fixed-layout.js`, by contrast, contains no touch handling at all.
+    """
+    paginator = (FOLIATE / "paginator.js").read_text(encoding="utf-8", errors="ignore")
+    assert "touchstart" in paginator and "touchend" in paginator, (
+        "if foliate's own touch handling is ever removed, the reflowable EPUB "
+        "loses swipe entirely and reader.js must start wiring it"
+    )
+    fxl = (FOLIATE / "fixed-layout.js").read_text(encoding="utf-8", errors="ignore")
+    assert "touchstart" not in fxl, (
+        "foliate-fxl has gained touch handling — the reader's own FXL swipe "
+        "would now be a second handler and turn two pages per flick"
+    )
+    js = strip_comments(read(READER_JS))
+    assert "if (view.isFixedLayout) wireFxlSwipe(" in js, (
+        "the reader's swipe must be FIXED-LAYOUT ONLY; a reflowable book is "
+        "already swiped by foliate's paginator"
+    )
+
+
+def test_the_pdf_swipe_yields_the_horizontal_axis_to_a_zoomed_page() -> None:
+    """Once the rendered page is wider than its stage, a sideways drag means
+    "show me the right margin", not "next page" — and the stage scrolls, so a
+    turn there both loses the reader's place in the spread and changes the
+    page under them.
+
+    Asked LIVE rather than captured: the zoom buttons change the answer between
+    gestures.
+    """
+    js = strip_comments(read(READER_JS))
+    assert "axisTaken: () => stageEl.scrollWidth > stageEl.clientWidth" in js
+    html = read(TEMPLATE)
+    # `pan-y` keeps the browser doing vertical scrolling itself while the
+    # gesture is undecided, and stops it claiming horizontal drags.
+    assert "touch-action:pan-y pinch-zoom" in html
+
+
+# --------------------------------------------------------------------------
+# THE DEV-LANE CURTAIN (owner, 2026-08-17)
+# --------------------------------------------------------------------------
+def test_the_curtain_is_LANE_AWARE_and_adds_nothing_to_the_prod_path() -> None:
+    """⚠️ A PATH, NEVER A HOST. `/dev/ebooks` and `/dev/read` are paths on
+    audiobooks.heygabi.ai; the promoted copies are at the ROOT of
+    ebooks.heygabi.ai. Every other lane-sensitive thing in this repo — the CSP
+    rules in `_headers`, every relative asset reference — is written the same
+    way.
+
+    ⚠️ And it matters twice over: the auth Worker's ME_ORIGINS is
+    "heygabi.ai,audiobooks.heygabi.ai", so the estate call this makes would be
+    CORS-REFUSED from ebooks.heygabi.ai. Being lane-aware is what makes that
+    irrelevant instead of a bug — and what keeps the promoted pages free of a
+    new request, a new await and a new way to fail.
+    """
+    src = strip_comments(read(DEV_LANE_JS))
+    assert "export function isDevLane(pathname)" in src
+    assert "/^\\/dev(?:\\/|$)/" in src, (
+        "the lane test must be anchored — a startsWith('/dev') would curtain "
+        "/developer-notes and anything else beginning with those letters"
+    )
+    assert "location.hostname" not in src and "location.host" not in src, (
+        "the curtain must not be host-aware"
+    )
+    # The prod short-circuit happens BEFORE the network call, or a promoted
+    # page pays for a check it can never act on.
+    verdict = src[src.index("export async function devLaneVerdict"):]
+    assert verdict.index("isDevLane(pathname)") < verdict.index("getEstateStatus("), (
+        "devLaneVerdict must return on the prod lane before it fetches anything"
+    )
+
+
+def test_the_curtain_reads_the_ESTATE_answer_and_never_re_derives_the_rule() -> None:
+    """⚠️ `devAccessAllows()` in catalog-platform's auth Worker is the ONE
+    implementation of the owner's rule — `approved AND (dev_access OR is_devops
+    OR is_approver)`, plus the OWNER_EMAILS break-glass — and `/api/estate/me`
+    reports it EFFECTIVE for exactly this reason. Re-deriving "devops implies
+    dev access" here from `is_devops` would be a second copy of a rule the
+    owner is free to change.
+
+    ⚠️ MEASURED 2026-08-17: `dev_access` reaches the browser on
+    `GET https://auth.heygabi.ai/api/estate/me` (identity.getEstateStatus),
+    NOT on the audiobook Worker's `/api/me` or `/api/ebooks/manifest` — the
+    shared `@platform/estate-auth` cache carries status and visibility only.
+    So the curtain reads the estate endpoint directly and the ebook APIs are
+    entirely untouched.
+    """
+    src = strip_comments(read(DEV_LANE_JS))
+    assert "getEstateStatus" in src
+    assert "answer.dev_access === 'boolean'" in src
+    assert "is_devops" not in src, "the devops implication must not be re-derived here"
+    assert "auth.heygabi.ai" not in src, (
+        "the endpoint belongs to identity.js — one implementation of the URL"
+    )
+
+
+def test_an_unknown_answer_FAILS_OPEN_because_this_is_a_curtain_not_a_lock() -> None:
+    """⚠️ THE DISTINCTION THE WHOLE MODULE EXISTS TO KEEP: "the estate said no"
+    and "the estate did not say" collapse into one the moment somebody writes
+    `if (!answer.dev_access)`.
+
+    An outage dressed as a permission refusal sends the household's own devops
+    asking for access they already hold — and it is not hypothetical:
+    identity.js caches /api/estate/me for ten minutes, so for ten minutes after
+    the estate half deployed there were live cache entries with no `dev_access`
+    field at all. Reading a missing field as `false` would have curtained
+    everybody, including the owner.
+
+    Failing open costs a curtain nobody saw. The books are gated somewhere
+    else entirely (`vis_ebooks`, server-side, both lanes) and fail CLOSED
+    there.
+    """
+    src = strip_comments(read(DEV_LANE_JS))
+    assert "if (dev === true) return 'allowed';" in src
+    assert "if (dev === false) return 'curtain';" in src
+    assert "return 'unknown';" in src
+    for consumer in (READER_JS, SHELF):
+        text = strip_comments(read(consumer))
+        assert "devLaneVerdict(app)) === 'curtain'" in text, (
+            f"{consumer.name} must curtain ONLY on an explicit refusal"
+        )
+
+
+def test_the_curtain_says_what_it_is_what_it_needs_and_where_to_go() -> None:
+    """ROLES.md §1e: never a bare status, never a dead page. And the third
+    sentence is what makes it useful rather than merely polite — somebody who
+    cannot have the dev lane still wants their books.
+
+    ⚠️ It also names the DEVOPS implication, because telling a devops person to
+    "ask for dev access" is the same mislabelling in another costume.
+    """
+    src = read(DEV_LANE_JS)
+    assert "CURTAIN, NOT A LOCK" in src, (
+        "the comment is the contract — the next agent must not turn this into "
+        "an access control"
+    )
+    assert "vis_ebooks" in src, "and it must name what the real lock is"
+    for phrase in ("heygabi.ai/admin", "ebooks.heygabi.ai", "devops",
+                   "Nothing is wrong with your account"):
+        assert phrase in src, f"the curtain's words must include: {phrase}"
+    # Both pages carry the way out, and it is ABSOLUTE — a relative `ebooks`
+    # on /dev/read points back at the page that just curtained them.
+    assert '<a class="rd-act quiet" id="rd-gate-prod" href="https://ebooks.heygabi.ai"' in read(TEMPLATE)
+    assert '<a class="eb-gate-act" id="eb-gate-prod" href="https://ebooks.heygabi.ai"' in read(SHELF)
+
+
+def test_the_curtain_runs_AFTER_the_sign_in_gate_never_before_it() -> None:
+    """A signed-out visitor must meet "sign in", not "you need dev access".
+    The second sends somebody to ask a person for something signing in would
+    have given them — the mislabelling ROLES.md §1e forbids, in its quietest
+    form.
+    """
+    for consumer in (READER_JS, SHELF):
+        text = strip_comments(read(consumer))
+        signed_out = text.index("if (!user || !user.uid)")
+        curtain = text.index("devLaneVerdict(app)")
+        assert signed_out < curtain, (
+            f"{consumer.name} asks about dev access before it asks whether "
+            "anybody is signed in"
+        )
+
+
+def test_the_readers_CSP_allows_the_estate_call_the_curtain_makes() -> None:
+    """⚠️ THIS ONE WOULD FIRST BREAK AT THE PROMOTE, which is the whole reason
+    it is a test.
+
+    The curtain fetches `https://auth.heygabi.ai/api/estate/me`, and it only
+    ever runs on `/dev/` — which today ships NO CSP at all, because the live
+    policy comes from the PROD branch's root `_headers` (§1.2 of
+    docs/info/reader-page.md). So a missing `connect-src` entry is invisible on
+    the dev lane and becomes a curtain that silently stopped curtaining the
+    moment somebody promotes.
+
+    All four rules carry it, deliberately: four policy strings differing by one
+    token is a trap nobody spots in review, and the promoted pages never make
+    the call.
+    """
+    headers = read(HEADERS)
+    for path in ("/read", "/read/", "/dev/read", "/dev/read/"):
+        block = re.search(rf"^{re.escape(path)}\n(?:  .+\n)+", headers, flags=re.MULTILINE)
+        assert block
+        connect_src = re.search(r"connect-src ([^;]+)", block.group(0)).group(1)
+        assert "https://auth.heygabi.ai" in connect_src, (
+            f"{path} would block the dev curtain's estate call"
+        )

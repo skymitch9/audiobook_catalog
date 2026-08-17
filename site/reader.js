@@ -102,6 +102,45 @@
  *      AFTER `init()` has already put a readable page on screen, so a locator
  *      that no longer resolves leaves the reader at the text start with a
  *      console warning rather than an unopened book.
+ *
+ * ## 7. READING MODES + SWIPE + THE DEV CURTAIN — 2026-08-17
+ *
+ * Three owner asks landed together, and each has one thing worth knowing here.
+ *
+ * **Reading modes** (*"set the pages white and the font black or vice versa as
+ * well as make it match the theme"*). The choice lives in `site/read-mode.js`,
+ * a classic script in `<head>` so the stamp beats first paint; this file only
+ * REACTS to it, and only where CSS cannot reach:
+ *   - a reflowable EPUB is inside a shadow-rooted iframe, so its colours have
+ *     to be pushed through `renderer.setStyles()` — `applyReadingMode()`;
+ *   - a PDF is a canvas and is inverted by a CSS filter the page owns, so this
+ *     file contributes only the honest SENTENCE about what an inversion does;
+ *   - ⚠️ a FIXED-LAYOUT EPUB cannot be recoloured at all (`<foliate-fxl>` has
+ *     no `setStyles`, measured at phase 2 — calling it THREW and cost a book
+ *     that opens perfectly its "would not open" refusal), so it gets the
+ *     chrome and a sentence. Stated, never silently skipped.
+ *
+ * **Swipe to turn** (*"we need a way to swipe to change pages"*). ⚠️ THE
+ * MEASUREMENT THAT SHAPED IT: `site/static/foliate/paginator.js` ALREADY
+ * carries touch handling — `#onTouchStart/#onTouchMove/#onTouchEnd` bound both
+ * on the renderer and on every section document, `snap()` on release, and a
+ * `visualViewport.scale > 1` pinch guard. A reflowable EPUB therefore swipes
+ * with no code here at all, and adding a second handler would turn TWO pages
+ * per flick. So this file wires only the two stages foliate does not cover:
+ * the PDF canvas, and a fixed-layout EPUB's iframes (which `foliate-fxl` leaves
+ * bare — grep it for `touch`; there is nothing).
+ *
+ * ⚠️ AND EVERY TURN GOES THROUGH `goNext`/`goPrev`, never through `drawPage()`
+ * or `view.next()` directly. Those two are what run `recordPdfPosition()` and
+ * what make foliate raise `relocate` → `recordEpubPosition()`. A turn path that
+ * bypasses them stops saving the reader's spot, silently, which is exactly the
+ * failure §7.6 of `docs/info/reader-page.md` was written after.
+ *
+ * **The dev curtain** (*"i need a way in the estate to manage dev access for
+ * ebook … make devops always able to see dev envs"*). ⚠️ A CURTAIN, NOT A LOCK
+ * — see `site/dev-lane.js`, which owns every decision. It runs on the `/dev/`
+ * lane only, it never touches the promoted path, and the books stay gated by
+ * `vis_ebooks` server-side on both lanes regardless of what it decides.
  */
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
@@ -123,6 +162,14 @@ import {
   newerOf,
   samePlace,
 } from './reading-position.js';
+// ⚠️ The gesture's DECISION is pure and lives there, so every way a swipe is
+// wrong (a vertical scroll's drift, a pinch, a slow drag, a pannable zoomed
+// page) is exercised by site/__tests__/swipe.test.js instead of by a thumb.
+import { wireSwipe } from './swipe.js';
+// ⚠️ CURTAIN, NOT LOCK — that module's header says so at length and this file
+// takes no view of its own. The real lock is `vis_ebooks`, server-side, on
+// every manifest and every range, on BOTH lanes.
+import { DEV_CURTAIN, devLaneVerdict } from './dev-lane.js';
 
 /** The gated manifest — the same URL, and the same gate, the shelf uses. */
 const MANIFEST_URL = 'https://audiobook-api.heygabi.ai/api/ebooks/manifest';
@@ -179,6 +226,8 @@ const gateTitleEl = el('rd-gate-title');
 const gateWhyEl = el('rd-gate-why');
 const gateBtnEl = el('rd-gate-signin');
 const gateBackEl = el('rd-gate-back');
+/** The curtain's way OUT of the dev lane — absolute, unlike everything else. */
+const gateProdEl = el('rd-gate-prod');
 const shellEl = el('rd-shell');
 const canvasEl = el('rd-canvas');
 const stageEl = el('rd-stage');
@@ -194,6 +243,8 @@ const bookEl = el('rd-book');
 const pagerPdfEl = el('rd-pager-pdf');
 const pagerEpubEl = el('rd-pager-epub');
 const locEl = el('rd-loc');
+/** The honest line about what a display mode can and cannot do to this book. */
+const modeNoteEl = el('rd-mode-note');
 // The "you were somewhere else" offer — see offerJump(). Ships hidden.
 const resumeEl = el('rd-resume');
 const resumeWhyEl = el('rd-resume-why');
@@ -212,6 +263,10 @@ function closed(title, why, opts = {}) {
   gateWhyEl.textContent = why;
   gateBtnEl.hidden = !opts.signIn;
   gateBackEl.hidden = opts.back === false;
+  // ⚠️ Only the dev curtain sets this. The shelf link above is RELATIVE, which
+  // on `/dev/read` means `/dev/ebooks` — the page that just refused them. A
+  // curtained reader needs the promoted site, and nothing else does.
+  if (gateProdEl) gateProdEl.hidden = !opts.prod;
   gateEl.hidden = false;
   shellEl.hidden = true;
   busy(false);
@@ -654,6 +709,11 @@ async function openPdf(anchor, book) {
     closed('This book would not open', 'The first page could not be drawn. Tell Mitch which book it was.');
     return;
   }
+  // Swipe, and the mode's honest line — both AFTER the first successful
+  // render, for the same reason the keeper is armed there: a book that never
+  // opened has no pages to turn and no colours to explain.
+  wirePdfSwipe();
+  applyReadingMode();
   // ⚠️ ARMED ONLY NOW. Everything above could still have ended in a closed
   // state, and a book that would not open must not record a position.
   state.keeper?.arm();
@@ -710,8 +770,15 @@ function pageFrom(row, numPages) {
  */
 function epubStyles(scale) {
   const cs = getComputedStyle(document.documentElement);
-  const paper = cs.getPropertyValue('--card').trim() || '#fdfaf2';
-  const ink = cs.getPropertyValue('--ink').trim() || '#2c2418';
+  // ⚠️ `--page` / `--page-ink`, NOT `--card` / `--ink`. Those two are the page
+  // CHROME and the reading SURFACE, and the three reading modes are precisely
+  // where they part company: in "paper" the toolbar keeps the shelf's warm
+  // cream while the book is printed on plain white. Reading the chrome tokens
+  // here is how a book ends up cream inside a white frame — a subtle wrongness
+  // nobody can name and everybody sees. read.html defines the pair, and in
+  // "match theme" they simply alias --card/--ink, so this is unchanged there.
+  const paper = cs.getPropertyValue('--page').trim() || '#fdfaf2';
+  const ink = cs.getPropertyValue('--page-ink').trim() || '#2c2418';
   const accent = cs.getPropertyValue('--accent').trim() || '#9d4a1c';
   return `
     @namespace epub "http://www.idpf.org/2007/ops";
@@ -879,6 +946,13 @@ async function openEpub(anchor, book) {
     // progress bar, never for navigation.
     recordEpubPosition(ev.detail);
   });
+  // ⚠️ FIXED-LAYOUT ONLY, and the guard is the whole point. A reflowable book
+  // is already swiped by foliate's own paginator (see wireFxlSwipe's neighbour
+  // above); wiring one here as well turns TWO pages per flick. `load` fires per
+  // spread, which is what keeps the gesture attached as FXL swaps its iframes.
+  view.addEventListener('load', (ev) => {
+    if (view.isFixedLayout) wireFxlSwipe(ev.detail?.doc);
+  });
   bookEl.append(view);
 
   try {
@@ -937,6 +1011,9 @@ async function openEpub(anchor, book) {
   // an unarmed keeper. `view.lastLocation` is foliate's own record of the
   // newest relocate, so this catches that turn.
   recordEpubPosition(view.lastLocation);
+  // The mode's note, now that we know WHICH renderer opened: a fixed-layout
+  // book has to say that its pages keep their own colours.
+  applyReadingMode();
   busy(false);
 }
 
@@ -949,6 +1026,137 @@ function setEpubScale(next) {
   if (state.view?.isFixedLayout) return;
   state.fontScale = Math.min(2.5, Math.max(0.6, next));
   state.view?.renderer?.setStyles?.(epubStyles(state.fontScale));
+}
+
+/* ── the three reading modes ────────────────────────────────────────────── */
+
+/**
+ * Owner, 2026-08-17: *"we need to be able to set the pages white and the font
+ * black or vice versa as well as make it match the theme."*
+ *
+ * ⚠️ ALMOST NONE OF THIS IS HERE. `site/read-mode.js` owns the choice and
+ * stamps `<html data-read-mode>` before first paint; `read.html`'s CSS turns
+ * that stamp into a palette, and inverts the PDF canvas with a filter. This
+ * function exists for the ONE surface CSS cannot reach — a reflowable EPUB's
+ * text, which lives in an iframe inside a closed shadow root and can only be
+ * recoloured by handing foliate a stylesheet.
+ *
+ * ⚠️ `setStyles?.()` is not defensive noise. `<foliate-fxl>` genuinely does not
+ * have it, and the unconditional call THREW at phase 2 — the reader answered
+ * "this book would not open" for a book that opens perfectly. The
+ * `isFixedLayout` guard above it is the real protection; the `?.` is the belt.
+ */
+function applyReadingMode() {
+  if (state.mode === 'epub' && state.view && !state.view.isFixedLayout) {
+    state.view.renderer?.setStyles?.(epubStyles(state.fontScale));
+  }
+  updateModeNote();
+}
+
+/**
+ * The sentence that stops a display mode being a surprise.
+ *
+ * ⚠️ TWO HONEST LIMITS, and neither may be silent (ROLES.md §1e — a control
+ * that does something other than what it says is worse than one that refuses):
+ *
+ *   1. **An inverted PDF inverts its PICTURES.** There is no text layer to
+ *      recolour on a canvas, so "ink" is `filter: invert(1) hue-rotate(180deg)`
+ *      over the whole rendered page. Text becomes white-on-black exactly as
+ *      asked; a photograph becomes a negative. Nobody should have to work that
+ *      out from a map that has gone wrong.
+ *   2. **A fixed-layout EPUB cannot be recoloured at all.** Its pages ARE
+ *      images with the type baked into them, and `<foliate-fxl>` has no
+ *      `setStyles` (measured at viewer phase 2, on the White Sand Omnibus).
+ *      The chrome follows the mode; the book keeps its own colours. Saying so
+ *      is the difference between a documented limit and a broken-looking
+ *      control.
+ */
+function updateModeNote() {
+  if (!modeNoteEl) return;
+  const mode = (typeof window !== 'undefined' && window.readerMode)
+    ? window.readerMode.get() : 'match';
+  let note = '';
+  if (state.mode === 'epub' && state.view?.isFixedLayout) {
+    note = 'This book’s pages are fixed images with the type printed into them, '
+      + 'so they keep their own colours — the mode changes the reader around them.';
+  } else if (state.mode === 'pdf' && mode === 'ink') {
+    note = 'Ink mode inverts the whole page, so pictures, maps and diagrams are '
+      + 'inverted too. Switch to Paper to see them as printed.';
+  }
+  modeNoteEl.textContent = note;
+  modeNoteEl.hidden = !note;
+}
+
+// read-mode.js fires this on every change (and once at boot, before this
+// listener exists — which is why every open path calls applyReadingMode() too).
+document.addEventListener('rd-modechange', applyReadingMode);
+
+/* ── swipe to turn ──────────────────────────────────────────────────────── */
+
+/**
+ * Owner, 2026-08-17: *"we need a way to swipe to change pages."*
+ *
+ * ⚠️ MEASURED BEFORE ANY OF IT WAS WRITTEN, in the vendored source: foliate's
+ * `<foliate-paginator>` ALREADY handles touch. `paginator.js` binds
+ * `touchstart`/`touchmove`/`touchend` on itself AND on each section's document
+ * (which is how it reaches inside the iframe that would otherwise swallow the
+ * gesture), drags the columns live, and calls `snap()` on release — which
+ * crosses a section boundary through `#goTo()` when the flick runs off the end.
+ * It even guards `visualViewport.scale > 1` for pinch. And `#afterScroll()`
+ * dispatches `relocate`, which `<foliate-view>` re-emits and this file already
+ * listens to.
+ *
+ * ⚠️ SO A REFLOWABLE EPUB SWIPES FOR FREE, AND WIRING ONE HERE WOULD BE A BUG:
+ * two handlers on one flick turn two pages. The two surfaces foliate does NOT
+ * cover are the ones wired below — the PDF canvas, and a fixed-layout book,
+ * whose renderer (`fixed-layout.js`) contains no touch handling whatsoever.
+ *
+ * ⚠️ AND BOTH GO THROUGH `goNext`/`goPrev`. Those are the same two functions
+ * the arrows and the keyboard call, and they are what record the reader's spot
+ * — `drawPage()` runs `recordPdfPosition()`, and foliate's own turn raises the
+ * `relocate` this file turns into `recordEpubPosition()`. A swipe wired
+ * straight to `drawPage()` or `view.next()` would turn pages perfectly and stop
+ * saving anybody's place, with nothing anywhere saying so.
+ */
+function wirePdfSwipe() {
+  wireSwipe(stageEl, {
+    onNext: () => goNext(),
+    onPrev: () => goPrev(),
+    // ⚠️ A ZOOMED PDF OWNS ITS OWN HORIZONTAL AXIS. Once the rendered page is
+    // wider than the stage, a sideways drag means "show me the right margin",
+    // not "next page" — and the stage scrolls, so the reader would lose their
+    // place in the spread AND land on a different page. Asked live rather than
+    // captured, because the zoom buttons change it between gestures.
+    axisTaken: () => stageEl.scrollWidth > stageEl.clientWidth + 2,
+  });
+}
+
+/**
+ * A fixed-layout EPUB's pages live in iframes inside `<foliate-fxl>`'s CLOSED
+ * shadow root, and **touch events inside an iframe never reach the parent
+ * document** — a separate browsing context, not a bubbling problem. So a
+ * listener on `#rd-book` would hear nothing at all.
+ *
+ * The way in is foliate's own `load` event, which hands out `{doc, index}` for
+ * each spread as it renders (`fixed-layout.js` dispatches it; `view.js`
+ * re-emits it). Attaching to that `doc` is exactly what foliate's paginator
+ * does for the reflowable case, so this is its trick borrowed rather than a
+ * workaround.
+ *
+ * ⚠️ Re-attached per spread ON PURPOSE. FXL swaps its iframes as it moves, so
+ * a document wired once is a document that stops answering two turns later.
+ * Wiring the same document twice is harmless: `wireSwipe` adds one gesture, and
+ * the handlers are idempotent per gesture — but the previous detach is called
+ * anyway so a long book does not accumulate them.
+ */
+let detachFxlSwipe = null;
+function wireFxlSwipe(doc) {
+  if (!doc) return;
+  try { detachFxlSwipe?.(); } catch { /* the old document is already gone */ }
+  detachFxlSwipe = wireSwipe(doc, {
+    onNext: () => goNext(),
+    onPrev: () => goPrev(),
+  });
 }
 
 /* ── controls ───────────────────────────────────────────────────────────── */
@@ -1062,6 +1270,29 @@ async function boot() {
   // a PERMISSION_DENIED rather than as a leak — but a page should not send a
   // write it knows will be refused.
   state.uid = user.uid;
+
+  // ⚠️ THE DEV-LANE CURTAIN — A CURTAIN, NOT A LOCK. site/dev-lane.js owns
+  // every decision here and its header explains all of them; what matters at
+  // this call site is the ORDER and the LANE.
+  //
+  //   * AFTER the sign-out branch above, deliberately. A signed-out visitor
+  //     must meet "sign in", not "you need dev access" — telling somebody to
+  //     ask for a grant when what they actually need is to sign in sends them
+  //     to the wrong person.
+  //   * BEFORE openBook(), so a curtained reader never sees a book title, a
+  //     spinner or a half-drawn shelf.
+  //   * `devLaneVerdict` returns 'prod-lane' WITHOUT a network call on any
+  //     promoted page, so nothing below runs on ebooks.heygabi.ai and no new
+  //     failure mode reaches production. The check is on the PATH, never the
+  //     host.
+  //   * 'unknown' (the estate did not answer, or answered without the field)
+  //     falls through and OPENS THE BOOK. An outage is not a permission
+  //     decision, and this curtain has never guarded a byte: the books are
+  //     gated by `vis_ebooks` on the Worker, on both lanes, unchanged.
+  if ((await devLaneVerdict(app)) === 'curtain') {
+    closed(DEV_CURTAIN.title, DEV_CURTAIN.why, { back: false, prod: true });
+    return;
+  }
 
   if (!anchor) {
     closed(

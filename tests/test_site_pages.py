@@ -161,6 +161,55 @@ class TestEbooksPageContracts:
         # (2026-08-17): the ebooks page is not part of the audiobook nav.
         assert 'href="ebooks.html"' not in _template("index.html")
 
+    def test_read_template_does_not_link_back_to_the_audiobook_site(self):
+        """Owner, 2026-08-17: "ebooks has a link to audiobooks on the reader
+        page. remove that we dont need to go back to audiobnook page".
+
+        The SAME decision as the removed 📖 Ebooks button above, pointing the
+        other way: the two are deliberately different sites now, and the way
+        out of the reader is the ebook SHELF. This is a string-pin because the
+        link is one convenient-looking anchor away from coming back, and
+        nothing else would notice.
+
+        ⚠️ Phrased about the audiobook HOST, not about the word "audiobooks" —
+        the page's own comments explain this rule at length and would trip a
+        naive substring search. `audiobook-api.heygabi.ai` is the gated Worker
+        and is a different thing entirely; only the SITE is forbidden.
+        """
+        html = _template("read.html")
+        assert 'href="https://audiobooks.heygabi.ai' not in html, (
+            "the reader must not link back to the audiobook site — the way out "
+            "is the ebook shelf (owner, 2026-08-17)"
+        )
+        # And the way home still exists, or removing the link would just have
+        # made a page with no exit.
+        assert 'href="ebooks"' in html
+
+    def test_the_reader_page_offers_three_reading_modes(self):
+        """Owner, 2026-08-17: "we need to be able to set the pages white and
+        the font black or vice versa as well as make it match the theme".
+
+        ⚠️ The mode blocks are pinned WITH their `[data-mode]` twin, because
+        that second selector is the whole reason the feature works. A lone
+        `html[data-read-mode="paper"]` scores (0,1,1) and LOSES to the dark
+        fallback's `html:not([data-mode="light"])` at (0,2,1) — so "paper"
+        would appear selected and change nothing for anybody whose OS is dark
+        and who never touched the theme cog.
+        """
+        html = _template("read.html")
+        assert 'src="read-mode.js"' in html, "the mode must be stamped before first paint"
+        assert 'id="rd-mode"' in html
+        for mode in ("paper", "ink"):
+            assert f'html[data-read-mode="{mode}"]' in html
+            assert f'html[data-read-mode="{mode}"][data-mode]' in html, (
+                "without the [data-mode] twin this mode loses to the "
+                "prefers-color-scheme block and silently does nothing"
+            )
+        # ⚠️ The <option>s are built by read-mode.js from its own registry —
+        # markup carrying its own list is how theme.js's theme list drifted
+        # across four sites. The element must ship EMPTY.
+        assert '<select id="rd-mode" aria-label="Page colours"></select>' in html
+
 
 class TestBookshelfContracts:
     """The cover-first redesign (owner, 2026-08-17: "it can't be a raw list").
