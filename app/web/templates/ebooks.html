@@ -654,11 +654,12 @@ h1 .tail{color:var(--accent)}
     if (!b) return;  // an unknown hash is left alone; the shelf still renders
 
     // A deep link to a PDF must NOT be a dead link just because the checkbox
-    // is off. Reveal them for this visit - and persist it, since the reader
-    // has now demonstrably asked for one.
+    // is off. Reveal them FOR THIS VISIT ONLY - deliberately without writing
+    // the preference: the owner asked for default-off, and following one link
+    // is not the same as ticking the box. Silently flipping a stored default
+    // because someone clicked a search result is a surprise nobody asked for.
     if (isHiddenFormat(b)) {
       showPdfs = true;
-      writePdfPref(true);
       renderPdfToggle();
       renderChips();
       render();

@@ -300,11 +300,20 @@ class TestDeepLinkAnchors:
         assert "addEventListener('hashchange'" in html
 
     def test_a_deep_link_to_a_pdf_is_not_a_dead_link(self):
-        # Arriving at a hidden PDF turns the checkbox on rather than silently
-        # doing nothing.
+        # Arriving at a hidden PDF reveals it rather than silently doing
+        # nothing...
         goto = _template("ebooks.html").split("function goToAnchor")[1].split("function openCard")[0]
         assert "isHiddenFormat(b)" in goto
         assert "showPdfs = true" in goto
+
+    def test_a_deep_link_does_not_rewrite_the_stored_preference(self):
+        # ...but FOR THIS VISIT ONLY. The owner asked for default-off, and
+        # following one search result is not the same as ticking the box;
+        # silently flipping a stored default is a surprise nobody asked for.
+        goto = _template("ebooks.html").split("function goToAnchor")[1].split("function openCard")[0]
+        assert "writePdfPref" not in goto, (
+            "a deep link must reveal PDFs without persisting the preference"
+        )
 
     def test_opening_a_card_makes_the_url_copyable_without_re_scrolling(self):
         html = _template("ebooks.html")
