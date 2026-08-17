@@ -143,7 +143,7 @@ def test_auto_commit_git_add_allowlist_unchanged(monkeypatch):
         "git", "add", "site/catalog.csv", "site/index.html",
         "site/covers_manifest.json", "site/covers-base.js",
         "site/stats.html", "site/chapters.json", "site/content_warnings.json",
-        "site/additions_log.json", "author_drive_map.json",
+        "site/additions_log.json", "site/ebooks_status.json", "author_drive_map.json",
     ]
     # ⚠️ site/ebooks.json is DELIBERATELY absent since 2026-08-17. The manifest
     # is gitignored (owner directive: "I don't want people scraping my books"

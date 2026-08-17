@@ -43,6 +43,14 @@ docs/
 # ⚠️ Do not "fix" this by re-adding the negation. site/covers_manifest.json
 # below stays negated: it is a list of sha256 hashes, not a list of books.
 site/ebooks.json
+# ⚠️ The ONE ebook file that stays public and TRACKED: freshness only.
+# `site/ebooks_status.json` = {generated_at, count, needs_human_cover_count}.
+# The apex /status page and the estate probe suite read it to answer "did sync
+# step 1b run?" — a question that must not require handing an admin page the
+# whole shelf. ⚠️ Counts and times only: no titles, no authors, no paths, and
+# never the needs_human_cover ENTRIES, which name files. Adding a field that
+# identifies a book reopens, in this one file, the surface the gate closed.
+!site/ebooks_status.json
 # The publish receipt (which sha256 is in the bucket) — machine-local state,
 # like the covers upload's own bookkeeping.
 scripts/.ebooks_published.json

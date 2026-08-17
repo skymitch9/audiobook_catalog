@@ -85,6 +85,8 @@ from typing import List, Tuple
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 MANIFEST_PATH = PROJECT_ROOT / "site" / "ebooks.json"
 STATE_PATH = PROJECT_ROOT / "scripts" / ".ebooks_published.json"
+# The one ebook file that stays PUBLIC — freshness only, never book data.
+HEARTBEAT_PATH = PROJECT_ROOT / "site" / "ebooks_status.json"
 
 # The bucket and key apps/audiobook-worker reads (its wrangler.toml binds
 # EBOOKS_GATED -> ebooks-gated; src/ebooks.ts MANIFEST_KEY is 'ebooks.json').
@@ -197,6 +199,34 @@ def _write_state(digest: str) -> None:
 
 
 # ---------------------------------------------------------------------------
+# the public heartbeat
+# ---------------------------------------------------------------------------
+def _write_public_heartbeat(manifest: dict) -> None:
+    """Write `site/ebooks_status.json` — FRESHNESS ONLY, no book data.
+
+    ⚠️ WHY THIS EXISTS, and why it is deliberately not the manifest. The apex
+    status page (`catalog-platform/sites/heygabi-home/public/status/status.js`)
+    and the estate probe suite both read `ebooks.json:generated_at` to answer
+    one operational question: *did sync step 1b actually run?* Gating the
+    manifest broke that read, and the honest fix is not to hand an admin page
+    the whole shelf to read one timestamp — it is to publish the timestamp.
+
+    ⚠️ WHAT MAY GO IN HERE: counts and times. **No titles, no authors, no
+    paths, no `needs_human_cover` entries** — that array names files, which is
+    exactly why it rides inside the gate. Adding a field that identifies a book
+    would quietly reopen the surface this whole build closed, in the one file
+    that is still public on purpose.
+    """
+    payload = {
+        "generated_at": manifest.get("generated_at"),
+        "count": len(manifest.get("ebooks") or []),
+        "needs_human_cover_count": len(manifest.get(NEEDS_HUMAN_COVER_KEY) or []),
+        "note": "freshness only — the shelf itself is gated (see catalog-platform/docs/access/ebooks-gate.md)",
+    }
+    HEARTBEAT_PATH.write_text(json.dumps(payload, indent=2) + chr(10), encoding="utf-8")
+
+
+# ---------------------------------------------------------------------------
 def main(argv: List[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--dry-run", action="store_true", help="say what would happen; upload nothing")
@@ -269,6 +299,7 @@ def main(argv: List[str] | None = None) -> int:
         return 1
 
     _write_state(digest)
+    _write_public_heartbeat(manifest)
     print(f"[ebooks-publish] published {count} books ({gaps} needing a human cover) -> {BUCKET}/{KEY}")
     return 0
 

@@ -1845,7 +1845,7 @@ def _auto_commit_and_push() -> None:
             ["git", "add", "site/catalog.csv", "site/index.html",
              "site/covers_manifest.json", "site/covers-base.js",
              "site/stats.html", "site/chapters.json", "site/content_warnings.json",
-             "site/additions_log.json", "author_drive_map.json"],
+             "site/additions_log.json", "site/ebooks_status.json", "author_drive_map.json"],
             cwd=str(PROJECT_ROOT), capture_output=True,
         )
 
