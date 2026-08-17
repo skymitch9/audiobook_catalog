@@ -2149,11 +2149,22 @@ def _auto_commit_and_push() -> None:
         # ignored path here would make `git add` exit 1 - the same noise
         # site/covers/ used to make. It reaches readers through STEP 5.8.
         # of what is in the bucket, and what the promote audit checks.
+        # ⚠️ THE SAME LIST IS PASSED TO `git commit` AS A PATHSPEC BELOW.
+        # Incident 2026-08-17: `git add <allowlist>` followed by a bare
+        # `git commit -m` commits the ENTIRE index — and a concurrent agent
+        # had its own files STAGED at that moment, so the 16:00:46 auto-commit
+        # (1c3c2af) swept three of its reader modules and two test files into
+        # a "catalog refresh". Staging an allowlist is only half the rule;
+        # the commit must be scoped too, or it inherits whatever anyone else
+        # left in the shared index.
+        _ALLOWLIST = [
+            "site/catalog.csv", "site/index.html",
+            "site/covers_manifest.json", "site/covers-base.js",
+            "site/stats.html", "site/chapters.json", "site/content_warnings.json",
+            "site/additions_log.json", "site/ebooks_status.json", "author_drive_map.json",
+        ]
         subprocess.run(
-            ["git", "add", "site/catalog.csv", "site/index.html",
-             "site/covers_manifest.json", "site/covers-base.js",
-             "site/stats.html", "site/chapters.json", "site/content_warnings.json",
-             "site/additions_log.json", "site/ebooks_status.json", "author_drive_map.json"],
+            ["git", "add", *_ALLOWLIST],
             cwd=str(PROJECT_ROOT), capture_output=True,
         )
 
@@ -2161,10 +2172,11 @@ def _auto_commit_and_push() -> None:
         changed_files = status.stdout.strip().split("\n")
         num_changes = len(changed_files)
 
-        # Commit
+        # Commit — scoped to the allowlist pathspec (`--`), so other writers'
+        # staged files stay in the index, untouched and uncommitted.
         commit_msg = f"feat(catalog): Auto-update catalog ({num_changes} file changes)"
         result = subprocess.run(
-            ["git", "commit", "-m", commit_msg],
+            ["git", "commit", "-m", commit_msg, "--", *_ALLOWLIST],
             capture_output=True, text=True, cwd=str(PROJECT_ROOT),
         )
         if result.returncode != 0:
