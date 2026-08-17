@@ -20,17 +20,31 @@ The projection is default-deny (design §4.1): titles / authors / series /
 covers / links only. Ownership does not travel — no purchase data, narrators,
 durations, descriptions, progress, or personal fields.
 
+⚠️ WHO PUSHES — the LOCAL PIPELINE, and only it (owner decision 2026-08-17,
+"option A"). ``scripts/sync_to_drive.py`` STEP 7 runs ``push_from_disk()`` at
+the end of every cycle; the CI step that used to do it
+(.github/workflows/deploy.yml) was DELETED the same day and its
+``INDEX_PUSH_TOKEN`` repo secret retired. The reason is structural and
+permanent: this push carries the EBOOK manifest, ``site/ebooks.json`` is
+gitignored because the repo is public, and a CI checkout therefore can NEVER
+hold it — a CI push would silently replace the snapshot with audiobooks only
+and delete every ebook row. One writer, and it is the machine that owns the
+files. Do not add a second pusher anywhere.
+
 Failure posture, matching the games pusher:
-  - INDEX_URL / INDEX_PUSH_TOKEN unset → one log line, nothing else. The
-    index must never be able to stall this pipeline.
-  - A real push failure raises: app/main.py catches it and warns (the site
-    build is already done by then); the manual runner exits non-zero so an
-    attended first push is loud. Snapshot-replace means a missed run costs
+  - INDEX_PUSH_TOKEN unset → one log line, nothing else. The index must never
+    be able to stall this pipeline. (INDEX_URL is optional: it defaults to
+    DEFAULT_INDEX_URL, so the SECRET is the only thing a machine must
+    configure. A half-configured machine that silently never pushes is the
+    exact failure this file exists to make loud.)
+  - A real push failure raises: the pipeline step catches it and warns (the
+    site is already committed by then); the manual runner exits non-zero so
+    an attended push is loud. Snapshot-replace means a missed run costs
     freshness only — the previous snapshot stands.
 
-Manual first push (attended, no cron needed):
+Manual push (attended; the pipeline does this for you 3×/day):
 
-    INDEX_URL=https://index.heygabi.ai INDEX_PUSH_TOKEN=... python -m app.index_push
+    python -m app.index_push          # INDEX_PUSH_TOKEN comes from .env
 
 Options: ``--dry-run`` (print the projection summary, push nothing),
 ``--csv PATH`` (default: site/catalog.csv), ``--ebooks PATH`` (default:
@@ -39,7 +53,8 @@ loads dotenv).
 
 Ebooks (ebook-split design phase 3, catalog-platform
 docs/info/ebook-split-design.md §6): the snapshot ALSO carries one row per
-ebook in ``site/ebooks.json`` (the manifest sync step 1b builds), with
+ebook in ``site/ebooks.json`` (the manifest sync step 1b builds, and STEP 7
+therefore runs after it), with
 ``format: 'ebook'``. They ride the SAME ``PUT /api/push/audiobook`` source —
 the index's source vocabulary is closed (game/library/audiobook; an unknown
 source 404s) and the design says the shared pool holds them, so 'audiobook'
@@ -73,6 +88,13 @@ from app.config import COVERS_BASE_URL, SITE_CSV_NAME, SITE_DIR
 # Same source + default as app/tools/send_discord_notification.py and
 # scripts/health_check.py — the repo VARIABLE SITE_URL wins when set.
 DEFAULT_SITE_URL = "https://audiobooks.heygabi.ai/"
+
+# The shared estate index. A DEFAULT, not a required env var, since 2026-08-17:
+# the CI step that carried `vars.INDEX_URL` is gone and the pipeline machine
+# only holds the SECRET in .env. Requiring both would mean a machine with a
+# valid token and no URL skips every push forever, printing "not set" — the
+# silent-loss shape this module's warnings exist to prevent.
+DEFAULT_INDEX_URL = "https://index.heygabi.ai"
 
 # The ebook shelf's OWN hostname. It stopped being a page on the audiobook site
 # on 2026-08-17 ("make it seem like it's own custom page") and estate search
@@ -213,23 +235,21 @@ def load_ebook_manifest(path: Path) -> Optional[dict]:
     this module takes toward the index itself.
     """
     if not path.exists():
-        # ⚠️ AS OF 2026-08-17 THIS IS THE NORMAL CASE IN CI, and the consequence
-        # is not "no new ebooks" but "every ebook row LEAVES the index" — the
-        # push is a snapshot REPLACE for the whole `audiobook` source. Said
-        # loudly here because it is the one place the fact is observable.
+        # ⚠️ THE CONSEQUENCE IS NOT "no new ebooks" BUT "every ebook row LEAVES
+        # the index" — the push is a snapshot REPLACE for the whole `audiobook`
+        # source. Said loudly here because it is the one place it is observable.
         #
-        # Why: site/ebooks.json is gitignored now (the ebook permission gate;
-        # this repo is PUBLIC, so a tracked manifest is world-readable at a raw
-        # URL). CI checks out the branch and therefore has no manifest. The
-        # PIPELINE machine still has one, so a local `python -m app.index_push`
-        # restores the rows — but nothing does that automatically yet.
+        # Since 2026-08-17 (owner decision "option A") this is NO LONGER a
+        # normal state anywhere that pushes: the only pusher is
+        # scripts/sync_to_drive.py STEP 7, running on the machine that owns the
+        # library, and sync step 1b rewrites this file earlier in the SAME
+        # cycle. The CI pusher — which never had the manifest, because
+        # site/ebooks.json is gitignored on a PUBLIC repo — was deleted.
         #
-        # 🔴 OWNER DECISION OUTSTANDING (see docs/TODO.md): either move the index
-        # push out of CI into the local pipeline (one writer, has the manifest,
-        # needs INDEX_PUSH_TOKEN on this machine), or teach CI to read the
-        # manifest from the private `ebooks-gated` bucket. Until one of those
-        # lands, ebook rows are absent from estate search for everyone — which
-        # is the SAFE direction, and a lost feature rather than a leak.
+        # So reaching this line now means one of three real faults, all worth
+        # the shouting: step 1b failed or never ran this cycle, the push was
+        # invoked from a checkout that is not the pipeline machine, or someone
+        # re-added a second pusher somewhere that cannot hold the manifest.
         print(
             f"[WARN] ebook manifest not found ({path}): pushing audiobook rows only. "
             "⚠️ This snapshot REPLACES the source, so every ebook row is now ABSENT "
@@ -373,44 +393,82 @@ def push_snapshot(projection: List[Dict[str, object]], index_url: str, token: st
     return resp.json()
 
 
-def push_after_build(rows: List[Dict[str, str]]) -> Optional[dict]:
-    """
-    The pipeline hook — called by app/main.py once the site is staged.
-
-    Env unset (true on this machine and in CI until the owner sets the
-    INDEX_PUSH_TOKEN secret) → one log line, return None. Anything that goes
-    wrong past that point raises; main.py catches and warns.
-    """
-    index_url = os.environ.get("INDEX_URL")
-    token = os.environ.get("INDEX_PUSH_TOKEN")
-    if not index_url or not token:
-        print("[INFO] Index push skipped: INDEX_URL / INDEX_PUSH_TOKEN not set")
-        return None
-
-    projection = build_projection(rows)
-    if not projection:
-        # The index would 422 this anyway: zero rows is a failed export, not an
-        # empty catalog. Guarded on the AUDIOBOOK rows specifically — ebook
-        # rows alone must never replace the catalog's snapshot. Keep the
-        # previous snapshot standing.
-        print("[WARN] Index push skipped: projection produced zero rows (failed export?)", file=sys.stderr)
-        return None
-
-    ebook_rows = build_ebook_rows(load_ebook_manifest(DEFAULT_EBOOKS_PATH))
-    result = push_snapshot(projection + ebook_rows, index_url, token)
-    print(
-        f"[INFO] Index push OK: {result.get('rows')} rows as '{result.get('source')}' "
-        f"({len(projection)} audiobook + {len(ebook_rows)} ebook), "
-        f"pushed_at {result.get('pushed_at')}, unfoldable_titles {result.get('unfoldable_titles')}"
-    )
-    return result
-
-
 def _load_csv(csv_path: Path) -> List[Dict[str, str]]:
     import csv as _csv
 
     with open(csv_path, "r", encoding="utf-8", newline="") as f:
         return list(_csv.DictReader(f))
+
+
+def build_snapshot_from_disk(csv_path: Path, ebooks_path: Path) -> tuple[List[Dict[str, object]], List[Dict[str, object]]]:
+    """(audiobook rows, ebook rows) read from the two files on disk."""
+    projection = build_projection(_load_csv(csv_path))
+    ebook_rows = build_ebook_rows(load_ebook_manifest(ebooks_path))
+    return projection, ebook_rows
+
+
+def push_rows(projection: List[Dict[str, object]], ebook_rows: List[Dict[str, object]]) -> Dict[str, object]:
+    """
+    PUT one snapshot and report what happened, in a shape a caller can log.
+
+    Returns ``{"pushed", "skipped", "audiobooks", "ebooks", "rows", "result"}``
+    — ``skipped`` carries the human reason when nothing was sent.
+
+    Raises RuntimeError when the projection has ZERO audiobook rows (that is a
+    failed export, not an empty catalog: the push is a snapshot REPLACE, so
+    sending it would erase ~1,078 rows — and ebook rows alone must never
+    become the catalog's whole snapshot) or when the index answers non-2xx.
+    Every success prints exactly ONE named line; so does every skip.
+    """
+    index_url = os.environ.get("INDEX_URL") or DEFAULT_INDEX_URL
+    token = os.environ.get("INDEX_PUSH_TOKEN")
+    summary: Dict[str, object] = {
+        "pushed": False,
+        "skipped": None,
+        "audiobooks": len(projection),
+        "ebooks": len(ebook_rows),
+        "rows": len(projection) + len(ebook_rows),
+        "result": None,
+    }
+    if not token:
+        summary["skipped"] = "INDEX_PUSH_TOKEN not set"
+        print("[INFO] Index push skipped: INDEX_PUSH_TOKEN not set")
+        return summary
+    if not projection:
+        raise RuntimeError("projection produced zero audiobook rows — refusing to push (failed export?)")
+
+    result = push_snapshot(projection + ebook_rows, index_url, token)
+    summary["pushed"] = True
+    summary["result"] = result
+    print(
+        f"[INFO] Index push OK: {result.get('rows')} rows as '{result.get('source')}' "
+        f"({len(projection)} audiobook + {len(ebook_rows)} ebook), "
+        f"pushed_at {result.get('pushed_at')}, unfoldable_titles {result.get('unfoldable_titles')}"
+    )
+    return summary
+
+
+def push_from_disk(csv_path: Optional[Path] = None, ebooks_path: Optional[Path] = None) -> Dict[str, object]:
+    """
+    The PIPELINE's entry point — sync STEP 7 (scripts/sync_to_drive.py).
+
+    Reads site/catalog.csv and site/ebooks.json as they stand on disk AFTER
+    step 1b rebuilt the manifest and step 5 rebuilt the catalog, then pushes
+    the whole snapshot. Deliberately file-based rather than taking the build's
+    in-memory rows: the pipeline is the one writer, it runs the push as its
+    own step at the END of a cycle, and reading the same files every other
+    local check reads is what keeps "what shipped" and "what was pushed"
+    the same thing.
+
+    Raises (never swallows) — the caller decides how loud. The pipeline step
+    warns and carries on; ``python -m app.index_push`` exits non-zero.
+    """
+    csv_path = Path(csv_path) if csv_path else SITE_DIR / SITE_CSV_NAME
+    ebooks_path = Path(ebooks_path) if ebooks_path else DEFAULT_EBOOKS_PATH
+    if not csv_path.exists():
+        raise FileNotFoundError(f"catalog not found: {csv_path}")
+    projection, ebook_rows = build_snapshot_from_disk(csv_path, ebooks_path)
+    return push_rows(projection, ebook_rows)
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -431,9 +489,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(f"[ERROR] catalog not found: {args.csv}", file=sys.stderr)
         return 2
 
-    rows = _load_csv(args.csv)
-    projection = build_projection(rows)
-    ebook_rows = build_ebook_rows(load_ebook_manifest(args.ebooks))
+    projection, ebook_rows = build_snapshot_from_disk(args.csv, args.ebooks)
     print(f"[INFO] {len(projection)} audiobook row(s) projected from {args.csv}")
     print(f"[INFO] {len(ebook_rows)} ebook row(s) projected from {args.ebooks}")
     print(f"[INFO] {len(projection) + len(ebook_rows)} row(s) total for PUT /api/push/audiobook")
@@ -446,30 +502,14 @@ def main(argv: Optional[List[str]] = None) -> int:
         print("[INFO] dry run: nothing pushed")
         return 0
 
-    index_url = os.environ.get("INDEX_URL")
-    token = os.environ.get("INDEX_PUSH_TOKEN")
-    if not index_url or not token:
-        # Soft by design: in CI this step runs before the owner has created the
-        # secret, and "not configured yet" must not redden the pipeline.
-        print("[INFO] Index push skipped: INDEX_URL / INDEX_PUSH_TOKEN not set")
-        return 0
-
-    if not projection:
-        # Guarded on the audiobook rows: ebook rows alone must never become
-        # the catalog's whole snapshot (that would erase ~1,077 rows).
-        print("[ERROR] projection produced zero rows — refusing to push (failed export?)", file=sys.stderr)
-        return 1
-
     try:
-        result = push_snapshot(projection + ebook_rows, index_url, token)
+        # Same body the pipeline's STEP 7 runs — the CLI only differs in how
+        # loud it is about a failure (non-zero exit; the pipeline warns and
+        # carries on, since the index must never cost a cycle).
+        push_rows(projection, ebook_rows)
     except Exception as e:  # noqa: BLE001 — the manual runner is the loud path
         print(f"[ERROR] {e}", file=sys.stderr)
         return 1
-    print(
-        f"[INFO] Index push OK: {result.get('rows')} rows as '{result.get('source')}' "
-        f"({len(projection)} audiobook + {len(ebook_rows)} ebook), "
-        f"pushed_at {result.get('pushed_at')}, unfoldable_titles {result.get('unfoldable_titles')}"
-    )
     return 0
 
 

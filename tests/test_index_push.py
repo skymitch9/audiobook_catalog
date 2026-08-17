@@ -6,7 +6,9 @@
 # authors — there is none. The index Worker folds on write (index-worker
 # design §6); these tests assert the pusher sends RAW strings untouched.
 
+import csv as _csv
 import json
+from pathlib import Path
 
 import pytest
 
@@ -18,10 +20,11 @@ from app.index_push import (
     detail_url_for,
     ebooks_detail_url,
     load_ebook_manifest,
-    push_after_build,
+    push_from_disk,
 )
 
 BASE = "https://covers.heygabi.ai/"
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def row(**overrides):
@@ -175,26 +178,53 @@ def test_projection_is_json_serialisable():
 
 
 # --------------------------------------------------------------------------- #
-# The pipeline hook fails soft without configuration
+# The pipeline step (sync STEP 7) fails soft without configuration
 # --------------------------------------------------------------------------- #
 
 
-def test_push_after_build_skips_quietly_when_env_unset(monkeypatch, capsys):
+def write_catalog(tmp_path, *rows):
+    """A catalog.csv on disk — push_from_disk() reads files, not memory."""
+    p = tmp_path / "catalog.csv"
+    with open(p, "w", encoding="utf-8", newline="") as f:
+        w = _csv.DictWriter(f, fieldnames=list(row().keys()))
+        w.writeheader()
+        for r in rows:
+            w.writerow(r)
+    return p
+
+
+def test_push_from_disk_skips_quietly_when_the_token_is_unset(monkeypatch, capsys, tmp_path):
     monkeypatch.delenv("INDEX_URL", raising=False)
     monkeypatch.delenv("INDEX_PUSH_TOKEN", raising=False)
-    assert push_after_build([row()]) is None
+    summary = push_from_disk(write_catalog(tmp_path, row()), tmp_path / "absent.json")
+    assert summary["pushed"] is False and summary["skipped"]
     assert "Index push skipped" in capsys.readouterr().out
 
 
-def test_push_after_build_refuses_empty_projection(monkeypatch, capsys):
+def test_the_url_is_a_default_so_the_secret_is_the_only_thing_to_configure(monkeypatch, tmp_path):
+    """⚠️ Regression guard for a silent-loss shape (2026-08-17). The CI step
+    supplied INDEX_URL; the pipeline's .env holds only the SECRET. If the URL
+    were still required, this machine would print 'not set' forever and every
+    ebook row would stay out of estate search with nothing looking broken."""
+    monkeypatch.delenv("INDEX_URL", raising=False)
+    monkeypatch.setenv("INDEX_PUSH_TOKEN", "sekrit")
+    calls = {}
+    _fake_push(monkeypatch, calls)
+    push_from_disk(write_catalog(tmp_path, row()), tmp_path / "absent.json")
+    assert calls["url"] == "https://index.heygabi.ai/api/push/audiobook"
+
+
+def test_push_from_disk_refuses_an_empty_projection(monkeypatch, tmp_path):
     # Configured but nothing to send: zero rows is a failed export — no HTTP.
+    # It RAISES rather than returning: the CLI exits non-zero and the pipeline
+    # step logs a named WARN, both louder than a quiet "skipped".
     monkeypatch.setenv("INDEX_URL", "https://index.invalid")
     monkeypatch.setenv("INDEX_PUSH_TOKEN", "t")
-    assert push_after_build([]) is None
-    assert "zero rows" in capsys.readouterr().err
+    with pytest.raises(RuntimeError, match="zero audiobook rows"):
+        push_from_disk(write_catalog(tmp_path), tmp_path / "absent.json")
 
 
-def test_push_after_build_sends_bearer_put(monkeypatch):
+def test_push_from_disk_sends_bearer_put(monkeypatch, tmp_path):
     monkeypatch.setenv("INDEX_URL", "https://index.example/")
     monkeypatch.setenv("INDEX_PUSH_TOKEN", "sekrit")
     calls = {}
@@ -214,8 +244,9 @@ def test_push_after_build_sends_bearer_put(monkeypatch):
     import requests
 
     monkeypatch.setattr(requests, "put", fake_put)
-    result = push_after_build([row()])
-    assert result["rows"] == 1
+    summary = push_from_disk(write_catalog(tmp_path, row()), tmp_path / "absent.json")
+    assert summary["pushed"] is True and summary["audiobooks"] == 1
+    assert summary["result"]["rows"] == 1
     assert calls["url"] == "https://index.example/api/push/audiobook"
     assert calls["headers"]["Authorization"] == "Bearer sekrit"
     assert isinstance(calls["json"], list) and calls["json"][0]["format"] == "audiobook"
@@ -402,11 +433,19 @@ def test_the_anchor_is_read_from_the_manifest_never_recomputed():
 
 def test_missing_manifest_is_none_and_says_the_ROWS_LEAVE(tmp_path, capsys):
     """⚠️ Upgraded from INFO to WARN on 2026-08-17, and the sentence changed
-    with it. A missing manifest used to mean "no ebooks this run"; since the
-    permission gate made site/ebooks.json gitignored, it is the NORMAL case in
-    CI — and because the push is a snapshot REPLACE, it means every ebook row
-    leaves estate search. A one-line INFO for that would be exactly the silent
-    regression the estate's verification rules exist to stop."""
+    with it: because the push is a snapshot REPLACE, a missing manifest does
+    not mean "no new ebooks this run", it means every ebook row LEAVES estate
+    search. A one-line INFO for that would be exactly the silent regression
+    the estate's verification rules exist to stop.
+
+    It stayed a WARN after the CI pusher was removed the same day, and the
+    reason inverted: this used to be the NORMAL state in CI (a checkout has no
+    gitignored manifest) and is now an ABNORMAL state anywhere — the only
+    pusher is the pipeline machine, where sync step 1b rewrote the file
+    earlier in the same cycle. Reaching it now means 1b failed, or a second
+    pusher exists somewhere that cannot hold the manifest. See
+    test_the_index_push_lives_in_the_local_pipeline_not_in_ci for the
+    arrangement this warning now backstops."""
     assert load_ebook_manifest(tmp_path / "ebooks.json") is None
     err = capsys.readouterr().err
     assert "not found" in err
@@ -458,64 +497,81 @@ def _fake_push(monkeypatch, calls):
     monkeypatch.setattr(requests, "put", fake_put)
 
 
-def test_push_after_build_appends_ebook_rows(monkeypatch, tmp_path):
+def test_push_from_disk_appends_ebook_rows(monkeypatch, tmp_path):
     monkeypatch.setenv("INDEX_URL", "https://index.example/")
     monkeypatch.setenv("INDEX_PUSH_TOKEN", "sekrit")
     p = tmp_path / "ebooks.json"
     p.write_text(json.dumps(manifest(ebook())), encoding="utf-8")
-    import app.index_push as mod
-
-    monkeypatch.setattr(mod, "DEFAULT_EBOOKS_PATH", p)
     calls = {}
     _fake_push(monkeypatch, calls)
-    push_after_build([row()])
+    summary = push_from_disk(write_catalog(tmp_path, row()), p)
     assert calls["url"].endswith("/api/push/audiobook")  # ⚠️ same source, no /api/push/ebook
     formats = [r["format"] for r in calls["json"]]
     assert formats == ["audiobook", "ebook"]
     ids = {r["source_id"] for r in calls["json"]}
     assert len(ids) == 2  # no cross-kind source_id collision
+    # The counts the pipeline step logs and puts on the /status card.
+    assert (summary["audiobooks"], summary["ebooks"], summary["rows"]) == (1, 1, 2)
 
 
-def test_push_after_build_survives_missing_manifest(monkeypatch, tmp_path):
-    monkeypatch.setenv("INDEX_URL", "https://index.example/")
-    monkeypatch.setenv("INDEX_PUSH_TOKEN", "sekrit")
+def test_push_from_disk_defaults_to_the_sites_own_files(monkeypatch, tmp_path):
+    """Called with no arguments — as sync STEP 7 does — it reads site/
+    catalog.csv and site/ebooks.json, the same two files every other local
+    check reads. One pipeline, one source of data."""
     import app.index_push as mod
 
-    monkeypatch.setattr(mod, "DEFAULT_EBOOKS_PATH", tmp_path / "absent.json")
+    monkeypatch.setenv("INDEX_PUSH_TOKEN", "sekrit")
+    csv_path = write_catalog(tmp_path, row())
+    p = tmp_path / "ebooks.json"
+    p.write_text(json.dumps(manifest(ebook())), encoding="utf-8")
+    monkeypatch.setattr(mod, "SITE_DIR", tmp_path)
+    monkeypatch.setattr(mod, "SITE_CSV_NAME", csv_path.name)
+    monkeypatch.setattr(mod, "DEFAULT_EBOOKS_PATH", p)
     calls = {}
     _fake_push(monkeypatch, calls)
-    result = push_after_build([row()])
-    assert result is not None  # the audiobook push happened
+    assert push_from_disk()["rows"] == 2
+
+
+def test_push_from_disk_survives_missing_manifest(monkeypatch, tmp_path):
+    monkeypatch.setenv("INDEX_URL", "https://index.example/")
+    monkeypatch.setenv("INDEX_PUSH_TOKEN", "sekrit")
+    calls = {}
+    _fake_push(monkeypatch, calls)
+    summary = push_from_disk(write_catalog(tmp_path, row()), tmp_path / "absent.json")
+    assert summary["pushed"] is True  # the audiobook push happened
     assert [r["format"] for r in calls["json"]] == ["audiobook"]
 
 
-def test_push_after_build_survives_malformed_manifest(monkeypatch, tmp_path):
+def test_push_from_disk_survives_malformed_manifest(monkeypatch, tmp_path):
     monkeypatch.setenv("INDEX_URL", "https://index.example/")
     monkeypatch.setenv("INDEX_PUSH_TOKEN", "sekrit")
     p = tmp_path / "ebooks.json"
     p.write_text("{broken", encoding="utf-8")
-    import app.index_push as mod
-
-    monkeypatch.setattr(mod, "DEFAULT_EBOOKS_PATH", p)
     calls = {}
     _fake_push(monkeypatch, calls)
-    result = push_after_build([row()])
-    assert result is not None
+    summary = push_from_disk(write_catalog(tmp_path, row()), p)
+    assert summary["pushed"] is True
     assert [r["format"] for r in calls["json"]] == ["audiobook"]
 
 
-def test_push_after_build_still_refuses_when_audiobooks_are_zero(monkeypatch, tmp_path, capsys):
+def test_push_from_disk_still_refuses_when_audiobooks_are_zero(monkeypatch, tmp_path):
     # Ebook rows alone must NEVER become the snapshot — that would erase the
-    # catalog's ~1,077 rows in one replace.
+    # catalog's ~1,078 rows in one replace.
     monkeypatch.setenv("INDEX_URL", "https://index.example/")
     monkeypatch.setenv("INDEX_PUSH_TOKEN", "sekrit")
     p = tmp_path / "ebooks.json"
     p.write_text(json.dumps(manifest(ebook())), encoding="utf-8")
-    import app.index_push as mod
+    with pytest.raises(RuntimeError, match="zero audiobook rows"):
+        push_from_disk(write_catalog(tmp_path), p)
 
-    monkeypatch.setattr(mod, "DEFAULT_EBOOKS_PATH", p)
-    assert push_after_build([]) is None
-    assert "zero rows" in capsys.readouterr().err
+
+def test_a_missing_catalog_raises_rather_than_pushing_nothing(monkeypatch, tmp_path):
+    """No catalog.csv is a broken working tree, not an empty library. It must
+    reach the caller as an exception (STEP 7 logs a named WARN, the CLI exits
+    2) — never a quiet no-op that leaves a stale snapshot looking fresh."""
+    monkeypatch.setenv("INDEX_PUSH_TOKEN", "sekrit")
+    with pytest.raises(FileNotFoundError):
+        push_from_disk(tmp_path / "nope.csv", tmp_path / "absent.json")
 
 
 # --------------------------------------------------------------------------- #
@@ -551,6 +607,68 @@ def test_dry_run_reports_both_kinds_and_pushes_nothing(monkeypatch, tmp_path, ca
     assert "nothing pushed" in out
     samples = [json.loads(line) for line in out.splitlines() if line.startswith("{")]
     assert {s["format"] for s in samples} == {"audiobook", "ebook"}
+
+
+# --------------------------------------------------------------------------- #
+# WHO PUSHES — owner decision 2026-08-17 ("option A"), pinned
+# --------------------------------------------------------------------------- #
+
+
+def _uncommented(text: str) -> str:
+    """The file minus its comment lines, so a WARNING ABOUT a thing cannot be
+    mistaken for the thing itself — deploy.yml's replacement block names the
+    deleted step on purpose."""
+    return "\n".join(ln for ln in text.splitlines() if not ln.strip().startswith("#"))
+
+
+def test_the_index_push_lives_in_the_local_pipeline_not_in_ci():
+    """⚠️ THE ARRANGEMENT, PINNED. This test replaced a warning-about-a-loss.
+
+    Until 2026-08-17 the index push ran in CI, and the pinned fact was the
+    WARN that announced the damage: a CI checkout cannot hold site/ebooks.json
+    (gitignored — the repo is PUBLIC), and the push REPLACES the whole
+    `audiobook` source, so every deploy silently deleted all 168 ebook rows
+    from estate search. The owner picked option A: move the push to the LOCAL
+    pipeline, the one writer that owns the manifest.
+
+    So this asserts the new path instead of the old loss:
+      * no CI step pushes (the secret is retired and, after the Worker's
+        rotation, inert — but a re-added step would 401 forever, silently, and
+        the *right* failure to prevent is a second writer existing at all);
+      * scripts/sync_to_drive.py calls the pusher, at all three call sites
+        that reach the outside world: the 8h cycle, --rebuild-only, and the
+        manual `publish` step.
+    """
+    workflow = _uncommented((REPO_ROOT / ".github" / "workflows" / "deploy.yml").read_text(encoding="utf-8"))
+    assert "index_push" not in workflow, "CI must not push the estate index — it can never hold the ebook manifest"
+    assert "INDEX_PUSH_TOKEN" not in workflow, "the CI secret is retired; do not reintroduce it"
+
+    sync = (REPO_ROOT / "scripts" / "sync_to_drive.py").read_text(encoding="utf-8")
+    assert "def _push_estate_index" in sync
+    # One definition + four call sites (cycle, idle cycle, --rebuild-only,
+    # manual `publish` step).
+    assert sync.count("_push_estate_index(") >= 5, "every path that reaches the outside world must push"
+
+
+def test_step_7_is_not_gated_on_uploads():
+    """A quiet cycle (nothing new to upload) still rewrote site/ebooks.json at
+    step 1b, so it still has an index to refresh. The push therefore sits in
+    the same unconditional `if not dry_run:` block as STEP 6's commit — the
+    exact placement bug that once left ebook-only runs unpublished."""
+    sync = (REPO_ROOT / "scripts" / "sync_to_drive.py").read_text(encoding="utf-8")
+    body = sync.split("[STEP 6] Auto-commit & push")[1].split("Fulfill any flagged books")[0]
+    assert "_push_estate_index()" in body, "STEP 7 must run beside STEP 6, outside the uploaded_count gate"
+
+
+def test_an_idle_cycle_still_pushes():
+    """⚠️ The idle path RETURNS at STEP 2 — it never reaches STEP 6 — so a
+    push placed only beside the commit would skip every quiet cycle. That
+    matters because the index is a REMOTE system: a push that failed while the
+    library was quiet would go un-retried until the next new book arrived,
+    which can be days. It costs one PUT of an unchanged snapshot."""
+    sync = (REPO_ROOT / "scripts" / "sync_to_drive.py").read_text(encoding="utf-8")
+    idle = sync.split("Nothing to upload. All books are synced!")[1].split("finish_run")[0]
+    assert "_push_estate_index(record_step=False)" in idle, "an idle cycle must still refresh the index"
 
 
 if __name__ == "__main__":

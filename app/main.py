@@ -140,16 +140,22 @@ def main() -> None:
     except Exception as e:
         print(f"[WARN] Failed to generate statistics page: {e}", file=sys.stderr)
 
-    # 5) Push the projection to the shared cross-catalog index
-    #    (catalog-platform index-worker design §5 / §7 step 4). Soft on
-    #    purpose: unset INDEX_URL / INDEX_PUSH_TOKEN logs one line inside, and
-    #    a failed push warns without failing the build — the index replaces
-    #    snapshots wholesale, so a missed push costs freshness only.
-    from app.index_push import push_after_build
-    try:
-        push_after_build(rows)
-    except Exception as e:  # noqa: BLE001 — the index must never stall this pipeline
-        print(f"[WARN] Index push failed (site build unaffected): {e}", file=sys.stderr)
+    # 5) NO INDEX PUSH HERE — deliberately, since 2026-08-17 (owner decision
+    #    "option A"). The shared-index push used to hang off the end of this
+    #    build; it is now sync STEP 7 in scripts/sync_to_drive.py, which runs
+    #    it ONCE per cycle after the ebook manifest (step 1b), the covers
+    #    (5.7), the gated manifest publish (5.8) and the commit (6).
+    #    Two reasons it moved OUT of the builder:
+    #      * building the site and publishing to another service are different
+    #        jobs — the manual `catalog` step is documented as "rebuilds, does
+    #        NOT ship", and while the push lived here it silently shipped;
+    #      * a push from here runs BEFORE 5.7 uploads a new book's cover to
+    #        R2, so estate search could carry a cover_url that 404s for the
+    #        minutes in between.
+    #    `python -m app.main` on its own therefore does not refresh estate
+    #    search: run `python -m app.index_push` after it, or prefer
+    #    `sync_to_drive.py --rebuild-only`, which does both. See
+    #    docs/access/PIPELINE.md.
 
     # 6) Club Discord announcements (backlog #2): schedule changes, due-date
     #    nudges, read started/finished — posted to each club's OWN webhook

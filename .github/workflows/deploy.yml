@@ -186,26 +186,26 @@ jobs:
           --branch=main
           --commit-dirty=true
 
-    # ---- Shared cross-catalog index push -----------------------------------
-    # catalog-platform index-worker design §5 / §7 step 4: after the catalog
-    # ships, push the committed snapshot (main-src/site/catalog.csv — the same
-    # file the dev lane just published) to PUT /api/push/audiobook.
+    # ---- NO shared-index push here — REMOVED 2026-08-17 --------------------
+    # There WAS a "🔗 Push catalog snapshot to shared index" step here
+    # (`python -m app.index_push`, guarded by the INDEX_PUSH_TOKEN secret). It
+    # is gone, and must not come back. Owner decision 2026-08-17 ("option A"):
+    # the LOCAL pipeline is the index's one writer — scripts/sync_to_drive.py
+    # STEP 7, running on the machine that owns the library.
     #
-    # Soft everywhere, on purpose: the runner exits 0 with one log line while
-    # the INDEX_PUSH_TOKEN secret does not exist yet, and `continue-on-error`
-    # keeps a real push failure (index down, 422) from failing a deploy that
-    # already succeeded — snapshot-replace means the previous snapshot stands
-    # and a missed push costs freshness only.
-    # Secret to create: `gh secret set INDEX_PUSH_TOKEN` (value = the index
-    # Worker's INDEX_PUSH_TOKEN_AUDIOBOOK secret). INDEX_URL is a plain env;
-    # the repo variable INDEX_URL overrides the default if ever needed.
-    - name: 🔗 Push catalog snapshot to shared index
-      continue-on-error: true
-      working-directory: main-src
-      env:
-        INDEX_URL: ${{ vars.INDEX_URL || 'https://index.heygabi.ai' }}
-        INDEX_PUSH_TOKEN: ${{ secrets.INDEX_PUSH_TOKEN }}
-      run: python -m app.index_push
+    # ⚠️ WHY CI CAN NEVER DO THIS JOB: the snapshot carries the EBOOK rows as
+    # well as the audiobooks, and those come from site/ebooks.json — which is
+    # GITIGNORED, because this repo is PUBLIC and a tracked manifest is
+    # world-readable at a raw URL (owner: "I don't want people scraping my
+    # books"). A checkout therefore has no manifest, and because the push is a
+    # snapshot REPLACE for the whole `audiobook` source, a CI push does not
+    # merely miss new ebooks — it DELETES all 168 ebook rows from estate
+    # search, silently, on every deploy. No secret or token fixes that; only
+    # having the file does.
+    #
+    # The `INDEX_PUSH_TOKEN` repo secret was retired the same day (the Worker's
+    # INDEX_PUSH_TOKEN_AUDIOBOOK was rotated, so any surviving copy is inert).
+    # Runbook: docs/access/PIPELINE.md "STEP 7".
 
     - name: ⚠️ Cloudflare publish failed (GitHub Pages unaffected)
       if: env.CF_CONFIGURED == 'true' && steps.cf_pages.outcome == 'failure'

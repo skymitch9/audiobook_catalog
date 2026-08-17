@@ -1146,6 +1146,19 @@ def _run_pipeline_body(
 
     if not new_files:
         print("\n  Nothing to upload. All books are synced!")
+        # ⚠️ An idle run STILL pushes the estate index (STEP 7) — this is the
+        # self-healing pass, and the index is a REMOTE system that can have
+        # failed last cycle for its own reasons. Without this, a push that
+        # failed while the library was quiet would not be retried until the
+        # next new book arrived, which can be days. It costs one PUT of an
+        # unchanged snapshot (replace semantics: a no-op but for `pushed_at`),
+        # and it keeps `/api/health`'s `audiobook.pushed_at` an honest
+        # heartbeat of this machine rather than of book-buying.
+        # `record_step=False`: nothing was committed on this path, so the
+        # `publish` step legitimately stays un-run and must not be dressed up
+        # with a detail line that reads as though it happened.
+        if not dry_run:
+            _push_estate_index(record_step=False)
         print("=" * 60)
         # The common case: an idle scheduled run. Report it as a real success
         # so the panel shows "checked, nothing new" rather than a stale run.
@@ -1374,6 +1387,12 @@ def _run_pipeline_body(
         pstatus.step("publish")
         _auto_commit_and_push()
 
+        # STEP 7 — refresh the shared estate index. Unconditional for the same
+        # reason STEP 6 is: step 1b rewrote site/ebooks.json earlier in this
+        # cycle whether or not anything uploaded, and the push is a snapshot
+        # REPLACE, so skipping it on a quiet run is how the index goes stale.
+        _push_estate_index()
+
     # Fulfill any flagged books (site's "Request AI check" button or
     # cw_requests.txt) — full chain including Claude. Runs on EVERY non-dry
     # sync (not just when new books arrived) so the 8-hourly scheduled task
@@ -1428,9 +1447,15 @@ def _run_pipeline_body(
 #            covers_manifest.json, independent of the manifest/new-book
 #            concept; a tag fix can include a corrected cover, so this must
 #            run for the fix to actually publish.
-#   index push / STEP 6 (commit+push) INCLUDE — required so the tag fix
+#   STEP 5.8 (gated ebook manifest)  INCLUDE — the manifest on disk is the
+#            one readers ever see (site/ebooks.json is gitignored), so a
+#            rebuild that does not publish it ships nothing to the shelf.
+#   STEP 6   (commit+push)          INCLUDE — required so the tag fix
 #            actually ships instead of sitting rebuilt-but-uncommitted, same
 #            failure mode this flag exists to close.
+#   STEP 7   (estate index push)    INCLUDE — since 2026-08-17 this machine
+#            is the index's ONLY writer (see _push_estate_index), so a fix
+#            that never runs it never reaches estate search.
 #   fulfill_requests()              INCLUDE — already runs unconditionally
 #            on every non-dry run regardless of uploaded_count; excluding it
 #            here would make --rebuild-only behave differently from a normal
@@ -1561,6 +1586,8 @@ def _run_rebuild_only_body(trigger: str = "manual") -> None:
     print("\n[REBUILD-ONLY] Auto-commit & push (STEP 6)...")
     pstatus.step("publish")
     _auto_commit_and_push()
+
+    _push_estate_index("[REBUILD-ONLY] Pushing to the shared estate index (STEP 7)")
 
     # Same as run_pipeline: clears any flagged content-warning requests,
     # unconditional on every non-dry run.
@@ -1746,10 +1773,15 @@ def _step_catalog() -> None:
 def _step_publish() -> None:
     """Publishing (live): commits + pushes whatever is currently staged on
     disk (site/catalog.csv, index.html, etc. — the same explicit allowlist
-    _auto_commit_and_push() always used) and clears any flagged
-    content-warning requests. A no-op when nothing changed, same as every
-    other caller of _auto_commit_and_push()."""
+    _auto_commit_and_push() always used), refreshes the shared estate index
+    (STEP 7), and clears any flagged content-warning requests. A no-op when
+    nothing changed, same as every other caller of _auto_commit_and_push().
+
+    The index push belongs HERE and not in `catalog`: since 2026-08-17 this
+    step is the one place a manual run reaches the outside world, and the
+    `catalog` step's contract is "rebuild on disk, ship nothing"."""
     _auto_commit_and_push()
+    _push_estate_index()
     try:
         from app.tools.fetch_content_warnings import fulfill_requests
         fulfill_requests()
@@ -1803,6 +1835,80 @@ def _run_step_body(step: str, trigger: str) -> None:
     _STEP_HANDLERS[step]()
     pstatus.finish_run("success")
     print("=" * 60)
+
+
+# ---------------------------------------------------------------------------
+# STEP 7 — push the catalog+ebook snapshot to the shared estate index
+#
+# ⚠️ THIS MACHINE IS THE ONE WRITER, by owner decision 2026-08-17 ("option A").
+# The push used to be a step in .github/workflows/deploy.yml; that step was
+# DELETED and its INDEX_PUSH_TOKEN repo secret retired, because CI can never
+# do this job correctly: the snapshot carries the EBOOK rows, site/ebooks.json
+# is gitignored (public repo, owner: "I don't want people scraping my books"),
+# so a CI checkout has no manifest — and since the push REPLACES the whole
+# `audiobook` source, a CI push silently deleted all 168 ebook rows from
+# estate search. Never re-add a second pusher: two writers of a
+# replace-semantics snapshot means whichever ran last wins, and the one that
+# knows least would usually be CI.
+#
+# Placement: LAST, after STEP 6, and never gated on uploaded_count —
+#   * after 1b so the ebook rows are this cycle's,
+#   * after 5.7 so every cover_url it publishes is already in R2,
+#   * after 5.8/6 so the index can only ever point at something published,
+#   * unconditional because a quiet run still rewrote the manifest at 1b, and
+#     a snapshot nobody refreshes is a snapshot that goes stale silently.
+# It also runs on the IDLE path (STEP 2's early return, where nothing was new
+# to upload), because the index is a remote system with its own failure modes:
+# without that, a push that failed while the library was quiet would go
+# un-retried until the next new book arrived, which can be days.
+#
+# Failure domain: its OWN. A failed push warns and the cycle continues — the
+# previous snapshot keeps serving (replace semantics means a missed run costs
+# freshness only) and the next cycle retries 8h later. Exactly one named line
+# is printed either way, and the outcome lands on the `publish` step's detail
+# so the /status card shows it without a new pipeline_status step key.
+# ---------------------------------------------------------------------------
+
+
+def _push_estate_index(
+    label: str = "[STEP 7] Pushing the catalog snapshot to the shared estate index",
+    record_step: bool = True,
+) -> None:
+    """Refresh index.heygabi.ai from site/catalog.csv + site/ebooks.json.
+
+    Never raises: the estate index must never be able to cost a pipeline run.
+    Exactly one named line is printed on every path — pushed, skipped, failed.
+
+    `record_step=False` for the idle path, where the `publish` step never ran:
+    the run summary still carries the counts, but the step keeps its own state.
+    """
+    def _detail(text: str) -> None:
+        if record_step:
+            pstatus.step_detail("publish", text)
+
+    print(f"\n{label}...")
+    try:
+        from app.index_push import push_from_disk
+        summary = push_from_disk()
+    except Exception as e:  # noqa: BLE001 — independent failure domain, by design
+        print(f"  [WARN] Index push FAILED: {e}")
+        print("  [WARN] The previous snapshot still serves; the next cycle retries.")
+        _detail(f"index push FAILED: {e}")
+        return
+
+    if summary.get("skipped"):
+        # Not an error, but not silent either: a machine that never pushes is
+        # indistinguishable from a working one unless it says so every run.
+        print(f"  [INFO] Index push skipped: {summary['skipped']} (see docs/access/PIPELINE.md)")
+        _detail(f"index push skipped ({summary['skipped']})")
+        return
+
+    print(
+        f"  Estate index updated: {summary['rows']} rows "
+        f"({summary['audiobooks']} audiobook + {summary['ebooks']} ebook)."
+    )
+    _detail(f"index {summary['rows']} rows ({summary['audiobooks']} audiobook + {summary['ebooks']} ebook)")
+    pstatus.set_summary(indexRows=summary["rows"], indexEbookRows=summary["ebooks"])
 
 
 # ---------------------------------------------------------------------------
