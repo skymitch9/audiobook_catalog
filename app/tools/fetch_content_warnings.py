@@ -311,12 +311,161 @@ def check_book(title, author, use_llm=True):
     return web, ("web" if web else "none")
 
 
+# ---------------------------------------------------------------------------
+# ⚠️ The bridge: one work is answered ONCE, whichever spelling asks
+# ---------------------------------------------------------------------------
+#
+# The owner, 2026-08-17: *"move all content warnings from audiobooks to physical
+# books and not relook them up. and make sure any edition has the same content
+# warnings."*
+#
+# `content_warnings.json` is keyed by this catalog's full title string, and three
+# surfaces now read it: this site, the ebook shelf (`audiobook_title` in the
+# manifest) and the physical-book catalog (`audiobook_holding.raw_title`, its
+# migration 0340). All three ask under the raw catalog title, so they agree — but
+# the QUEUE does not have that guarantee. `cw_requests.txt` is hand-typed, and a
+# request may name a book by its plain title while this file already holds the
+# answer under the decorated one:
+#
+#     already answered   "Onyx Storm - Empyrean, Book 3"   10 warnings
+#     requested          "Onyx Storm"                      -> would re-run the
+#                                                             whole paid chain
+#
+# Re-running it is exactly what the owner said not to do, and it is worse than
+# waste: the second lookup files a SECOND entry, so the same work then carries
+# two answers that can drift apart.
+#
+# ## ⚠️ No fifth title-fold was written, on purpose
+#
+# `library_catalog/packages/core/src/titles.ts` records that this estate has
+# already been bitten by the same fold existing in several places and disagreeing,
+# and states the rule: if a second language ever needs those rules again, the
+# cross-language parity check comes with it. So nothing here reimplements
+# `normaliseTitle` or `cleanAudiobookTitle`. The dedupe uses only vocabulary this
+# file ALREADY owns — `main_title()`, the "Main Title - Subtitle" split written
+# for Hardcover — plus the catalog's own author column, case-folded.
+#
+# ## Ambiguity is refused, never guessed
+#
+# Measured against the live catalog, 2026-08-17: 1,079 rows collapse to **1,069**
+# `(main title, author)` buckets, and only **5** are ambiguous — *Elantris* beside
+# its Tenth Anniversary edition, and four multi-volume runs whose volumes share a
+# main title. Those buckets are dropped from the index outright, because carrying
+# volume 13's warnings onto volume 14 is a wrong answer, and a wrong content
+# warning is worse than an absent one. **180** books are reachable by their bare
+# main title, which is the win this buys.
+
+
+def main_title_key(title, author):
+    """The dedupe key: the main title and the author, case-folded. Nothing else."""
+    return (main_title(title).strip().lower(), (author or "").strip().lower())
+
+
+def catalog_title_index(rows=None):
+    """Two rungs of `main title` -> this catalog's FULL title, ambiguity dropped.
+
+    ⚠️ **A bucket holding more than one full title is DROPPED, never resolved.**
+    Those are real distinct volumes and editions, and carrying volume 13's
+    warnings onto volume 14 is a wrong answer. Measured against the live catalog,
+    2026-08-17: 5 ambiguous buckets on each rung, out of 1,069 and 1,066.
+
+    Two rungs because the caller does not always know the author, and the rungs
+    are ordered by how much they assert — the donor-ladder shape this estate
+    already uses:
+
+    * ``by_author`` — `(main title, author)`. The tight rung, used when the
+      caller has an author.
+    * ``by_title`` — the main title alone, and a bucket survives only if ONE
+      catalog row anywhere carries that main title, whoever wrote it. This is
+      the rung a queued request lands on, because `cw_requests` documents carry
+      a `bookTitle` and no author at all.
+
+    ⚠️ The title-only rung is *stricter* about collisions, not looser: it drops
+    any main title two different authors share. That is what stops *Wicked - A
+    Wicked Saga, Book 1* and *Wicked - The Life and Times of the Wicked Witch of
+    the West* — both really in this catalog — from answering for each other.
+    """
+    pairs = list(rows if rows is not None else catalog_books())
+
+    by_author = {}
+    for title, author in pairs:
+        by_author.setdefault(main_title_key(title, author), set()).add(title)
+
+    by_title = {}
+    for title, _author in pairs:
+        by_title.setdefault(main_title(title).strip().lower(), set()).add(title)
+
+    return {
+        "by_author": {k: next(iter(v)) for k, v in by_author.items() if len(v) == 1},
+        "by_title": {k: next(iter(v)) for k, v in by_title.items() if len(v) == 1},
+    }
+
+
+def already_answered(title, author, data, index):
+    """The title this work is ALREADY answered under, or None.
+
+    Answers `title` itself when this file holds it directly — that is the
+    ordinary case and the one every caller checked before this function existed.
+    Otherwise walks the two rungs, and only accepts a canonical entry that
+    actually carries warnings: a `checked, none` entry means published sources
+    were searched and listed nothing, and the existing behaviour of giving those
+    a fresh look is deliberate (see `fulfill_requests`).
+    """
+    entry = data.get(title)
+    if entry is not None:
+        return title
+
+    key = main_title(title).strip().lower()
+    candidates = []
+    if (author or "").strip():
+        candidates.append(index["by_author"].get(main_title_key(title, author)))
+    candidates.append(index["by_title"].get(key))
+
+    for canonical in candidates:
+        if canonical and canonical != title and (data.get(canonical) or {}).get("warnings"):
+            return canonical
+    return None
+
+
+def carry_over(data, title, canonical):
+    """File the canonical answer under `title` too, WITHOUT re-researching it.
+
+    ⚠️ A copy rather than a pointer, and that is the whole reason this works with
+    no consumer change: three separate front ends read this file and two of them
+    live in other repos. An `{"alias_of": …}` entry would need every one of them
+    taught to follow it, and any that was missed would show a book with no
+    warnings — the silent failure this feature keeps producing.
+
+    The copy keeps the canonical entry's own `source` and `checked_at`, because
+    those are facts about when that answer was found and by what. `carried_from`
+    records where it came from, so the join is reviewable in the file itself and
+    can be undone by deleting the copies.
+    """
+    src = data[canonical]
+    data[title] = {
+        "warnings": src.get("warnings") or [],
+        "source": src.get("source"),
+        "checked_at": src.get("checked_at"),
+        "carried_from": canonical,
+    }
+    return data[title]
+
+
 def check_new_books(books, use_llm=True):
     """Check (title, author) pairs not yet recorded — called by sync Step 5.6."""
     data = load_json(WARNINGS_PATH, {})
+    index = catalog_title_index()
     found = 0
     for title, author in books:
-        if title in data:
+        answered = already_answered(title, author, data, index)
+        if answered == title:
+            continue
+        if answered:
+            # Already known under another spelling of the same catalog row. Carry
+            # it across rather than paying for the same lookup twice.
+            carry_over(data, title, answered)
+            save_json_with_retry(data, WARNINGS_PATH)
+            print(f"[cw] {title}\n  -> carried from \"{answered}\" (not re-looked-up)")
             continue
         print(f"[cw] {title}")
         warnings, source = check_book(title, author, use_llm=use_llm)
@@ -370,6 +519,7 @@ def fulfill_requests(use_llm=True):
         return 0
     data = load_json(WARNINGS_PATH, {})
     authors = dict(catalog_books())
+    index = catalog_title_index(authors.items())
     done = set()
     for title, doc_name in reqs:
         entry = data.get(title)
@@ -381,6 +531,30 @@ def fulfill_requests(use_llm=True):
                 except Exception as e:
                     print(f"  [WARN] request cleanup failed: {e}")
             continue
+
+        # ⚠️ THE DEDUPE, and it sits here rather than at the button on purpose.
+        # This is the one choke point every request source flows through —
+        # `cw_requests` docs from either lane, `cw_requests_dev`, and
+        # `cw_requests.txt` — so one implementation covers every producer, this
+        # one and any future surface that learns to queue. A guard on a single
+        # button would have to be written again for each.
+        #
+        # The request is CLEARED, not kept: the work is answered, and leaving the
+        # doc behind would make the same book re-enter this loop every hour.
+        canonical = already_answered(title, authors.get(title, ""), data, index)
+        if canonical and canonical != title:
+            carry_over(data, title, canonical)
+            save_json_with_retry(data, WARNINGS_PATH)
+            done.add(title)
+            print(f"[request] {title}\n  -> already answered as \"{canonical}\" "
+                  f"— carried across, NOT re-looked-up")
+            if doc_name:
+                try:
+                    _fs_delete(doc_name)
+                except Exception as e:
+                    print(f"  [WARN] request cleanup failed: {e}")
+            continue
+
         print(f"[request] {title}")
         warnings, source = check_book(title, authors.get(title, ""), use_llm=use_llm)
         if warnings is None:
@@ -456,11 +630,21 @@ def main():
         print(f"club books (reads + TBR): {len(books)}")
 
     data = load_json(WARNINGS_PATH, {})
-    found = none_found = skipped = failed = 0
+    index = catalog_title_index()
+    found = none_found = skipped = failed = carried = 0
     for title, author in sorted(books):
         if title in data and not args.force:
             skipped += 1
             continue
+        # ⚠️ `--force` re-checks on purpose, so the bridge stands aside for it —
+        # a deliberate re-check must reach the sources, not a sibling's answer.
+        if not args.force:
+            canonical = already_answered(title, author, data, index)
+            if canonical and canonical != title:
+                carry_over(data, title, canonical)
+                carried += 1
+                print(f"[check] {title}\n  -> carried from \"{canonical}\" (not re-looked-up)")
+                continue
         print(f"[check] {title}")
         warnings, source = check_book(title, author, use_llm=not args.no_llm)
         if warnings is None:
@@ -481,8 +665,11 @@ def main():
         if args.all:
             time.sleep(1)  # Hardcover rate limit is 60 req/min; we make 2/book
 
+    if carried:
+        save_json_with_retry(data, WARNINGS_PATH)
     print(f"\nDone. with warnings: {found}, none published: {none_found}, "
-          f"already checked: {skipped}, not recorded/failed: {failed}")
+          f"already checked: {skipped}, carried from another spelling: {carried}, "
+          f"not recorded/failed: {failed}")
     print(f"Wrote {WARNINGS_PATH}")
     return 0
 
