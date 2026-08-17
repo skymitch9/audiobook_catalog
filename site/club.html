@@ -582,7 +582,7 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
   import { getFirestore, collection, getDocs } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
   import { coverUrl } from './covers-base.js';
   import { col, FIREBASE_CONFIG } from './fb-env.js';
-  import { getSession, slugifyName, getLiveUser, getSiteRole } from './identity.js';
+  import { getSession, slugifyName, getLiveUser, resolveSiteAccess } from './identity.js';
   import { mountAccountModal } from './account-modal.js';
   import { bookIdFromTitle, submitReview, renderStars } from './reviews.js';
   import {
@@ -619,14 +619,18 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
   const clubId = new URLSearchParams(window.location.search).get('id');
   const contentEl = document.getElementById('content');
 
-  // Enforced identity (uid + site role) resolves async after the Firebase
+  // Enforced identity (uid + site access) resolves async after the Firebase
   // SDK restores the session; re-render when it lands so the admin badge /
   // claim banner appear. Legacy sessions resolve null and change nothing.
-  let liveUid = null;   // Firebase Auth uid, or null (signed out / legacy)
-  let siteRole = null;  // own site_roles doc, or null
-  Promise.all([getLiveUser(app), getSiteRole(db, app)]).then(([user, role]) => {
+  // Phase 2 of the auth migration: the site-role answer comes from the
+  // worker's /api/me (server-verified capabilities) via resolveSiteAccess,
+  // which itself falls back to the old site_roles read if the worker is
+  // unreachable — see identity.js. Presentation only; rules still enforce.
+  let liveUid = null;      // Firebase Auth uid, or null (signed out / legacy)
+  let siteAccess = null;   // {role, capabilities, source} from /api/me, or null
+  Promise.all([getLiveUser(app), resolveSiteAccess(db, app)]).then(([user, access]) => {
     liveUid = user ? user.uid : null;
-    siteRole = role;
+    siteAccess = access;
     if (club) render();
   }).catch(() => { /* no enforced identity — presentation stays as-is */ });
 
@@ -666,8 +670,11 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
   // club: membership ops, content deletes, polls, schedule, next meeting —
   // never features/webhook/identity/roster/deletes. Badges in the header
   // say why the controls are there.
-  const isSiteAdminViewer = () => !!siteRole && siteRole.role === 'admin';
-  const isSiteModViewer = () => !!siteRole && siteRole.role === 'moderator';
+  // Rendered from /api/me's CAPABILITY answer (§6): the admin-tier controls
+  // key on manageClub (admin and owner rungs; fallback maps site_roles
+  // 'admin' identically), the moderator badge on the role name itself.
+  const isSiteAdminViewer = () => !!siteAccess && siteAccess.capabilities.includes('manageClub');
+  const isSiteModViewer = () => !!siteAccess && siteAccess.role === 'moderator';
   const isHost = () => myRole() === 'host' || isSiteAdminViewer();
   const isMod = () => isHost() || myRole() === 'moderator';
   // The operational gate: club host/mod, site admin (via isMod) or site

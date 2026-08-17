@@ -168,10 +168,14 @@
   // used to tell an already-signed-in person to "sign in as admin" as if
   // they weren't signed in at all.
   //
-  // ⚠️ ASYNC since 2026-08-16. The gate is now the rules-enforced
-  // site_roles/{uid} role (resolveAdmin in identity.js), which arrives a
-  // Firestore read after load instead of instantly from a spoofable local
-  // name. Consequences that must not be "tidied away":
+  // ⚠️ ASYNC since 2026-08-16. The gate is resolveAdmin in identity.js —
+  // since auth-migration Phase 2 that answers from the worker's
+  // server-verified GET /api/me (capability removeAnyReview), falling back
+  // to the rules-enforced site_roles/{uid} read if the worker is
+  // unreachable, so an outage cannot lock the owner out of this page.
+  // Either way the answer arrives a network read after load instead of
+  // instantly from a spoofable local name. Consequences that must not be
+  // "tidied away":
   //   - Both panels ship `hidden` in the markup and are only ever REVEALED
   //     here. The interim state, a failed read and a refusal are therefore
   //     the same closed gate — nothing is shown and then taken back.
@@ -235,12 +239,12 @@
     initSiteRolePanel();
   }
 
-  // Site role: the OWN doc from the rules-enforced site_roles collection.
-  // This is the same answer the gate above now uses (resolveAdmin reads this
-  // doc), shown here in full so the page can name the exact role and uid it
-  // was let in on. It is enforced end to end — the same doc powers the
-  // site-admin clause in firestore.rules. Browsers cannot list the
-  // collection (own-doc reads
+  // Site role: the OWN doc from the rules-enforced site_roles collection —
+  // the ROLE STORE the worker's /api/me itself resolves from (and the
+  // fallback the gate above reads during a worker outage), shown here in
+  // full so the page can name the exact role and uid it was let in on. It
+  // is enforced end to end — the same doc powers the site-admin clause in
+  // firestore.rules. Browsers cannot list the collection (own-doc reads
   // only), so a full roster stays a server-side concern; this panel is
   // honest about that.
   async function initSiteRolePanel() {

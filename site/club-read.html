@@ -500,7 +500,7 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
   import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
   import { coverUrl } from './covers-base.js';
-  import { getSession, slugifyName, getSiteRole } from './identity.js';
+  import { getSession, slugifyName, resolveSiteAccess } from './identity.js';
   import { mountAccountModal } from './account-modal.js';
   import { getClub, getMembers, clubFeatureEnabled } from './clubs.js?v=20260816b';
   import {
@@ -564,19 +564,22 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
   }
 
   const myRole = () => (members.find(m => m.slug === mySlug) || {}).role || null;
-  // Site admin (rules-enforced site_roles doc) gets the host/mod controls on
-  // every read — same break-glass as club.html. The site MODERATOR
-  // (three-tier model) gets the OPERATIONAL subset: content deletes,
-  // schedule, polls — never the reveal flip or the AI-prompt/pin host
-  // tools. Resolves async; re-render.
-  let siteRole = null;
-  getSiteRole(db, app).then((role) => {
-    if (role) { siteRole = role; if (read) render(); }
+  // Site admin gets the host/mod controls on every read — same break-glass
+  // as club.html. The site MODERATOR (three-tier model) gets the OPERATIONAL
+  // subset: content deletes, schedule, polls — never the reveal flip or the
+  // AI-prompt/pin host tools. Resolves async; re-render.
+  // Phase 2 of the auth migration: the answer comes from the worker's
+  // /api/me capability list (server-verified) via resolveSiteAccess, which
+  // falls back to the old site_roles read if the worker is unreachable —
+  // see identity.js. Presentation only; enforcement is unchanged.
+  let siteAccess = null;
+  resolveSiteAccess(db, app).then((access) => {
+    if (access) { siteAccess = access; if (read) render(); }
   }).catch(() => {});
-  const isMod = () => ['host', 'moderator'].includes(myRole())
-    || (!!siteRole && siteRole.role === 'admin');
+  const siteCan = (cap) => !!siteAccess && siteAccess.capabilities.includes(cap);
+  const isMod = () => ['host', 'moderator'].includes(myRole()) || siteCan('manageClub');
   // The operational gate — mirrors canOperateClub in clubs.js/firestore.rules.
-  const canOperate = () => isMod() || (!!siteRole && siteRole.role === 'moderator');
+  const canOperate = () => isMod() || siteCan('operateClub');
   const myProgress = () => {
     const p = progressAll.find(p => p.slug === mySlug);
     return p ? p.milestonePosition : -1;

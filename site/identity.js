@@ -257,24 +257,24 @@ let _adminInFlight = null;
 /**
  * Forget the cached answer. Called whenever WHO is signed in may have changed
  * (sign-in, sign-out, account switch) so a previous person's admin answer can
- * never survive into the next person's session.
+ * never survive into the next person's session. Also drops the cached
+ * /api/me site-access answer (see resolveSiteAccess below) — same reason.
  */
 function resetAdminCache() {
   _adminAnswer = false;
   _adminInFlight = null;
+  _accessInFlight = null;
 }
 
 /**
  * Resolve — once per page load — whether the live session is a site admin.
  *
- * The async half of the pair. Order of questions:
- *   1. Is there a LIVE Firebase user? No live user (signed out, or a legacy /
- *      stub mirror with nothing verifiable behind it) means no admin, full
- *      stop. This is the step the old code skipped entirely.
- *   2. Owner break-glass on the token's verified email (see ADMIN_EMAILS).
- *   3. Otherwise the rules-enforced role: site_roles/{uid}.role === 'admin',
- *      read through roleForUser() — the same single implementation getSiteRole
- *      uses, so the gate and the admin page's role panel cannot disagree.
+ * The async half of the pair. Since Phase 2 of the auth migration the answer
+ * comes from resolveSiteAccess() below — GET /api/me on the audiobook worker,
+ * server-verified, with the old site_roles read as the outage fallback —
+ * and "admin" means the §6 capability that defines it: removeAnyReview
+ * (held by admin and owner rungs only). The owner break-glass inside
+ * resolveSiteAccess still short-circuits on the live token's email.
  *
  * Never rejects. Every error path answers false — the gate stays closed.
  *
@@ -286,11 +286,8 @@ export function resolveAdmin(db, app) {
   if (_adminInFlight) return _adminInFlight;
   _adminInFlight = (async () => {
     try {
-      const user = await getLiveUser(app);
-      if (!user) return false;
-      if (ADMIN_EMAILS.includes((user.email || '').trim().toLowerCase())) return true;
-      const role = await roleForUser(db, user);
-      return !!role && role.role === 'admin';
+      const access = await resolveSiteAccess(db, app);
+      return !!access && access.capabilities.indexOf('removeAnyReview') !== -1;
     } catch (e) {
       return false; // fail closed — no answer is not a yes
     }
@@ -606,6 +603,103 @@ export async function isSiteAdmin(db, app) {
 export async function isSiteModerator(db, app) {
   const role = await getSiteRole(db, app);
   return !!role && role.role === 'moderator';
+}
+
+// ==================== Site access (worker-verified /api/me) ====================
+//
+// Phase 2 of the auth migration (catalog-platform
+// docs/info/audiobook-auth-migration.md): the UI's role answer comes from
+// the audiobook worker's GET /api/me — the token is verified SERVER-side,
+// the estate directory is consulted, and the reply names the caller's
+// ladder role and §6 capabilities. This is presentation only: what the UI
+// RENDERS. Enforcement stays where it is (firestore.rules today, worker
+// endpoints from Phase 3), and every control still ships hidden in markup
+// and is only ever REVEALED on resolve — the resolveAdmin() pattern.
+//
+// ⚠️ FALLBACK, deliberate: if /api/me is UNREACHABLE or answers with an
+// outage (5xx — e.g. the worker's role store not answering), this falls
+// back to the pre-Phase-2 behaviour — the owner break-glass plus the
+// site_roles/{uid} own-doc read — because a worker outage must not lock
+// the owner out of admin.html (the page he'd need to fix things from).
+// A definitive worker refusal (401/403: the token did not verify) is NOT
+// an outage and fails closed as guest.
+
+export const SITE_ME_URL = 'https://audiobook-api.heygabi.ai/api/me';
+
+/**
+ * The §6 capabilities the UI consults, by role, for the FALLBACK path only —
+ * when /api/me cannot answer, the stored site_roles role maps to the same
+ * capability names the worker would have answered with. Kept to the four
+ * capabilities any page actually renders on; the worker's live answer is
+ * always the complete list.
+ */
+const FALLBACK_CAPABILITIES = {
+  admin: ['operateClub', 'manageClub', 'administerClub', 'removeAnyReview'],
+  moderator: ['operateClub'],
+};
+
+/** One in-flight/settled promise per page load (the resolveAdmin idiom);
+ * reset alongside the admin cache whenever WHO is signed in may have changed. */
+let _accessInFlight = null;
+
+/**
+ * Resolve — once per page load — the signed-in person's site access:
+ * `{ role, capabilities, source }`, or null when there is no live session
+ * (signed out, legacy, stub — nothing verifiable to ask about). Never
+ * rejects. `source` says where the answer came from: 'worker' (server-
+ * verified /api/me), 'fallback' (site_roles read during an outage) or
+ * 'break-glass' (the owner email on the live token).
+ *
+ * @param {import('firebase/firestore').Firestore} db
+ * @param {import('firebase/app').FirebaseApp} app
+ * @returns {Promise<{role: string, capabilities: string[], source: string}|null>}
+ */
+export function resolveSiteAccess(db, app) {
+  if (_accessInFlight) return _accessInFlight;
+  _accessInFlight = (async () => {
+    const user = await liveUser(app).catch(() => null);
+    if (!user || !user.uid) return null;
+
+    // Owner break-glass — unchanged from resolveAdmin's original contract:
+    // an incident that empties site_roles, or misconfigures the worker,
+    // must not lock the owner out of the page he'd fix it from. EMAIL from
+    // the live token only; see ADMIN_EMAILS above.
+    if (ADMIN_EMAILS.includes((user.email || '').trim().toLowerCase())) {
+      return { role: 'admin', capabilities: FALLBACK_CAPABILITIES.admin, source: 'break-glass' };
+    }
+
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(SITE_ME_URL, { headers: { Authorization: 'Bearer ' + token } });
+      if (res.ok) {
+        const me = await res.json();
+        if (me && typeof me.role === 'string' && Array.isArray(me.capabilities)) {
+          return { role: me.role, capabilities: me.capabilities, source: 'worker' };
+        }
+        // A 200 with an unrecognisable body is a worker bug — treat as outage.
+      } else if (res.status === 401 || res.status === 403) {
+        // Definitive, server-verified refusal — fail closed, no fallback:
+        // a token the worker cannot verify would not survive enforcement
+        // either, and "we could not tell" must never render as a role.
+        return { role: 'guest', capabilities: [], source: 'worker' };
+      }
+      // Any other status (502 role-store outage, 503, 500) falls through.
+    } catch (e) {
+      // fetch unavailable / network down / CORS — fall through to fallback.
+    }
+
+    // The pre-Phase-2 behaviour, verbatim: the own site_roles doc via the
+    // ONE roleForUser implementation. An outage answers what the rules
+    // still enforce, so UI and enforcement stay in step even offline.
+    const stored = await roleForUser(db, user);
+    const role = stored && FALLBACK_CAPABILITIES[stored.role] ? stored.role : 'guest';
+    return {
+      role,
+      capabilities: FALLBACK_CAPABILITIES[role] || [],
+      source: 'fallback',
+    };
+  })();
+  return _accessInFlight;
 }
 
 /**

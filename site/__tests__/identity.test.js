@@ -66,7 +66,7 @@ import {
   signInWithGoogle, signOutGoogle, handleRedirectResult, renderIdentityBar,
   getEstateStatus, isEstateApproved, renderDevSiteLink,
   getLiveUser, getSiteRole, isSiteAdmin, isSiteModerator,
-  resolveAdmin, whenAdmin,
+  resolveAdmin, whenAdmin, resolveSiteAccess, SITE_ME_URL,
 } from '../identity.js';
 
 const fakeApp = {};
@@ -774,5 +774,163 @@ describe('Retired passphrase surface', () => {
     expect(mod.setNewPassphrase).toBeUndefined();
     expect(mod.validatePassphrase).toBeUndefined();
     expect(mod.hashPassphrase).toBeUndefined();
+  });
+});
+
+// ==================== Phase 2: site access from the worker (/api/me) ====================
+//
+// The UI's role answer now comes from the audiobook worker's GET /api/me —
+// server-verified token, estate-checked, capability list per §6 — with the
+// PRE-Phase-2 behaviour (owner break-glass + site_roles own-doc read) kept
+// as the fallback when the worker cannot answer. These tests pin the four
+// distinct outcomes: worker answer wins; a definitive 401/403 fails CLOSED;
+// an outage (5xx / unreachable) falls back to site_roles so the owner is
+// never locked out of admin.html by a worker incident; break-glass never
+// even asks the network.
+//
+// ⚠️ The existing "Admin gate" describe above runs with users that have no
+// getIdToken and no fetch stub — those tests now exercise the fallback path
+// end to end, unchanged. That is deliberate double duty: the old contract
+// IS the fallback contract.
+
+describe('Site access — /api/me is the source, site_roles the fallback', () => {
+  const ADMIN_UID = 'tX912OtdBheUhIe4kLDsGuJwE3D2';
+  const OWNER_EMAIL = 'nbaslamking@gmail.com';
+
+  function meUser(uid, email = 'someone@example.com', token = 'live-id-token') {
+    return { uid, email, getIdToken: vi.fn(async () => token) };
+  }
+
+  function stubMeFetch(answer, status = 200) {
+    const mock = vi.fn(async () => ({ ok: status >= 200 && status < 300, status, json: async () => answer }));
+    vi.stubGlobal('fetch', mock);
+    return mock;
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('sends the live ID token to /api/me and answers with the worker role + capabilities', async () => {
+    const fetchMock = stubMeFetch({
+      signedIn: true, email: 'mod@example.com', role: 'moderator',
+      capabilities: ['read', 'rate', 'download', 'upload', 'operateClub', 'manageUsers'],
+      estate: { mode: 'shadow', status: 'approved', stale: false },
+    });
+    const p = resolveSiteAccess({}, fakeApp);
+    authCallback(meUser('uid-mod', 'mod@example.com'));
+    const access = await p;
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, opts] = fetchMock.mock.calls[0];
+    expect(url).toBe(SITE_ME_URL);
+    expect(url).toBe('https://audiobook-api.heygabi.ai/api/me');
+    expect(opts.headers.Authorization).toBe('Bearer live-id-token');
+    expect(access.source).toBe('worker');
+    expect(access.role).toBe('moderator');
+    expect(access.capabilities).toContain('operateClub');
+    // and the admin gate reads the SAME answer: a moderator is not an admin
+    expect(await resolveAdmin({}, fakeApp)).toBe(false);
+  });
+
+  it('an /api/me admin answer opens the admin gate with NO site_roles doc — the worker is the source', async () => {
+    stubMeFetch({
+      signedIn: true, email: 'admin@example.com', role: 'admin',
+      capabilities: ['read', 'rate', 'download', 'upload', 'operateClub', 'manageClub', 'administerClub', 'removeAnyReview', 'manageUsers'],
+      estate: { mode: 'shadow', status: 'approved', stale: false },
+    });
+    expect(mockStore['site_roles/uid-worker-admin']).toBeUndefined();
+    const p = resolveAdmin({}, fakeApp);
+    authCallback(meUser('uid-worker-admin', 'admin@example.com'));
+    expect(await p).toBe(true);
+    expect(isAdmin()).toBe(true);
+  });
+
+  it('a definitive 401 fails CLOSED — even a standing site_roles admin doc does not resurrect the gate', async () => {
+    // The worker could not verify the token; "we could not tell" must never
+    // render as a role, and this is a refusal, not an outage.
+    mockStore['site_roles/uid-401'] = { role: 'admin' };
+    stubMeFetch({ error: 'unauthenticated' }, 401);
+    const p = resolveSiteAccess({}, fakeApp);
+    authCallback(meUser('uid-401'));
+    const access = await p;
+    expect(access.role).toBe('guest');
+    expect(access.capabilities).toEqual([]);
+    expect(access.source).toBe('worker');
+    expect(await resolveAdmin({}, fakeApp)).toBe(false);
+  });
+
+  it('an OUTAGE (502) falls back to the site_roles read — a worker incident cannot lock the admin out', async () => {
+    mockStore['site_roles/uid-502'] = { role: 'admin' };
+    stubMeFetch({ error: 'firestore_error' }, 502);
+    const p = resolveSiteAccess({}, fakeApp);
+    authCallback(meUser('uid-502'));
+    const access = await p;
+    expect(access.source).toBe('fallback');
+    expect(access.role).toBe('admin');
+    expect(access.capabilities).toContain('removeAnyReview');
+    expect(await resolveAdmin({}, fakeApp)).toBe(true);
+  });
+
+  it('an unreachable worker (fetch rejects) falls back the same way, and a moderator maps to operateClub', async () => {
+    mockStore['site_roles/uid-off'] = { role: 'moderator' };
+    const failing = vi.fn(async () => { throw new TypeError('Failed to fetch'); });
+    vi.stubGlobal('fetch', failing);
+    const p = resolveSiteAccess({}, fakeApp);
+    authCallback(meUser('uid-off'));
+    const access = await p;
+    expect(access.source).toBe('fallback');
+    expect(access.role).toBe('moderator');
+    expect(access.capabilities).toEqual(['operateClub']);
+    expect(await resolveAdmin({}, fakeApp)).toBe(false); // moderator is not admin
+  });
+
+  it('the owner break-glass answers from the LIVE token email and never asks the network', async () => {
+    const fetchMock = stubMeFetch({ role: 'guest', capabilities: [] });
+    const p = resolveSiteAccess({}, fakeApp);
+    authCallback(meUser(ADMIN_UID, OWNER_EMAIL));
+    const access = await p;
+    expect(access.source).toBe('break-glass');
+    expect(access.role).toBe('admin');
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(await resolveAdmin({}, fakeApp)).toBe(true);
+  });
+
+  it('no live session answers null — nothing verifiable to ask about', async () => {
+    const fetchMock = stubMeFetch({});
+    const p = resolveSiteAccess({}, fakeApp);
+    authCallback(null);
+    expect(await p).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('caches one answer per page load, and logout() forgets it', async () => {
+    const fetchMock = stubMeFetch({
+      signedIn: true, email: 'mod@example.com', role: 'moderator',
+      capabilities: ['operateClub'], estate: { mode: 'off', status: null, stale: false },
+    });
+    const p1 = resolveSiteAccess({}, fakeApp);
+    const p2 = resolveSiteAccess({}, fakeApp);
+    expect(p2).toBe(p1); // same in-flight promise
+    authCallback(meUser('uid-cache', 'mod@example.com'));
+    await p1;
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    logout(); // WHO changed — the cached access must not survive
+    const p3 = resolveSiteAccess({}, fakeApp);
+    expect(p3).not.toBe(p1);
+    authCallback(meUser('uid-cache', 'mod@example.com'));
+    await p3;
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('a 200 with a malformed body is treated as an outage, not an answer', async () => {
+    mockStore['site_roles/uid-weird'] = { role: 'admin' };
+    stubMeFetch({ nothing: 'useful' }, 200);
+    const p = resolveSiteAccess({}, fakeApp);
+    authCallback(meUser('uid-weird'));
+    const access = await p;
+    expect(access.source).toBe('fallback');
+    expect(access.role).toBe('admin');
   });
 });
