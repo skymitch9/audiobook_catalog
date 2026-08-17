@@ -4,14 +4,17 @@ announcements engine (backlog #2). Everything runs against fakes: no
 Firestore, no network. The FakeSource stands in for FirestoreClubs and a
 recording poster stands in for the webhook HTTP call.
 """
+import os
 import unittest
 from datetime import datetime, timezone
+from unittest import mock
 
 from app.club_announcements import (
     EVENT_PRIORITY,
     FEATURE_KEY,
     MAX_EMBEDS_PER_RUN,
     POLL_FEATURE_KEY,
+    POLL_SYNC_URL_DEFAULT,
     REMINDER_WINDOW_MS,
     baseline_entry,
     build_embed,
@@ -32,6 +35,7 @@ from app.club_announcements import (
     plan_club,
     poll_winners,
     run,
+    sync_poll_messages,
     tally_poll_votes,
     tally_ratings,
     tbr_leader,
@@ -918,6 +922,73 @@ class TestPlanAndRunNewEvents(unittest.TestCase):
             elif "New club read" in e["title"]:
                 priorities.append(EVENT_PRIORITY["started"])
         self.assertEqual(priorities, sorted(priorities))
+
+
+class TestPollMessageSync(unittest.TestCase):
+    """
+    The GABI poll-message sync poke (2026-08-17). The contract worth pinning is
+    almost entirely about what it must NOT do: it must not post when unset, and
+    it must not raise, ever — the announcements have already gone out by the
+    time it runs, and a sync endpoint that is down must cost them nothing.
+    """
+
+    def _post(self, response=None, side_effect=None):
+        calls = []
+
+        def fake_post(url, **kwargs):
+            calls.append((url, kwargs))
+            if side_effect is not None:
+                raise side_effect
+            return response
+
+        return fake_post, calls
+
+    def test_unset_token_skips_entirely(self):
+        fake_post, calls = self._post()
+        with mock.patch.dict(os.environ, {"POLL_SYNC_TOKEN": ""}, clear=False), \
+                mock.patch("requests.post", fake_post):
+            self.assertIsNone(sync_poll_messages())
+        self.assertEqual(calls, [])
+
+    def test_posts_lane_and_bearer_token_to_the_default_endpoint(self):
+        resp = mock.Mock(status_code=200)
+        resp.json.return_value = {"ok": True, "posted": 1, "notes": []}
+        fake_post, calls = self._post(response=resp)
+        with mock.patch.dict(os.environ, {"POLL_SYNC_TOKEN": "s3cret"}, clear=False), \
+                mock.patch.dict(os.environ, {"DISCORD_POLL_SYNC_URL": ""}, clear=False), \
+                mock.patch("requests.post", fake_post):
+            stats = sync_poll_messages(lane_suffix="")
+        self.assertEqual(stats["posted"], 1)
+        url, kwargs = calls[0]
+        self.assertEqual(url, POLL_SYNC_URL_DEFAULT)
+        self.assertEqual(kwargs["json"], {"lane": "prod"})
+        self.assertEqual(kwargs["headers"]["Authorization"], "Bearer s3cret")
+
+    def test_dev_lane_is_sent_as_dev(self):
+        resp = mock.Mock(status_code=200)
+        resp.json.return_value = {"ok": True}
+        fake_post, calls = self._post(response=resp)
+        with mock.patch.dict(os.environ, {"POLL_SYNC_TOKEN": "s3cret"}, clear=False), \
+                mock.patch("requests.post", fake_post):
+            sync_poll_messages(lane_suffix="_dev")
+        self.assertEqual(calls[0][1]["json"], {"lane": "dev"})
+
+    def test_a_refusal_is_reported_not_raised(self):
+        resp = mock.Mock(status_code=503)
+        resp.json.return_value = {"ok": False, "message": "not switched on yet"}
+        fake_post, _ = self._post(response=resp)
+        with mock.patch.dict(os.environ, {"POLL_SYNC_TOKEN": "s3cret"}, clear=False), \
+                mock.patch("requests.post", fake_post):
+            self.assertIsNone(sync_poll_messages())
+
+    def test_a_dead_endpoint_never_raises(self):
+        # ⚠️ THE contract: announcements have already been posted when this
+        # runs. An unreachable Worker is a log line, never an exception that
+        # turns a good run into a failed one.
+        fake_post, _ = self._post(side_effect=RuntimeError("connection refused"))
+        with mock.patch.dict(os.environ, {"POLL_SYNC_TOKEN": "s3cret"}, clear=False), \
+                mock.patch("requests.post", fake_post):
+            self.assertIsNone(sync_poll_messages())
 
 
 if __name__ == "__main__":

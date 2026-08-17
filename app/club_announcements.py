@@ -109,6 +109,14 @@ testing):
 
 Scheduled: wired as a soft step in app/main.py, so it runs on the existing
 8-hour pipeline cadence.
+
+Also riding that cadence (added 2026-08-17, GABI phase 3): after the
+announcement pass, `sync_poll_messages()` pokes the estate Discord Worker's
+`POST /polls/sync` so the bot's VOTABLE poll messages get posted, re-tallied
+and closed. That is the only addition this file has taken for the bot — the
+webhook announcements above are untouched and permanent. It is skipped
+silently when `POLL_SYNC_TOKEN` is unset, skipped on `--dry-run`, and can
+never fail a run; see the block above `POLL_SYNC_URL_DEFAULT`.
 """
 
 from __future__ import annotations
@@ -134,6 +142,37 @@ WEBHOOK_DOC_ID = "discord"             # clubs/{id}/settings/discord — {webhoo
 
 MAX_EMBEDS_PER_RUN = 6                 # a handful per club per run; Discord allows 10/message
 REMINDER_WINDOW_MS = 8 * 60 * 60 * 1000  # ~one pipeline cadence (app/main.py runs every 8h)
+
+# ---------------------------------------------------------------------------
+# GABI poll-message sync (catalog-platform apps/discord-worker, phase 3)
+# ---------------------------------------------------------------------------
+# The bot posts the VOTABLE poll message (buttons) into an opted-in club's
+# Discord channel, refreshes its tally, and edits it to a closed state when the
+# poll closes. That work is entirely the Worker's — it reads every fact it acts
+# on from Firestore with its own service account. All this file does is POKE it
+# on the cadence this engine already runs at, which is exactly the trigger
+# docs/info/discord-poll-sync-research.md §6 recommends ("piggyback on the
+# existing club_announcements.py cadence").
+#
+# ⚠️ INDEPENDENT FAILURE DOMAINS, deliberately. The webhook announcements above
+# are the permanent, zero-permission path every club gets; the bot is additive
+# and opt-in (features.discordPollVoting). So a dead sync endpoint must cost
+# this engine NOTHING: `sync_poll_messages` catches everything, logs one line,
+# and returns. It is called AFTER the announcement pass for the same reason.
+#
+# Config (both optional; unset = the sync is skipped with one INFO line):
+#   POLL_SYNC_TOKEN        the shared secret, minted once and given to BOTH
+#                          sides — here via .env / the pipeline environment,
+#                          and to the Worker via `wrangler secret put
+#                          POLL_SYNC_TOKEN` from apps/discord-worker. It is
+#                          NOT a Discord credential: it grants no bot powers
+#                          and can post nothing a poll doc does not already
+#                          say. See .env.example and catalog-platform
+#                          docs/access/discord-bot.md §5.
+#   DISCORD_POLL_SYNC_URL  override for the endpoint (default below); useful
+#                          for pointing a local run at a `wrangler dev`.
+POLL_SYNC_URL_DEFAULT = "https://discord.heygabi.ai/polls/sync"
+POLL_SYNC_TIMEOUT = 60  # the Worker sweeps every opted-in club in one call
 
 COLOR_BLUE = 5814783                   # matches send_discord_notification.py
 COLOR_GREEN = 3066993
@@ -856,6 +895,55 @@ def post_webhook(webhook_url: str, embeds: List[Dict[str, Any]], timeout: int = 
         raise RuntimeError(f"webhook returned HTTP {resp.status_code}: {resp.text[:200]}")
 
 
+def sync_poll_messages(lane_suffix: str = "", timeout: int = POLL_SYNC_TIMEOUT) -> Optional[Dict[str, Any]]:
+    """
+    Poke the discord-worker's POST /polls/sync so GABI's votable poll messages
+    get posted / refreshed / closed. Returns the Worker's stats dict, or None
+    when nothing was attempted.
+
+    ⚠️ NEVER raises. The announcements above have already been posted by the
+    time this runs, and a sync endpoint that is down, slow, unreachable or
+    not-yet-configured must not turn a successful announcement run into a
+    failed one. Every outcome is exactly one log line.
+    """
+    token = (os.getenv("POLL_SYNC_TOKEN") or "").strip()
+    if not token:
+        print("[INFO] GABI poll-message sync skipped: POLL_SYNC_TOKEN is not set (see .env.example)")
+        return None
+
+    url = (os.getenv("DISCORD_POLL_SYNC_URL") or POLL_SYNC_URL_DEFAULT).strip()
+    lane = "dev" if lane_suffix else "prod"
+    try:
+        import requests
+
+        resp = requests.post(
+            url,
+            json={"lane": lane},
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            timeout=timeout,
+        )
+        if resp.status_code != 200:
+            # The Worker words every refusal; surface ITS sentence, not a bare
+            # status, and never our guess at what the status meant.
+            detail = ""
+            try:
+                detail = str((resp.json() or {}).get("message") or "")[:300]
+            except Exception:
+                detail = resp.text[:200]
+            print(f"[WARN] GABI poll-message sync ({lane}) not run: HTTP {resp.status_code} — {detail}",
+                  file=sys.stderr)
+            return None
+        stats = resp.json() or {}
+        print(f"[INFO] GABI poll-message sync ({lane}): {stats}")
+        for note in (stats.get("notes") or [])[:10]:
+            print(f"[INFO]   sync note: {note}")
+        return stats
+    except Exception as e:  # network, DNS, timeout, bad JSON, requests missing…
+        print(f"[WARN] GABI poll-message sync ({lane}) failed ({type(e).__name__}: {e}) — "
+              f"announcements were unaffected; it retries next run", file=sys.stderr)
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Engine
 # ---------------------------------------------------------------------------
@@ -1046,6 +1134,9 @@ def announce_after_build() -> Optional[Dict[str, int]]:
     source = FirestoreClubs(db, f"clubs{suffix}")
     stats = run(source, lane_suffix=suffix)
     print(f"[INFO] Club announcements: {stats}")
+    # Additive, and deliberately last: the announcements are already posted, so
+    # nothing here can cost them (see sync_poll_messages' docstring).
+    sync_poll_messages(lane_suffix=suffix)
     return stats
 
 
@@ -1073,6 +1164,12 @@ def main(argv: Optional[List[str]] = None) -> int:
     suffix = _lane_suffix()
     source = FirestoreClubs(db, f"clubs{suffix}")
     stats = run(source, dry_run=args.dry_run, lane_suffix=suffix)
+    # A dry run posts nothing anywhere — and a sync tick POSTS REAL MESSAGES to
+    # real channels, so it is exactly the thing --dry-run exists to withhold.
+    if args.dry_run:
+        print("[DRY-RUN] GABI poll-message sync not called (it would post/edit real Discord messages)")
+    else:
+        sync_poll_messages(lane_suffix=suffix)
     print(f"[INFO] {'dry run — nothing posted or saved' if args.dry_run else 'done'}: {stats}")
     return 0
 
