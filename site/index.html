@@ -10302,6 +10302,19 @@ Alex Tate - Production, Editing, Mastering" data-library-work-id="" data-library
     </small></div>
   </div>
 
+  <!-- "Search the whole estate" — the shared <estate-search> component
+       (vendored: estate/estate-search.js; wiring: estate-search-mount.js).
+       Additive, folded away: the #ab-search box above stays the way to
+       filter THIS catalog; this asks the shared index at index.heygabi.ai
+       whether we own a title on ANY shelf (library books and board games
+       included). Mounted lazily on first open by the Firebase module script
+       below — the component is ~78KB most visits never need, and the auth
+       adapter it must receive needs the Firebase app from that script. -->
+  <details id="estate-search-fold" style="margin:0 0 14px">
+    <summary style="cursor:pointer;color:var(--neon-cyan);text-transform:var(--et-title-case);font-size:.8em;letter-spacing:.5px">🔎 Search the whole estate — audiobooks, library books &amp; board games</summary>
+    <div id="estate-search-host" style="margin-top:8px"></div>
+  </details>
+
   <table id="ab-table">
     <thead><tr>
       <th data-key="cover_href">Cover</th>
@@ -41635,6 +41648,7 @@ function wireAppearance(container){
   import { submitReview, getReviews, renderStars, bookIdFromTitle, computeAverageRating, formatDate, deleteReview } from './reviews.js';
   import { addUserWarning, getUserWarnings, deleteUserWarning, requestWarningCheck, getWarningRequest } from './user-warnings.js';
   import { col, FIREBASE_CONFIG } from './fb-env.js';
+  import { mountEstateSearch } from './estate-search-mount.js';
 
   // Production Firebase config — canonical copy lives in site/fb-env.js
   const firebaseConfig = FIREBASE_CONFIG;
@@ -41666,6 +41680,32 @@ function wireAppearance(container){
   // Google, returns here, and is silently discarded: the user arrives back
   // signed out with nothing to explain why.
   if (app) handleRedirectResult(app);
+
+  // "Search the whole estate" fold (markup above the table): the shared
+  // <estate-search> component, mounted LAZILY on the fold's first open.
+  // The adapter hands the component THIS script's Firebase app — never a
+  // second initializeApp; see estate-search-mount.js's header. `app` may be
+  // null here (init failed): the box then mounts authless and still
+  // searches the public audiobook slice.
+  {
+    const estateFold = document.getElementById('estate-search-fold');
+    if (estateFold) {
+      let estateMounted = false;
+      estateFold.addEventListener('toggle', () => {
+        if (!estateFold.open || estateMounted) return;
+        estateMounted = true;
+        const host = document.getElementById('estate-search-host');
+        mountEstateSearch({ app, host }).catch((e) => {
+          // Say it failed rather than leaving a dead fold — and name the
+          // search that still works (process rule: no silent dead surface).
+          console.warn('[estate-search] component failed to load:', e);
+          if (host) host.textContent =
+            'The estate-wide search could not be loaded right now. ' +
+            'The catalog search box above still works.';
+        });
+      });
+    }
+  }
 
   // Render auth button in header + auth modal
   if (db) {

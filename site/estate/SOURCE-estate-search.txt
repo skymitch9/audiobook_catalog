@@ -1,0 +1,44 @@
+estate-search.js — provenance and refresh procedure
+====================================================
+
+⚠️ DO NOT EDIT site/estate/estate-search.js. It is a vendored copy; the one
+canonical implementation lives upstream in catalog-platform:
+
+  Upstream:  catalog-platform/sites/heygabi-home/public/assets/estate-search.js
+  Vendored:  2026-08-17
+  Upstream sha256 at vendoring time (the copy = this content with a 6-line
+  DO-NOT-EDIT banner prepended, nothing else changed):
+    4e2a7dc2143aba428b455de7404b1aeb01e9efe2d037c3d657f7b3a7ce930aab
+
+Why a committed copy and not a build-time sync: the library and games repos
+copy this file from the sibling checkout in a prebuild step
+(scripts/sync-estate-search.mjs there). This site is generated/static HTML
+with no such build step, so the copy is committed — the same LOCAL-copy
+precedent, minus the automation. Loading it cross-origin from heygabi.ai was
+rejected on purpose: it adds module-CORS coupling the other repos
+deliberately avoided.
+
+Refresh (run from the audiobook_catalog repo root, Git Bash):
+
+  UP="../../catalog-platform/sites/heygabi-home/public/assets/estate-search.js"
+  { sed -n '1,6p' site/estate/estate-search.js; cat "$UP"; } \
+    > site/estate/estate-search.js.new
+  node --check site/estate/estate-search.js.new
+  mv site/estate/estate-search.js.new site/estate/estate-search.js
+  sha256sum "$UP"   # then update the hash + date in THIS file
+
+  (The sed keeps the existing 6-line banner; update the banner's date too.)
+
+Sibling modules deliberately NOT vendored:
+  - estate-auth.js — only dynamically imported when no .authAdapter property
+    is set. site/estate-search-mount.js always sets one (built over
+    site/identity.js's existing Firebase app), so the import never fires.
+    Vendoring it would invite a SECOND Firebase app — the exact hazard the
+    adapter exists to avoid.
+  - estate-scan.js — only fetched when the `scan` attribute is present. This
+    embed does not set it.
+
+Consumer wiring: site/estate-search-mount.js (hand-authored, tested in
+site/__tests__/estate-search-mount.test.js). Embedded on index.html via
+app/web/templates/index.html — edit the TEMPLATE, never the generated
+site/index.html alone.
