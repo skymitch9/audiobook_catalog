@@ -72,10 +72,23 @@ const CSS = `
 // (static/js/theme.js). Theme choice is SITE-WIDE — one look per site
 // (owner clarification 2026-08-14); the per-page scope row and its
 // "apply to all pages" lever left with the canonical revert.
+//
+// ⚠️ THE THEME LIST IS READ FROM THE SWITCHER, NEVER WRITTEN DOWN HERE (owner
+// order 2026-08-17: "when a theme is added all sites get it"). That was already
+// true of the list; the FALLBACK below had gone stale (four themes, missing
+// `hearts`), and so had the label logic. Both now come from window.estateTheme,
+// which is installed by a synchronous <head> script on every page that loads
+// this modal — the fallback is for a load where that script 404'd, and its only
+// job is to look sane, since setTheme() cannot work without the switcher anyway.
 function appearanceHTML() {
-  const themes = (window.estateTheme ? window.estateTheme.themes : ['cyberpunk', 'apple', 'retro', 'classic']);
+  const et = window.estateTheme;
+  const themes = (et && et.themes && et.themes.length) ? et.themes
+    : ['classic', 'apple', 'cyberpunk', 'retro', 'hearts'];
+  const label = (t) => (et && typeof et.label === 'function')
+    ? et.label(t)
+    : t.charAt(0).toUpperCase() + t.slice(1);
   const options = themes.map(t =>
-    `<option value="${t}">${t.charAt(0).toUpperCase() + t.slice(1)}</option>`).join('');
+    `<option value="${t}">${label(t)}</option>`).join('');
   return `
       <div style="padding:10px 0;border-top:1px solid var(--border,#2a2a3a);margin-top:8px">
         <div class="am-section-title">Appearance</div>

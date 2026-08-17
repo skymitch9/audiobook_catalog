@@ -1,9 +1,16 @@
+/* GENERATED COPY - DO NOT EDIT. Source of truth:
+/* catalog-platform/sites/heygabi-home/public/assets/estate-theme.css
+/* Refresh it with: python scripts/sync_estate_theme.py
+/* A theme fix or a NEW THEME goes THERE and reaches every estate
+/* site; an edit here dies at this repo and is overwritten.
+/* tests/test_estate_theme_vendor.py fails while this is stale. */
+
 /*
  * estate-theme.css — the estate THEME SYSTEM, as a platform asset.
  * One implementation, consumers adopt — the same move the estate made with
  * auth (packages/estate-auth), applied to design.
  *
- * FOUR NAMED THEMES, user-selectable per site, each in light AND dark:
+ * FIVE NAMED THEMES, user-selectable per site, each in light AND dark:
  *
  *   classic    — the apex's ORIGINAL look (extracted from git 3b9c6b3's
  *                inline styles, 2026-08-14): warm paper / lamp-lit library,
@@ -28,6 +35,17 @@
  *                offset shadows (no blur), Bangers/Luckiest Guy. Restraint
  *                is its stated brief — do not add pixel/neon "retro"
  *                elements to match the dropdown label.
+ *   hearts     — AUTHORED here 2026-08-16 (owner: "a pink and white theme
+ *                that kind of matches the retro theme. Like those pixel
+ *                gamer hearts"). Pink-and-white, and the arcade half of the
+ *                retro family that `retro` itself is forbidden to carry:
+ *                white card faces on a blush ground, 2px plum ink outlines,
+ *                hard no-blur shadows and press-INTO-shadow (retro's
+ *                grammar), Luckiest Guy display, and an 8-bit heart tiled
+ *                as --et-bg-texture. ⚠️ It exists precisely so nobody is
+ *                tempted to put pixel hearts INTO retro — that ban stands.
+ *                It reuses retro's already-self-hosted faces; it adds no
+ *                font (see the font rule below).
  *
  * Extraction provenance: drafted from the two sites' real stylesheets
  * 2026-08-13 (audiobook site pages' inline <style>; games styles.css incl.
@@ -110,7 +128,17 @@
  *            --et-shadow --et-shadow-lift --et-glow --et-glow-title
  *   identity --et-hue-1 --et-hue-2 --et-hue-3  (the three shelves' spine
  *            colors — audio, books, games; a theme with one voice sets all
- *            three to its accent)
+ *            three to its accent) --et-hue-4 --et-hue-5 (added 2026-08-15,
+ *            owner order: Universes leads as PURPLE, Admin follows as
+ *            GOLD/AMBER — purple's complement, "keys to the building".
+ *            Each theme picks its own rendition rather than reusing hue-1's
+ *            gold/mustard family verbatim, so cards 4/5 stay visually
+ *            distinct from cards 1-3, not just from each other.)
+ *   card     --et-card-1/2/3-{bg,fg,muted} (the three shelf cards' dress;
+ *            neutral by default, apple overrides with real tile grounds)
+ *            --et-card-4/5-{bg,fg,muted} (Universes/Admin, added
+ *            2026-08-15; same neutral default as 1-3 in every theme except
+ *            apple, which tints them — see its supersession note below)
  *   ambient  --et-blob-1 --et-blob-2 --et-blob-3 --et-grain-opacity  (the
  *            apex backdrop's drifting fields + grain; transparent/0 where a
  *            theme carries its atmosphere in --et-bg-texture instead)
@@ -191,6 +219,23 @@
   --et-card-1-muted: var(--et-muted);
   --et-card-2-muted: var(--et-muted);
   --et-card-3-muted: var(--et-muted);
+  /* Card 4 (Universes) and card 5 (Admin) joined 2026-08-15 (owner order —
+     Universes leads as PURPLE, Admin as GOLD/AMBER, purple's complement).
+     Same neutral default as 1-3: classic/cyberpunk/retro distinguish these
+     cards through --et-hue-4/-5 (the spine + hover tint) exactly like they
+     already do for 1-3, not through a bespoke background. Apple is the one
+     theme that overrides card backgrounds at all (see
+     :root[data-theme="apple"] below), so it is the one theme that overrides
+     card-4/-5 backgrounds too. */
+  --et-card-4-bg: linear-gradient(180deg, var(--et-surface-edge), var(--et-surface));
+  --et-card-6-bg: linear-gradient(180deg, var(--et-surface-edge), var(--et-surface));
+  --et-card-6-fg: var(--et-fg);
+  --et-card-6-muted: var(--et-muted);
+  --et-card-5-bg: linear-gradient(180deg, var(--et-surface-edge), var(--et-surface));
+  --et-card-4-fg: var(--et-fg);
+  --et-card-5-fg: var(--et-fg);
+  --et-card-4-muted: var(--et-muted);
+  --et-card-5-muted: var(--et-muted);
   --et-lift: translateY(-3px);            /* the hover move */
   --et-lift-shadow: var(--et-shadow-lift); /* the hover shadow */
   --et-sheen: 1;                           /* hover sheen visibility */
@@ -215,6 +260,21 @@
   --et-card-3-bg: #f5f5f7;
   --et-card-3-fg: #1d1d1f;
   --et-card-3-muted: #6e6e73;
+  /* ⚠️ SUPERSESSION, 2026-08-15: this theme's whole point is ONE accent
+     (--et-hue-1/2/3 all equal --et-accent; card 1-3 alternate only
+     gray/black, never color). The owner's front-door card order overrules
+     that for cards 4-5 specifically: Universes gets a real purple, Admin a
+     real gold, even here. Kept soft and desaturated on purpose — a
+     restrained SF-symbols tint over apple's gray, not a saturated brand
+     color — so the page still reads as apple rather than borrowing another
+     theme's voice. Cards 1-3 are untouched; this is additive. */
+  --et-card-4-bg: #f3ecfb;  /* soft purple tint */
+  --et-card-6-bg: #e9f5f4;  /* soft teal tint (ebooks) */
+  --et-card-4-fg: #2e1a47;
+  --et-card-4-muted: #6b4d8a;
+  --et-card-5-bg: #faf3e2;  /* soft gold tint */
+  --et-card-5-fg: #4a3a12;
+  --et-card-5-muted: #7d652c;
   --et-lift: scale(1.016);
   --et-lift-shadow: var(--et-shadow);
   --et-sheen: 0;
@@ -222,7 +282,10 @@
   --et-card-name-size: clamp(1.5rem, 3vw, 2rem);
   --et-card-glyph-margin: 0 auto .9rem;
 }
-/* Dark flips the pair: the black tile becomes the light one. */
+/* Dark flips the pair: the black tile becomes the light one. Cards 4-5 keep
+   their own hue (purple/gold) rather than flipping like 1-3, since they were
+   never part of the gray/black alternation to begin with — they just move to
+   dark-appropriate tints of the same hue. */
 :root[data-theme="apple"][data-mode="dark"] {
   --et-card-1-bg: #1d1d1f;
   --et-card-1-fg: #f5f5f7;
@@ -233,6 +296,13 @@
   --et-card-3-bg: #1d1d1f;
   --et-card-3-fg: #f5f5f7;
   --et-card-3-muted: #86868b;
+  --et-card-4-bg: #2a1b3d;  /* deep purple */
+  --et-card-6-bg: #14312e;  /* deep teal (ebooks) */
+  --et-card-4-fg: #f0e6fb;
+  --et-card-4-muted: #b79ddd;
+  --et-card-5-bg: #3a2e14;  /* deep bronze-gold */
+  --et-card-5-fg: #f5e9c8;
+  --et-card-5-muted: #c9ab6a;
 }
 
 /* Native widgets (selects, date pickers) follow the stamped mode. */
@@ -256,6 +326,9 @@
   --et-hue-1: #0071e3; /* one voice: all three shelves wear the accent */
   --et-hue-2: #0071e3;
   --et-hue-3: #0071e3;
+  --et-hue-4: #af52de; /* Universes = purple, owner order 2026-08-15 — SF systemPurple */
+  --et-hue-5: #ba8a3c; /* Admin = soft gold, owner order 2026-08-15 */
+  --et-hue-6: #2f9e97; /* ebooks — ink teal, SF systemTeal family (added 2026-08-17, the ebooks card) */
   --et-blob-1: transparent; /* apple's ground is clean, deliberately */
   --et-blob-2: transparent;
   --et-blob-3: transparent;
@@ -330,6 +403,9 @@
     --et-hue-1: #2997ff;
     --et-hue-2: #2997ff;
     --et-hue-3: #2997ff;
+    --et-hue-4: #bf5af2; /* SF systemPurple, dark variant */
+    --et-hue-5: #d9b45c; /* soft gold, lifted for black */
+    --et-hue-6: #4fc4bc; /* ebooks — ink teal, lifted for black (added 2026-08-17, the ebooks card) */
     --et-ok: #30d158;
     --et-warn: #ff9f0a;
     --et-danger: #ff453a;
@@ -352,6 +428,9 @@
   --et-hue-1: #2997ff;
   --et-hue-2: #2997ff;
   --et-hue-3: #2997ff;
+  --et-hue-4: #bf5af2; /* SF systemPurple, dark variant */
+  --et-hue-5: #d9b45c; /* soft gold, lifted for black */
+  --et-hue-6: #4fc4bc; /* ebooks — ink teal, lifted for black (added 2026-08-17, the ebooks card) */
   --et-ok: #30d158;
   --et-warn: #ff9f0a;
   --et-danger: #ff453a;
@@ -423,6 +502,9 @@
   --et-hue-1: #b3822c; /* audio — gold */
   --et-hue-2: #3a5a40; /* books — green */
   --et-hue-3: #b1533c; /* games — clay */
+  --et-hue-4: #6b4a86; /* universes — warm bookish violet, owner order 2026-08-15 */
+  --et-hue-5: #c9971f; /* admin — brass, distinct from audio's duller gold */
+  --et-hue-6: #46628f; /* ebooks — ink blue; teal clashed with books' green (owner call 2026-08-17) */
   --et-blob-1: rgba(58, 90, 64, .20);
   --et-blob-2: rgba(217, 164, 65, .18);
   --et-blob-3: rgba(177, 83, 60, .12);
@@ -453,6 +535,9 @@
   --et-hue-1: #d9a441;
   --et-hue-2: #8fbc8f;
   --et-hue-3: #d97e63;
+  --et-hue-4: #b98fd1; /* universes — lamp-lit plum */
+  --et-hue-5: #f0c14b; /* admin — shining brass in lamplight */
+  --et-hue-6: #8fa7d9; /* ebooks — ink blue in lamplight; teal clashed with books' green */
   --et-blob-1: rgba(143, 188, 143, .16);
   --et-blob-2: rgba(217, 164, 65, .16);
   --et-blob-3: rgba(217, 126, 99, .11);
@@ -474,6 +559,9 @@
   --et-hue-1: #fcee0a; /* the three neons ARE the three shelves */
   --et-hue-2: #05d9e8;
   --et-hue-3: #ff2a6d;
+  --et-hue-4: #b14aff; /* universes — neon violet, distinct from #ff2a6d's pink-magenta */
+  --et-hue-5: #ff9f1c; /* admin — neon amber, distinct from #fcee0a's lemon-yellow */
+  --et-hue-6: #3d5afe; /* ebooks — indigo neon; mint clashed with books' cyan #05d9e8 (owner call 2026-08-17) */
   --et-blob-1: transparent; /* atmosphere lives in --et-bg-texture's haze */
   --et-blob-2: transparent;
   --et-blob-3: transparent;
@@ -547,6 +635,9 @@
   --et-hue-1: #9a7b00;
   --et-hue-2: #00798f;
   --et-hue-3: #c31e58;
+  --et-hue-4: #7c3aed; /* universes — vivid violet */
+  --et-hue-5: #cc6b00; /* admin — burnt amber, distinct from audio's olive-gold */
+  --et-hue-6: #1d4ed8; /* ebooks — strong blue; teal clashed with books' #00798f */
   --et-fg: #16161e;
   --et-muted: #5c6270;
   --et-hairline: #c9cdd9;
@@ -581,6 +672,9 @@
   --et-hue-1: #d99a2b; /* mustard / blue / red — the app's own poster palette */
   --et-hue-2: #4a7c9b;
   --et-hue-3: #a8443a;
+  --et-hue-4: #7d5a8c; /* universes — dusty grape/mauve, halftone-friendly */
+  --et-hue-5: #b8860b; /* admin — old gold/ochre, distinct from audio's brighter mustard */
+  --et-hue-6: #5c7a4a; /* ebooks — sage, the reading nook; teal sat too near books' steel blue */
   --et-blob-1: transparent; /* atmosphere is the halftone, not aurora */
   --et-blob-2: transparent;
   --et-blob-3: transparent;
@@ -656,6 +750,9 @@
   --et-hue-1: #e5b45c;
   --et-hue-2: #7fb0cd;
   --et-hue-3: #d4776b;
+  --et-hue-4: #b98fc9; /* universes — grape/mauve for dark paper */
+  --et-hue-5: #d4af37; /* admin — gold, distinct from audio's more orange mustard */
+  --et-hue-6: #9ab87f; /* ebooks — sage for dark paper; teal sat too near books' steel blue */
   --et-bg-texture:
     radial-gradient(circle at 1px 1px, rgba(236, 224, 203, .05) 1px, transparent 0),
     radial-gradient(circle at 4px 4px, rgba(236, 224, 203, .03) 1px, transparent 0);
@@ -688,10 +785,164 @@
   --et-btn-shadow: 2px 2px 0 rgba(0, 0, 0, .5);
 }
 
+/* ---- HEARTS — light first (pink and white, the arcade half of retro) ------ */
+/* Owner ask 2026-08-16, verbatim: "Make a new book theme with hearts. A pink
+   and white theme that kind of matches the retro theme. Like those pixel
+   gamer hearts." AUTHORED here — nothing to extract, so every value below is
+   INVENTED rather than measured, and this is the flag that says so.
+
+   How it "matches retro" without breaking retro's own no-pixels brief: it
+   borrows the GRAMMAR (2px ink outline, flat card face, hard offset shadows
+   with no blur, press-into-shadow, Luckiest Guy display) and none of the
+   palette. Retro is aged paper + charcoal; hearts is white card faces on a
+   blush ground with plum ink. ⚠️ The pixel hearts live HERE and must never
+   migrate into `retro` — that ban is still in force at the top of this file.
+
+   Contrast, checked against white (#ffffff card faces) at authoring time:
+   --et-fg #3a1f2b ≈ 13:1, --et-muted #8a5a6e ≈ 5.6:1, --et-accent #d6246e
+   ≈ 4.9:1, --et-accent-2 #8e2f6b ≈ 7.6:1. accent-2 is a TEXT role in the
+   library (series tags), which is why the second voice is a deep berry and
+   not the bubblegum — the bubblegum is decoration only (the heart tile and
+   the brand offset), never type.
+
+   The motif is an 8-bit heart drawn as an inline SVG data URI (9×8 pixel
+   grid, crispEdges, tiled at 4×). Inline and not a file, deliberately: this
+   asset is vendored into four consumers by three different mechanisms, and a
+   theme that needs a second file to look like itself breaks in whichever
+   consumer forgets to copy it. */
+
+:root[data-theme="hearts"] {
+  --et-bg: #fff5f8;
+  --et-bg-2: #ffe9f1;
+  --et-surface: #ffffff;      /* the WHITE half of "pink and white" */
+  --et-surface-edge: #fff0f5;
+  --et-fg: #3a1f2b;           /* plum ink, not black — soft but strong */
+  --et-muted: #8a5a6e;
+  --et-hairline: #f2c6d8;
+  --et-ink: #3a1f2b;
+
+  --et-hue-1: #d6246e; /* audio — the rose */
+  --et-hue-2: #4a6fb5; /* books — periwinkle, the "player 2" blue */
+  --et-hue-3: #2f8f8a; /* games — teal, the pixel-game complement */
+  --et-hue-4: #8e44ad; /* universes — purple, owner's card order */
+  --et-hue-5: #b8860b; /* admin — gold, purple's complement */
+  --et-hue-6: #4f8f6a; /* ebooks — sage, away from books' periwinkle */
+  --et-blob-1: transparent; /* atmosphere is the heart tile, not aurora */
+  --et-blob-2: transparent;
+  --et-blob-3: transparent;
+  --et-grain-opacity: 0;
+  /* ⚠️ MEASURED, not guessed: the first cut tiled the heart edge-to-edge on a
+     9×8 grid in #f6c3d8, and the rendered page was a solid pink knit — the
+     brief's white ground had vanished under it. This is the second cut: a
+     half-drop pair on an 18×16 grid (half the density, and the offset reads
+     as a pattern rather than a wall of rows) in a much softer pink. Look at
+     it in a browser before touching either number. */
+  --et-bg-texture:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='16' viewBox='0 0 18 16' shape-rendering='crispEdges'%3E%3Cg fill='%23fbdcea'%3E%3Crect x='1' y='0' width='2' height='1'/%3E%3Crect x='6' y='0' width='2' height='1'/%3E%3Crect x='0' y='1' width='4' height='1'/%3E%3Crect x='5' y='1' width='4' height='1'/%3E%3Crect x='0' y='2' width='9' height='2'/%3E%3Crect x='1' y='4' width='7' height='1'/%3E%3Crect x='2' y='5' width='5' height='1'/%3E%3Crect x='3' y='6' width='3' height='1'/%3E%3Crect x='4' y='7' width='1' height='1'/%3E%3Crect x='10' y='8' width='2' height='1'/%3E%3Crect x='15' y='8' width='2' height='1'/%3E%3Crect x='9' y='9' width='4' height='1'/%3E%3Crect x='14' y='9' width='4' height='1'/%3E%3Crect x='9' y='10' width='9' height='2'/%3E%3Crect x='10' y='12' width='7' height='1'/%3E%3Crect x='11' y='13' width='5' height='1'/%3E%3Crect x='12' y='14' width='3' height='1'/%3E%3Crect x='13' y='15' width='1' height='1'/%3E%3C/g%3E%3C/svg%3E");
+  --et-bg-texture-size: 63px 56px; /* 3.5× the 18×16 grid — a heart you can read as one */
+
+  --et-accent: #d6246e;
+  --et-accent-fg: #ffffff;
+  --et-accent-2: #8e2f6b; /* deep berry — a TEXT role, hence the contrast */
+  --et-heading-color: var(--et-fg);
+
+  --et-ok: #2f7d4f;
+  --et-warn: #9a5b12;
+  --et-danger: #c2273c;
+  --et-ok-bg: #dff2e5;
+  --et-warn-bg: #fceccd;
+  --et-danger-bg: #fbdde2;
+  --et-info: #3f6480;
+  --et-info-bg: #dde7ef;
+  --et-transit: #2f7d84;
+  --et-transit-bg: #d7ecec;
+
+  --et-panel-border: var(--et-ink);  /* the outline is the theme, as in retro */
+  --et-field-border: var(--et-ink);
+  --et-field-bg: #fff0f5;            /* a field sinks into the blush */
+  --et-field-shadow: inset 2px 2px 0 rgba(58, 31, 43, .08);
+
+  --et-shadow: 3px 3px 0 rgba(214, 36, 110, .18);      /* hard, NO blur */
+  --et-shadow-lift: 4px 4px 0 rgba(214, 36, 110, .28);
+  --et-glow: none;
+  --et-glow-title: none;
+  --et-brand-fill: #ffffff;
+  --et-brand-stroke: 3px var(--et-ink);
+  --et-brand-shadow: 2px 2px 0 #ff8fb8; /* the bubblegum offset — logo only */
+
+  --et-font: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --et-font-display: 'Luckiest Guy', 'Bangers', 'Trebuchet MS', system-ui, sans-serif;
+  --et-font-mono: ui-monospace, "Cascadia Code", Consolas, monospace;
+  --et-title-case: none;
+  --et-title-spacing: .02em;
+  --et-font-label: 'Luckiest Guy', 'Bangers', 'Trebuchet MS', system-ui, sans-serif;
+  --et-heading-weight: 400; /* Luckiest Guy ships ONE weight, like Bangers */
+
+  --et-radius: 4px;      /* chunky and near-square — pixels, softened just enough */
+  --et-radius-lg: 6px;
+  --et-radius-xl: 6px;
+  --et-radius-pill: 4px; /* buttons are little panels here, not pills */
+  --et-border-w: 2px;
+  --et-clip-panel: none;
+
+  --et-btn-bg: var(--et-accent);
+  --et-btn-fg: #ffffff;
+  --et-btn-border: 2px solid var(--et-ink);
+  --et-btn-shadow: 2px 2px 0 rgba(58, 31, 43, .22);
+  --et-press: translate(2px, 2px); /* the press INTO the shadow, retro's move */
+}
+
+:root[data-theme="hearts"][data-mode="dark"] {
+  --et-bg: #1c1016;
+  --et-bg-2: #261520;
+  --et-surface: #2a1822;
+  --et-surface-edge: #351f2b;
+  --et-fg: #ffe7f0;
+  --et-muted: #c39aad;
+  --et-hairline: #4a2b3a;
+  --et-ink: #0d0709;
+
+  --et-hue-1: #ff7fb0;
+  --et-hue-2: #8fadea;
+  --et-hue-3: #5fc7c0;
+  --et-hue-4: #c48fe0;
+  --et-hue-5: #d4af37;
+  --et-hue-6: #8fc4a4;
+  /* The same half-drop tile, lifted off the dark ground instead of pressed
+     into the light one — a plum a few steps above --et-bg reads as a heart,
+     not as dirt. */
+  --et-bg-texture:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='16' viewBox='0 0 18 16' shape-rendering='crispEdges'%3E%3Cg fill='%23341d2a'%3E%3Crect x='1' y='0' width='2' height='1'/%3E%3Crect x='6' y='0' width='2' height='1'/%3E%3Crect x='0' y='1' width='4' height='1'/%3E%3Crect x='5' y='1' width='4' height='1'/%3E%3Crect x='0' y='2' width='9' height='2'/%3E%3Crect x='1' y='4' width='7' height='1'/%3E%3Crect x='2' y='5' width='5' height='1'/%3E%3Crect x='3' y='6' width='3' height='1'/%3E%3Crect x='4' y='7' width='1' height='1'/%3E%3Crect x='10' y='8' width='2' height='1'/%3E%3Crect x='15' y='8' width='2' height='1'/%3E%3Crect x='9' y='9' width='4' height='1'/%3E%3Crect x='14' y='9' width='4' height='1'/%3E%3Crect x='9' y='10' width='9' height='2'/%3E%3Crect x='10' y='12' width='7' height='1'/%3E%3Crect x='11' y='13' width='5' height='1'/%3E%3Crect x='12' y='14' width='3' height='1'/%3E%3Crect x='13' y='15' width='1' height='1'/%3E%3C/g%3E%3C/svg%3E");
+
+  --et-accent: #ff7fb0;
+  --et-accent-fg: #2a0d19;
+  --et-accent-2: #e79ad2;
+
+  --et-ok: #7fd39a;
+  --et-warn: #e8b45c;
+  --et-danger: #ff8a94;
+  --et-ok-bg: #1e3427;
+  --et-warn-bg: #3a2c14;
+  --et-danger-bg: #3d1f24;
+  --et-info: #9dbcd6;
+  --et-info-bg: #22303b;
+  --et-transit: #6fb3b3;
+  --et-transit-bg: #1c3434;
+  --et-field-bg: #150c11;
+  --et-brand-fill: var(--et-surface);
+  --et-brand-shadow: 2px 2px 0 #ff7fb0;
+
+  --et-shadow: 3px 3px 0 rgba(0, 0, 0, .55);
+  --et-shadow-lift: 4px 4px 0 rgba(0, 0, 0, .65);
+
+  --et-btn-fg: #2a0d19;
+  --et-btn-shadow: 2px 2px 0 rgba(0, 0, 0, .55);
+}
+
 /* Texture is decoration and loses to user settings (the games app's own
    rule, kept estate-wide). */
 @media (prefers-contrast: more) {
-  :root, :root[data-theme="cyberpunk"], :root[data-theme="retro"] {
+  :root, :root[data-theme="cyberpunk"], :root[data-theme="retro"], :root[data-theme="hearts"] {
     --et-bg-texture: none;
   }
 }
@@ -722,8 +973,10 @@
 .et-btn:active { transform: var(--et-press); }
 .et-btn:focus-visible { outline: 2px solid var(--et-accent); outline-offset: 3px; }
 .et-btn:disabled { opacity: .5; cursor: default; transform: none; }
-/* Retro's press sinks the button INTO its shadow — the shadow goes with it. */
-[data-theme="retro"] .et-btn:active { box-shadow: none; }
+/* Retro's press sinks the button INTO its shadow — the shadow goes with it.
+   Hearts borrows that move (same hard-shadow grammar, different palette). */
+[data-theme="retro"] .et-btn:active,
+[data-theme="hearts"] .et-btn:active { box-shadow: none; }
 
 .et-btn--quiet {
   --et-btn-bg: var(--et-surface);
@@ -872,30 +1125,6 @@
 
 .hg-cog-note { margin: .8rem 0 0; color: var(--et-muted); font-size: var(--et-text-micro); }
 
-/* v2 per-page affordances (both optional in the markup contract):
-   #hg-apply-all — the quiet "apply to all pages" lever under the select;
-   #hg-scope-note — shown only while THIS page carries its own override. */
-.hg-apply-all {
-  margin: .45rem 0 0;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--et-muted);
-  font: 600 var(--et-text-micro)/1.3 var(--et-font);
-  letter-spacing: .02em;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  cursor: pointer;
-}
-.hg-apply-all:hover { color: var(--et-accent); }
-.hg-apply-all:focus-visible { outline: 2px solid var(--et-accent); outline-offset: 2px; }
-.hg-scope-note {
-  margin: .45rem 0 0;
-  color: var(--et-muted);
-  font-size: var(--et-text-micro);
-  font-style: italic;
-}
-.hg-scope-note[hidden] { display: none; }
 
 /* ---- motion machinery ----------------------------------------------------- */
 /*
