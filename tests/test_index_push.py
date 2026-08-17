@@ -12,9 +12,12 @@ import pytest
 
 from app.index_push import (
     ALLOWED_KEYS,
+    build_ebook_rows,
     build_projection,
     canonical_cover_url,
     detail_url_for,
+    ebooks_detail_url,
+    load_ebook_manifest,
     push_after_build,
 )
 
@@ -216,6 +219,255 @@ def test_push_after_build_sends_bearer_put(monkeypatch):
     assert calls["url"] == "https://index.example/api/push/audiobook"
     assert calls["headers"]["Authorization"] == "Bearer sekrit"
     assert isinstance(calls["json"], list) and calls["json"][0]["format"] == "audiobook"
+
+
+# --------------------------------------------------------------------------- #
+# Ebook rows (ebook-split design phase 3) — projected from site/ebooks.json,
+# riding the SAME audiobook-source snapshot with format:'ebook'
+# --------------------------------------------------------------------------- #
+
+
+def ebook(**overrides):
+    """A manifest entry as written by scripts/build_ebook_manifest.py."""
+    e = {
+        "path": "Brandon Sanderson/Dragonsteel_Prime_by_Brandon_Sanderson.epub",
+        "filename": "Dragonsteel_Prime_by_Brandon_Sanderson.epub",
+        "format": "epub",
+        "title": "Dragonsteel Prime",
+        "author": "Brandon Sanderson",
+        "source": "opf",
+        "beside_audiobook": "Brandon Sanderson",
+        "size_bytes": 1808754,
+        "modified": "2026-06-21T17:41:57.220658Z",
+    }
+    e.update(overrides)
+    return e
+
+
+def manifest(*ebooks_):
+    return {"generated_at": "2026-08-16T23:00:40Z", "root": "C:/x", "count": len(ebooks_), "ebooks": list(ebooks_)}
+
+
+def test_ebook_rows_use_the_same_allow_list():
+    (r,) = build_ebook_rows(manifest(ebook()))
+    assert set(r.keys()) == ALLOWED_KEYS
+
+
+def test_ebook_row_shape():
+    (r,) = build_ebook_rows(manifest(ebook()))
+    assert r["format"] == "ebook"  # the medium — NOT the file extension
+    assert r["source_id"] == "ebook:Brandon Sanderson/Dragonsteel_Prime_by_Brandon_Sanderson.epub"
+    assert r["title"] == "Dragonsteel Prime"
+    assert r["creator"] == "Brandon Sanderson"
+    assert r["series"] is None and r["series_index"] is None and r["year"] is None
+    assert r["cover_url"] is None
+    assert r["detail_url"] == "https://audiobooks.heygabi.ai/ebooks.html"
+
+
+def test_ebook_source_id_never_collides_with_book_key():
+    # book_key() always contains '|'; a file path (Windows) never can.
+    (r,) = build_ebook_rows(manifest(ebook()))
+    assert "|" not in r["source_id"]
+
+
+def test_filename_sourced_ebook_pushes_title_only():
+    # A wrong author is worse than a missing one — null creator is honest.
+    (r,) = build_ebook_rows(manifest(ebook(path="Brandon Sanderson/Defiant.pdf", title="Defiant", author=None, source="filename")))
+    assert r["title"] == "Defiant"
+    assert r["creator"] is None
+
+
+def test_ebook_titles_are_raw_not_folded():
+    (r,) = build_ebook_rows(manifest(ebook(title="Firstborn / Defending Elysium")))
+    assert r["title"] == "Firstborn / Defending Elysium"
+
+
+def test_ebook_ownership_fields_never_travel():
+    (r,) = build_ebook_rows(manifest(ebook()))
+    dumped = json.dumps(r)
+    for verboten in ("size_bytes", "modified", "beside_audiobook", "filename"):
+        assert verboten not in dumped
+
+
+def test_ebook_count_matches_manifest():
+    m = manifest(*[ebook(path=f"a/b{i}.epub", title=f"Book {i}") for i in range(25)])
+    assert len(build_ebook_rows(m)) == 25
+
+
+def test_unusable_ebook_entries_are_skipped_not_pushed(capsys):
+    m = manifest(ebook(), ebook(path="x/y.epub", title=""), ebook(path="", title="No Path"), "not-a-dict")
+    assert len(build_ebook_rows(m)) == 1  # one bad entry must not 422 the snapshot
+    assert "skipped 3" in capsys.readouterr().err
+
+
+def test_duplicate_ebook_paths_keep_first():
+    m = manifest(ebook(), ebook(title="Same File, Different Title"))
+    rows = build_ebook_rows(m)
+    assert len(rows) == 1 and rows[0]["title"] == "Dragonsteel Prime"
+
+
+def test_ebook_rows_from_none_manifest_is_empty():
+    assert build_ebook_rows(None) == []
+
+
+def test_ebook_rows_are_json_serialisable():
+    json.dumps(build_ebook_rows(manifest(ebook())))
+
+
+def test_ebooks_detail_url_honours_site_url_env(monkeypatch):
+    monkeypatch.setenv("SITE_URL", "https://example.test/")
+    assert ebooks_detail_url() == "https://example.test/ebooks.html"
+
+
+# --------------------------------------------------------------------------- #
+# The manifest loader fails soft — a broken manifest must never break the
+# audiobook push
+# --------------------------------------------------------------------------- #
+
+
+def test_missing_manifest_is_none_with_info(tmp_path, capsys):
+    assert load_ebook_manifest(tmp_path / "ebooks.json") is None
+    assert "not found" in capsys.readouterr().out
+
+
+def test_unparseable_manifest_is_none_with_warn(tmp_path, capsys):
+    p = tmp_path / "ebooks.json"
+    p.write_text("{not json", encoding="utf-8")
+    assert load_ebook_manifest(p) is None
+    assert "unreadable" in capsys.readouterr().err
+
+
+def test_wrong_shape_manifest_is_none_with_warn(tmp_path, capsys):
+    for payload in ("[]", '{"count": 3}', '{"ebooks": "nope"}'):
+        p = tmp_path / "ebooks.json"
+        p.write_text(payload, encoding="utf-8")
+        assert load_ebook_manifest(p) is None, payload
+        assert "malformed" in capsys.readouterr().err
+
+
+def test_valid_manifest_round_trips(tmp_path):
+    p = tmp_path / "ebooks.json"
+    p.write_text(json.dumps(manifest(ebook())), encoding="utf-8")
+    loaded = load_ebook_manifest(p)
+    assert loaded is not None and len(loaded["ebooks"]) == 1
+
+
+# --------------------------------------------------------------------------- #
+# The pipeline hook carries ebook rows in the same snapshot — and survives
+# their absence
+# --------------------------------------------------------------------------- #
+
+
+def _fake_push(monkeypatch, calls):
+    class FakeResp:
+        ok = True
+
+        def json(self):
+            return {"ok": True, "source": "audiobook", "rows": 2, "pushed_at": "now", "unfoldable_titles": 0}
+
+    def fake_put(url, json=None, headers=None, timeout=None):
+        calls["url"] = url
+        calls["json"] = json
+        return FakeResp()
+
+    import requests
+
+    monkeypatch.setattr(requests, "put", fake_put)
+
+
+def test_push_after_build_appends_ebook_rows(monkeypatch, tmp_path):
+    monkeypatch.setenv("INDEX_URL", "https://index.example/")
+    monkeypatch.setenv("INDEX_PUSH_TOKEN", "sekrit")
+    p = tmp_path / "ebooks.json"
+    p.write_text(json.dumps(manifest(ebook())), encoding="utf-8")
+    import app.index_push as mod
+
+    monkeypatch.setattr(mod, "DEFAULT_EBOOKS_PATH", p)
+    calls = {}
+    _fake_push(monkeypatch, calls)
+    push_after_build([row()])
+    assert calls["url"].endswith("/api/push/audiobook")  # ⚠️ same source, no /api/push/ebook
+    formats = [r["format"] for r in calls["json"]]
+    assert formats == ["audiobook", "ebook"]
+    ids = {r["source_id"] for r in calls["json"]}
+    assert len(ids) == 2  # no cross-kind source_id collision
+
+
+def test_push_after_build_survives_missing_manifest(monkeypatch, tmp_path):
+    monkeypatch.setenv("INDEX_URL", "https://index.example/")
+    monkeypatch.setenv("INDEX_PUSH_TOKEN", "sekrit")
+    import app.index_push as mod
+
+    monkeypatch.setattr(mod, "DEFAULT_EBOOKS_PATH", tmp_path / "absent.json")
+    calls = {}
+    _fake_push(monkeypatch, calls)
+    result = push_after_build([row()])
+    assert result is not None  # the audiobook push happened
+    assert [r["format"] for r in calls["json"]] == ["audiobook"]
+
+
+def test_push_after_build_survives_malformed_manifest(monkeypatch, tmp_path):
+    monkeypatch.setenv("INDEX_URL", "https://index.example/")
+    monkeypatch.setenv("INDEX_PUSH_TOKEN", "sekrit")
+    p = tmp_path / "ebooks.json"
+    p.write_text("{broken", encoding="utf-8")
+    import app.index_push as mod
+
+    monkeypatch.setattr(mod, "DEFAULT_EBOOKS_PATH", p)
+    calls = {}
+    _fake_push(monkeypatch, calls)
+    result = push_after_build([row()])
+    assert result is not None
+    assert [r["format"] for r in calls["json"]] == ["audiobook"]
+
+
+def test_push_after_build_still_refuses_when_audiobooks_are_zero(monkeypatch, tmp_path, capsys):
+    # Ebook rows alone must NEVER become the snapshot — that would erase the
+    # catalog's ~1,077 rows in one replace.
+    monkeypatch.setenv("INDEX_URL", "https://index.example/")
+    monkeypatch.setenv("INDEX_PUSH_TOKEN", "sekrit")
+    p = tmp_path / "ebooks.json"
+    p.write_text(json.dumps(manifest(ebook())), encoding="utf-8")
+    import app.index_push as mod
+
+    monkeypatch.setattr(mod, "DEFAULT_EBOOKS_PATH", p)
+    assert push_after_build([]) is None
+    assert "zero rows" in capsys.readouterr().err
+
+
+# --------------------------------------------------------------------------- #
+# Dry run — counts and samples, no HTTP
+# --------------------------------------------------------------------------- #
+
+
+def test_dry_run_reports_both_kinds_and_pushes_nothing(monkeypatch, tmp_path, capsys):
+    import csv
+
+    from app.index_push import main as push_main
+
+    csv_path = tmp_path / "catalog.csv"
+    with open(csv_path, "w", encoding="utf-8", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=list(row().keys()))
+        w.writeheader()
+        w.writerow(row())
+    ebooks_path = tmp_path / "ebooks.json"
+    ebooks_path.write_text(json.dumps(manifest(ebook())), encoding="utf-8")
+
+    def explode(*a, **k):  # any HTTP attempt is a test failure
+        raise AssertionError("dry run must not push")
+
+    import requests
+
+    monkeypatch.setattr(requests, "put", explode)
+    rc = push_main(["--csv", str(csv_path), "--ebooks", str(ebooks_path), "--dry-run"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "1 audiobook row(s)" in out
+    assert "1 ebook row(s)" in out
+    assert "2 row(s) total" in out
+    assert "nothing pushed" in out
+    samples = [json.loads(line) for line in out.splitlines() if line.startswith("{")]
+    assert {s["format"] for s in samples} == {"audiobook", "ebook"}
 
 
 if __name__ == "__main__":

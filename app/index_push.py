@@ -33,12 +33,24 @@ Manual first push (attended, no cron needed):
     INDEX_URL=https://index.heygabi.ai INDEX_PUSH_TOKEN=... python -m app.index_push
 
 Options: ``--dry-run`` (print the projection summary, push nothing),
-``--csv PATH`` (default: site/catalog.csv). Locally the env can also come
-from .env (app.config loads dotenv).
+``--csv PATH`` (default: site/catalog.csv), ``--ebooks PATH`` (default:
+site/ebooks.json). Locally the env can also come from .env (app.config
+loads dotenv).
+
+Ebooks (ebook-split design phase 3, catalog-platform
+docs/info/ebook-split-design.md §6): the snapshot ALSO carries one row per
+ebook in ``site/ebooks.json`` (the manifest sync step 1b builds), with
+``format: 'ebook'``. They ride the SAME ``PUT /api/push/audiobook`` source —
+the index's source vocabulary is closed (game/library/audiobook; an unknown
+source 404s) and the design says the shared pool holds them, so 'audiobook'
+the source means "the household's shared pool", and ``format`` carries the
+medium. A missing or malformed manifest never blocks the audiobook rows:
+ebooks degrade to absent, loudly.
 """
 
 from __future__ import annotations
 
+import json
 import math
 import os
 import re
@@ -53,6 +65,10 @@ from app.config import COVERS_BASE_URL, SITE_CSV_NAME, SITE_DIR
 # Same source + default as app/tools/send_discord_notification.py and
 # scripts/health_check.py — the repo VARIABLE SITE_URL wins when set.
 DEFAULT_SITE_URL = "https://audiobooks.heygabi.ai/"
+
+# The ebook manifest sync step 1b writes (scripts/build_ebook_manifest.py
+# OUT_PATH) — read here, never re-derived: one pipeline, one source of data.
+DEFAULT_EBOOKS_PATH = SITE_DIR / "ebooks.json"
 
 # The complete set of keys a pushed row may carry (index rows.ts pushRowSchema
 # is .strict(); publisher/kind/parent_source_id exist there but are a games
@@ -173,6 +189,108 @@ def build_projection(rows: List[Dict[str, str]]) -> List[Dict[str, object]]:
     return projection
 
 
+def load_ebook_manifest(path: Path) -> Optional[dict]:
+    """
+    Read site/ebooks.json defensively. Returns the manifest dict, or None.
+
+    ⚠️ Never raises: a missing manifest means "no ebooks this run" (one INFO
+    line) and a malformed one means "step 1b broke" (one WARN) — either way
+    the AUDIOBOOK push proceeds untouched. The ebook rows are additive; their
+    absence costs ebook freshness only, exactly the soft posture the rest of
+    this module takes toward the index itself.
+    """
+    if not path.exists():
+        print(f"[INFO] ebook manifest not found ({path}): pushing audiobook rows only")
+        return None
+    try:
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        print(f"[WARN] ebook manifest unreadable ({path}): {e} — pushing audiobook rows only", file=sys.stderr)
+        return None
+    if not isinstance(manifest, dict) or not isinstance(manifest.get("ebooks"), list):
+        print(
+            f"[WARN] ebook manifest malformed ({path}): expected an object with an 'ebooks' array "
+            "— pushing audiobook rows only",
+            file=sys.stderr,
+        )
+        return None
+    return manifest
+
+
+def _str_or_empty(value: object) -> str:
+    """A manifest field as a stripped string — non-strings (None, numbers) fold to ''."""
+    return value.strip() if isinstance(value, str) else ""
+
+
+def ebooks_detail_url(site_url: Optional[str] = None) -> str:
+    """The ebooks page (design phase 1's surface) — the whole shelf; the page has no per-book anchor."""
+    site = (site_url or os.environ.get("SITE_URL") or DEFAULT_SITE_URL).rstrip("/")
+    return site + "/ebooks.html"
+
+
+def build_ebook_rows(manifest: Optional[dict]) -> List[Dict[str, object]]:
+    """
+    Project ebook manifest entries into index rows (design phase 3), raw
+    strings only — same allow-list, same no-fold rule as build_projection.
+
+    - format is the literal 'ebook' — the medium, not the file extension
+      (epub/pdf stays a site concern). This is what makes ebooks findable AS
+      ebooks in estate search; the design names it.
+    - source_id is 'ebook:<path>' — path-derived per the design, unique by
+      construction (one file, one path). It can never collide with an
+      audiobook source_id: book_key() always contains '|', and a Windows
+      file path never can.
+    - `filename`-sourced entries are pushed as-is: title from the manifest,
+      author only when the manifest has one (design: "pushed title-only" —
+      a wrong author is worse than a missing one, and the index's fold guard
+      handles what won't join honestly).
+    - Entries without a title or path are skipped with a warning; a single
+      bad row must not 422 the whole snapshot.
+    """
+    if not manifest:
+        return []
+
+    rows: List[Dict[str, object]] = []
+    seen: set[str] = set()
+    skipped_unusable = 0
+    skipped_duplicate = 0
+    detail_url = ebooks_detail_url()
+
+    for e in manifest.get("ebooks", []):
+        if not isinstance(e, dict):
+            skipped_unusable += 1
+            continue
+        path_rel = _str_or_empty(e.get("path"))
+        title = _str_or_empty(e.get("title"))
+        if not path_rel or not title:
+            skipped_unusable += 1
+            continue
+        source_id = "ebook:" + path_rel
+        if source_id in seen:
+            skipped_duplicate += 1
+            continue
+        seen.add(source_id)
+        rows.append(
+            {
+                "source_id": source_id,
+                "title": title,
+                "creator": _str_or_empty(e.get("author")) or None,
+                "series": None,
+                "series_index": None,
+                "year": None,
+                "format": "ebook",
+                "cover_url": None,
+                "detail_url": detail_url,
+            }
+        )
+
+    if skipped_unusable:
+        print(f"[WARN] ebook projection: skipped {skipped_unusable} entry(ies) without a usable title/path", file=sys.stderr)
+    if skipped_duplicate:
+        print(f"[WARN] ebook projection: skipped {skipped_duplicate} duplicate path(s)", file=sys.stderr)
+    return rows
+
+
 def push_snapshot(projection: List[Dict[str, object]], index_url: str, token: str, timeout: int = 120) -> dict:
     """PUT the full snapshot. Raises on any non-2xx — callers decide how loud to be."""
     import requests  # deferred so the projection stays importable without it
@@ -206,13 +324,17 @@ def push_after_build(rows: List[Dict[str, str]]) -> Optional[dict]:
     projection = build_projection(rows)
     if not projection:
         # The index would 422 this anyway: zero rows is a failed export, not an
-        # empty catalog. Say so here and keep the previous snapshot standing.
+        # empty catalog. Guarded on the AUDIOBOOK rows specifically — ebook
+        # rows alone must never replace the catalog's snapshot. Keep the
+        # previous snapshot standing.
         print("[WARN] Index push skipped: projection produced zero rows (failed export?)", file=sys.stderr)
         return None
 
-    result = push_snapshot(projection, index_url, token)
+    ebook_rows = build_ebook_rows(load_ebook_manifest(DEFAULT_EBOOKS_PATH))
+    result = push_snapshot(projection + ebook_rows, index_url, token)
     print(
-        f"[INFO] Index push OK: {result.get('rows')} rows as '{result.get('source')}', "
+        f"[INFO] Index push OK: {result.get('rows')} rows as '{result.get('source')}' "
+        f"({len(projection)} audiobook + {len(ebook_rows)} ebook), "
         f"pushed_at {result.get('pushed_at')}, unfoldable_titles {result.get('unfoldable_titles')}"
     )
     return result
@@ -233,6 +355,9 @@ def main(argv: Optional[List[str]] = None) -> int:
         description="Push site/catalog.csv's projection to the shared index (PUT /api/push/audiobook).",
     )
     parser.add_argument("--csv", type=Path, default=SITE_DIR / SITE_CSV_NAME, help="catalog CSV (default: site/catalog.csv)")
+    parser.add_argument(
+        "--ebooks", type=Path, default=DEFAULT_EBOOKS_PATH, help="ebook manifest (default: site/ebooks.json)"
+    )
     parser.add_argument("--dry-run", action="store_true", help="build and summarise the projection; push nothing")
     args = parser.parse_args(argv)
 
@@ -242,12 +367,15 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     rows = _load_csv(args.csv)
     projection = build_projection(rows)
-    print(f"[INFO] {len(projection)} rows projected from {args.csv}")
+    ebook_rows = build_ebook_rows(load_ebook_manifest(args.ebooks))
+    print(f"[INFO] {len(projection)} audiobook row(s) projected from {args.csv}")
+    print(f"[INFO] {len(ebook_rows)} ebook row(s) projected from {args.ebooks}")
+    print(f"[INFO] {len(projection) + len(ebook_rows)} row(s) total for PUT /api/push/audiobook")
 
     if args.dry_run:
-        import json
-
         for sample in projection[:3]:
+            print(json.dumps(sample, ensure_ascii=False))
+        for sample in ebook_rows[:3]:
             print(json.dumps(sample, ensure_ascii=False))
         print("[INFO] dry run: nothing pushed")
         return 0
@@ -261,16 +389,19 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 0
 
     if not projection:
+        # Guarded on the audiobook rows: ebook rows alone must never become
+        # the catalog's whole snapshot (that would erase ~1,077 rows).
         print("[ERROR] projection produced zero rows — refusing to push (failed export?)", file=sys.stderr)
         return 1
 
     try:
-        result = push_snapshot(projection, index_url, token)
+        result = push_snapshot(projection + ebook_rows, index_url, token)
     except Exception as e:  # noqa: BLE001 — the manual runner is the loud path
         print(f"[ERROR] {e}", file=sys.stderr)
         return 1
     print(
-        f"[INFO] Index push OK: {result.get('rows')} rows as '{result.get('source')}', "
+        f"[INFO] Index push OK: {result.get('rows')} rows as '{result.get('source')}' "
+        f"({len(projection)} audiobook + {len(ebook_rows)} ebook), "
         f"pushed_at {result.get('pushed_at')}, unfoldable_titles {result.get('unfoldable_titles')}"
     )
     return 0
