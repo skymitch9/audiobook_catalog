@@ -59,13 +59,34 @@
  * re-asks for its token on every range**, where pdf.js captures headers once.
  * Do not "harmonise" them by capturing the EPUB one — that would re-introduce
  * the hour-long session expiry, not remove a difference.
+ *
+ * ## ⚠️ 5. TOKENS COME FROM `identity.getIdToken(app)`, NEVER FROM THE USER
+ *
+ * `getLiveUser()` answers a flat SNAPSHOT — `{uid, email, displayName}` — and
+ * **has no `getIdToken` method.** That is deliberate on identity.js's side:
+ * handing the live Firebase `User` to every caller is how a page ends up
+ * minting credentials in places nobody audits.
+ *
+ * Phase 1b called `user.getIdToken()` on that snapshot. It threw
+ * `TypeError: user.getIdToken is not a function` **for every signed-in
+ * reader**, and the surrounding catch reported it as *"The shelf did not
+ * answer"* — an OUTAGE sentence for something that was not an outage, and the
+ * mislabelling ROLES.md §1e exists to forbid. Nothing caught it: every test
+ * and every agent check was the signed-out half, where the code never runs.
+ * Found on 2026-08-17 by opening the live dev lane in a signed-in browser.
+ *
+ * The fix is the token getter the viewer design asked for in advance
+ * (`identity.js`'s `getIdToken(app, force)`), and it answers `null` rather
+ * than throwing, so "not signed in" is a state this page WORDS instead of an
+ * error it mistakes for an outage. ⚠️ If you see `user.getIdToken` reappear
+ * here, it is this bug coming back; `tests/test_reader_page.py` fails on it.
  */
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
 import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 import { FIREBASE_CONFIG } from './fb-env.js';
 import { mountAccountModal } from './account-modal.js';
-import { getLiveUser, signInWithGoogle, handleRedirectResult } from './identity.js';
+import { getLiveUser, getIdToken, signInWithGoogle, handleRedirectResult } from './identity.js';
 
 /** The gated manifest — the same URL, and the same gate, the shelf uses. */
 const MANIFEST_URL = 'https://audiobook-api.heygabi.ai/api/ebooks/manifest';
@@ -325,12 +346,16 @@ async function drawPage(n) {
  * ⚠️ THE FORMAT SWITCH IS THE SEAM. Phase 2 adds an `epub` arm here and
  * nothing else in this file has to change.
  */
-async function openBook(user, anchor) {
+async function openBook(anchor) {
   // 1. What is this anchor? Asked of the GATED manifest, which is also the
   //    gate: an unauthorised reader never learns a book exists.
   let res;
+  const token = await getIdToken(app);
+  if (!token) {
+    closed('Your sign-in has lapsed', 'Sign in again to open this book.', { signIn: true });
+    return;
+  }
   try {
-    const token = await user.getIdToken();
     res = await fetch(MANIFEST_URL, { headers: { Authorization: `Bearer ${token}` } });
   } catch {
     const d = describeFetchFailure(0);
@@ -366,12 +391,12 @@ async function openBook(user, anchor) {
   // ⚠️ THE FORMAT SWITCH. Two renderers, one gate, one manifest, one anchor.
   // A third format lands here as an honest sentence, never a spinner.
   const format = String(book.format || '').toLowerCase();
-  if (format === 'pdf') return openPdf(user, anchor);
-  if (format === 'epub') return openEpub(user, anchor);
+  if (format === 'pdf') return openPdf(anchor);
+  if (format === 'epub') return openEpub(anchor);
   closed('This reader cannot open that format', EPUB_SEAM);
 }
 
-async function openPdf(user, anchor) {
+async function openPdf(anchor) {
   gateEl.hidden = true;
   shellEl.hidden = false;
   state.mode = 'pdf';
@@ -395,10 +420,8 @@ async function openPdf(user, anchor) {
   // range would 401. Taking a fresh one buys a full hour of reading. A session
   // longer than that still ends in a 401, which is caught below and offered as
   // a reload rather than a mystery. (A refreshing transport is phase-3 work.)
-  let token;
-  try {
-    token = await user.getIdToken(true);
-  } catch {
+  const token = await getIdToken(app, true);
+  if (!token) {
     closed('Your sign-in has lapsed', 'Sign in again to carry on reading.', { signIn: true });
     return;
   }
@@ -514,7 +537,7 @@ function describeLocation(detail) {
   return [label, pct].filter(Boolean).join(' · ') || '';
 }
 
-async function openEpub(user, anchor) {
+async function openEpub(anchor) {
   gateEl.hidden = true;
   shellEl.hidden = false;
   // The PDF furniture steps aside; the EPUB furniture steps up.
@@ -544,9 +567,7 @@ async function openEpub(user, anchor) {
   // first thing that happens next is a network request, and starting with a
   // 59-minute-old token buys a minute of reading. Unlike pdf.js, the ranges
   // after this one re-ask (see below), so this is a floor rather than a ceiling.
-  try {
-    await user.getIdToken(true);
-  } catch {
+  if (!(await getIdToken(app, true))) {
     closed('Your sign-in has lapsed', 'Sign in again to carry on reading.', { signIn: true });
     return;
   }
@@ -559,7 +580,10 @@ async function openEpub(user, anchor) {
       // SDK's cached token and refreshes it transparently near expiry, so a
       // reading session longer than an hour keeps working — the gap phase 1b
       // records as unhandled for pdf.js, which can only take headers once.
-      getAuthHeader: async () => `Bearer ${await user.getIdToken()}`,
+      getAuthHeader: async () => {
+        const t = await getIdToken(app);
+        return t ? `Bearer ${t}` : null;
+      },
     });
   } catch (e) {
     if (e && e.name === 'HttpStatusError') {
@@ -765,7 +789,7 @@ async function boot() {
     return;
   }
 
-  await openBook(user, anchor);
+  await openBook(anchor);
 }
 
 handleRedirectResult(app).catch(() => {}).then(boot);

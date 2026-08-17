@@ -536,6 +536,48 @@ export async function getLiveUser(app) {
     : null;
 }
 
+/**
+ * A Firebase ID token for the live session, or `null` when there is not one.
+ *
+ * ⚠️ THIS EXISTS BECAUSE `getLiveUser()` DELIBERATELY DOES NOT RETURN A TOKEN
+ * GETTER, and a caller that assumed otherwise shipped a broken page.
+ *
+ * `getLiveUser()` answers a flat SNAPSHOT — `{uid, email, displayName}` — on
+ * purpose: it is presentation data, and handing the live Firebase `User` object
+ * to every caller is how a page ends up minting credentials in places nobody
+ * audits. Every INTERNAL caller here that needs a token uses the private
+ * `liveUser()` instead.
+ *
+ * ⚠️ The reader page did not have that option, called `user.getIdToken()` on
+ * the snapshot, and threw `TypeError: user.getIdToken is not a function` for
+ * every signed-in reader — surfacing as *"The shelf did not answer"*, an
+ * outage sentence for something that was not an outage. It was invisible to
+ * every test and to every signed-out check, and it is exactly the gap the
+ * viewer design named in advance: *"the reader page needs a token getter that
+ * account-modal.js does not expose … exporting a getIdToken() from the
+ * identity module is a small, additive change."* This is that change, made
+ * after the bug it predicted (2026-08-17, viewer phase 2).
+ *
+ * `null` rather than a throw, because "not signed in" is a state the caller
+ * words, not an error it handles.
+ *
+ * @param app the Firebase app
+ * @param {boolean} force skip the SDK's cache and mint a fresh token. Use it
+ *   at the START of a long read (a token lasts an hour); do NOT use it per
+ *   request — unforced, the SDK returns its cached token and refreshes near
+ *   expiry by itself, which is what keeps a long session alive cheaply.
+ * @returns {Promise<string|null>}
+ */
+export async function getIdToken(app, force = false) {
+  const user = await liveUser(app).catch(() => null);
+  if (!user || typeof user.getIdToken !== 'function') return null;
+  try {
+    return await user.getIdToken(force);
+  } catch (e) {
+    return null;
+  }
+}
+
 // ==================== Site roles (rules-enforced admin) ====================
 //
 // site_roles/{uid} is the site's first REAL role: written only server-side

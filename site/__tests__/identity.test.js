@@ -65,7 +65,7 @@ import {
   validateDisplayName, getSession, logout, isAdmin, slugifyName,
   signInWithGoogle, signOutGoogle, handleRedirectResult, renderIdentityBar,
   getEstateStatus, isEstateApproved, renderDevSiteLink,
-  getLiveUser, getSiteRole, isSiteAdmin, isSiteModerator,
+  getLiveUser, getIdToken, getSiteRole, isSiteAdmin, isSiteModerator,
   resolveAdmin, whenAdmin, resolveSiteAccess, SITE_ME_URL,
 } from '../identity.js';
 
@@ -702,6 +702,60 @@ describe('Site roles (rules-enforced admin) + getLiveUser', () => {
   it('getLiveUser resolves null for a signed-out (or legacy) session — no verifiable identity', async () => {
     const p = getLiveUser(fakeApp);
     authCallback(null);
+    expect(await p).toBeNull();
+  });
+
+  // ======================================================================
+  // ⚠️ getIdToken — the getter the reader page needs, added 2026-08-17
+  // AFTER the bug its absence caused. Viewer phase 1b called
+  // `user.getIdToken()` on getLiveUser()'s SNAPSHOT, which has no such
+  // method: every signed-in reader got
+  // `TypeError: user.getIdToken is not a function`, surfaced as
+  // "The shelf did not answer" — an outage sentence for something that was
+  // not an outage. Invisible to every test, because every test was the
+  // signed-out half where the line never runs.
+  // ======================================================================
+
+  it('⚠️ getLiveUser deliberately answers a SNAPSHOT with no getIdToken', async () => {
+    // This is the mismatch, pinned. Widening the snapshot to the live
+    // Firebase User would "fix" the reader by undoing the reason the
+    // snapshot exists — the live User must not travel to every caller.
+    const p = getLiveUser(fakeApp);
+    authCallback({ uid: ADMIN_UID, email: 'e@x.com', displayName: 'Skylar', getIdToken: async () => 'tok' });
+    const user = await p;
+    expect(user.uid).toBe(ADMIN_UID);
+    expect(user.getIdToken).toBeUndefined();
+  });
+
+  it('getIdToken mints a token from the LIVE user, not from the snapshot', async () => {
+    const p = getIdToken(fakeApp);
+    authCallback({ uid: ADMIN_UID, getIdToken: async (force) => (force ? 'fresh' : 'cached') });
+    expect(await p).toBe('cached');
+  });
+
+  it('forces a fresh token when asked — what a long read needs at open', async () => {
+    const p = getIdToken(fakeApp, true);
+    authCallback({ uid: ADMIN_UID, getIdToken: async (force) => (force ? 'fresh' : 'cached') });
+    expect(await p).toBe('fresh');
+  });
+
+  it('⚠️ answers null rather than throwing when signed out', async () => {
+    // A throw would be caught by the reader's OUTAGE branch and mislabelled
+    // all over again. "Not signed in" is a state the caller words.
+    const p = getIdToken(fakeApp);
+    authCallback(null);
+    expect(await p).toBeNull();
+  });
+
+  it('⚠️ answers null rather than throwing when the SDK refuses to refresh', async () => {
+    const p = getIdToken(fakeApp);
+    authCallback({ uid: ADMIN_UID, getIdToken: async () => { throw new Error('network'); } });
+    expect(await p).toBeNull();
+  });
+
+  it('⚠️ survives a snapshot-shaped user instead of throwing the original bug', async () => {
+    const p = getIdToken(fakeApp);
+    authCallback({ uid: ADMIN_UID, email: 'e@x.com' }); // no getIdToken
     expect(await p).toBeNull();
   });
 

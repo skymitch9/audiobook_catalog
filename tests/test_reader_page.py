@@ -519,7 +519,11 @@ def test_the_epub_path_attaches_the_bearer_per_request() -> None:
     """
     js = read(READER_JS)
     assert "getAuthHeader: async () =>" in js
-    assert "await user.getIdToken()" in js
+    # ⚠️ UNFORCED, and from identity.getIdToken() rather than the user snapshot
+    # (see the snapshot test below). Unforced is what makes per-request cheap:
+    # the SDK returns its cached token and refreshes near expiry by itself.
+    assert "const t = await getIdToken(app);" in js
+    assert "await getIdToken(app, true)" in js, "and a fresh one at open"
     src = strip_comments(read(EPUB_RANGE))
     assert "await authOf()" in src, "the token getter must be awaited per request"
     assert "token=" not in src and "?auth=" not in src
@@ -617,3 +621,53 @@ def test_the_vendored_epub_stack_is_long_cached_in_both_lanes() -> None:
         assert "max-age=604800" in block.group(0)
         # ⚠️ NOT immutable: the path does not change when the pin does.
         assert "immutable" not in block.group(0)
+
+
+def test_the_reader_takes_tokens_from_identity_not_from_the_user_snapshot() -> None:
+    """⚠️ THE BUG THAT MADE THE READER UNUSABLE FOR EVERY SIGNED-IN PERSON.
+
+    `getLiveUser()` answers a flat SNAPSHOT — `{uid, email, displayName}` — and
+    has NO `getIdToken` method, deliberately: handing the live Firebase `User`
+    to every caller is how a page ends up minting credentials in places nobody
+    audits.
+
+    Phase 1b called `user.getIdToken()` on that snapshot. It threw
+    `TypeError: user.getIdToken is not a function` for every signed-in reader,
+    and the surrounding catch reported it as "The shelf did not answer" — an
+    OUTAGE sentence for something that was not an outage. ⚠️ Nothing caught it,
+    because every test and every agent check was the SIGNED-OUT half, where the
+    line never runs. It was found by opening the live dev lane in a signed-in
+    browser on 2026-08-17.
+
+    The fix is the token getter the viewer design named in advance. This test is
+    what stops it coming back.
+    """
+    js = strip_comments(read(READER_JS))
+    assert "user.getIdToken" not in js, (
+        "getLiveUser()'s snapshot has no getIdToken — use identity.getIdToken(app)"
+    )
+    assert "getIdToken" in read(REPO / "site" / "identity.js"), "identity.js must export the getter"
+    assert re.search(r"import \{[^}]*\bgetIdToken\b[^}]*\} from './identity.js'", js), (
+        "reader.js must import the token getter from identity.js"
+    )
+    # ⚠️ And a missing token must be WORDED, not thrown: `getIdToken` answers
+    # null when signed out, so every call site has to check.
+    assert js.count("await getIdToken(app") >= 3
+
+
+def test_identity_exports_a_token_getter_that_answers_null_when_signed_out() -> None:
+    """The contract the reader depends on, pinned in the module that owns it.
+
+    ⚠️ `null`, not a throw: "not signed in" is a state the caller words. A
+    version that threw would be caught by the reader's outage branch and
+    mislabelled all over again — which is the whole failure this replaced.
+    """
+    src = strip_comments(read(REPO / "site" / "identity.js"))
+    assert "export async function getIdToken(app, force = false)" in src
+    assert "typeof user.getIdToken !== 'function'" in src, (
+        "the getter must survive a snapshot-shaped user rather than throw"
+    )
+    assert "return null" in src
+    # ⚠️ getLiveUser must KEEP returning a snapshot. Widening it to the live
+    # Firebase User would 'fix' the reader by undoing the reason this exists.
+    assert "{ uid: user.uid, email: user.email || null, displayName: user.displayName || null }" in src
