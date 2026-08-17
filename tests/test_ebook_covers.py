@@ -236,9 +236,20 @@ def test_non_image_media_type_is_none(tmp_path):
     assert bem.extract_epub_cover(p) is None
 
 
-def test_oversized_cover_is_skipped(tmp_path):
+def test_oversized_garbage_that_is_not_an_image_is_skipped(tmp_path):
+    # Over the cap AND undecodable -> None. (It used to be "over the cap ->
+    # None" full stop; see the downscale tests below for why that was a bug.)
     big = b"\xff" * (bem.MAX_COVER_BYTES + 1)
     p = make_epub(tmp_path / "b.epub", cover_bytes=big)
+    assert bem.extract_epub_cover(p) is None
+
+
+def test_cover_over_the_hard_source_ceiling_is_skipped(tmp_path):
+    # Some epubs name a full-page scan (or effectively the whole book) as their
+    # cover item. Past MAX_SOURCE_COVER_BYTES we refuse to read it into memory
+    # to re-encode it — that is not a cover.
+    huge = b"\x00" * (bem.MAX_SOURCE_COVER_BYTES + 1)
+    p = make_epub(tmp_path / "b.epub", cover_bytes=huge)
     assert bem.extract_epub_cover(p) is None
 
 
@@ -265,6 +276,208 @@ def test_missing_cover_member_is_none(tmp_path):
             "</manifest></package>",
         )
     assert bem.extract_epub_cover(p) is None
+
+
+# --------------------------------------------------------------------------- #
+# Downscale-not-reject — the 2026-08-17 fix
+#
+# ⚠️ MEASURED, and the reason these tests exist: 15 of this library's 16
+# "coverless" EPUBs declared a perfectly good cover and were being DROPPED for
+# being 2.1–3.4 MB (All The Skills 2/4/6, Arcane Pathfinder 5, six Cradle
+# books, The Tenth Island, Undead Knight, The King Tides, Tamer 8, Seirei
+# Tsukai vol 16). The fix is to re-encode, never to raise the cap.
+# --------------------------------------------------------------------------- #
+
+# ⚠️ Pillow is skipped PER TEST, never at module level. A module-level
+# importorskip would take the every-EPUB-has-a-cover guard down with it on any
+# machine missing Pillow — the one check that must never be silently absent.
+# (Pillow is in requirements.txt precisely so CI does run these.)
+requires_pillow = pytest.mark.skipif(
+    __import__("importlib.util", fromlist=["util"]).find_spec("PIL") is None,
+    reason="Pillow drives the downscale path",
+)
+
+
+def big_jpeg(longest=4000, bytes_over=bem.MAX_COVER_BYTES):
+    """A real JPEG comfortably over the cap: noise, so it will not compress away."""
+    import io
+    import os
+
+    from PIL import Image
+
+    im = Image.frombytes("RGB", (longest, longest), os.urandom(longest * longest * 3))
+    buf = io.BytesIO()
+    im.save(buf, format="JPEG", quality=98)
+    data = buf.getvalue()
+    assert len(data) > bytes_over, f"fixture is not oversized ({len(data)} bytes)"
+    return data
+
+
+@requires_pillow
+def test_downscale_brings_a_real_oversized_cover_under_the_cap():
+    out = bem.downscale_cover(big_jpeg())
+    assert out is not None
+    assert len(out) <= bem.MAX_COVER_BYTES  # VERIFIED, not assumed
+
+
+@requires_pillow
+def test_downscale_caps_the_longest_side_and_keeps_the_aspect_ratio():
+    import io
+
+    from PIL import Image
+
+    im = Image.new("RGB", (3000, 2000), (200, 30, 30))
+    buf = io.BytesIO()
+    im.save(buf, format="JPEG", quality=98)
+    out = bem.downscale_cover(buf.getvalue())
+    assert out is not None
+    with Image.open(io.BytesIO(out)) as got:
+        assert max(got.size) <= bem.DOWNSCALE_RUNGS[0][0]
+        assert got.size == (1600, 1067)  # 3:2 preserved
+
+
+@requires_pillow
+def test_downscale_flattens_transparency_onto_white_not_black():
+    # RGBA -> JPEG without a matte goes BLACK, which would silently ruin every
+    # cover with a transparent margin.
+    import io
+
+    from PIL import Image
+
+    im = Image.new("RGBA", (2400, 2400), (255, 255, 255, 0))
+    buf = io.BytesIO()
+    im.save(buf, format="PNG")
+    out = bem.downscale_cover(buf.getvalue())
+    assert out is not None
+    with Image.open(io.BytesIO(out)) as got:
+        assert got.mode == "RGB"
+        assert got.getpixel((10, 10)) > (240, 240, 240)
+
+
+def test_downscale_of_non_image_bytes_is_none_not_a_crash():
+    assert bem.downscale_cover(b"\xff" * 4096) is None
+    assert bem.downscale_cover(b"") is None
+
+
+@requires_pillow
+def test_oversized_epub_cover_is_downscaled_and_staged_as_jpeg(tmp_path):
+    # The regression in one test: an EPUB whose declared cover is over the cap
+    # now yields a cover, staged under the cap, always .jpg.
+    p = make_epub(tmp_path / "b.epub", cover_bytes=big_jpeg(), cover_href="cover.jpg")
+    got = bem.extract_epub_cover(p)
+    assert got is not None
+    data, ext = got
+    assert ext == ".jpg" and len(data) <= bem.MAX_COVER_BYTES
+
+    covers = tmp_path / "covers" / "ebooks"
+    key = bem.stage_epub_cover(p, covers)
+    assert key and key.startswith("ebooks/") and key.endswith(".jpg")
+    assert (covers / key.split("/", 1)[1]).stat().st_size <= bem.MAX_COVER_BYTES
+
+
+@requires_pillow
+def test_an_oversized_png_cover_is_downscaled_to_jpg_not_dropped(tmp_path):
+    # The old code only ever emitted the source media type's extension; the
+    # re-encode always emits JPEG, so the declared type stops mattering here.
+    import io
+
+    from PIL import Image
+    import os
+
+    im = Image.frombytes("RGB", (2600, 2600), os.urandom(2600 * 2600 * 3))
+    buf = io.BytesIO()
+    im.save(buf, format="PNG")
+    p = make_epub(
+        tmp_path / "b.epub", cover_bytes=buf.getvalue(), cover_href="c.png", media_type="image/png"
+    )
+    data, ext = bem.extract_epub_cover(p)
+    assert ext == ".jpg" and len(data) <= bem.MAX_COVER_BYTES
+
+
+def test_an_under_cap_cover_is_passed_through_byte_for_byte(tmp_path):
+    # Downscaling must not touch covers that were already fine — the staged
+    # bytes are content-addressed, so a needless re-encode would churn every
+    # sha256 and re-upload the whole shelf.
+    p = make_epub(tmp_path / "b.epub")
+    data, ext = bem.extract_epub_cover(p)
+    assert data == JPEG and ext == ".jpg"
+
+
+# --------------------------------------------------------------------------- #
+# Hand-placed overrides — source 3
+# --------------------------------------------------------------------------- #
+
+
+def test_load_cover_overrides_reads_path_to_key(tmp_path):
+    p = tmp_path / "ov.json"
+    p.write_text(
+        json.dumps({"covers": {"A\\b.epub": {"key": "ebooks/deadbeef.jpg"}, "C/d.epub": "ebooks/x.jpg"}}),
+        encoding="utf-8",
+    )
+    assert bem.load_cover_overrides(p) == {"A/b.epub": "ebooks/deadbeef.jpg", "C/d.epub": "ebooks/x.jpg"}
+
+
+def test_missing_or_malformed_overrides_are_empty_never_an_error(tmp_path):
+    assert bem.load_cover_overrides(tmp_path / "absent.json") == {}
+    bad = tmp_path / "bad.json"
+    bad.write_text("{not json", encoding="utf-8")
+    assert bem.load_cover_overrides(bad) == {}
+    wrong = tmp_path / "wrong.json"
+    wrong.write_text('{"covers": ["a"]}', encoding="utf-8")
+    assert bem.load_cover_overrides(wrong) == {}
+
+
+def test_the_shipped_overrides_file_parses_and_its_covers_are_staged_or_uploaded():
+    """Every override entry must name a cover that actually exists somewhere.
+
+    An override whose key is a typo silently produces a 404 tile — exactly the
+    failure the every-EPUB-has-a-cover guard cannot see, because the manifest
+    row is non-null and only the image is missing.
+    """
+    overrides = bem.load_cover_overrides()
+    if not overrides:
+        pytest.skip("no overrides configured")
+    manifest_path = bem.PROJECT_ROOT / "site" / "covers_manifest.json"
+    uploaded = set()
+    if manifest_path.exists():
+        uploaded = set((json.loads(manifest_path.read_text(encoding="utf-8")).get("files") or {}).keys())
+    missing = [
+        f"{rel} -> {key}"
+        for rel, key in overrides.items()
+        if key not in uploaded and not (bem.PROJECT_ROOT / "site" / "covers" / key).exists()
+    ]
+    assert not missing, "override covers neither uploaded nor on disk: " + "; ".join(missing)
+
+
+def test_override_fills_a_cover_the_automatic_sources_cannot(build_env, monkeypatch, tmp_path):
+    root, out, _covers, _catalog = build_env
+    make_epub(root / "Author Folder" / "book.epub", pattern="none")  # no embedded cover
+    ov = tmp_path / "ov.json"
+    ov.write_text(
+        json.dumps({"covers": {"Author Folder/book.epub": {"key": "ebooks/abc123.jpg"}}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(bem, "COVER_OVERRIDES_PATH", ov)
+    assert bem.build_manifest() == 0
+    (e,) = _written(out)["ebooks"]
+    assert e["cover_source"] == "override"
+    assert e["cover_url"] == BASE + "ebooks/abc123.jpg"
+
+
+def test_an_epubs_own_cover_beats_an_override(build_env, monkeypatch, tmp_path):
+    # The override is a FALLBACK, never a hijack: a book that later gains a
+    # real embedded cover uses its own.
+    root, out, _covers, _catalog = build_env
+    make_epub(root / "Author Folder" / "book.epub")
+    ov = tmp_path / "ov.json"
+    ov.write_text(
+        json.dumps({"covers": {"Author Folder/book.epub": {"key": "ebooks/abc123.jpg"}}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(bem, "COVER_OVERRIDES_PATH", ov)
+    assert bem.build_manifest() == 0
+    (e,) = _written(out)["ebooks"]
+    assert e["cover_source"] == "epub"
 
 
 def test_stage_is_sha256_named_and_idempotent(tmp_path):
@@ -382,6 +595,105 @@ def test_manifest_rows_always_carry_the_cover_keys(build_env):
     assert bem.build_manifest() == 0
     (e,) = _written(out)["ebooks"]
     assert "cover_url" in e and "cover_source" in e
+
+
+# --------------------------------------------------------------------------- #
+# THE COVERAGE GUARD — every published EPUB has a cover
+#
+# Owner, 2026-08-17, verbatim: "all epubs must resolve a cover or that breaks
+# the test suite. this is so so important to me."
+#
+# This runs against the COMMITTED site/ebooks.json, so it gates tests.yml and
+# therefore auto-promote. The same rule is enforced a second time by
+# app.tools.audit_site (the promote gate) — deliberately two places, because
+# they fail at different moments: this one blocks the merge, that one blocks
+# the promotion of a ref that somehow got past it.
+#
+# PDFs are exempt BY DESIGN, not by accident: they carry no embedded art and
+# the owner's decision (same day) was a "show PDFs" checkbox on the page, off
+# by default, rather than a cover hunt for them.
+# --------------------------------------------------------------------------- #
+
+ALLOW_COVERLESS_ENV = "ALLOW_COVERLESS_EPUBS"
+
+
+def test_every_published_epub_has_a_cover():
+    import os
+
+    manifest_path = bem.PROJECT_ROOT / "site" / "ebooks.json"
+    if not manifest_path.exists():
+        pytest.skip(f"{manifest_path} not present in this checkout")
+
+    if os.environ.get(ALLOW_COVERLESS_ENV) == "1":
+        pytest.skip(
+            f"{ALLOW_COVERLESS_ENV}=1 — EMERGENCY ESCAPE HATCH, see docs/info/SITE_DATA.md. "
+            "Unset it and fix the covers."
+        )
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    epubs = [e for e in manifest.get("ebooks", []) if (e.get("format") or "").lower() == "epub"]
+    assert epubs, "site/ebooks.json lists no EPUBs at all — the manifest is broken, not clean"
+
+    coverless = [e for e in epubs if not (e.get("cover_url") or "").strip()]
+    assert not coverless, (
+        f"{len(coverless)} of {len(epubs)} EPUB(s) have no cover_url — every EPUB must resolve one.\n"
+        + "\n".join(f"  - {e.get('title')}  ({e.get('path')})" for e in coverless)
+        + "\n\nFix, do not silence: re-run `python -m scripts.build_ebook_manifest` (an oversized "
+        "cover is downscaled, never rejected), or add a hand-placed cover to "
+        "scripts/ebook_cover_overrides.json. Emergency only: "
+        f"{ALLOW_COVERLESS_ENV}=1."
+    )
+
+
+def test_the_coverage_guard_actually_fires(tmp_path, monkeypatch):
+    """A guard that cannot fail is false confidence — so prove it fails.
+
+    Runs the same assertion body against a scratch manifest with one cover
+    nulled, and requires both the failure AND the offending title in the
+    message (a guard that says "1 book is broken" without saying WHICH sends
+    the next person hunting through 138 rows).
+    """
+    scratch = tmp_path / "site"
+    scratch.mkdir()
+    (scratch / "ebooks.json").write_text(
+        json.dumps(
+            {
+                "ebooks": [
+                    {"format": "epub", "title": "Fine Book", "path": "A/fine.epub", "cover_url": "https://x/1.jpg"},
+                    {"format": "epub", "title": "Broken Book", "path": "A/broken.epub", "cover_url": None},
+                    {"format": "pdf", "title": "A PDF", "path": "A/doc.pdf", "cover_url": None},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(bem, "PROJECT_ROOT", tmp_path)
+    monkeypatch.delenv(ALLOW_COVERLESS_ENV, raising=False)
+
+    with pytest.raises(AssertionError) as excinfo:
+        test_every_published_epub_has_a_cover()
+    message = str(excinfo.value)
+    assert "Broken Book" in message and "A/broken.epub" in message
+    assert "1 of 2 EPUB(s)" in message
+    assert "A PDF" not in message  # PDFs are exempt by design
+
+
+def test_the_escape_hatch_is_honoured(tmp_path, monkeypatch):
+    scratch = tmp_path / "site"
+    scratch.mkdir()
+    (scratch / "ebooks.json").write_text(
+        json.dumps({"ebooks": [{"format": "epub", "title": "Broken", "path": "b.epub", "cover_url": None}]}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(bem, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setenv(ALLOW_COVERLESS_ENV, "1")
+    # ⚠️ pytest.skip raises Skipped, which derives from BaseException, NOT
+    # Exception — `pytest.raises(Exception)` here does not catch it, it skips
+    # THIS test, and the assertion below never runs. That is exactly the
+    # silent no-op a guard test exists to avoid.
+    with pytest.raises(pytest.skip.Exception) as excinfo:
+        test_every_published_epub_has_a_cover()
+    assert "EMERGENCY" in str(excinfo.value)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,33 @@
+{
+  "_doc": [
+    "Hand-placed covers for ebooks that resolve NEITHER a sibling audiobook cover NOR an embedded EPUB cover.",
+    "Read by scripts/build_ebook_manifest.load_cover_overrides() as cover source 3 (see that module's header).",
+    "",
+    "WHY IT STORES AN OBJECT KEY, NOT A URL: the image is fetched ONCE, by a person, and staged under",
+    "site/covers/ebooks/<sha256>.<ext> exactly like an extracted EPUB cover, so the existing step 5.7",
+    "(scripts/upload_covers_r2.py) uploads it to the same R2 bucket and records it in site/covers_manifest.json.",
+    "The pipeline therefore makes NO network call to build the manifest, and a dead upstream link can never",
+    "blank a cover that is already in the bucket.",
+    "",
+    "TO ADD ONE (two steps, deliberately manual):",
+    "  1. Download the cover and write it to site/covers/ebooks/<sha256-of-the-bytes>.jpg",
+    "  2. Add an entry below keyed on the ebook's `path` in site/ebooks.json, then rebuild the manifest and",
+    "     run `python -m scripts.upload_covers_r2`.",
+    "",
+    "This list should stay SHORT. A growing list means the automatic sources are failing and should be fixed",
+    "instead - which is exactly what happened on 2026-08-17, when 15 EPUBs looked coverless and were really",
+    "just being rejected for size (the fix was downscale_cover, not 15 override entries)."
+  ],
+  "covers": {
+    "Ellen Javernick/What If Everybody Said That- (What If Everybody-) - Ellen Javernick.epub": {
+      "key": "ebooks/af0ab4b75bfc2e94cbf4677bbed0e8f341394ec170f637c59d3bb0fc18434f2d.jpg",
+      "sha256": "af0ab4b75bfc2e94cbf4677bbed0e8f341394ec170f637c59d3bb0fc18434f2d",
+      "bytes": 93298,
+      "dimensions": "500x500",
+      "fetched_from": "https://m.media-amazon.com/images/P/B078JR36SH.01._SCLZZZZZZZ_.jpg",
+      "fetched_on": "2026-08-17",
+      "why": "Fixed-layout landscape picture book (comic-type EPUB): 14 interior images, no cover declared in the OPF and no sibling audiobook, so both automatic sources correctly return null. The ASIN is the EPUB's OWN dc:identifier (urn:asin:B078JR36SH), so the art is keyed to this exact edition rather than a guessed match. Verified by eye before staging: title, author and illustrator on the jacket all match.",
+      "not_verified": "openlibrary.org was unreachable from this machine and the Google Books API answered 429 on every retry (2026-08-17), so neither of those two sources could be consulted for a comparison."
+    }
+  }
+}

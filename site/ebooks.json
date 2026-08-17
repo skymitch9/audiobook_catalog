@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-17T03:45:31.854252Z",
+  "generated_at": "2026-08-17T06:21:28.065845Z",
   "root": "C:/Users/nbasl/OpenAudible/books",
   "count": 168,
   "ebooks": [
@@ -494,8 +494,8 @@
       "beside_audiobook": "Diana Marcum",
       "size_bytes": 3009680,
       "modified": "2026-08-10T02:21:15.130850Z",
-      "cover_url": null,
-      "cover_source": null
+      "cover_url": "https://covers.heygabi.ai/ebooks/adf901c2f685cc130c9a7cb338745a37d93d48eb5e3005c04e7322d981677086.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Django Wexler/How to Become the Dark Lord and Die Trying.pdf",
@@ -520,8 +520,8 @@
       "beside_audiobook": "Ellen Javernick",
       "size_bytes": 4305892,
       "modified": "2026-08-10T02:21:07.659182Z",
-      "cover_url": null,
-      "cover_source": null
+      "cover_url": "https://covers.heygabi.ai/ebooks/af0ab4b75bfc2e94cbf4677bbed0e8f341394ec170f637c59d3bb0fc18434f2d.jpg",
+      "cover_source": "override"
     },
     {
       "path": "Erik Colombe/Undead Knight - Erik Colombe.epub",
@@ -533,8 +533,8 @@
       "beside_audiobook": "Erik Colombe",
       "size_bytes": 3166897,
       "modified": "2026-08-10T02:21:03.168800Z",
-      "cover_url": null,
-      "cover_source": null
+      "cover_url": "https://covers.heygabi.ai/ebooks/babe5796804cf8291df1e858fdd3b8c242a5852fe26f75641a8d6316c5bcbdf9.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Fujino Omori/Is It Wrong to Try to Pick Up Girls in a Dungeon, Vol. 1.pdf",
@@ -806,8 +806,8 @@
       "beside_audiobook": "Honour Rae",
       "size_bytes": 3868815,
       "modified": "2026-08-14T04:15:19.521876Z",
-      "cover_url": null,
-      "cover_source": null
+      "cover_url": "https://covers.heygabi.ai/ebooks/8a199dd3a1a114f63e216f95e85d6f7d90a69f27d24b7525b24a5a85b3c3abf1.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Honour Rae/All The Skills- Book 4- A Deck-Building LitRPG - Honour Rae.epub",
@@ -819,8 +819,8 @@
       "beside_audiobook": "Honour Rae",
       "size_bytes": 3707420,
       "modified": "2026-08-14T04:15:30.391520Z",
-      "cover_url": null,
-      "cover_source": null
+      "cover_url": "https://covers.heygabi.ai/ebooks/82595b6233112aad29525c6faae15e9b3f113ce2fcd5b420c3b389544c527bab.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Honour Rae/All The Skills- Book 6- A Deck-Building LitRPG - Honour Rae.epub",
@@ -832,8 +832,8 @@
       "beside_audiobook": "Honour Rae",
       "size_bytes": 3566655,
       "modified": "2026-08-14T04:15:23.039627Z",
-      "cover_url": null,
-      "cover_source": null
+      "cover_url": "https://covers.heygabi.ai/ebooks/ecbfd0299ad6ff2d6008e3da35cbc67cee1749b1f321c88562a01393dbc4e257.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "J. R. Saileri/Rise of the Weakest Summoner- Volume XI - J. R. Saileri.epub",
@@ -884,8 +884,8 @@
       "beside_audiobook": "James Swain",
       "size_bytes": 3728866,
       "modified": "2026-08-10T02:21:13.055798Z",
-      "cover_url": null,
-      "cover_source": null
+      "cover_url": "https://covers.heygabi.ai/ebooks/1be10d543be7a949acd999d81c8f0b2ec2772cc44cf23137cf5c4d0de822cf03.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Jordan Stephanie Gray/The Wicked Sea.pdf",
@@ -962,8 +962,8 @@
       "beside_audiobook": "Mashton XX",
       "size_bytes": 3874660,
       "modified": "2026-08-10T02:19:54.251142Z",
-      "cover_url": null,
-      "cover_source": null
+      "cover_url": "https://covers.heygabi.ai/ebooks/3b608165b4ee2cfdc7669f565cf68be053f6f2a8ae2e234fe3ae21d7b19303d5.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Maxime J. Durand/Board & Conquest- [A Kingdom Building LitRPG] - Maxime J. Durand.epub",
@@ -1079,8 +1079,8 @@
       "beside_audiobook": "Michael-Scott Earle",
       "size_bytes": 4196405,
       "modified": "2026-08-05T00:27:52.220964Z",
-      "cover_url": null,
-      "cover_source": null
+      "cover_url": "https://covers.heygabi.ai/ebooks/fa9bc647e0f51b754b7391e7c630f1fe6670dcd07c081dd3dd9f5174d2525607.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Michael-Scott Earle/Tamer King of Dinosaurs Book 9 - Michael-Scott Earle.epub",
@@ -1560,8 +1560,8 @@
       "beside_audiobook": "Seirei Tsukai no Blade Dance",
       "size_bytes": 7639817,
       "modified": "2026-06-21T17:50:50.041162Z",
-      "cover_url": null,
-      "cover_source": null
+      "cover_url": "https://covers.heygabi.ai/ebooks/f9b205a283d2bc2177462fe052ae54982b32d120364a860ee46857a6e24ddc0b.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Selkie Myth/Beneath the Dragoneye Moons- Immortal War - Selkie Myth.epub",
@@ -2028,8 +2028,8 @@
       "beside_audiobook": "Will Wight",
       "size_bytes": 3147048,
       "modified": "2026-08-10T02:19:23.615438Z",
-      "cover_url": null,
-      "cover_source": null
+      "cover_url": "https://covers.heygabi.ai/ebooks/4fa9222738b792a1f3cc056c8957758c1a971aa6713b06c886eb79358e6e45b4.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Will Wight/Ghostwater - Will Wight.epub",
@@ -2067,8 +2067,8 @@
       "beside_audiobook": "Will Wight",
       "size_bytes": 3553751,
       "modified": "2026-08-10T02:19:28.509167Z",
-      "cover_url": null,
-      "cover_source": null
+      "cover_url": "https://covers.heygabi.ai/ebooks/f0bdf76310d68a45f57d97468e29eadcd482c39626ac1285fb309bc4ba19f946.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Will Wight/Soulsmith (Cradle Book 2) - Will Wight.epub",
@@ -2145,8 +2145,8 @@
       "beside_audiobook": "Will Wight",
       "size_bytes": 3737454,
       "modified": "2026-08-10T02:19:40.699088Z",
-      "cover_url": null,
-      "cover_source": null
+      "cover_url": "https://covers.heygabi.ai/ebooks/ca5c732771a3ef6b33cb242cbf0996e707beb03412655643dd59c8d1e3a88225.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Will Wight/Unsouled - Will Wight.epub",
@@ -2158,8 +2158,8 @@
       "beside_audiobook": "Will Wight",
       "size_bytes": 3223671,
       "modified": "2026-08-10T02:21:20.209767Z",
-      "cover_url": null,
-      "cover_source": null
+      "cover_url": "https://covers.heygabi.ai/ebooks/5b14f0e0b20af63a37b1e20100937499720417657033b72ed931208398036195.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Will Wight/Waybound (Cradle Book 12) - Will Wight.epub",
@@ -2171,8 +2171,8 @@
       "beside_audiobook": "Will Wight",
       "size_bytes": 3197514,
       "modified": "2026-08-10T02:19:45.657090Z",
-      "cover_url": null,
-      "cover_source": null
+      "cover_url": "https://covers.heygabi.ai/ebooks/721a57be68fdfabcb9e1a0ded6ed6983feee56225ffe3e0022f3d8105f7c65be.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Will Wight/Wintersteel - Will Wight.epub",
@@ -2184,8 +2184,8 @@
       "beside_audiobook": "Will Wight",
       "size_bytes": 3472507,
       "modified": "2026-08-10T02:19:50.360222Z",
-      "cover_url": null,
-      "cover_source": null
+      "cover_url": "https://covers.heygabi.ai/ebooks/db685cb68d6a17b7bb4552ea7e977838a169eea66aacb0cf5ea928989331b0c3.jpg",
+      "cover_source": "epub"
     }
   ]
 }

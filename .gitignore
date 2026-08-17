@@ -15,6 +15,10 @@ docs/
 !scripts/catalog_overrides.json
 !scripts/bookfunnel_books.json
 !scripts/audit_exclusions.json
+# Hand-placed ebook covers (scripts/build_ebook_manifest cover source 3). MUST
+# be tracked: it is build input, so an untracked copy would give this machine
+# covers that CI and every other checkout silently lack.
+!scripts/ebook_cover_overrides.json
 !last_catalog_snapshot.json
 !site/chapters.json
 !site/discussion_prompts.json

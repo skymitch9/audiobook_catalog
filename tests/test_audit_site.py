@@ -210,6 +210,83 @@ class AuditSiteTestCase(unittest.TestCase):
         write_catalog(self.site, [self.good_row()])
         self.assertEqual(self.run_audit(), 1)
 
+    # ---- check 5: every EPUB has a cover (owner rule, 2026-08-17) ----
+
+    def write_ebooks(self, entries):
+        (self.site / "ebooks.json").write_text(
+            json.dumps({"count": len(entries), "ebooks": entries}), encoding="utf-8"
+        )
+
+    def epub_row(self, title="An Ebook", cover="https://covers.heygabi.ai/ebooks/a.jpg"):
+        return {"format": "epub", "title": title, "path": f"A/{title}.epub", "cover_url": cover}
+
+    def audit_output(self):
+        """(exit code, captured stdout) — the message text is part of the contract."""
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            code = audit(self.site, self.map_path, self.excl_path)
+        return code, buf.getvalue()
+
+    def setup_clean_catalog(self):
+        write_catalog(self.site, [self.good_row()])
+        self.write_map({"Jane Doe": "1" * 33})
+
+    def test_ebook_manifest_with_all_covers_passes(self):
+        self.setup_clean_catalog()
+        self.write_ebooks([self.epub_row(), self.epub_row("Another")])
+        self.assertEqual(self.run_audit(), 0)
+
+    def test_a_coverless_epub_fails_the_promote_gate(self):
+        self.setup_clean_catalog()
+        self.write_ebooks([self.epub_row(), self.epub_row("Naked Book", cover=None)])
+        code, out = self.audit_output()
+        self.assertEqual(code, 1)
+        # NAMES the offender — a count alone sends the next person hunting.
+        self.assertIn("Naked Book", out)
+        self.assertIn("1 of 2 EPUBs have no cover", out)
+
+    def test_an_empty_string_cover_url_counts_as_missing(self):
+        self.setup_clean_catalog()
+        self.write_ebooks([self.epub_row("Blank", cover="   ")])
+        self.assertEqual(self.run_audit(), 1)
+
+    def test_pdfs_without_covers_do_not_fail(self):
+        # Exempt by design: the page hides them behind a checkbox instead.
+        self.setup_clean_catalog()
+        self.write_ebooks(
+            [self.epub_row(), {"format": "pdf", "title": "A PDF", "path": "A/d.pdf", "cover_url": None}]
+        )
+        self.assertEqual(self.run_audit(), 0)
+
+    def test_missing_ebook_manifest_warns_but_does_not_fail(self):
+        # A pre-ebooks `prod-*` rollback tag must stay promotable.
+        self.setup_clean_catalog()
+        code, out = self.audit_output()
+        self.assertEqual(code, 0)
+        self.assertIn("not found", out)
+
+    def test_malformed_ebook_manifest_fails(self):
+        self.setup_clean_catalog()
+        (self.site / "ebooks.json").write_text("{not json", encoding="utf-8")
+        self.assertEqual(self.run_audit(), 1)
+
+    def test_escape_hatch_downgrades_the_failure_to_a_warning(self):
+        import os
+        from app.tools.audit_site import ALLOW_COVERLESS_EPUBS_ENV
+
+        self.setup_clean_catalog()
+        self.write_ebooks([self.epub_row("Naked Book", cover=None)])
+        self.assertEqual(self.run_audit(), 1)  # fails without it
+
+        os.environ[ALLOW_COVERLESS_EPUBS_ENV] = "1"
+        try:
+            code, out = self.audit_output()
+        finally:
+            del os.environ[ALLOW_COVERLESS_EPUBS_ENV]
+        self.assertEqual(code, 0)
+        self.assertIn("EMERGENCY OVERRIDE", out)
+        self.assertIn("Naked Book", out)  # still says what it let through
+
 
 if __name__ == "__main__":
     unittest.main()

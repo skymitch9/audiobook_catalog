@@ -57,11 +57,25 @@ Each row carries `cover_url` (absolute, or null) and `cover_source`:
     to the same R2 bucket under the `ebooks/` key prefix, recorded in
     site/covers_manifest.json. Step 1b stages, 5.7 uploads, step 6 commits —
     so a published ebooks.json never references an un-uploaded cover.
-  - `null` — the page renders its typographic spine placeholder.
+  - `'override'` — a hand-placed cover recorded in
+    `scripts/ebook_cover_overrides.json` for a book that resolves neither of
+    the above. Stored as an R2 object key, never a remote URL: a person
+    fetches the image once and stages it like any other ebook cover, so the
+    pipeline makes no network call and a dead upstream link cannot blank a
+    cover already in the bucket.
+  - `null` — the page renders its typographic spine placeholder. ⚠️ For a
+    `.pdf` only: **every EPUB must resolve a cover**, enforced by
+    `tests/test_ebook_covers.py::test_every_published_epub_has_a_cover` and
+    by `app.tools.audit_site` (the promote gate).
 
-Extraction is soft the way this whole file is soft: a malformed epub, an
-oversized image (> MAX_COVER_BYTES) or a missing OPF entry degrades to null,
-never breaks the build.
+Extraction is soft the way this whole file is soft: a malformed epub or a
+missing OPF entry degrades to null, never breaks the build.
+
+⚠️ **An oversized cover is DOWNSCALED, not rejected** (2026-08-17). The old
+code returned None above `MAX_COVER_BYTES`, which is what left 15 of this
+library's 16 "coverless" EPUBs coverless — every one of them declaring a
+perfectly good 2–3 MB cover. See `downscale_cover`. Never fix a cover miss by
+raising the cap.
 
 ⚠️ **`source` is the field a consumer must respect.** `opf` means the title and
 author were read out of the file itself and are trustworthy. `filename` means
@@ -125,10 +139,30 @@ CATALOG_PATH = PROJECT_ROOT / "site" / "catalog.csv"
 EBOOK_COVERS_DIR = PROJECT_ROOT / "site" / "covers" / "ebooks"
 EBOOK_COVER_PREFIX = "ebooks"
 
-# An embedded "cover" bigger than this is skipped (some epubs carry full-page
-# artwork or even the whole book as their cover entry) — the placeholder is
-# the better outcome than a 20 MB shelf tile.
+# The page-weight budget for one shelf tile. An embedded cover over this is NOT
+# rejected — it is DOWNSCALED (see `downscale_cover`).
+#
+# ⚠️ MEASURED, 2026-08-17: rejecting instead of downscaling is what left 15 of
+# the 16 "coverless" EPUBs coverless. Every one of them declares a perfect
+# cover; they were 2.1–3.4 MB (All The Skills 2/4/6, Arcane Pathfinder 5, six
+# Cradle books, The Tenth Island, Undead Knight, The King Tides, Tamer 8,
+# Seirei Tsukai vol 16) and the build silently dropped them all.
+#
+# ⚠️ NEVER "fix" this by raising the cap. The cap is the page-weight budget for
+# a grid that renders ~168 tiles; a 3.4 MB tile is the bug, not the limit.
 MAX_COVER_BYTES = 2 * 1024 * 1024
+
+# Downscale targets. 1600px on the longest side is ~2.7x the largest rendered
+# tile (the reading card's 158px face at 3x DPR is 474px), so the shelf keeps
+# retina headroom while the bytes collapse; JPEG q85 is the usual
+# visually-lossless knee. Fallback rungs exist because a few covers are
+# noise-heavy enough to miss the cap at the first setting.
+DOWNSCALE_RUNGS = ((1600, 85), (1400, 82), (1200, 78), (1000, 72), (800, 65))
+
+# Above this, the manifest entry is not a cover at all — some epubs name a
+# full-page scan or effectively the whole book as their cover item, and
+# reading that into memory to re-encode it is the cost this ceiling refuses.
+MAX_SOURCE_COVER_BYTES = 40 * 1024 * 1024
 
 _COVER_EXT_BY_MEDIA_TYPE = {
     "image/jpeg": ".jpg",
@@ -136,6 +170,14 @@ _COVER_EXT_BY_MEDIA_TYPE = {
     "image/gif": ".gif",
     "image/webp": ".webp",
 }
+
+# Hand-placed covers for ebooks that resolve none of the automatic sources —
+# source 3, below. Path-keyed, and it stores an R2 OBJECT KEY, never a remote
+# URL: the image is fetched ONCE by a person, staged under site/covers/ebooks/
+# like every other ebook cover, and uploaded by the existing step 5.7. The
+# pipeline therefore never makes a network call to build the manifest, and a
+# dead upstream link can never blank a cover that is already in the bucket.
+COVER_OVERRIDES_PATH = PROJECT_ROOT / "scripts" / "ebook_cover_overrides.json"
 
 
 def title_author_from_filename(path: Path) -> tuple[str, str | None]:
@@ -240,6 +282,72 @@ def sibling_cover_href(title: str | None, beside: str | None, by_folder: dict[st
 # ---------------------------------------------------------------------------
 # Covers, source 2: the image inside the EPUB itself
 # ---------------------------------------------------------------------------
+def downscale_cover(data: bytes) -> bytes | None:
+    """Re-encode an oversized cover to fit under MAX_COVER_BYTES, or None.
+
+    ⚠️ This function exists because the old code REJECTED anything over the
+    cap, and 15 of this library's 16 coverless EPUBs were rejections of
+    perfectly good 2–3 MB covers. Downscale, don't reject.
+
+    Always JPEG out (the caller therefore always names the staged file
+    `.jpg`), and always VERIFIED against the cap before returning — a rung
+    that still misses falls through to the next, and exhausting them returns
+    None rather than a file that blows the page-weight budget.
+
+    Soft like everything else in this file: no Pillow, an unreadable image, a
+    truncated one — all None, never an exception. Pillow is in
+    requirements.txt but the import stays deferred so a machine without it
+    degrades to the old behaviour instead of failing to import the module.
+    """
+    try:
+        import io
+
+        from PIL import Image, ImageFile
+    except ImportError:
+        print("[ebooks] [WARN] Pillow not installed — oversized covers stay skipped")
+        return None
+
+    # Some epub covers are truncated JPEGs that still decode 99% fine; a
+    # slightly short image beats no cover at all.
+    ImageFile.LOAD_TRUNCATED_IMAGES = True
+
+    try:
+        with Image.open(io.BytesIO(data)) as im:
+            im.load()
+            # Flatten alpha/palette onto white: the output is JPEG, which has
+            # no alpha channel, and RGBA->RGB without a matte goes black.
+            if im.mode in ("RGBA", "LA", "P"):
+                rgba = im.convert("RGBA")
+                flat = Image.new("RGB", rgba.size, (255, 255, 255))
+                flat.paste(rgba, mask=rgba.split()[-1])
+                base = flat
+            elif im.mode != "RGB":
+                base = im.convert("RGB")
+            else:
+                base = im.copy()
+    except Exception as e:  # noqa: BLE001 — a bad image is a null cover, not a crash
+        print(f"[ebooks] [WARN] could not decode an oversized cover ({type(e).__name__}: {e})")
+        return None
+
+    try:
+        for longest, quality in DOWNSCALE_RUNGS:
+            im = base.copy()
+            im.thumbnail((longest, longest), Image.LANCZOS)
+            buf = io.BytesIO()
+            im.save(buf, format="JPEG", quality=quality, optimize=True, progressive=True)
+            out = buf.getvalue()
+            if len(out) <= MAX_COVER_BYTES:  # VERIFY, never assume
+                return out
+    except Exception as e:  # noqa: BLE001
+        print(f"[ebooks] [WARN] could not re-encode an oversized cover ({type(e).__name__}: {e})")
+        return None
+    finally:
+        base.close()
+
+    print("[ebooks] [WARN] a cover missed the size cap on every rung — skipped")
+    return None
+
+
 def extract_epub_cover(epub_path: Path) -> tuple[bytes, str] | None:
     """(image_bytes, file_extension) for the epub's cover image, or None.
 
@@ -299,8 +407,22 @@ def extract_epub_cover(epub_path: Path) -> tuple[bytes, str] | None:
                 return None
             member = posixpath.normpath(posixpath.join(posixpath.dirname(opf_path), href))
             info = z.getinfo(member)
-            if info.file_size == 0 or info.file_size > MAX_COVER_BYTES:
+            if info.file_size == 0 or info.file_size > MAX_SOURCE_COVER_BYTES:
                 return None
+
+            # Over the page-weight cap -> DOWNSCALE, don't reject (the whole
+            # point of the 2026-08-17 fix). The re-encode always emits JPEG,
+            # so the declared media-type stops mattering on this path.
+            if info.file_size > MAX_COVER_BYTES:
+                shrunk = downscale_cover(z.read(member))
+                if shrunk is None:
+                    return None
+                print(
+                    f"[ebooks] downscaled cover for {epub_path.name}: "
+                    f"{info.file_size / 1048576:.1f} MB -> {len(shrunk) / 1048576:.2f} MB"
+                )
+                return shrunk, ".jpg"
+
             ext = _COVER_EXT_BY_MEDIA_TYPE.get((cover_item.get("media-type") or "").strip().lower())
             if ext is None:
                 return None
@@ -332,11 +454,49 @@ def stage_epub_cover(epub_path: Path, covers_dir: Path) -> str | None:
     return f"{EBOOK_COVER_PREFIX}/{digest}{ext}"
 
 
+# ---------------------------------------------------------------------------
+# Covers, source 3: a hand-placed cover for a book that carries none
+# ---------------------------------------------------------------------------
+def load_cover_overrides(path: Path | None = None) -> dict[str, str]:
+    """`{ebook path -> R2 object key}` from scripts/ebook_cover_overrides.json.
+
+    The escape hatch for the genuinely coverless book — an EPUB with no
+    embedded image and no sibling audiobook, where the owner's rule ("all the
+    epubs should have covers, minimum") can only be met by a person finding
+    one. Adding an entry is a two-step, deliberately manual job: stage the
+    image under site/covers/ebooks/<sha256>.<ext> and record its key here.
+
+    Soft like the rest of the file: a missing, malformed or unreadable file
+    means no overrides this run, never a failed build.
+    """
+    # Resolved at CALL time, never bound as a default argument: the tests
+    # (and any future relocation) monkeypatch the module attribute, and a
+    # default captured at def-time would silently ignore that.
+    path = COVER_OVERRIDES_PATH if path is None else path
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {}
+    except Exception as e:  # noqa: BLE001
+        print(f"[ebooks] [WARN] cover overrides unreadable ({e}) — none applied this run")
+        return {}
+    covers = raw.get("covers") if isinstance(raw, dict) else None
+    if not isinstance(covers, dict):
+        return {}
+    out: dict[str, str] = {}
+    for rel, entry in covers.items():
+        key = entry.get("key") if isinstance(entry, dict) else entry
+        if isinstance(rel, str) and isinstance(key, str) and key.strip():
+            out[rel.replace("\\", "/")] = key.strip()
+    return out
+
+
 def scan(
     root: Path,
     catalog_covers: dict[str, list[tuple[str, str]]] | None = None,
     covers_dir: Path | None = None,
     extract: bool = True,
+    cover_overrides: dict[str, str] | None = None,
 ) -> list[dict]:
     ebooks: list[dict] = []
     for path in sorted(root.rglob("*")):
@@ -372,7 +532,9 @@ def scan(
 
         # Covers, in the approved order: sibling audiobook's cover first (the
         # catalog already publishes it), the epub's own embedded image second,
-        # null third (the page's typographic spine placeholder).
+        # a hand-placed override third, null fourth (the page's typographic
+        # spine placeholder).
+        rel_posix = str(rel).replace("\\", "/")
         cover_url: str | None = None
         cover_source: str | None = None
         href = sibling_cover_href(title, beside, catalog_covers or {})
@@ -384,11 +546,16 @@ def scan(
             if key:
                 cover_url = canonical_cover_url("covers/" + key) or None
                 cover_source = "epub" if cover_url else None
+        if cover_url is None:
+            override = (cover_overrides or {}).get(rel_posix)
+            if override:
+                cover_url = canonical_cover_url("covers/" + override) or None
+                cover_source = "override" if cover_url else None
 
         stat = path.stat()
         ebooks.append(
             {
-                "path": str(rel).replace("\\", "/"),
+                "path": rel_posix,
                 "filename": path.name,
                 "format": path.suffix.lower().lstrip("."),
                 "title": title,
@@ -426,6 +593,7 @@ def build_manifest(dry: bool = False) -> int:
         catalog_covers=load_catalog_covers(CATALOG_PATH),
         covers_dir=EBOOK_COVERS_DIR,
         extract=not dry,
+        cover_overrides=load_cover_overrides(),
     )
 
     by_format: dict[str, int] = {}

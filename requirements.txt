@@ -17,6 +17,14 @@ firebase-admin>=6.5.0
 # Fuzzy matching for author name deduplication
 thefuzz>=0.22.1
 
+# ⚠️ REQUIRED BY CI, not optional. scripts/build_ebook_manifest.downscale_cover
+# re-encodes oversized EPUB covers instead of rejecting them (2026-08-17 — the
+# rejection is what left 15 EPUBs coverless), and tests/test_ebook_covers.py
+# exercises that path with a real image. The import in the module itself stays
+# deferred and soft, so a machine without Pillow degrades rather than crashes;
+# CI, however, must actually run the downscale tests.
+Pillow>=10.0.0
+
 # Development dependencies
 pre-commit>=3.6.0
 black>=24.1.1

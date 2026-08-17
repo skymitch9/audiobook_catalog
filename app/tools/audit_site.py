@@ -9,6 +9,10 @@ Audit the committed site artifacts for the core catalog guarantees:
   4. Every author resolves to a Google Drive folder (matching the site's own
      resolution: exact or case-insensitive match on the FULL author string),
      or is explicitly excluded in scripts/audit_exclusions.json.
+  5. Every EPUB in site/ebooks.json has a cover_url. Owner rule, 2026-08-17:
+     "all epubs must resolve a cover". PDFs are exempt by design (they carry
+     no embedded art; the page hides them behind a checkbox instead).
+     Emergency escape hatch: ALLOW_COVERLESS_EPUBS=1.
 
      The map that actually ships is the one EMBEDDED in site/index.html at
      build time (author_drive_map.json is only the source for the next
@@ -37,6 +41,11 @@ from pathlib import Path
 EXCLUSIONS_REL_PATH = Path("scripts") / "audit_exclusions.json"
 AUTHOR_MAP_NAME = "author_drive_map.json"
 COVER_MANIFEST_NAME = "covers_manifest.json"
+EBOOKS_MANIFEST_NAME = "ebooks.json"
+
+# Emergency escape hatch for check 5. Documented as emergency-only in
+# docs/access/GIT_CI_DEPLOY.md; it lets a known-broken shelf reach prod.
+ALLOW_COVERLESS_EPUBS_ENV = "ALLOW_COVERLESS_EPUBS"
 
 
 def load_exclusions(path: Path) -> dict:
@@ -256,6 +265,67 @@ def _check_drive_links(
     return failures, warnings
 
 
+def _check_ebook_covers(site_dir: Path) -> tuple:
+    """Every EPUB in site/ebooks.json must carry a cover_url.
+
+    ⚠️ Owner rule, 2026-08-17, verbatim: "all epubs must resolve a cover or
+    that breaks the test suite. this is so so important to me." Enforced in
+    TWO places on purpose — tests/test_ebook_covers.py gates the merge (and
+    therefore auto-promote), this gates the promotion itself, because a ref
+    can reach `promote.yml` without having gone through today's tests.
+
+    PDFs are exempt BY DESIGN, not by oversight: they carry no embedded art,
+    and the owner's decision the same day was a "show PDFs" checkbox on the
+    page (default off), not a cover hunt for them.
+
+    A missing manifest is a WARNING, not a failure: an old `prod-*` rollback
+    tag predates site/ebooks.json entirely, and this gate must not make such
+    a ref unpromotable.
+
+    Escape hatch: ALLOW_COVERLESS_EPUBS=1, emergency use only — it lets a
+    known-broken shelf reach prod, so use it to unblock an unrelated urgent
+    promotion and never as a way to live with missing covers.
+    """
+    import os
+
+    path = site_dir / EBOOKS_MANIFEST_NAME
+    if not path.exists():
+        return [], [f"{path} not found — ebook cover coverage not audited (pre-ebooks ref?)"]
+    try:
+        with open(path, encoding="utf-8") as f:
+            manifest = json.load(f)
+        entries = manifest["ebooks"]
+        if not isinstance(entries, list):
+            raise TypeError("'ebooks' is not a list")
+    except (json.JSONDecodeError, OSError, KeyError, TypeError) as e:
+        return [f"{path} is unreadable or malformed ({e}) — the ebook shelf would not render"], []
+
+    epubs = [
+        e for e in entries
+        if isinstance(e, dict) and str(e.get("format") or "").lower() == "epub"
+    ]
+    if not epubs:
+        return [], [f"{path} lists no EPUBs — nothing to audit"]
+
+    coverless = [e for e in epubs if not str(e.get("cover_url") or "").strip()]
+    if not coverless:
+        print(f"[OK] ebook covers: all {len(epubs)} EPUBs have a cover")
+        return [], []
+
+    named = _summarize([f"{e.get('title')} ({e.get('path')})" for e in coverless], limit=25)
+    if os.environ.get(ALLOW_COVERLESS_EPUBS_ENV) == "1":
+        return [], [
+            f"{ALLOW_COVERLESS_EPUBS_ENV}=1 — EMERGENCY OVERRIDE: promoting with "
+            f"{len(coverless)} coverless EPUB(s): {named}"
+        ]
+    return [
+        f"{len(coverless)} of {len(epubs)} EPUBs have no cover: {named}"
+        " — rebuild with `python -m scripts.build_ebook_manifest` (oversized covers are"
+        " downscaled, not rejected) or add one to scripts/ebook_cover_overrides.json;"
+        f" emergency only: {ALLOW_COVERLESS_EPUBS_ENV}=1"
+    ], []
+
+
 def _stale_exclusion_warnings(rows: list, authors: list, exclusions: dict) -> list:
     """Warn about exclusion entries that no longer match anything in the catalog."""
     warnings = []
@@ -296,6 +366,9 @@ def audit(site_dir: Path, author_map_path: Path, exclusions_path: Path) -> int:
         authors, site_dir, author_map, author_map_path, exclusions
     )
     failures += link_failures
+    ebook_failures, ebook_warnings = _check_ebook_covers(site_dir)
+    failures += ebook_failures
+    warnings += ebook_warnings
     warnings += _stale_exclusion_warnings(rows, authors, exclusions)
 
     for w in warnings:
