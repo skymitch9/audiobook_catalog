@@ -29,6 +29,22 @@
 // The request is a "simple" CORS POST on purpose: no headers are set, so
 // the body goes as text/plain and no preflight fires. The worker parses
 // the body as JSON regardless of content type.
+//
+// ⚠️ THE OUTCOME BIT — `context.succeeded`, added 2026-08-17 to close the
+// soak pack's blocker 4. reportGate() is called from a `finally` block, so
+// it fires whether the Firestore write SUCCEEDED or FAILED, and without an
+// outcome the two are byte-identical in the log. That made the flip
+// criterion unfalsifiable in both directions: it asks for "requests that
+// succeeded today but the gate would refuse", so a would_deny line on a
+// write firestore.rules already refused is the gate merely AGREEING, while a
+// would_deny line on a write that worked is a real regression. Callers know
+// which they had; they thread it through. Absent (an older cached build) is
+// logged as null server-side — "cannot say", never "failed".
+//
+// The payload contract this module writes is pinned at BOTH ends:
+//   site/__tests__/gate-shadow.test.js  (what is sent)
+//   catalog-platform/apps/audiobook-worker/test/gate-shadow.test.ts
+//                                       (what is parsed, same literal)
 
 import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 import { IS_DEV_LANE } from './fb-env.js';
@@ -70,6 +86,11 @@ function liveAuthUser() {
 async function sendReport(action, context) {
   const payload = { action: String(action), lane: IS_DEV_LANE ? 'dev' : 'prod' };
   if (context && context.clubId) payload.clubId = String(context.clubId);
+  // The OUTCOME BIT (see the module header). Sent ONLY when the caller
+  // actually knows — a strict boolean, never coerced from undefined, because
+  // the worker's third state ("this report cannot say") has to stay reachable
+  // and must never be silently read as a failure.
+  if (context && typeof context.succeeded === 'boolean') payload.succeeded = context.succeeded;
   const user = await liveAuthUser();
   if (user && typeof user.getIdToken === 'function') {
     try {
@@ -94,8 +115,12 @@ async function sendReport(action, context) {
  *
  * @param {string} action one of the worker's ACTION_GATES names,
  *   e.g. 'review.delete', 'club.setSchedule'
- * @param {{clubId?: string}} [context] the club the action targets, where
- *   the gate is club-scoped (the worker consults that club's managerUids)
+ * @param {{clubId?: string, succeeded?: boolean}} [context]
+ *   `clubId` — the club the action targets, where the gate is club-scoped
+ *   (the worker consults that club's managerUids).
+ *   `succeeded` — did the Firestore write this report accompanies actually
+ *   work? Omit ONLY where the caller genuinely cannot tell; a wrong value is
+ *   worse than an absent one, because absent logs honestly as null.
  */
 export function reportGate(action, context) {
   try {

@@ -456,10 +456,16 @@ describe('Phase 1 shadow reports — the schedule write', () => {
   it('setReadSchedule reports club.setSchedule (the design doc example action), success or not', async () => {
     const { reportGate } = await import('../gate-shadow.js');
     reportGate.mockClear();
-    // Even a read-not-found attempt is an exercised write path — it reports.
+    // Even a read-not-found attempt is an exercised write path — it reports,
+    // and since 2026-08-17 it reports the OUTCOME too (soak blocker 4): this
+    // one failed, so the gate's verdict on it can never be mistaken for a
+    // regression against a write that worked.
     const r = await setReadSchedule(fakeDb, 'club-sched-x', 'no-such-read', [null]);
     expect(r.success).toBe(false);
     expect(reportGate).toHaveBeenCalledTimes(1);
-    expect(reportGate).toHaveBeenCalledWith('club.setSchedule', { clubId: 'club-sched-x' });
+    expect(reportGate).toHaveBeenCalledWith('club.setSchedule', {
+      clubId: 'club-sched-x',
+      succeeded: false,
+    });
   });
 });

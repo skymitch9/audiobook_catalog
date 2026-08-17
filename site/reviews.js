@@ -57,6 +57,7 @@ export async function submitReview(db, bookId, displayName, rating, text) {
   const reviewRef = doc(db, col('reviews'), docId);
 
   let existed = false;
+  let succeeded = false; // the shadow report's outcome bit — see the finally
   try {
     const existingDoc = await getDoc(reviewRef);
     existed = existingDoc.exists();
@@ -79,6 +80,7 @@ export async function submitReview(db, bookId, displayName, rating, text) {
     // review, because clearTbrForRating swallows its own errors.
     await clearTbrForRating(db, bookId, displayName);
 
+    succeeded = true;
     return { success: true };
   } catch (e) {
     return { success: false, error: describeActionError(e) };
@@ -86,7 +88,7 @@ export async function submitReview(db, bookId, displayName, rating, text) {
     // Phase 1 shadow telemetry (fire-and-forget, cannot affect the write —
     // see gate-shadow.js). submit/update are wired to measure Phase 5's
     // tokenless population, not a role gate.
-    reportGate(existed ? 'review.update' : 'review.submit');
+    reportGate(existed ? 'review.update' : 'review.submit', { succeeded });
   }
 }
 
@@ -134,13 +136,20 @@ export async function clearTbrForRating(db, bookId, displayName) {
  */
 export async function deleteReview(db, bookId, displayName) {
   const docId = `${bookId}_${(displayName || '').toLowerCase()}`;
+  let succeeded = false; // the shadow report's outcome bit — see the finally
   try {
     await deleteDoc(doc(db, col('reviews'), docId));
+    succeeded = true;
     return { success: true };
   } catch (e) {
     return { success: false, error: describeActionError(e, { need: 'the site admin role' }) };
   } finally {
-    reportGate('review.delete'); // Phase 1 shadow — fire-and-forget
+    // ⚠️ This surface is ALREADY rules-enforced (admin-only), so a non-admin
+    // reaching here fails with PERMISSION_DENIED — succeeded:false, and the
+    // gate would_deny is the gate AGREEING with today's rules, not a
+    // regression. That distinction is the whole point of the outcome bit
+    // (soak pack §6 names review.delete as the exact case).
+    reportGate('review.delete', { succeeded });
   }
 }
 

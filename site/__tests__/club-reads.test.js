@@ -83,7 +83,7 @@ const {
   isMilestoneLocked, parseCsv,
   milestonesFromChapters, milestonesFromChapterRanges,
   milestonesFromParts, wholeBookMilestones,
-  startRead, getReads, getRead, finishRead, refreshClubAvatar, groupChapters, updateReadLabel,
+  startRead, getReads, getRead, finishRead, removeRead, refreshClubAvatar, groupChapters, updateReadLabel,
   addComment, deleteComment, getComments, GABI,
   setProgress, setChapterProgress, getProgressAll, isCommentSpoiler,
   getTbr, addTbrItem, removeTbrItem, toggleTbrVote,
@@ -655,7 +655,7 @@ describe('Phase 1 shadow reports — comment/quote MOD deletes only', () => {
 
     await deleteComment(fakeDb, CLUB, 'read-x', 'c-theirs', { asModerator: true });
     expect(reportGate).toHaveBeenCalledTimes(1);
-    expect(reportGate).toHaveBeenCalledWith('comment.modDelete', { clubId: CLUB });
+    expect(reportGate).toHaveBeenCalledWith('comment.modDelete', { clubId: CLUB, succeeded: true });
   });
 
   it('deleteQuote follows the same contract', async () => {
@@ -664,6 +664,55 @@ describe('Phase 1 shadow reports — comment/quote MOD deletes only', () => {
 
     await deleteQuote(fakeDb, CLUB, 'read-x', 'q-theirs', { asModerator: true });
     expect(reportGate).toHaveBeenCalledTimes(1);
-    expect(reportGate).toHaveBeenCalledWith('quote.modDelete', { clubId: CLUB });
+    expect(reportGate).toHaveBeenCalledWith('quote.modDelete', { clubId: CLUB, succeeded: true });
+  });
+});
+
+// ==================== The read.setSlot gap + the outcome bit ====================
+//
+// Both fixes land here because both were named by the 2026-08-16 soak pack:
+// blocker 3 (read.setSlot was the last gated action the client never sent —
+// its silence was indistinguishable from a clean result) and blocker 4 (the
+// report carried no success/failure, so the flip criterion — "requests that
+// SUCCEEDED today but the gate would refuse" — could not be evaluated).
+
+describe('Phase 1 shadow reports — read.setSlot and the succeeded bit', () => {
+  let reportGate;
+  beforeEach(async () => {
+    ({ reportGate } = await import('../gate-shadow.js'));
+    reportGate.mockClear();
+  });
+
+  it('updateReadLabel reports read.setSlot — the gap the soak pack found', async () => {
+    const { readId } = await startRead(fakeDb, CLUB, bookInput(), jane);
+    reportGate.mockClear();
+
+    const res = await updateReadLabel(fakeDb, CLUB, readId, 'Side read');
+    expect(res.success).toBe(true);
+    expect(reportGate).toHaveBeenCalledTimes(1);
+    expect(reportGate).toHaveBeenCalledWith('read.setSlot', { clubId: CLUB, succeeded: true });
+  });
+
+  it('a label rejected before the write reports NOTHING — no Firestore call, no gate decision', async () => {
+    const res = await updateReadLabel(fakeDb, CLUB, 'read-x', 'x'.repeat(41));
+    expect(res.success).toBe(false);
+    expect(reportGate).not.toHaveBeenCalled();
+  });
+
+  it('a failure INSIDE the try reports succeeded:false — the case the finally used to hide', async () => {
+    // removeRead on a read that does not exist returns success:false from
+    // inside the try, so the finally still fires. Before the outcome bit this
+    // line was byte-identical to a successful removal.
+    const res = await removeRead(fakeDb, CLUB, 'no-such-read');
+    expect(res.success).toBe(false);
+    expect(reportGate).toHaveBeenCalledWith('read.remove', { clubId: CLUB, succeeded: false });
+  });
+
+  it('a real removal reports succeeded:true', async () => {
+    const { readId } = await startRead(fakeDb, CLUB, bookInput(), jane);
+    reportGate.mockClear();
+
+    expect((await removeRead(fakeDb, CLUB, readId)).success).toBe(true);
+    expect(reportGate).toHaveBeenCalledWith('read.remove', { clubId: CLUB, succeeded: true });
   });
 });

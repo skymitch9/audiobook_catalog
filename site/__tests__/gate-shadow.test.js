@@ -79,6 +79,60 @@ describe('gate-shadow reporter — payload and transport', () => {
     });
   });
 
+  // ── THE PINNED CROSS-REPO CONTRACT ───────────────────────────────────────
+  //
+  // The other half of this assertion lives in
+  //   catalog-platform/apps/audiobook-worker/test/gate-shadow.test.ts
+  //   ("the PINNED site payload contract ...")
+  // and pins the SAME literal from the parsing side. The two repos deploy
+  // independently — the site half rides an owner promote, the worker half a
+  // wrangler deploy — so a field renamed on one side and not the other is a
+  // silent data loss that no single suite would catch. Change this literal
+  // only together with that one.
+  it('pins the exact payload contract the worker parses (both repos assert this literal)', async () => {
+    const fetchMock = stubFetch();
+    currentUser = { getIdToken: async () => 'ID_TOKEN' };
+
+    reportGate('read.setSlot', { clubId: 'club-42', succeeded: true });
+    await settle();
+
+    expect(sentPayload(fetchMock)).toEqual({
+      action: 'read.setSlot',
+      lane: 'prod',
+      clubId: 'club-42',
+      succeeded: true,
+      token: 'ID_TOKEN',
+    });
+  });
+
+  it('sends succeeded:false when the write it accompanies failed', async () => {
+    const fetchMock = stubFetch();
+    currentUser = { getIdToken: async () => 'tok' };
+
+    reportGate('club.delete', { clubId: 'c1', succeeded: false });
+    await settle();
+
+    // ⚠️ false must SURVIVE — the whole point of the outcome bit is telling a
+    // real regression (would_deny on a write that WORKED) from the gate
+    // merely agreeing with a refusal today. A falsy-check bug here would drop
+    // exactly the half that proves "no regression".
+    expect(sentPayload(fetchMock).succeeded).toBe(false);
+  });
+
+  it('OMITS succeeded when the caller did not say — absent is the honest third state', async () => {
+    const fetchMock = stubFetch();
+    currentUser = { getIdToken: async () => 'tok' };
+
+    reportGate('review.delete');
+    await settle();
+    expect(sentPayload(fetchMock, 0)).not.toHaveProperty('succeeded');
+
+    // And a non-boolean is not a boolean: never coerced, never sent.
+    reportGate('review.delete', { succeeded: 'yes' });
+    await settle();
+    expect(sentPayload(fetchMock, 1)).not.toHaveProperty('succeeded');
+  });
+
   it('reads the CACHED token — getIdToken is called with no forceRefresh argument', async () => {
     stubFetch();
     const getIdToken = vi.fn(async () => 'tok');

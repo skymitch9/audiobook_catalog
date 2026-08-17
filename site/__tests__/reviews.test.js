@@ -496,13 +496,13 @@ describe('Phase 1 shadow reports — review writes', () => {
     const r1 = await submitReview(fakeDb, 'dune', 'Jane', 4, 'great');
     expect(r1.success).toBe(true);
     expect(reportGate).toHaveBeenCalledTimes(1);
-    expect(reportGate).toHaveBeenCalledWith('review.submit');
+    expect(reportGate).toHaveBeenCalledWith('review.submit', { succeeded: true });
 
     reportGate.mockClear();
     const r2 = await submitReview(fakeDb, 'dune', 'Jane', 5, 'even better');
     expect(r2.success).toBe(true);
     expect(reportGate).toHaveBeenCalledTimes(1);
-    expect(reportGate).toHaveBeenCalledWith('review.update');
+    expect(reportGate).toHaveBeenCalledWith('review.update', { succeeded: true });
   });
 
   it('a validation reject never reaches Firestore and reports nothing', async () => {
@@ -516,7 +516,7 @@ describe('Phase 1 shadow reports — review writes', () => {
     const r = await deleteReview(fakeDb, 'dune', 'Jane');
     expect(r.success).toBe(true);
     expect(reportGate).toHaveBeenCalledTimes(1);
-    expect(reportGate).toHaveBeenCalledWith('review.delete');
+    expect(reportGate).toHaveBeenCalledWith('review.delete', { succeeded: true });
   });
 
   it('deleteReview reports review.delete even when rules DENY — the denial is the measurement, and the report changes nothing about the refusal', async () => {
@@ -526,7 +526,13 @@ describe('Phase 1 shadow reports — review writes', () => {
     expect(r.success).toBe(false); // outcome identical to the pre-shadow behaviour
     expect(mockStore[key]).toBeDefined();
     expect(reportGate).toHaveBeenCalledTimes(1);
-    expect(reportGate).toHaveBeenCalledWith('review.delete');
+    // ⚠️ THE CASE SOAK BLOCKER 4 NAMED. review.delete is already rules-enforced
+    // (admin-only), so this refusal is the gate AGREEING with today's rules —
+    // not a regression. succeeded:false is what lets the next evidence pack
+    // tell the two apart; without it this line was byte-identical to the
+    // successful delete above, and every legitimate refusal read as a false
+    // alarm.
+    expect(reportGate).toHaveBeenCalledWith('review.delete', { succeeded: false });
   });
 });
 

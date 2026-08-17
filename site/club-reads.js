@@ -296,6 +296,11 @@ export function scheduleStatus(milestones, progress, chaptered, nowMs) {
  * schedule structure — and stamps scheduleUpdatedAt.
  */
 export async function setReadSchedule(db, clubId, readId, dueAts) {
+  // The shadow report's outcome bit — see the `finally` below and
+  // gate-shadow.js. Set on the ONE success path; every other exit (an early
+  // `success: false` inside the try, or a throw) leaves it false, which is
+  // exactly what those exits are.
+  let succeeded = false;
   try {
     const readRef = doc(db, col('clubs'), clubId, 'reads', readId);
     const snap = await getDoc(readRef);
@@ -309,11 +314,12 @@ export async function setReadSchedule(db, clubId, readId, dueAts) {
       return next;
     });
     await updateDoc(readRef, { milestones, scheduleUpdatedAt: serverTimestamp() });
+    succeeded = true;
     return { success: true };
   } catch (e) {
     return { success: false, error: describeActionError(e, { need: 'the host, moderator, or site moderator role' }) };
   } finally {
-    reportGate('club.setSchedule', { clubId }); // Phase 1 shadow — fire-and-forget
+    reportGate('club.setSchedule', { clubId, succeeded }); // Phase 1 shadow — fire-and-forget
   }
 }
 
@@ -553,6 +559,7 @@ export async function getReads(db, clubId) {
 export async function removeRead(db, clubId, readId) {
   const clubRef = doc(db, col('clubs'), clubId);
   const readRef = doc(db, col('clubs'), clubId, 'reads', readId);
+  let succeeded = false; // the shadow report's outcome bit — see the finally
   try {
     const readSnap = await getDoc(readRef);
     if (!readSnap.exists()) return { success: false, error: 'Read not found.' };
@@ -588,6 +595,7 @@ export async function removeRead(db, clubId, readId) {
     } catch { /* blind ratings unreadable pre-reveal; leave orphaned docs */ }
     await deleteDoc(readRef);
     await refreshClubAvatar(db, clubId);
+    succeeded = true;
     return { success: true };
   } catch (e) {
     return {
@@ -597,22 +605,46 @@ export async function removeRead(db, clubId, readId) {
       }),
     };
   } finally {
-    reportGate('read.remove', { clubId }); // Phase 1 shadow — fire-and-forget
+    reportGate('read.remove', { clubId, succeeded }); // Phase 1 shadow — fire-and-forget
   }
 }
 
 /**
  * Rename a read's label ("Current read" / "Side read" by default) —
  * free-form, member-editable, becomes the card's header title.
+ *
+ * ⚠️ THE LAST INSTRUMENTATION GAP, closed 2026-08-17. This is the live
+ * surface behind the worker's `read.setSlot` gate (soak pack §5): it was the
+ * one action in ACTION_GATES that the client never reported, so it would
+ * have produced zero would_deny lines however long the soak ran — and its
+ * silence was indistinguishable from a clean result, which is precisely the
+ * trap the design's own rule warns about ("absence of lines is only evidence
+ * when the action demonstrably ran").
+ *
+ * ⚠️ Worth the owner's eye at flip time, and NOT resolved by instrumenting
+ * it: `read.setSlot` carries a `manageClub` (admin) floor, while today this
+ * label is member-editable by design — the migration design's own §1 table
+ * lists `updateReadLabel` as staying browser-direct, and firestore.rules
+ * keeps `slotLabel` OUT of MANAGED_READ_FIELDS deliberately ("commentCount
+ * bumps and slot labels stay open"). So an ordinary member renaming a card
+ * will now log `would_deny:true` with `succeeded:true` — a REAL predicted
+ * regression, exactly the shape blocker 4's outcome bit exists to surface.
+ * Instrumenting it is what makes that visible; deciding it (lower the floor,
+ * or route the label away from `read.setSlot`) is an owner call, not a
+ * silent fix here.
  */
 export async function updateReadLabel(db, clubId, readId, label) {
   const trimmed = (label || '').trim();
   if (trimmed.length > 40) return { success: false, error: 'Labels must be 40 characters or fewer.' };
+  let succeeded = false; // the shadow report's outcome bit — see the finally
   try {
     await updateDoc(doc(db, col('clubs'), clubId, 'reads', readId), { slotLabel: trimmed });
+    succeeded = true;
     return { success: true };
   } catch (e) {
     return { success: false, error: describeActionError(e) };
+  } finally {
+    reportGate('read.setSlot', { clubId, succeeded }); // Phase 1 shadow — fire-and-forget
   }
 }
 
@@ -632,6 +664,7 @@ export async function finishRead(db, clubId, readId, status) {
   }
   const clubRef = doc(db, col('clubs'), clubId);
   const readRef = doc(db, col('clubs'), clubId, 'reads', readId);
+  let succeeded = false; // the shadow report's outcome bit — see the finally
   try {
     await runTransaction(db, async (tx) => {
       const readSnap = await tx.get(readRef);
@@ -647,6 +680,7 @@ export async function finishRead(db, clubId, readId, status) {
       tx.update(readRef, { status, finishedAt: serverTimestamp() });
     });
     await refreshClubAvatar(db, clubId);
+    succeeded = true;
     return { success: true };
   } catch (e) {
     return {
@@ -657,7 +691,7 @@ export async function finishRead(db, clubId, readId, status) {
       }),
     };
   } finally {
-    reportGate('read.finish', { clubId }); // Phase 1 shadow — fire-and-forget
+    reportGate('read.finish', { clubId, succeeded }); // Phase 1 shadow — fire-and-forget
   }
 }
 
@@ -864,14 +898,16 @@ export async function getQuotes(db, clubId, readId) {
  * unreported (a self-delete report would pollute the would_deny soak).
  */
 export async function deleteQuote(db, clubId, readId, quoteId, opts) {
+  let succeeded = false; // the shadow report's outcome bit — see the finally
   try {
     await deleteDoc(doc(db, col('clubs'), clubId, 'reads', readId, 'quotes', quoteId));
+    succeeded = true;
     return { success: true };
   } catch (e) {
     return { success: false, error: describeActionError(e, { need: 'to be the person who saved it, or hold the host/moderator role' }) };
   } finally {
     if (opts && opts.asModerator) {
-      reportGate('quote.modDelete', { clubId }); // Phase 1 shadow — fire-and-forget
+      reportGate('quote.modDelete', { clubId, succeeded }); // Phase 1 shadow — fire-and-forget
     }
   }
 }
@@ -882,15 +918,17 @@ export async function deleteQuote(db, clubId, readId, quoteId, opts) {
  * moderation delete (not the author's own) reports to the Phase 1 shadow.
  */
 export async function deleteComment(db, clubId, readId, commentId, opts) {
+  let succeeded = false; // the shadow report's outcome bit — see the finally
   try {
     await deleteDoc(doc(db, col('clubs'), clubId, 'reads', readId, 'comments', commentId));
     await updateDoc(doc(db, col('clubs'), clubId, 'reads', readId), { commentCount: increment(-1) });
+    succeeded = true;
     return { success: true };
   } catch (e) {
     return { success: false, error: describeActionError(e, { need: 'to be the comment author, or hold the host/moderator role' }) };
   } finally {
     if (opts && opts.asModerator) {
-      reportGate('comment.modDelete', { clubId }); // Phase 1 shadow — fire-and-forget
+      reportGate('comment.modDelete', { clubId, succeeded }); // Phase 1 shadow — fire-and-forget
     }
   }
 }
@@ -1446,6 +1484,7 @@ export async function createPoll(db, clubId, input, session) {
     ? validateNextBookOptions(input.options)
     : validatePollOptions(input.options);
   if (!oCheck.valid) return { success: false, error: oCheck.error };
+  let succeeded = false; // the shadow report's outcome bit — see the finally
   try {
     const ref = doc(collection(db, col('clubs'), clubId, 'polls'));
     await setDoc(ref, {
@@ -1461,11 +1500,12 @@ export async function createPoll(db, clubId, input, session) {
       createdAt: serverTimestamp(),
       closedAt: null,
     });
+    succeeded = true;
     return { success: true, pollId: ref.id };
   } catch (e) {
     return { success: false, error: describeActionError(e) };
   } finally {
-    reportGate('poll.create', { clubId }); // Phase 1 shadow — fire-and-forget
+    reportGate('poll.create', { clubId, succeeded }); // Phase 1 shadow — fire-and-forget
   }
 }
 
@@ -1489,32 +1529,36 @@ export async function getPoll(db, clubId, pollId) {
  */
 export async function setPollStatus(db, clubId, pollId, status) {
   if (status !== 'open' && status !== 'closed') return { success: false, error: 'Invalid status.' };
+  let succeeded = false; // the shadow report's outcome bit — see the finally
   try {
     await updateDoc(doc(db, col('clubs'), clubId, 'polls', pollId), {
       status,
       closedAt: status === 'closed' ? serverTimestamp() : null,
     });
+    succeeded = true;
     return { success: true };
   } catch (e) {
     return { success: false, error: describeActionError(e, { need: 'the host or moderator role' }) };
   } finally {
-    reportGate('poll.setStatus', { clubId }); // Phase 1 shadow — fire-and-forget
+    reportGate('poll.setStatus', { clubId, succeeded }); // Phase 1 shadow — fire-and-forget
   }
 }
 
 /** Delete a poll and its votes (manager action). */
 export async function deletePoll(db, clubId, pollId) {
+  let succeeded = false; // the shadow report's outcome bit — see the finally
   try {
     const votesSnap = await getDocs(collection(db, col('clubs'), clubId, 'polls', pollId, 'votes'));
     for (const v of votesSnap.docs) {
       await deleteDoc(doc(db, col('clubs'), clubId, 'polls', pollId, 'votes', v.id));
     }
     await deleteDoc(doc(db, col('clubs'), clubId, 'polls', pollId));
+    succeeded = true;
     return { success: true };
   } catch (e) {
     return { success: false, error: describeActionError(e, { need: 'the host or moderator role' }) };
   } finally {
-    reportGate('poll.delete', { clubId }); // Phase 1 shadow — fire-and-forget
+    reportGate('poll.delete', { clubId, succeeded }); // Phase 1 shadow — fire-and-forget
   }
 }
 
@@ -1751,16 +1795,18 @@ export async function rateBook(db, clubId, readId, rating, comment, session) {
  * isRatingAfterReveal has a real instant to compare against.
  */
 export async function revealRatings(db, clubId, readId) {
+  let succeeded = false; // the shadow report's outcome bit — see the finally
   try {
     await updateDoc(doc(db, col('clubs'), clubId, 'reads', readId), {
       ratingsRevealed: true,
       revealedAt: serverTimestamp(),
     });
+    succeeded = true;
     return { success: true };
   } catch (e) {
     return { success: false, error: describeActionError(e, { need: 'the club host/moderator role, or site admin' }) };
   } finally {
-    reportGate('read.revealRatings', { clubId }); // Phase 1 shadow — fire-and-forget
+    reportGate('read.revealRatings', { clubId, succeeded }); // Phase 1 shadow — fire-and-forget
   }
 }
 

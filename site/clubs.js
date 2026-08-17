@@ -377,6 +377,10 @@ export async function claimManagerRole(db, clubId, uid, session, role) {
     return { success: false, error: 'Sign in with Google to secure your role.' };
   }
   const r = role === 'moderator' ? 'moderator' : 'host';
+  // The shadow report's outcome bit — see the `finally` below and
+  // gate-shadow.js. Set on the ONE success path; every other exit leaves it
+  // false, which is exactly what those exits are.
+  let succeeded = false;
   try {
     await updateDoc(doc(db, col('clubs'), clubId), {
       ['managerUids.' + uid]: {
@@ -385,6 +389,7 @@ export async function claimManagerRole(db, clubId, uid, session, role) {
         claimedAt: Date.now(),
       },
     });
+    succeeded = true;
     return { success: true };
   } catch (e) {
     if (e && (e.code === 'permission-denied' || /permission/i.test(e.message || ''))) {
@@ -396,7 +401,7 @@ export async function claimManagerRole(db, clubId, uid, session, role) {
     }
     return { success: false, error: describeActionError(e) };
   } finally {
-    reportGate('club.claimManager', { clubId }); // Phase 1 shadow — fire-and-forget
+    reportGate('club.claimManager', { clubId, succeeded }); // Phase 1 shadow — fire-and-forget
   }
 }
 
@@ -441,6 +446,7 @@ export async function setClubDiscordWebhook(db, clubId, url, session) {
   if (!isValidDiscordWebhook(trimmed)) {
     return { success: false, error: 'That does not look like a Discord webhook URL (https://discord.com/api/webhooks/...).' };
   }
+  let succeeded = false; // the shadow report's outcome bit — see the finally
   try {
     await setDoc(doc(db, col('clubs'), clubId, 'settings', 'discord'), {
       webhookUrl: trimmed,
@@ -450,11 +456,12 @@ export async function setClubDiscordWebhook(db, clubId, url, session) {
     await updateDoc(doc(db, col('clubs'), clubId), {
       discordWebhookMask: maskWebhookUrl(trimmed),
     });
+    succeeded = true;
     return { success: true };
   } catch (e) {
     return { success: false, error: describeActionError(e, { need: "this club's manager role, or the site moderator role" }) };
   } finally {
-    reportGate('club.setWebhook', { clubId }); // Phase 1 shadow — fire-and-forget
+    reportGate('club.setWebhook', { clubId, succeeded }); // Phase 1 shadow — fire-and-forget
   }
 }
 
@@ -463,14 +470,16 @@ export async function setClubDiscordWebhook(db, clubId, url, session) {
  * enforced in the UI and in firestore.rules — ADMINISTERED_CLUB_FIELDS).
  */
 export async function clearClubDiscordWebhook(db, clubId) {
+  let succeeded = false; // the shadow report's outcome bit — see the finally
   try {
     await deleteDoc(doc(db, col('clubs'), clubId, 'settings', 'discord'));
     await updateDoc(doc(db, col('clubs'), clubId), { discordWebhookMask: '' });
+    succeeded = true;
     return { success: true };
   } catch (e) {
     return { success: false, error: describeActionError(e, { need: "this club's manager role, or the site moderator role" }) };
   } finally {
-    reportGate('club.clearWebhook', { clubId }); // Phase 1 shadow — fire-and-forget
+    reportGate('club.clearWebhook', { clubId, succeeded }); // Phase 1 shadow — fire-and-forget
   }
 }
 
@@ -528,8 +537,10 @@ export async function updateClubDetails(db, clubId, input) {
     }
     updates.features = cleaned;
   }
+  let succeeded = false; // the shadow report's outcome bit — see the finally
   try {
     await updateDoc(doc(db, col('clubs'), clubId), updates);
+    succeeded = true;
     return { success: true };
   } catch (e) {
     return { success: false, error: describeActionError(e, { need: 'the host or moderator role for that setting' }) };
@@ -537,11 +548,13 @@ export async function updateClubDetails(db, clubId, input) {
     // Phase 1 shadow (fire-and-forget): one report per gated TIER the update
     // touched, in the worker's vocabulary. Member-editable fields
     // (name/description/emoji/...) report nothing — they stay browser-direct.
+    // ⚠️ Both tiers share ONE write, so both carry the SAME outcome — that is
+    // accurate, not a shortcut: the single updateDoc either landed or did not.
     if (STRUCTURAL_CLUB_FIELDS.some((f) => f in updates)) {
-      reportGate('club.updateStructural', { clubId });
+      reportGate('club.updateStructural', { clubId, succeeded });
     }
     if (OPERATIONAL_CLUB_FIELDS.some((f) => f in updates)) {
-      reportGate('club.setNextMeeting', { clubId });
+      reportGate('club.setNextMeeting', { clubId, succeeded });
     }
   }
 }
@@ -669,6 +682,7 @@ export async function leaveClub(db, clubId, session) {
  */
 export async function removeMemberBySlug(db, clubId, targetSlug) {
   const clubRef = doc(db, col('clubs'), clubId);
+  let succeeded = false; // the shadow report's outcome bit — see the finally
   try {
     await runTransaction(db, async (tx) => {
       const clubSnap = await tx.get(clubRef);
@@ -682,11 +696,12 @@ export async function removeMemberBySlug(db, clubId, targetSlug) {
       tx.update(clubRef, { memberSlugs: slugs, invitedSlugs: invited, memberCount: slugs.length });
     });
     await deleteDoc(doc(db, col('clubs'), clubId, 'members', targetSlug));
+    succeeded = true;
     return { success: true };
   } catch (e) {
     return { success: false, error: describeActionError(e, { need: 'the host or moderator role' }) };
   } finally {
-    reportGate('club.removeMember', { clubId }); // Phase 1 shadow — fire-and-forget
+    reportGate('club.removeMember', { clubId, succeeded }); // Phase 1 shadow — fire-and-forget
   }
 }
 
@@ -698,6 +713,7 @@ export async function setMemberRole(db, clubId, targetSlug, role) {
   if (role !== 'moderator' && role !== 'member') {
     return { success: false, error: 'Invalid role.' };
   }
+  let succeeded = false; // the shadow report's outcome bit — see the finally
   try {
     const club = await getClub(db, clubId);
     if (!club) return { success: false, error: 'Club not found.' };
@@ -708,11 +724,12 @@ export async function setMemberRole(db, clubId, targetSlug, role) {
     const memberSnap = await getDoc(memberRef);
     if (!memberSnap.exists()) return { success: false, error: 'Member not found.' };
     await setDoc(memberRef, { ...memberSnap.data(), role });
+    succeeded = true;
     return { success: true };
   } catch (e) {
     return { success: false, error: describeActionError(e, { need: 'the host role' }) };
   } finally {
-    reportGate('club.setMemberRole', { clubId }); // Phase 1 shadow — fire-and-forget
+    reportGate('club.setMemberRole', { clubId, succeeded }); // Phase 1 shadow — fire-and-forget
   }
 }
 
@@ -743,6 +760,7 @@ export async function getRequests(db, clubId) {
 
 /** Accept a join request: the requester becomes an active member. */
 export async function acceptRequest(db, clubId, targetSlug) {
+  let succeeded = false; // the shadow report's outcome bit — see the finally
   try {
     const reqRef = doc(db, col('clubs'), clubId, 'requests', targetSlug);
     const reqSnap = await getDoc(reqRef);
@@ -765,23 +783,26 @@ export async function acceptRequest(db, clubId, targetSlug) {
       joinedAt: serverTimestamp(),
     });
     await deleteDoc(reqRef);
+    succeeded = true;
     return { success: true };
   } catch (e) {
     return { success: false, error: describeActionError(e, { need: 'the host or moderator role' }) };
   } finally {
-    reportGate('club.acceptRequest', { clubId }); // Phase 1 shadow — fire-and-forget
+    reportGate('club.acceptRequest', { clubId, succeeded }); // Phase 1 shadow — fire-and-forget
   }
 }
 
 /** Reject (delete) a join request. */
 export async function rejectRequest(db, clubId, targetSlug) {
+  let succeeded = false; // the shadow report's outcome bit — see the finally
   try {
     await deleteDoc(doc(db, col('clubs'), clubId, 'requests', targetSlug));
+    succeeded = true;
     return { success: true };
   } catch (e) {
     return { success: false, error: describeActionError(e, { need: 'the host or moderator role' }) };
   } finally {
-    reportGate('club.rejectRequest', { clubId }); // Phase 1 shadow — fire-and-forget
+    reportGate('club.rejectRequest', { clubId, succeeded }); // Phase 1 shadow — fire-and-forget
   }
 }
 
@@ -796,6 +817,7 @@ export async function inviteMember(db, clubId, displayName) {
   if (name.length < 2) return { success: false, error: 'Enter a display name.' };
   const slug = slugifyName(name);
   const clubRef = doc(db, col('clubs'), clubId);
+  let succeeded = false; // the shadow report's outcome bit — see the finally
   try {
     await runTransaction(db, async (tx) => {
       const clubSnap = await tx.get(clubRef);
@@ -811,11 +833,12 @@ export async function inviteMember(db, clubId, displayName) {
         invitedAt: serverTimestamp(),
       });
     });
+    succeeded = true;
     return { success: true };
   } catch (e) {
     return { success: false, error: describeActionError(e, { need: 'the host or moderator role' }) };
   } finally {
-    reportGate('club.inviteMember', { clubId }); // Phase 1 shadow — fire-and-forget
+    reportGate('club.inviteMember', { clubId, succeeded }); // Phase 1 shadow — fire-and-forget
   }
 }
 
@@ -871,16 +894,18 @@ export async function declineInvite(db, clubId, session) {
  * Delete a club and its member docs. Host-only action (enforced in the UI).
  */
 export async function deleteClub(db, clubId) {
+  let succeeded = false; // the shadow report's outcome bit — see the finally
   try {
     const membersSnap = await getDocs(collection(db, col('clubs'), clubId, 'members'));
     for (const m of membersSnap.docs) {
       await deleteDoc(doc(db, col('clubs'), clubId, 'members', m.id));
     }
     await deleteDoc(doc(db, col('clubs'), clubId));
+    succeeded = true;
     return { success: true };
   } catch (e) {
     return { success: false, error: describeActionError(e, { need: 'the host role' }) };
   } finally {
-    reportGate('club.delete', { clubId }); // Phase 1 shadow — fire-and-forget
+    reportGate('club.delete', { clubId, succeeded }); // Phase 1 shadow — fire-and-forget
   }
 }

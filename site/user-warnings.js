@@ -174,8 +174,10 @@ export async function deleteUserWarning(db, warning, session, opts) {
     };
   }
 
+  let succeeded = false; // the shadow report's outcome bit — see the finally
   try {
     await deleteDoc(doc(db, col('user_content_warnings'), warning.id));
+    succeeded = true;
     return { success: true };
   } catch (e) {
     return {
@@ -188,6 +190,6 @@ export async function deleteUserWarning(db, warning, session, opts) {
     // Phase 1 shadow telemetry (fire-and-forget, cannot affect the delete —
     // see gate-shadow.js). The action names are the worker's ACTION_GATES
     // vocabulary (catalog-platform apps/audiobook-worker/src/gate-shadow.ts).
-    reportGate(authored ? 'warning.selfDelete' : 'warning.modDelete');
+    reportGate(authored ? 'warning.selfDelete' : 'warning.modDelete', { succeeded });
   }
 }

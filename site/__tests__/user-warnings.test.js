@@ -161,7 +161,7 @@ describe('shadow instrumentation — the action split', () => {
     reportGate.mockClear();
     await deleteUserWarning(fakeDb, w, jane);
     expect(reportGate).toHaveBeenCalledTimes(1);
-    expect(reportGate).toHaveBeenCalledWith('warning.selfDelete');
+    expect(reportGate).toHaveBeenCalledWith('warning.selfDelete', { succeeded: true });
   });
 
   it('reports warning.modDelete for someone else’s note', async () => {
@@ -171,7 +171,7 @@ describe('shadow instrumentation — the action split', () => {
     reportGate.mockClear();
     await deleteUserWarning(fakeDb, w, bob, { canModerate: true });
     expect(reportGate).toHaveBeenCalledTimes(1);
-    expect(reportGate).toHaveBeenCalledWith('warning.modDelete');
+    expect(reportGate).toHaveBeenCalledWith('warning.modDelete', { succeeded: true });
   });
 
   it('reports nothing when the attempt is refused before the write', async () => {

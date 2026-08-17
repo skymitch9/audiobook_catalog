@@ -350,7 +350,7 @@ describe('Phase 1 shadow reports — clubs.js gated writes', () => {
     const r = await updateClubDetails(fakeDb, clubId, { joinMode: 'application' });
     expect(r.success).toBe(true);
     expect(reportGate).toHaveBeenCalledTimes(1);
-    expect(reportGate).toHaveBeenCalledWith('club.updateStructural', { clubId });
+    expect(reportGate).toHaveBeenCalledWith('club.updateStructural', { clubId, succeeded: true });
   });
 
   it('a next-meeting change reports club.setNextMeeting; a save touching BOTH tiers reports both', async () => {
@@ -358,16 +358,18 @@ describe('Phase 1 shadow reports — clubs.js gated writes', () => {
     reportGate.mockClear();
     const r1 = await updateClubDetails(fakeDb, clubId, { nextMeetingAt: 1755400000000 });
     expect(r1.success).toBe(true);
-    expect(reportGate.mock.calls).toEqual([['club.setNextMeeting', { clubId }]]);
+    expect(reportGate.mock.calls).toEqual([['club.setNextMeeting', { clubId, succeeded: true }]]);
 
     reportGate.mockClear();
     const r2 = await updateClubDetails(fakeDb, clubId, {
       joinMode: 'open', nextMeetingAt: null, features: { polls: true },
     });
     expect(r2.success).toBe(true);
+    // ⚠️ Both tiers ride ONE updateDoc, so both carry the same outcome — that
+    // is the truth of the write, not a shortcut.
     expect(reportGate.mock.calls).toEqual([
-      ['club.updateStructural', { clubId }],
-      ['club.setNextMeeting', { clubId }],
+      ['club.updateStructural', { clubId, succeeded: true }],
+      ['club.setNextMeeting', { clubId, succeeded: true }],
     ]);
   });
 
@@ -385,13 +387,13 @@ describe('Phase 1 shadow reports — clubs.js gated writes', () => {
     reportGate.mockClear();
 
     await setMemberRole(fakeDb, clubId, 'bob brown', 'moderator');
-    expect(reportGate).toHaveBeenCalledWith('club.setMemberRole', { clubId });
+    expect(reportGate).toHaveBeenCalledWith('club.setMemberRole', { clubId, succeeded: true });
 
     await inviteMember(fakeDb, clubId, 'Carol');
-    expect(reportGate).toHaveBeenCalledWith('club.inviteMember', { clubId });
+    expect(reportGate).toHaveBeenCalledWith('club.inviteMember', { clubId, succeeded: true });
 
     await removeMemberBySlug(fakeDb, clubId, 'bob brown');
-    expect(reportGate).toHaveBeenCalledWith('club.removeMember', { clubId });
+    expect(reportGate).toHaveBeenCalledWith('club.removeMember', { clubId, succeeded: true });
   });
 
   it('deleteClub reports club.delete', async () => {
@@ -400,7 +402,7 @@ describe('Phase 1 shadow reports — clubs.js gated writes', () => {
     const r = await deleteClub(fakeDb, clubId);
     expect(r.success).toBe(true);
     expect(reportGate).toHaveBeenCalledTimes(1);
-    expect(reportGate).toHaveBeenCalledWith('club.delete', { clubId });
+    expect(reportGate).toHaveBeenCalledWith('club.delete', { clubId, succeeded: true });
   });
 
   it('plain member actions — create/join/leave/requestToJoin — report nothing', async () => {
