@@ -835,6 +835,15 @@ def test_a_book_that_failed_to_open_records_nothing() -> None:
     assert js.count("state.keeper?.arm()") == 2, (
         "both renderers must arm the keeper, and only after their first render"
     )
+    # ⚠️ AND EACH MUST RECORD ONCE IMMEDIATELY AFTER ARMING — a race FOUND BY
+    # EXERCISING THIS on the dev lane, not by reading the code. A reader who
+    # turns a page WHILE the first page is still rendering turns it through an
+    # unarmed keeper: that turn records nothing, and if they then stop, the
+    # whole session saves nothing at all. Recording the settled position right
+    # after arming catches it, at the price of one write per book opened.
+    assert "recordPdfPosition();" in js and "recordEpubPosition(view.lastLocation);" in js, (
+        "each renderer must record its settled position immediately after arming"
+    )
 
 
 def test_a_stale_locator_falls_back_to_the_start_never_to_a_broken_render() -> None:
@@ -847,7 +856,10 @@ def test_a_stale_locator_falls_back_to_the_start_never_to_a_broken_render() -> N
     failures, so a dead bookmark costs a bookmark and never a book.
     """
     js = strip_comments(read(READER_JS))
-    assert "lastLocation" not in js, (
+    # ⚠️ Phrased about the CALL, not about the word: `view.lastLocation` is
+    # READ elsewhere (to record where a book settled), which is fine. What
+    # must never happen is HANDING a stored locator to init().
+    assert not re.search(r"\.init\(\s*\{[^}]*lastLocation", js), (
         "the stored CFI must NOT be passed to foliate's init() — see "
         "goToStoredLocation in reader.js for why"
     )

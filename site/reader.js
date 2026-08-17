@@ -438,13 +438,7 @@ async function drawPage(n) {
   // Where we are, remembered. Local immediately, Firestore on a debounce, and
   // NOTHING at all until the keeper is armed (i.e. until a page has genuinely
   // rendered once) — see beginPositionTracking.
-  state.keeper?.record(
-    { kind: 'page', value: state.page },
-    {
-      progress: state.doc.numPages ? state.page / state.doc.numPages : null,
-      label: `p. ${state.page} of ${state.doc.numPages}`,
-    },
-  );
+  recordPdfPosition();
 
   const page = await state.doc.getPage(state.page);
   if (seq !== state.renderSeq) return; // a newer turn won
@@ -663,6 +657,26 @@ async function openPdf(anchor, book) {
   // ⚠️ ARMED ONLY NOW. Everything above could still have ended in a closed
   // state, and a book that would not open must not record a position.
   state.keeper?.arm();
+  // ⚠️ AND ONE RECORD IMMEDIATELY, which is not redundant — it closes a race
+  // FOUND BY EXERCISING THIS, 2026-08-17. A reader who turns a page WHILE the
+  // first page is still rendering turns it through an unarmed keeper: that
+  // turn records nothing, and if they then stop, the session saves nothing at
+  // all. `state.page` is whatever the newest draw settled on, so recording it
+  // here catches that turn. The cost is one write per book opened, which is
+  // the right price for "opening a book is itself where you are".
+  recordPdfPosition();
+}
+
+/** The current PDF page, as the keeper wants it. One shape, two callers. */
+function recordPdfPosition() {
+  if (!state.doc) return;
+  state.keeper?.record(
+    { kind: 'page', value: state.page },
+    {
+      progress: state.doc.numPages ? state.page / state.doc.numPages : null,
+      label: `p. ${state.page} of ${state.doc.numPages}`,
+    },
+  );
 }
 
 /**
@@ -738,6 +752,30 @@ async function goToStoredLocation(view, row) {
   } catch (e) {
     console.warn('[reader] the stored location no longer resolves; staying at the start:', e);
   }
+}
+
+/**
+ * One foliate location, as the keeper wants it. One shape, two callers.
+ *
+ * ⚠️ THE LOCATOR IS THE CFI, not the fraction. Both are on foliate's relocate
+ * event and the fraction is the tempting one — it is a number, it survives
+ * anything, and it is WRONG as a bookmark: it is a position in the BOOK'S
+ * BYTES, so a different reflow (a phone, a bigger type size) lands somewhere
+ * else on the page, and any re-export moves it. A CFI names a place in the
+ * document's own structure, which is what "where I was" means. The fraction
+ * rides along as `progress` — for a percentage label and a future progress
+ * bar, never for navigation.
+ */
+function recordEpubPosition(detail) {
+  const d = detail || {};
+  if (!d.cfi) return;
+  state.keeper?.record(
+    { kind: 'cfi', value: d.cfi },
+    {
+      progress: typeof d.fraction === 'number' ? d.fraction : null,
+      label: describeLocation(d),
+    },
+  );
 }
 
 async function openEpub(anchor, book) {
@@ -839,14 +877,7 @@ async function openEpub(anchor, book) {
     // document's own structure, which is what "where I was" means. The
     // fraction rides along as `progress` — for a percentage label and a future
     // progress bar, never for navigation.
-    const d = ev.detail || {};
-    if (d.cfi) {
-      state.keeper?.record(
-        { kind: 'cfi', value: d.cfi },
-        { progress: typeof d.fraction === 'number' ? d.fraction : null,
-          label: describeLocation(d) },
-      );
-    }
+    recordEpubPosition(ev.detail);
   });
   bookEl.append(view);
 
@@ -901,6 +932,11 @@ async function openEpub(anchor, book) {
   // ⚠️ ARMED ONLY NOW, so neither `init()`'s relocate nor the restore's own
   // writes a position for a book that might still have failed to open.
   state.keeper?.arm();
+  // ⚠️ AND ONE RECORD IMMEDIATELY — the same race the PDF half documents: a
+  // reader who turns a page while the book is still opening turns it through
+  // an unarmed keeper. `view.lastLocation` is foliate's own record of the
+  // newest relocate, so this catches that turn.
+  recordEpubPosition(view.lastLocation);
   busy(false);
 }
 
