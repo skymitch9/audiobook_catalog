@@ -671,3 +671,54 @@ def test_identity_exports_a_token_getter_that_answers_null_when_signed_out() -> 
     # ⚠️ getLiveUser must KEEP returning a snapshot. Widening it to the live
     # Firebase User would 'fix' the reader by undoing the reason this exists.
     assert "{ uid: user.uid, email: user.email || null, displayName: user.displayName || null }" in src
+
+
+def test_NOTHING_asks_getLiveUsers_snapshot_for_a_token() -> None:
+    """⚠️ A REPO-WIDE SWEEP, because this bug shipped in TWO places.
+
+    `getLiveUser()` answers a flat snapshot — `{uid, email, displayName}` — with
+    no token getter on it, deliberately. Both `site/reader.js` AND the shelf
+    (`app/web/templates/ebooks.html`) asked that snapshot for a token, threw
+    `TypeError: … is not a function` on the first gated request, and reported it
+    through their outage branch. **The gated shelf never once rendered a book
+    for anybody, and the reader never opened one.**
+
+    ⚠️ Nothing caught it because every test and every agent check exercised the
+    SIGNED-OUT half, where the line does not run — which is exactly why this is
+    a static sweep rather than another behavioural test. It is cheap, it covers
+    files nobody thought to test, and it fails on the shape of the mistake
+    rather than on one instance of it.
+
+    The rule: a file that gets a user from `getLiveUser()` may use `uid`,
+    `email` and `displayName` from it, and must take tokens from
+    `identity.getIdToken(app)`.
+    """
+    roots = [REPO / "site", REPO / "app" / "web" / "templates"]
+    offenders = []
+    for root in roots:
+        for path in sorted(list(root.glob("*.js")) + list(root.glob("*.html"))):
+            if "__tests__" in str(path) or path.name == "identity.js":
+                continue
+            src = strip_comments(read(path))
+            if "getLiveUser" not in src:
+                continue
+            for m in re.finditer(r"(\w+)\.getIdToken\s*\(", src):
+                offenders.append(f"{path.name}: {m.group(0)}")
+    assert not offenders, (
+        "these ask a getLiveUser() snapshot for a token, which throws for every "
+        "signed-in visitor and surfaces as a mislabelled outage — use "
+        f"identity.getIdToken(app) instead: {offenders}"
+    )
+
+
+def test_the_shelf_takes_its_manifest_token_from_identity_too() -> None:
+    """The other half of the same fix, pinned where the shelf lives.
+
+    ⚠️ And it must WORD a missing token rather than fall into the outage
+    branch: "sign in again" and "the shelf's server did not respond" send a
+    person to two different places, and only one of them is right.
+    """
+    shelf = read(SHELF)
+    assert re.search(r"import \{[^}]*\bgetIdToken\b[^}]*\} from './identity.js'", shelf)
+    assert "const token = await getIdToken(app);" in shelf
+    assert "Your sign-in has lapsed" in shelf

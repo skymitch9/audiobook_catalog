@@ -971,7 +971,7 @@ h1 .tail{color:var(--accent)}
   import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
   import { FIREBASE_CONFIG } from './fb-env.js';
   import { mountAccountModal } from './account-modal.js';
-  import { getLiveUser, signInWithGoogle, handleRedirectResult, getSession, resolveSiteAccess } from './identity.js';
+  import { getLiveUser, getIdToken, signInWithGoogle, handleRedirectResult, getSession, resolveSiteAccess } from './identity.js';
   import { renderEbookNotes } from './ebook-notes.js';
 
   /** The gated manifest. ⚠️ Its OWN origin — this page is served from
@@ -1095,9 +1095,27 @@ h1 .tail{color:var(--accent)}
     // content note ever needs.
     if (db) resolveSiteAccess(db, app).then((a) => { _siteAccess = a; }).catch(() => {});
 
+    // ⚠️ THE TOKEN COMES FROM identity.getIdToken(app), NOT FROM THE `user`
+    // OBJECT. getLiveUser() answers a flat SNAPSHOT — {uid, email,
+    // displayName} — with no token getter on it, on purpose. This page asked
+    // the snapshot for one and threw `TypeError: … is not a function` for
+    // EVERY signed-in visitor, which the catch below reported as "the shelf
+    // did not answer" — an outage sentence for something that was not an
+    // outage. So the gated shelf has never once rendered a book for anybody.
+    // Nothing caught it, because every test and every agent check was the
+    // SIGNED-OUT half, where the line never runs. Fixed 2026-08-17 alongside
+    // the identical bug in site/reader.js.
+    const token = await getIdToken(app);
+    if (!token) {
+      closed(
+        'Your sign-in has lapsed',
+        'Sign in again and the shelf will fill in.',
+        { signIn: true },
+      );
+      return;
+    }
     let res;
     try {
-      const token = await user.getIdToken();
       res = await fetch(MANIFEST_URL, { headers: { Authorization: 'Bearer ' + token } });
     } catch (e) {
       // ⚠️ An outage is NOT a permission failure (§1e point 5). Mislabelling
