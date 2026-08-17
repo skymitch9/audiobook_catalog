@@ -4,6 +4,11 @@
 // Discord webhook setting that gate/serve it.
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
+// The Phase 1 shadow reporter (gate-shadow.js) fires fire-and-forget from
+// the gated write paths under test; mock it so no test ever touches the
+// network. Its own contract is pinned in gate-shadow.test.js.
+vi.mock('../gate-shadow.js', () => ({ reportGate: vi.fn() }));
+
 // --- In-memory Firestore mock (same shape as club-reads.test.js, + arrayUnion) ---
 let mockStore = {};
 
@@ -442,5 +447,19 @@ describe('discord webhook setting', () => {
     expect(r.success).toBe(true);
     expect(mockStore[`${CLUB_PATH}/settings/discord`]).toBeUndefined();
     expect(mockStore[CLUB_PATH].discordWebhookMask).toBe('');
+  });
+});
+
+// ==================== Phase 1 shadow reports (auth migration §4) ====================
+
+describe('Phase 1 shadow reports — the schedule write', () => {
+  it('setReadSchedule reports club.setSchedule (the design doc example action), success or not', async () => {
+    const { reportGate } = await import('../gate-shadow.js');
+    reportGate.mockClear();
+    // Even a read-not-found attempt is an exercised write path — it reports.
+    const r = await setReadSchedule(fakeDb, 'club-sched-x', 'no-such-read', [null]);
+    expect(r.success).toBe(false);
+    expect(reportGate).toHaveBeenCalledTimes(1);
+    expect(reportGate).toHaveBeenCalledWith('club.setSchedule', { clubId: 'club-sched-x' });
   });
 });

@@ -502,7 +502,7 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
   import { coverUrl } from './covers-base.js';
   import { getSession, slugifyName, getSiteRole } from './identity.js';
   import { mountAccountModal } from './account-modal.js';
-  import { getClub, getMembers, clubFeatureEnabled } from './clubs.js?v=20260816a';
+  import { getClub, getMembers, clubFeatureEnabled } from './clubs.js?v=20260816b';
   import {
     getRead, getComments, addComment, deleteComment,
     toggleReaction, togglePin, REACTION_EMOJI,
@@ -521,7 +521,7 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
     tallyRatings, isRatingAfterReveal, sortRatingsForReveal, getMyStoredRating,
     MAX_RATING_COMMENT_LENGTH,
     computePaceGraphModel, paceAxisLabel, paceScaleX, paceScaleY, assignPaceColors,
-  } from './club-reads.js?v=20260814j';
+  } from './club-reads.js?v=20260816b';
   import { addUserWarning, getUserWarnings, deleteUserWarning } from './user-warnings.js';
   import { markReadSeen } from './club-notify.js';
   import { submitReview, bookIdFromTitle, getReviews, renderStars } from './reviews.js';
@@ -1364,7 +1364,12 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
     contentEl.querySelectorAll('[data-quote-del]').forEach(btn =>
       btn.addEventListener('click', async () => {
         if (!confirm('Delete this quote?')) return;
-        const r = await deleteQuote(db, clubId, readId, btn.dataset.quoteDel);
+        // asModerator: deleting someone ELSE's quote is the moderation
+        // surface the auth migration moves behind the worker; deleting your
+        // own stays browser-direct (see deleteQuote's Phase 1 shadow note).
+        const q = quotes.find(x => x.id === btn.dataset.quoteDel);
+        const r = await deleteQuote(db, clubId, readId, btn.dataset.quoteDel,
+          { asModerator: !!q && q.slug !== mySlug });
         if (r.success) reload(); else showError(r.error);
       }));
 
@@ -1432,7 +1437,11 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
     contentEl.querySelectorAll('[data-del]').forEach(btn =>
       btn.addEventListener('click', async () => {
         if (!confirm('Delete this comment?')) return;
-        const r = await deleteComment(db, clubId, readId, btn.dataset.del);
+        // asModerator: same contract as the quote delete above — only a
+        // moderation delete (not the author's own) is a worker-bound surface.
+        const c = comments.find(x => x.id === btn.dataset.del);
+        const r = await deleteComment(db, clubId, readId, btn.dataset.del,
+          { asModerator: !!c && c.slug !== mySlug });
         if (r.success) reload(); else showError(r.error);
       }));
 

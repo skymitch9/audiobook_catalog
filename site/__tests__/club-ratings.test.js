@@ -10,6 +10,11 @@
 // reveal-badge / reveal-ordering pure logic and the Firestore writers.
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
+// The Phase 1 shadow reporter (gate-shadow.js) fires fire-and-forget from
+// the gated write paths under test; mock it so no test ever touches the
+// network. Its own contract is pinned in gate-shadow.test.js.
+vi.mock('../gate-shadow.js', () => ({ reportGate: vi.fn() }));
+
 // --- In-memory Firestore mock (same shape as club-polls.test.js) ---
 let mockStore = {};
 

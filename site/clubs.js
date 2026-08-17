@@ -9,6 +9,7 @@ import {
 import { col } from './fb-env.js';
 import { slugifyName } from './identity.js';
 import { describeActionError } from './permission-ux.js';
+import { reportGate } from './gate-shadow.js';
 
 /**
  * Validate a club name. 3-40 chars after trimming.
@@ -336,6 +337,8 @@ export async function claimManagerRole(db, clubId, uid, session, role) {
       };
     }
     return { success: false, error: describeActionError(e) };
+  } finally {
+    reportGate('club.claimManager', { clubId }); // Phase 1 shadow — fire-and-forget
   }
 }
 
@@ -391,6 +394,8 @@ export async function setClubDiscordWebhook(db, clubId, url, session) {
     return { success: true };
   } catch (e) {
     return { success: false, error: describeActionError(e, { need: 'the site admin role' }) };
+  } finally {
+    reportGate('club.setWebhook', { clubId }); // Phase 1 shadow — fire-and-forget
   }
 }
 
@@ -405,6 +410,8 @@ export async function clearClubDiscordWebhook(db, clubId) {
     return { success: true };
   } catch (e) {
     return { success: false, error: describeActionError(e, { need: 'the site admin role' }) };
+  } finally {
+    reportGate('club.clearWebhook', { clubId }); // Phase 1 shadow — fire-and-forget
   }
 }
 
@@ -467,6 +474,16 @@ export async function updateClubDetails(db, clubId, input) {
     return { success: true };
   } catch (e) {
     return { success: false, error: describeActionError(e, { need: 'the host or moderator role for that setting' }) };
+  } finally {
+    // Phase 1 shadow (fire-and-forget): one report per gated TIER the update
+    // touched, in the worker's vocabulary. Member-editable fields
+    // (name/description/emoji/...) report nothing — they stay browser-direct.
+    if (STRUCTURAL_CLUB_FIELDS.some((f) => f in updates)) {
+      reportGate('club.updateStructural', { clubId });
+    }
+    if (OPERATIONAL_CLUB_FIELDS.some((f) => f in updates)) {
+      reportGate('club.setNextMeeting', { clubId });
+    }
   }
 }
 
@@ -609,6 +626,8 @@ export async function removeMemberBySlug(db, clubId, targetSlug) {
     return { success: true };
   } catch (e) {
     return { success: false, error: describeActionError(e, { need: 'the host or moderator role' }) };
+  } finally {
+    reportGate('club.removeMember', { clubId }); // Phase 1 shadow — fire-and-forget
   }
 }
 
@@ -633,6 +652,8 @@ export async function setMemberRole(db, clubId, targetSlug, role) {
     return { success: true };
   } catch (e) {
     return { success: false, error: describeActionError(e, { need: 'the host role' }) };
+  } finally {
+    reportGate('club.setMemberRole', { clubId }); // Phase 1 shadow — fire-and-forget
   }
 }
 
@@ -688,6 +709,8 @@ export async function acceptRequest(db, clubId, targetSlug) {
     return { success: true };
   } catch (e) {
     return { success: false, error: describeActionError(e, { need: 'the host or moderator role' }) };
+  } finally {
+    reportGate('club.acceptRequest', { clubId }); // Phase 1 shadow — fire-and-forget
   }
 }
 
@@ -698,6 +721,8 @@ export async function rejectRequest(db, clubId, targetSlug) {
     return { success: true };
   } catch (e) {
     return { success: false, error: describeActionError(e, { need: 'the host or moderator role' }) };
+  } finally {
+    reportGate('club.rejectRequest', { clubId }); // Phase 1 shadow — fire-and-forget
   }
 }
 
@@ -730,6 +755,8 @@ export async function inviteMember(db, clubId, displayName) {
     return { success: true };
   } catch (e) {
     return { success: false, error: describeActionError(e, { need: 'the host or moderator role' }) };
+  } finally {
+    reportGate('club.inviteMember', { clubId }); // Phase 1 shadow — fire-and-forget
   }
 }
 
@@ -794,5 +821,7 @@ export async function deleteClub(db, clubId) {
     return { success: true };
   } catch (e) {
     return { success: false, error: describeActionError(e, { need: 'the host role' }) };
+  } finally {
+    reportGate('club.delete', { clubId }); // Phase 1 shadow — fire-and-forget
   }
 }

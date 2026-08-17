@@ -10,6 +10,7 @@ import { col } from './fb-env.js';
 import { coverUrl } from './covers-base.js';
 import { slugifyName } from './identity.js';
 import { describeActionError } from './permission-ux.js';
+import { reportGate } from './gate-shadow.js';
 
 export const MAX_ACTIVE_READS = 2;
 export const MAX_MILESTONES = 400;
@@ -311,6 +312,8 @@ export async function setReadSchedule(db, clubId, readId, dueAts) {
     return { success: true };
   } catch (e) {
     return { success: false, error: describeActionError(e, { need: 'the host, moderator, or site moderator role' }) };
+  } finally {
+    reportGate('club.setSchedule', { clubId }); // Phase 1 shadow — fire-and-forget
   }
 }
 
@@ -593,6 +596,8 @@ export async function removeRead(db, clubId, readId) {
         fallback: `Remove failed: ${e.message} — try a hard refresh and sign in again if this persists.`,
       }),
     };
+  } finally {
+    reportGate('read.remove', { clubId }); // Phase 1 shadow — fire-and-forget
   }
 }
 
@@ -651,6 +656,8 @@ export async function finishRead(db, clubId, readId, status) {
         fallback: `Finish failed: ${e.message} — try a hard refresh and sign in again if this persists.`,
       }),
     };
+  } finally {
+    reportGate('read.finish', { clubId }); // Phase 1 shadow — fire-and-forget
   }
 }
 
@@ -847,24 +854,44 @@ export async function getQuotes(db, clubId, readId) {
     .sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
 }
 
-/** Delete a quote (saver or host/moderator — enforced in the UI). */
-export async function deleteQuote(db, clubId, readId, quoteId) {
+/**
+ * Delete a quote (saver or host/moderator — enforced in the UI).
+ *
+ * `opts.asModerator` marks a MODERATION delete (someone else's quote) —
+ * callers who know the viewer is not the saver pass true. Only that case is
+ * a worker-bound surface in the auth migration, so only that case reports
+ * to the Phase 1 shadow; deleting your own quote stays browser-direct and
+ * unreported (a self-delete report would pollute the would_deny soak).
+ */
+export async function deleteQuote(db, clubId, readId, quoteId, opts) {
   try {
     await deleteDoc(doc(db, col('clubs'), clubId, 'reads', readId, 'quotes', quoteId));
     return { success: true };
   } catch (e) {
     return { success: false, error: describeActionError(e, { need: 'to be the person who saved it, or hold the host/moderator role' }) };
+  } finally {
+    if (opts && opts.asModerator) {
+      reportGate('quote.modDelete', { clubId }); // Phase 1 shadow — fire-and-forget
+    }
   }
 }
 
-/** Delete a comment (author or host/moderator — enforced in the UI). */
-export async function deleteComment(db, clubId, readId, commentId) {
+/**
+ * Delete a comment (author or host/moderator — enforced in the UI).
+ * `opts.asModerator` — same contract as deleteQuote above: only a
+ * moderation delete (not the author's own) reports to the Phase 1 shadow.
+ */
+export async function deleteComment(db, clubId, readId, commentId, opts) {
   try {
     await deleteDoc(doc(db, col('clubs'), clubId, 'reads', readId, 'comments', commentId));
     await updateDoc(doc(db, col('clubs'), clubId, 'reads', readId), { commentCount: increment(-1) });
     return { success: true };
   } catch (e) {
     return { success: false, error: describeActionError(e, { need: 'to be the comment author, or hold the host/moderator role' }) };
+  } finally {
+    if (opts && opts.asModerator) {
+      reportGate('comment.modDelete', { clubId }); // Phase 1 shadow — fire-and-forget
+    }
   }
 }
 
@@ -1437,6 +1464,8 @@ export async function createPoll(db, clubId, input, session) {
     return { success: true, pollId: ref.id };
   } catch (e) {
     return { success: false, error: describeActionError(e) };
+  } finally {
+    reportGate('poll.create', { clubId }); // Phase 1 shadow — fire-and-forget
   }
 }
 
@@ -1468,6 +1497,8 @@ export async function setPollStatus(db, clubId, pollId, status) {
     return { success: true };
   } catch (e) {
     return { success: false, error: describeActionError(e, { need: 'the host or moderator role' }) };
+  } finally {
+    reportGate('poll.setStatus', { clubId }); // Phase 1 shadow — fire-and-forget
   }
 }
 
@@ -1482,6 +1513,8 @@ export async function deletePoll(db, clubId, pollId) {
     return { success: true };
   } catch (e) {
     return { success: false, error: describeActionError(e, { need: 'the host or moderator role' }) };
+  } finally {
+    reportGate('poll.delete', { clubId }); // Phase 1 shadow — fire-and-forget
   }
 }
 
@@ -1726,6 +1759,8 @@ export async function revealRatings(db, clubId, readId) {
     return { success: true };
   } catch (e) {
     return { success: false, error: describeActionError(e, { need: 'the club host/moderator role, or site admin' }) };
+  } finally {
+    reportGate('read.revealRatings', { clubId }); // Phase 1 shadow — fire-and-forget
   }
 }
 

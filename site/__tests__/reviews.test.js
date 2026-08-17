@@ -7,6 +7,11 @@
 // Feature: book-reviews-and-user-identity, Property 9: Review fetch returns correct book's reviews in date order
 // Feature: book-reviews-and-user-identity, Property 11: Review display contains all required fields
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+// The Phase 1 shadow reporter (gate-shadow.js) fires fire-and-forget from
+// the gated write paths under test; mock it so no test ever touches the
+// network. Its own contract is pinned in gate-shadow.test.js.
+vi.mock('../gate-shadow.js', () => ({ reportGate: vi.fn() }));
+
 import * as fc from 'fast-check';
 
 // --- In-memory Firestore mock ---
@@ -470,5 +475,57 @@ describe('deleteReview — site-ADMIN-only removal (three-tier model)', () => {
     expect(r.success).toBe(false);
     expect(r.error).toMatch(/site admin/i);
     expect(mockStore[key]).toBeDefined(); // nothing was removed
+  });
+});
+
+// ==================== Phase 1 shadow reports (auth migration §4) ====================
+//
+// reportGate is MOCKED at the top of this file, which is itself half the
+// contract: the reviews module only ever calls it fire-and-forget, so a
+// mock (or a dead network) changes no outcome asserted above.
+
+describe('Phase 1 shadow reports — review writes', () => {
+  let reportGate;
+  beforeEach(async () => {
+    ({ reportGate } = await import('../gate-shadow.js'));
+    reportGate.mockClear();
+    mockStore = {};
+  });
+
+  it('a NEW review reports review.submit; editing an existing one reports review.update', async () => {
+    const r1 = await submitReview(fakeDb, 'dune', 'Jane', 4, 'great');
+    expect(r1.success).toBe(true);
+    expect(reportGate).toHaveBeenCalledTimes(1);
+    expect(reportGate).toHaveBeenCalledWith('review.submit');
+
+    reportGate.mockClear();
+    const r2 = await submitReview(fakeDb, 'dune', 'Jane', 5, 'even better');
+    expect(r2.success).toBe(true);
+    expect(reportGate).toHaveBeenCalledTimes(1);
+    expect(reportGate).toHaveBeenCalledWith('review.update');
+  });
+
+  it('a validation reject never reaches Firestore and reports nothing', async () => {
+    const r = await submitReview(fakeDb, 'dune', 'Jane', 99, 'bad rating');
+    expect(r.success).toBe(false);
+    expect(reportGate).not.toHaveBeenCalled();
+  });
+
+  it('deleteReview reports review.delete on success', async () => {
+    mockStore[`${col('reviews')}/dune_jane`] = { bookId: 'dune', displayName: 'Jane', rating: 4 };
+    const r = await deleteReview(fakeDb, 'dune', 'Jane');
+    expect(r.success).toBe(true);
+    expect(reportGate).toHaveBeenCalledTimes(1);
+    expect(reportGate).toHaveBeenCalledWith('review.delete');
+  });
+
+  it('deleteReview reports review.delete even when rules DENY — the denial is the measurement, and the report changes nothing about the refusal', async () => {
+    const key = `${col('reviews')}/dune_jane`;
+    mockStore[key] = { bookId: 'dune', displayName: 'Jane', rating: 4, __denyDelete: true };
+    const r = await deleteReview(fakeDb, 'dune', 'Jane');
+    expect(r.success).toBe(false); // outcome identical to the pre-shadow behaviour
+    expect(mockStore[key]).toBeDefined();
+    expect(reportGate).toHaveBeenCalledTimes(1);
+    expect(reportGate).toHaveBeenCalledWith('review.delete');
   });
 });

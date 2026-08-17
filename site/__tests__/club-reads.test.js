@@ -2,6 +2,11 @@
 // Feature: book-clubs-phase2 — reads, milestones, comments, progress + spoiler shield
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
+// The Phase 1 shadow reporter (gate-shadow.js) fires fire-and-forget from
+// the gated write paths under test; mock it so no test ever touches the
+// network. Its own contract is pinned in gate-shadow.test.js.
+vi.mock('../gate-shadow.js', () => ({ reportGate: vi.fn() }));
+
 // --- In-memory Firestore mock (superset of clubs.test.js: adds updateDoc/increment) ---
 let mockStore = {};
 
@@ -631,5 +636,34 @@ describe('progress', () => {
 
   it('requires a session', async () => {
     expect((await setProgress(fakeDb, CLUB, readId, 1, null)).success).toBe(false);
+  });
+});
+
+// ==================== Phase 1 shadow reports (auth migration §4) ====================
+
+describe('Phase 1 shadow reports — comment/quote MOD deletes only', () => {
+  let reportGate;
+  beforeEach(async () => {
+    ({ reportGate } = await import('../gate-shadow.js'));
+    reportGate.mockClear();
+  });
+
+  it('deleteComment reports comment.modDelete only when asModerator — an own-delete stays unreported', async () => {
+    await deleteComment(fakeDb, CLUB, 'read-x', 'c-own');
+    await deleteComment(fakeDb, CLUB, 'read-x', 'c-own2', { asModerator: false });
+    expect(reportGate).not.toHaveBeenCalled();
+
+    await deleteComment(fakeDb, CLUB, 'read-x', 'c-theirs', { asModerator: true });
+    expect(reportGate).toHaveBeenCalledTimes(1);
+    expect(reportGate).toHaveBeenCalledWith('comment.modDelete', { clubId: CLUB });
+  });
+
+  it('deleteQuote follows the same contract', async () => {
+    await deleteQuote(fakeDb, CLUB, 'read-x', 'q-own');
+    expect(reportGate).not.toHaveBeenCalled();
+
+    await deleteQuote(fakeDb, CLUB, 'read-x', 'q-theirs', { asModerator: true });
+    expect(reportGate).toHaveBeenCalledTimes(1);
+    expect(reportGate).toHaveBeenCalledWith('quote.modDelete', { clubId: CLUB });
   });
 });

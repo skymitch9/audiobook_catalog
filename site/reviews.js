@@ -4,6 +4,7 @@
 import { doc, setDoc, getDoc, deleteDoc, serverTimestamp, collection, getDocs } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 import { col } from './fb-env.js';
 import { describeActionError } from './permission-ux.js';
+import { reportGate } from './gate-shadow.js';
 
 /**
  * Derive a book identifier by slugifying the title.
@@ -55,8 +56,10 @@ export async function submitReview(db, bookId, displayName, rating, text) {
   const docId = `${bookId}_${displayName.toLowerCase()}`;
   const reviewRef = doc(db, col('reviews'), docId);
 
+  let existed = false;
   try {
     const existingDoc = await getDoc(reviewRef);
+    existed = existingDoc.exists();
     const data = {
       bookId,
       displayName,
@@ -64,7 +67,7 @@ export async function submitReview(db, bookId, displayName, rating, text) {
       text,
       updatedAt: serverTimestamp(),
     };
-    if (!existingDoc.exists()) {
+    if (!existed) {
       data.createdAt = serverTimestamp();
     }
     await setDoc(reviewRef, data, { merge: true });
@@ -72,6 +75,11 @@ export async function submitReview(db, bookId, displayName, rating, text) {
     return { success: true };
   } catch (e) {
     return { success: false, error: describeActionError(e) };
+  } finally {
+    // Phase 1 shadow telemetry (fire-and-forget, cannot affect the write —
+    // see gate-shadow.js). submit/update are wired to measure Phase 5's
+    // tokenless population, not a role gate.
+    reportGate(existed ? 'review.update' : 'review.submit');
   }
 }
 
@@ -91,6 +99,8 @@ export async function deleteReview(db, bookId, displayName) {
     return { success: true };
   } catch (e) {
     return { success: false, error: describeActionError(e, { need: 'the site admin role' }) };
+  } finally {
+    reportGate('review.delete'); // Phase 1 shadow — fire-and-forget
   }
 }
 

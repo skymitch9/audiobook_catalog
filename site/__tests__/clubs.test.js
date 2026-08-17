@@ -2,6 +2,11 @@
 // Feature: book-clubs-phase1 — club create/browse/join/leave + members
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
+// The Phase 1 shadow reporter (gate-shadow.js) fires fire-and-forget from
+// the gated write paths under test; mock it so no test ever touches the
+// network. Its own contract is pinned in gate-shadow.test.js.
+vi.mock('../gate-shadow.js', () => ({ reportGate: vi.fn() }));
+
 // --- In-memory Firestore mock ---
 let mockStore = {};
 
@@ -322,5 +327,87 @@ describe('deleteClub', () => {
     expect(r.success).toBe(true);
     expect(await getClub(fakeDb, clubId)).toBeNull();
     expect(Object.keys(mockStore)).toHaveLength(0);
+  });
+});
+
+// ==================== Phase 1 shadow reports (auth migration §4) ====================
+//
+// One report per gated user action, in the worker's ACTION_GATES vocabulary,
+// fired AFTER the write path runs (success or failure). reportGate is mocked
+// at the top of this file — proof by construction that the module only ever
+// calls it fire-and-forget and no asserted outcome depends on it.
+
+describe('Phase 1 shadow reports — clubs.js gated writes', () => {
+  let reportGate;
+  beforeEach(async () => {
+    ({ reportGate } = await import('../gate-shadow.js'));
+    reportGate.mockClear();
+  });
+
+  it('updateClubDetails reports club.updateStructural for a STRUCTURAL-tier change', async () => {
+    const clubId = await makeClub();
+    reportGate.mockClear(); // createClub is a member action — nothing gated
+    const r = await updateClubDetails(fakeDb, clubId, { joinMode: 'application' });
+    expect(r.success).toBe(true);
+    expect(reportGate).toHaveBeenCalledTimes(1);
+    expect(reportGate).toHaveBeenCalledWith('club.updateStructural', { clubId });
+  });
+
+  it('a next-meeting change reports club.setNextMeeting; a save touching BOTH tiers reports both', async () => {
+    const clubId = await makeClub();
+    reportGate.mockClear();
+    const r1 = await updateClubDetails(fakeDb, clubId, { nextMeetingAt: 1755400000000 });
+    expect(r1.success).toBe(true);
+    expect(reportGate.mock.calls).toEqual([['club.setNextMeeting', { clubId }]]);
+
+    reportGate.mockClear();
+    const r2 = await updateClubDetails(fakeDb, clubId, {
+      joinMode: 'open', nextMeetingAt: null, features: { polls: true },
+    });
+    expect(r2.success).toBe(true);
+    expect(reportGate.mock.calls).toEqual([
+      ['club.updateStructural', { clubId }],
+      ['club.setNextMeeting', { clubId }],
+    ]);
+  });
+
+  it('member-editable fields (name/description/emoji) report NOTHING — they stay browser-direct', async () => {
+    const clubId = await makeClub();
+    reportGate.mockClear();
+    const r = await updateClubDetails(fakeDb, clubId, { name: 'New Name', emoji: '🚀' });
+    expect(r.success).toBe(true);
+    expect(reportGate).not.toHaveBeenCalled();
+  });
+
+  it('membership ops report their own actions', async () => {
+    const clubId = await makeClub();
+    await joinClub(fakeDb, clubId, bob);
+    reportGate.mockClear();
+
+    await setMemberRole(fakeDb, clubId, 'bob brown', 'moderator');
+    expect(reportGate).toHaveBeenCalledWith('club.setMemberRole', { clubId });
+
+    await inviteMember(fakeDb, clubId, 'Carol');
+    expect(reportGate).toHaveBeenCalledWith('club.inviteMember', { clubId });
+
+    await removeMemberBySlug(fakeDb, clubId, 'bob brown');
+    expect(reportGate).toHaveBeenCalledWith('club.removeMember', { clubId });
+  });
+
+  it('deleteClub reports club.delete', async () => {
+    const clubId = await makeClub();
+    reportGate.mockClear();
+    const r = await deleteClub(fakeDb, clubId);
+    expect(r.success).toBe(true);
+    expect(reportGate).toHaveBeenCalledTimes(1);
+    expect(reportGate).toHaveBeenCalledWith('club.delete', { clubId });
+  });
+
+  it('plain member actions — create/join/leave/requestToJoin — report nothing', async () => {
+    const clubId = await makeClub();
+    await joinClub(fakeDb, clubId, bob);
+    await requestToJoin(fakeDb, clubId, { displayName: 'Carol C' });
+    await leaveClub(fakeDb, clubId, bob);
+    expect(reportGate).not.toHaveBeenCalled();
   });
 });
