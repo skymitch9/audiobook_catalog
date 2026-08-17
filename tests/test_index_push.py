@@ -260,8 +260,50 @@ def test_ebook_row_shape():
     assert r["title"] == "Dragonsteel Prime"
     assert r["creator"] == "Brandon Sanderson"
     assert r["series"] is None and r["series_index"] is None and r["year"] is None
-    assert r["cover_url"] is None
+    assert r["cover_url"] is None  # a manifest row without a cover pushes null
     assert r["detail_url"] == "https://audiobooks.heygabi.ai/ebooks.html"
+
+
+# --------------------------------------------------------------------------- #
+# Ebook cover pass-through (bookshelf redesign) — the manifest resolves the
+# cover at step 1b; the pusher passes it through so estate search gets it
+# --------------------------------------------------------------------------- #
+
+
+def test_ebook_cover_url_passes_through_untouched():
+    url = BASE + "ebooks/0f3a51b2c4.jpg"
+    (r,) = build_ebook_rows(manifest(ebook(cover_url=url, cover_source="epub")))
+    assert r["cover_url"] == url
+
+
+def test_ebook_sibling_cover_url_passes_through_untouched():
+    # An already-canonical audiobook cover URL must not be re-encoded.
+    url = BASE + "Brandon%20Sanderson/Dragonsteel%20Prime.jpg"
+    (r,) = build_ebook_rows(manifest(ebook(cover_url=url, cover_source="audiobook")))
+    assert r["cover_url"] == url
+    assert "%2520" not in r["cover_url"]  # the 2026-08-13 double-encode lesson
+
+
+def test_ebook_relative_cover_href_is_canonicalised_defensively():
+    # The manifest stores absolutes; if a relative href ever appears, it is
+    # resolved through the ONE canonicaliser rather than pushed broken.
+    (r,) = build_ebook_rows(manifest(ebook(cover_url="covers/ebooks/abc.jpg")))
+    assert r["cover_url"] == BASE + "ebooks/abc.jpg"
+
+
+def test_ebook_cover_url_absent_null_or_junk_is_none():
+    for cu in (None, "", "   ", 42):
+        (r,) = build_ebook_rows(manifest(ebook(cover_url=cu)))
+        assert r["cover_url"] is None, repr(cu)
+    (r,) = build_ebook_rows(manifest(ebook()))  # key entirely absent
+    assert r["cover_url"] is None
+
+
+def test_cover_source_never_travels():
+    # cover_source is the PAGE's provenance field, not in the allow-list.
+    (r,) = build_ebook_rows(manifest(ebook(cover_url=BASE + "ebooks/x.jpg", cover_source="epub")))
+    assert "cover_source" not in json.dumps(r)
+    assert set(r.keys()) == ALLOWED_KEYS
 
 
 def test_ebook_source_id_never_collides_with_book_key():

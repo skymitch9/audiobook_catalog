@@ -33,11 +33,35 @@ says `Oathbound Healer`. That is the whole argument for this file.
       "source": "opf",
       "beside_audiobook": "Brandon Sanderson",
       "size_bytes": 812345,
-      "modified": "2026-01-14T09:12:03Z"
+      "modified": "2026-01-14T09:12:03Z",
+      "cover_url": "https://covers.heygabi.ai/Brandon Sanderson/….jpg",
+      "cover_source": "audiobook"
     }
   ]
 }
 ```
+
+## Covers (bookshelf redesign, 2026-08-17)
+
+Each row carries `cover_url` (absolute, or null) and `cover_source`:
+
+  - `'audiobook'` — the ebook sits beside an audiobook whose cover the
+    catalog already publishes. Joined against site/catalog.csv at build time,
+    CONSERVATIVELY (see `sibling_cover_href`): a wrong cover is worse than a
+    placeholder, so only an exact title match — or a single unambiguous
+    "catalog title = ebook title + subtitle" extension — wins.
+  - `'epub'` — extracted from the EPUB itself (an epub is a zip carrying its
+    cover; `extract_epub_cover` reads the OPF's cover-image entry). The image
+    is staged sha256-named under site/covers/ebooks/ (gitignored, like every
+    other cover) and rides the EXISTING step 5.7 (scripts/upload_covers_r2.py)
+    to the same R2 bucket under the `ebooks/` key prefix, recorded in
+    site/covers_manifest.json. Step 1b stages, 5.7 uploads, step 6 commits —
+    so a published ebooks.json never references an un-uploaded cover.
+  - `null` — the page renders its typographic spine placeholder.
+
+Extraction is soft the way this whole file is soft: a malformed epub, an
+oversized image (> MAX_COVER_BYTES) or a missing OPF entry degrades to null,
+never breaks the build.
 
 ⚠️ **`source` is the field a consumer must respect.** `opf` means the title and
 author were read out of the file itself and are trustworthy. `filename` means
@@ -60,16 +84,23 @@ disagree). This file publishes raw title and author; the consumer folds them.
 from __future__ import annotations
 
 import argparse
+import csv
+import hashlib
 import json
+import posixpath
 import re
 import sys
+import urllib.parse
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
+from xml.etree import ElementTree as ET
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.config import ROOT_DIR  # noqa: E402
+from app.index_push import canonical_cover_url  # noqa: E402  (the ONE URL canonicaliser — never a second copy)
 from scripts.rename_epubs import get_epub_metadata, sanitize_filename  # noqa: E402,F401
 
 # Kept in step with app.metadata.COMPANION_EXTS, but listed explicitly because
@@ -79,6 +110,32 @@ from scripts.rename_epubs import get_epub_metadata, sanitize_filename  # noqa: E
 EBOOK_EXTS = {".epub", ".mobi", ".azw3", ".kepub", ".pdf"}
 
 OUT_PATH = PROJECT_ROOT / "site" / "ebooks.json"
+
+# The catalog the sibling-cover join reads. At step 1b this is the PREVIOUS
+# run's catalog (the rebuild happens later in the pipeline) — a brand-new
+# audiobook's cover joins on the NEXT run, which is the conservative direction.
+CATALOG_PATH = PROJECT_ROOT / "site" / "catalog.csv"
+
+# Extracted EPUB covers are staged here, sha256-named, and picked up by the
+# existing step 5.7 (scripts/upload_covers_r2.py) — its R2 object key is the
+# path relative to site/covers, so these land under the `ebooks/` prefix in
+# the SAME bucket, recorded in the same covers_manifest.json. The directory is
+# inside gitignored site/covers/ — covers are never committed (the repo went
+# fat once; see docs/info/covers-r2.md).
+EBOOK_COVERS_DIR = PROJECT_ROOT / "site" / "covers" / "ebooks"
+EBOOK_COVER_PREFIX = "ebooks"
+
+# An embedded "cover" bigger than this is skipped (some epubs carry full-page
+# artwork or even the whole book as their cover entry) — the placeholder is
+# the better outcome than a 20 MB shelf tile.
+MAX_COVER_BYTES = 2 * 1024 * 1024
+
+_COVER_EXT_BY_MEDIA_TYPE = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/gif": ".gif",
+    "image/webp": ".webp",
+}
 
 
 def title_author_from_filename(path: Path) -> tuple[str, str | None]:
@@ -98,7 +155,189 @@ def title_author_from_filename(path: Path) -> tuple[str, str | None]:
     return stem.strip(), None
 
 
-def scan(root: Path) -> list[dict]:
+# ---------------------------------------------------------------------------
+# Covers, source 1: the sibling audiobook's cover (join against catalog.csv)
+# ---------------------------------------------------------------------------
+_NORM_RE = re.compile(r"[^a-z0-9]+")
+
+
+def _norm_title(s: str | None) -> str:
+    """Case/punctuation-folded comparison form. Comparison ONLY — never emitted
+    (the no-fold rule protects what travels; a local join key travels nowhere)."""
+    return _NORM_RE.sub(" ", (s or "").lower()).strip()
+
+
+def load_catalog_covers(catalog_path: Path) -> dict[str, list[tuple[str, str]]]:
+    """catalog.csv's covers, grouped by the author/series folder its cover_href
+    lives under — the same folder name `beside_audiobook` carries.
+
+    Soft on purpose: a missing or unreadable catalog means no sibling joins
+    this run (covers degrade to extraction/placeholder), never a failed build.
+    """
+    by_folder: dict[str, list[tuple[str, str]]] = {}
+    try:
+        with catalog_path.open(encoding="utf-8", newline="") as f:
+            for r in csv.DictReader(f):
+                href = (r.get("cover_href") or "").strip().replace("\\", "/")
+                parts = href.split("/", 2)
+                if len(parts) != 3 or parts[0] != "covers" or not parts[1] or not parts[2]:
+                    continue
+                by_folder.setdefault(parts[1], []).append((_norm_title(r.get("title")), href))
+    except OSError:
+        return {}
+    except Exception as e:  # a torn CSV mid-rebuild must not kill step 1b
+        print(f"[ebooks] [WARN] catalog unreadable for cover join ({e}) — no sibling covers this run")
+        return {}
+    return by_folder
+
+
+def _subtitle_extension(ebook_norm: str, catalog_norm: str) -> bool:
+    """True when the catalog title is the ebook title PLUS a subtitle.
+
+    One direction only, deliberately:
+      - catalog extends ebook ("Moonfall" -> "Moonfall - Beneath the Dragoneye
+        Moons, Book 13") is a subtitle and safe;
+      - ebook extends catalog ("Tamer: King of Dinosaurs Book 10" beside the
+        catalog's "Tamer: King of Dinosaurs") is a DIFFERENT VOLUME and would
+        pin book 1's cover on book 10 — measured against this library.
+    The extension may not begin with a digit: "Title 2" for ebook "Title" is a
+    sequel, and "…Monsters 1" vs "…Monsters 10" is blocked by the space rule.
+    """
+    if not ebook_norm or not catalog_norm.startswith(ebook_norm) or catalog_norm == ebook_norm:
+        return False
+    rest = catalog_norm[len(ebook_norm):]
+    if not rest.startswith(" "):
+        return False  # "…monsters 1" prefix of "…monsters 10"
+    nxt = rest.lstrip()
+    return bool(nxt) and not nxt[0].isdigit()
+
+
+def sibling_cover_href(title: str | None, beside: str | None, by_folder: dict[str, list[tuple[str, str]]]) -> str | None:
+    """The catalog cover_href for the audiobook this ebook sits beside, or None.
+
+    Conservative by design — a wrong cover is worse than a placeholder:
+      1. exact normalised title match in the same folder, if it names exactly
+         one cover file;
+      2. else a subtitle extension (see _subtitle_extension) matching exactly
+         one cover file;
+      3. anything ambiguous, reversed, or numeric-continued -> None.
+    """
+    t = _norm_title(title)
+    if not t or not beside:
+        return None
+    candidates = by_folder.get(beside)
+    if not candidates:
+        return None
+    exact = {href for ct, href in candidates if ct == t}
+    if exact:
+        return exact.pop() if len(exact) == 1 else None
+    prefixed = {href for ct, href in candidates if _subtitle_extension(t, ct)}
+    if len(prefixed) == 1:
+        return prefixed.pop()
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Covers, source 2: the image inside the EPUB itself
+# ---------------------------------------------------------------------------
+def extract_epub_cover(epub_path: Path) -> tuple[bytes, str] | None:
+    """(image_bytes, file_extension) for the epub's cover image, or None.
+
+    An epub is a zip; META-INF/container.xml names the OPF, and the OPF's
+    manifest names the cover by either of the two common patterns:
+      - EPUB3: <item properties="cover-image" …>
+      - EPUB2: <meta name="cover" content="ITEM-ID"/> -> <item id="ITEM-ID" …>
+      - last resort: an <item id="cover"|"cover-image"> with an image type.
+
+    ⚠️ Never raises, same stance as get_epub_metadata: malformed zip, broken
+    XML, missing entry, oversized or non-image cover all return None.
+    """
+    try:
+        with zipfile.ZipFile(epub_path) as z:
+            container = ET.parse(z.open("META-INF/container.xml"))
+            ns = {"c": "urn:oasis:names:tc:opendocument:xmlns:container"}
+            rootfile = container.find(".//c:rootfile", ns)
+            if rootfile is None:
+                return None
+            opf_path = rootfile.get("full-path")
+            if not opf_path:
+                return None
+            opf = ET.parse(z.open(opf_path))
+            opf_ns = "{http://www.idpf.org/2007/opf}"
+            items = opf.findall(f".//{opf_ns}manifest/{opf_ns}item") or opf.findall(".//manifest/item")
+
+            def _is_image(item) -> bool:
+                return (item.get("media-type") or "").strip().lower().startswith("image/")
+
+            cover_item = None
+            for item in items:  # EPUB3
+                if "cover-image" in (item.get("properties") or "").split() and _is_image(item):
+                    cover_item = item
+                    break
+            if cover_item is None:  # EPUB2 <meta name="cover">
+                cover_id = None
+                for meta in opf.iter():
+                    tag = meta.tag if isinstance(meta.tag, str) else ""
+                    if (tag == "meta" or tag.endswith("}meta")) and (meta.get("name") or "").strip().lower() == "cover":
+                        cover_id = (meta.get("content") or "").strip()
+                        break
+                if cover_id:
+                    for item in items:
+                        if item.get("id") == cover_id and _is_image(item):
+                            cover_item = item
+                            break
+            if cover_item is None:  # conventional ids
+                for item in items:
+                    if (item.get("id") or "").strip().lower() in ("cover", "cover-image", "cover-img") and _is_image(item):
+                        cover_item = item
+                        break
+            if cover_item is None:
+                return None
+
+            href = urllib.parse.unquote((cover_item.get("href") or "").strip())
+            if not href:
+                return None
+            member = posixpath.normpath(posixpath.join(posixpath.dirname(opf_path), href))
+            info = z.getinfo(member)
+            if info.file_size == 0 or info.file_size > MAX_COVER_BYTES:
+                return None
+            ext = _COVER_EXT_BY_MEDIA_TYPE.get((cover_item.get("media-type") or "").strip().lower())
+            if ext is None:
+                return None
+            return z.read(member), ext
+    except Exception:
+        return None
+
+
+def stage_epub_cover(epub_path: Path, covers_dir: Path) -> str | None:
+    """Extract and stage one epub's cover; return its R2 object key, or None.
+
+    sha256-named (content-addressed), so re-runs are idempotent and identical
+    covers dedupe to one object. The write is skipped when the file already
+    exists — the upload step's own sha diff makes the push idempotent too.
+    """
+    got = extract_epub_cover(epub_path)
+    if got is None:
+        return None
+    data, ext = got
+    digest = hashlib.sha256(data).hexdigest()
+    out = covers_dir / f"{digest}{ext}"
+    try:
+        if not out.exists():
+            covers_dir.mkdir(parents=True, exist_ok=True)
+            out.write_bytes(data)
+    except OSError as e:
+        print(f"[ebooks] [WARN] could not stage cover for {epub_path.name}: {e}")
+        return None
+    return f"{EBOOK_COVER_PREFIX}/{digest}{ext}"
+
+
+def scan(
+    root: Path,
+    catalog_covers: dict[str, list[tuple[str, str]]] | None = None,
+    covers_dir: Path | None = None,
+    extract: bool = True,
+) -> list[dict]:
     ebooks: list[dict] = []
     for path in sorted(root.rglob("*")):
         if not path.is_file() or path.suffix.lower() not in EBOOK_EXTS:
@@ -131,6 +370,21 @@ def scan(root: Path) -> list[dict]:
         # Tsukai no Blade Dance"). Published as-is; the consumer decides.
         beside = rel.parts[0] if len(rel.parts) > 1 else None
 
+        # Covers, in the approved order: sibling audiobook's cover first (the
+        # catalog already publishes it), the epub's own embedded image second,
+        # null third (the page's typographic spine placeholder).
+        cover_url: str | None = None
+        cover_source: str | None = None
+        href = sibling_cover_href(title, beside, catalog_covers or {})
+        if href:
+            cover_url = canonical_cover_url(href) or None
+            cover_source = "audiobook" if cover_url else None
+        elif extract and covers_dir is not None and path.suffix.lower() == ".epub":
+            key = stage_epub_cover(path, covers_dir)
+            if key:
+                cover_url = canonical_cover_url("covers/" + key) or None
+                cover_source = "epub" if cover_url else None
+
         stat = path.stat()
         ebooks.append(
             {
@@ -145,6 +399,8 @@ def scan(root: Path) -> list[dict]:
                 "modified": datetime.fromtimestamp(stat.st_mtime, timezone.utc)
                 .isoformat()
                 .replace("+00:00", "Z"),
+                "cover_url": cover_url,
+                "cover_source": cover_source,
             }
         )
     return ebooks
@@ -163,17 +419,27 @@ def build_manifest(dry: bool = False) -> int:
         print(f"[ebooks] ROOT_DIR not found: {root}")
         return 1
 
-    ebooks = scan(root)
+    # Dry runs stay read-only: the sibling join is a pure read, but epub
+    # extraction stages files under site/covers/ebooks/, so it is skipped.
+    ebooks = scan(
+        root,
+        catalog_covers=load_catalog_covers(CATALOG_PATH),
+        covers_dir=EBOOK_COVERS_DIR,
+        extract=not dry,
+    )
 
     by_format: dict[str, int] = {}
     by_source: dict[str, int] = {}
+    by_cover: dict[str, int] = {}
     for e in ebooks:
         by_format[e["format"]] = by_format.get(e["format"], 0) + 1
         by_source[e["source"]] = by_source.get(e["source"], 0) + 1
+        by_cover[e["cover_source"] or "placeholder"] = by_cover.get(e["cover_source"] or "placeholder", 0) + 1
 
     print(f"[ebooks] {len(ebooks)} file(s) under {root}")
     print(f"[ebooks]   by format: {by_format}")
     print(f"[ebooks]   metadata from: {by_source}")
+    print(f"[ebooks]   covers: {by_cover}" + ("  (dry: epub extraction skipped)" if dry else ""))
 
     if dry:
         for e in ebooks[:10]:
@@ -195,7 +461,11 @@ def build_manifest(dry: bool = False) -> int:
     tmp = OUT_PATH.with_suffix(".json.tmp")
     tmp.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
     tmp.replace(OUT_PATH)
-    print(f"[ebooks] wrote {OUT_PATH.relative_to(PROJECT_ROOT)}")
+    try:
+        shown = OUT_PATH.relative_to(PROJECT_ROOT)
+    except ValueError:  # tests redirect OUT_PATH outside the repo
+        shown = OUT_PATH
+    print(f"[ebooks] wrote {shown}")
     return 0
 
 

@@ -244,6 +244,12 @@ def build_ebook_rows(manifest: Optional[dict]) -> List[Dict[str, object]]:
       author only when the manifest has one (design: "pushed title-only" —
       a wrong author is worse than a missing one, and the index's fold guard
       handles what won't join honestly).
+    - cover_url passes through from the manifest (the bookshelf redesign,
+      2026-08-17: step 1b resolves it — sibling audiobook cover or extracted
+      epub cover on R2). The manifest stores the absolute canonical URL;
+      canonical_cover_url() passes absolutes through untouched and is kept
+      here purely as defence for a relative href. `cover_source` is the
+      page's concern and never travels (it is not in the allow-list).
     - Entries without a title or path are skipped with a warning; a single
       bad row must not 422 the whole snapshot.
     """
@@ -279,7 +285,7 @@ def build_ebook_rows(manifest: Optional[dict]) -> List[Dict[str, object]]:
                 "series_index": None,
                 "year": None,
                 "format": "ebook",
-                "cover_url": None,
+                "cover_url": canonical_cover_url(_str_or_empty(e.get("cover_url"))) or None,
                 "detail_url": detail_url,
             }
         )

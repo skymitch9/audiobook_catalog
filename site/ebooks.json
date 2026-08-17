@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-17T01:57:05.721947Z",
+  "generated_at": "2026-08-17T03:45:31.854252Z",
   "root": "C:/Users/nbasl/OpenAudible/books",
   "count": 168,
   "ebooks": [
@@ -12,7 +12,9 @@
       "source": "filename",
       "beside_audiobook": "Brandon Sanderson",
       "size_bytes": 20838792,
-      "modified": "2025-05-03T21:13:46.705826Z"
+      "modified": "2025-05-03T21:13:46.705826Z",
+      "cover_url": "https://covers.heygabi.ai/Brandon%20Sanderson/Defiant.jpg",
+      "cover_source": "audiobook"
     },
     {
       "path": "Brandon Sanderson/Dragonsteel_Prime_by_Brandon_Sanderson.epub",
@@ -23,7 +25,9 @@
       "source": "opf",
       "beside_audiobook": "Brandon Sanderson",
       "size_bytes": 1808754,
-      "modified": "2026-06-21T17:41:57.220658Z"
+      "modified": "2026-06-21T17:41:57.220658Z",
+      "cover_url": "https://covers.heygabi.ai/Brandon%20Sanderson/Dragonsteel_Prime_by_Brandon_Sanderson.png",
+      "cover_source": "audiobook"
     },
     {
       "path": "Brandon Sanderson/dreamer.epub",
@@ -34,7 +38,9 @@
       "source": "opf",
       "beside_audiobook": "Brandon Sanderson",
       "size_bytes": 399949,
-      "modified": "2026-06-21T17:48:16.798601Z"
+      "modified": "2026-06-21T17:48:16.798601Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/2580016a8f3e127f4dedcd9e780364f8bbb6e8559ce0863d7b16a516db72570d.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Brandon Sanderson/firstborn_defendingelysium.epub",
@@ -45,7 +51,9 @@
       "source": "opf",
       "beside_audiobook": "Brandon Sanderson",
       "size_bytes": 753472,
-      "modified": "2026-06-21T17:48:18.393560Z"
+      "modified": "2026-06-21T17:48:18.393560Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/32bbcb6d1556be632356f9bc6e8684cad5aaa47dab2a04d43ac40693c7cd20e3.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Brandon Sanderson/Isles_of_the_Emberdark_by_Brandon_Sanderson_for_Kindle.epub",
@@ -56,7 +64,9 @@
       "source": "opf",
       "beside_audiobook": "Brandon Sanderson",
       "size_bytes": 4238007,
-      "modified": "2026-06-21T17:38:44.369907Z"
+      "modified": "2026-06-21T17:38:44.369907Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/b6e03326867ed706cfd30345d3193e09e557404c42ad8f2f36a215daa012ae1e.gif",
+      "cover_source": "epub"
     },
     {
       "path": "Brandon Sanderson/legion_brandonsanderson.epub",
@@ -67,7 +77,9 @@
       "source": "opf",
       "beside_audiobook": "Brandon Sanderson",
       "size_bytes": 325107,
-      "modified": "2026-06-21T17:48:20.040320Z"
+      "modified": "2026-06-21T17:48:20.040320Z",
+      "cover_url": "https://covers.heygabi.ai/Brandon%20Sanderson/Legion-%20The%20Many%20Lives%20of%20Stephen%20Leeds.jpg",
+      "cover_source": "audiobook"
     },
     {
       "path": "Brandon Sanderson/legion_skindeep.epub",
@@ -78,7 +90,9 @@
       "source": "opf",
       "beside_audiobook": "Brandon Sanderson",
       "size_bytes": 429589,
-      "modified": "2026-06-21T17:48:17.728945Z"
+      "modified": "2026-06-21T17:48:17.728945Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/c2b75adbfd830a76885b639f27375b9270e3a3cb2d80958c84e9a5842fe3b1a6.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Brandon Sanderson/Long_Chills_and_Case_Dough_by_Brandon_Sanderson.epub",
@@ -89,7 +103,9 @@
       "source": "opf",
       "beside_audiobook": "Brandon Sanderson",
       "size_bytes": 742953,
-      "modified": "2026-06-21T17:40:52.780402Z"
+      "modified": "2026-06-21T17:40:52.780402Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/604cb76653910c1ee85f5881f1e228dd2d761b285b7c64ecc4076e6893475768.png",
+      "cover_source": "epub"
     },
     {
       "path": "Brandon Sanderson/mistborn_adventuregame.pdf",
@@ -100,7 +116,9 @@
       "source": "filename",
       "beside_audiobook": "Brandon Sanderson",
       "size_bytes": 76203055,
-      "modified": "2026-06-21T17:43:06.306453Z"
+      "modified": "2026-06-21T17:43:06.306453Z",
+      "cover_url": null,
+      "cover_source": null
     },
     {
       "path": "Brandon Sanderson/mistborn_alloyoflaw.pdf",
@@ -111,7 +129,9 @@
       "source": "filename",
       "beside_audiobook": "Brandon Sanderson",
       "size_bytes": 36000709,
-      "modified": "2026-06-21T17:42:26.111745Z"
+      "modified": "2026-06-21T17:42:26.111745Z",
+      "cover_url": null,
+      "cover_source": null
     },
     {
       "path": "Brandon Sanderson/mistborn_terris_wroughtofcopper.pdf",
@@ -122,7 +142,9 @@
       "source": "filename",
       "beside_audiobook": "Brandon Sanderson",
       "size_bytes": 19262067,
-      "modified": "2026-06-21T17:42:15.222769Z"
+      "modified": "2026-06-21T17:42:15.222769Z",
+      "cover_url": null,
+      "cover_source": null
     },
     {
       "path": "Brandon Sanderson/Oathbringer.pdf",
@@ -133,7 +155,9 @@
       "source": "filename",
       "beside_audiobook": "Brandon Sanderson",
       "size_bytes": 17386979,
-      "modified": "2025-05-03T21:26:10.677194Z"
+      "modified": "2025-05-03T21:26:10.677194Z",
+      "cover_url": "https://covers.heygabi.ai/Brandon%20Sanderson/Oathbringer.jpg",
+      "cover_source": "audiobook"
     },
     {
       "path": "Brandon Sanderson/perfectstate.epub",
@@ -144,7 +168,9 @@
       "source": "opf",
       "beside_audiobook": "Brandon Sanderson",
       "size_bytes": 672190,
-      "modified": "2026-06-21T17:48:14.862806Z"
+      "modified": "2026-06-21T17:48:14.862806Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/4b9392b3143dd191e13dd69fc5590b885e5a8f751999e0a1b101b15960fe55ff.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Brandon Sanderson/Rhythm of War - Book Four of the Stormlight Archive.pdf",
@@ -155,7 +181,9 @@
       "source": "filename",
       "beside_audiobook": "Brandon Sanderson",
       "size_bytes": 7745508,
-      "modified": "2025-05-03T21:23:57.994112Z"
+      "modified": "2025-05-03T21:23:57.994112Z",
+      "cover_url": "https://covers.heygabi.ai/Brandon%20Sanderson/Rhythm%20of%20War%20-%20Book%20Four%20of%20the%20Stormlight%20Archive.jpg",
+      "cover_source": "audiobook"
     },
     {
       "path": "Brandon Sanderson/shadowsforsilenceintheforestsofhell.epub",
@@ -166,7 +194,9 @@
       "source": "opf",
       "beside_audiobook": "Brandon Sanderson",
       "size_bytes": 600783,
-      "modified": "2026-06-21T17:48:15.496948Z"
+      "modified": "2026-06-21T17:48:15.496948Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/88fe8490f955483384775d9416091750fc6118fb8016e0be6e1f59ad0cd439d9.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Brandon Sanderson/sixthofthedusk.epub",
@@ -177,7 +207,9 @@
       "source": "opf",
       "beside_audiobook": "Brandon Sanderson",
       "size_bytes": 676372,
-      "modified": "2026-06-21T17:48:14.075132Z"
+      "modified": "2026-06-21T17:48:14.075132Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/a4561e1e16d10b90f7212b31eefb0e8f688497acb6f9203756e0159ee2c73746.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Brandon Sanderson/SL001_Stormlight_Handbook_digital.pdf",
@@ -188,7 +220,9 @@
       "source": "filename",
       "beside_audiobook": "Brandon Sanderson",
       "size_bytes": 189930310,
-      "modified": "2026-06-21T17:38:09.894893Z"
+      "modified": "2026-06-21T17:38:09.894893Z",
+      "cover_url": null,
+      "cover_source": null
     },
     {
       "path": "Brandon Sanderson/snapshot_brandonsanderson.epub",
@@ -199,7 +233,9 @@
       "source": "opf",
       "beside_audiobook": "Brandon Sanderson",
       "size_bytes": 390167,
-      "modified": "2026-06-21T17:48:19.106108Z"
+      "modified": "2026-06-21T17:48:19.106108Z",
+      "cover_url": "https://covers.heygabi.ai/Brandon%20Sanderson/Snapshot.jpg",
+      "cover_source": "audiobook"
     },
     {
       "path": "Brandon Sanderson/The Way of Kings - The Stormlight Archive, Book 1.pdf",
@@ -210,7 +246,9 @@
       "source": "filename",
       "beside_audiobook": "Brandon Sanderson",
       "size_bytes": 48637585,
-      "modified": "2025-05-03T21:26:54.600381Z"
+      "modified": "2025-05-03T21:26:54.600381Z",
+      "cover_url": "https://covers.heygabi.ai/Brandon%20Sanderson/The%20Way%20of%20Kings%20-%20The%20Stormlight%20Archive%2C%20Book%201.jpg",
+      "cover_source": "audiobook"
     },
     {
       "path": "Brandon Sanderson/The_Frugal_Wizard_s_Handbook_for_Surviving_Medieval_England_by_Brandon_Sanderson.epub",
@@ -221,7 +259,9 @@
       "source": "opf",
       "beside_audiobook": "Brandon Sanderson",
       "size_bytes": 28997544,
-      "modified": "2026-06-21T17:39:21.417423Z"
+      "modified": "2026-06-21T17:39:21.417423Z",
+      "cover_url": "https://covers.heygabi.ai/Brandon%20Sanderson/The_Frugal_Wizard_s_Handbook_for_Surviving_Medieval_England_by_Brandon_Sanderson.png",
+      "cover_source": "audiobook"
     },
     {
       "path": "Brandon Sanderson/The_Sunlit_Man_by_Brandon_Sanderson.epub",
@@ -232,7 +272,9 @@
       "source": "opf",
       "beside_audiobook": "Brandon Sanderson",
       "size_bytes": 10834249,
-      "modified": "2026-06-21T17:40:22.905216Z"
+      "modified": "2026-06-21T17:40:22.905216Z",
+      "cover_url": "https://covers.heygabi.ai/Brandon%20Sanderson/The_Sunlit_Man_by_Brandon_Sanderson.png",
+      "cover_source": "audiobook"
     },
     {
       "path": "Brandon Sanderson/theemperorssoul.epub",
@@ -243,7 +285,9 @@
       "source": "opf",
       "beside_audiobook": "Brandon Sanderson",
       "size_bytes": 574024,
-      "modified": "2026-06-21T17:48:16.194336Z"
+      "modified": "2026-06-21T17:48:16.194336Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/319cd01563e70fe3b152dadf5ead5e65bb553aa68b3c10c0ba169d748bd3212f.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Brandon Sanderson/Tress_of_the_Emerald_Sea_by_Brandon_Sanderson.epub",
@@ -254,7 +298,9 @@
       "source": "opf",
       "beside_audiobook": "Brandon Sanderson",
       "size_bytes": 7575062,
-      "modified": "2026-06-21T17:39:13.051879Z"
+      "modified": "2026-06-21T17:39:13.051879Z",
+      "cover_url": "https://covers.heygabi.ai/Brandon%20Sanderson/Tress_of_the_Emerald_Sea_by_Brandon_Sanderson.jpg",
+      "cover_source": "audiobook"
     },
     {
       "path": "Brandon Sanderson/White Sand Omnibus (Brandon Sanderson's White Sand) - Rik Hoskin.epub",
@@ -265,7 +311,9 @@
       "source": "opf",
       "beside_audiobook": "Brandon Sanderson",
       "size_bytes": 412436591,
-      "modified": "2026-08-10T16:30:19.501837Z"
+      "modified": "2026-08-10T16:30:19.501837Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/da886d8d9ba088485d804636940b55280e7f6d66bbf24a45440addab80332792.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Brandon Sanderson/whitesand.epub",
@@ -276,7 +324,9 @@
       "source": "opf",
       "beside_audiobook": "Brandon Sanderson",
       "size_bytes": 150104209,
-      "modified": "2026-06-21T17:48:13.474451Z"
+      "modified": "2026-06-21T17:48:13.474451Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/5bbde08108e974c7e932ad1ad01191dc936a90e62452359849967b3ea0ff60a7.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Brandon Sanderson/Wind and Truth - Book Five of the Stormlight Archive.pdf",
@@ -287,7 +337,9 @@
       "source": "filename",
       "beside_audiobook": "Brandon Sanderson",
       "size_bytes": 7017907,
-      "modified": "2025-05-03T21:22:58.520207Z"
+      "modified": "2025-05-03T21:22:58.520207Z",
+      "cover_url": "https://covers.heygabi.ai/Brandon%20Sanderson/Wind%20and%20Truth%20-%20Book%20Five%20of%20the%20Stormlight%20Archive.jpg",
+      "cover_source": "audiobook"
     },
     {
       "path": "Brandon Sanderson/Yumi_and_the_Nightmare_Painter_by_Brandon_Sanderson.epub",
@@ -298,7 +350,9 @@
       "source": "opf",
       "beside_audiobook": "Brandon Sanderson",
       "size_bytes": 10183126,
-      "modified": "2026-06-21T17:39:43.857122Z"
+      "modified": "2026-06-21T17:39:43.857122Z",
+      "cover_url": "https://covers.heygabi.ai/Brandon%20Sanderson/Yumi_and_the_Nightmare_Painter_by_Brandon_Sanderson.png",
+      "cover_source": "audiobook"
     },
     {
       "path": "Brené Brown/Atlas of the Heart.pdf",
@@ -309,7 +363,9 @@
       "source": "filename",
       "beside_audiobook": "Brené Brown",
       "size_bytes": 4992432,
-      "modified": "2025-05-03T20:35:43.937255Z"
+      "modified": "2025-05-03T20:35:43.937255Z",
+      "cover_url": "https://covers.heygabi.ai/Bren%C3%A9%20Brown/Atlas%20of%20the%20Heart.jpg",
+      "cover_source": "audiobook"
     },
     {
       "path": "Dakota Krout/Dungeon Born - Dakota Krout.epub",
@@ -320,7 +376,9 @@
       "source": "opf",
       "beside_audiobook": "Dakota Krout",
       "size_bytes": 487757,
-      "modified": "2026-08-05T00:26:17.225954Z"
+      "modified": "2026-08-05T00:26:17.225954Z",
+      "cover_url": "https://covers.heygabi.ai/Dakota%20Krout/Dungeon%20Born%20-%20Divine%20Dungeon%20Series%2C%20Book%201.jpg",
+      "cover_source": "audiobook"
     },
     {
       "path": "Dakota Krout/Invent Short Story - Dakota Krout.epub",
@@ -331,7 +389,9 @@
       "source": "opf",
       "beside_audiobook": "Dakota Krout",
       "size_bytes": 301773,
-      "modified": "2026-08-05T00:26:03.540217Z"
+      "modified": "2026-08-05T00:26:03.540217Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/d0849cb617c408e4db2d63b3d719e754e84d1895f33e42c66e2c26eb48c9976d.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Dakota Krout/The Divine Dungeon Complete Series- Dungeon Core GameLit Fantasy - Dakota Krout.epub",
@@ -342,7 +402,9 @@
       "source": "opf",
       "beside_audiobook": "Dakota Krout",
       "size_bytes": 2448074,
-      "modified": "2026-08-10T02:21:00.896784Z"
+      "modified": "2026-08-10T02:21:00.896784Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/80a513fa3d9c458068cf036d82079b8591c7b5daad80366391a0819f4ecd023b.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Dakota Krout/Uncapped - Dakota Krout.epub",
@@ -353,7 +415,9 @@
       "source": "opf",
       "beside_audiobook": "Dakota Krout",
       "size_bytes": 787989,
-      "modified": "2026-06-21T17:35:50.369282Z"
+      "modified": "2026-06-21T17:35:50.369282Z",
+      "cover_url": "https://covers.heygabi.ai/Dakota%20Krout/Dakota%20Krout%20-%20%5BUncapped%20-%2014%5D%20-%20Uncapped%20%28Luke%20Daniels%29.png",
+      "cover_source": "audiobook"
     },
     {
       "path": "Dakota Krout/Unmapped - Dakota Krout.epub",
@@ -364,7 +428,9 @@
       "source": "opf",
       "beside_audiobook": "Dakota Krout",
       "size_bytes": 758192,
-      "modified": "2026-06-21T17:35:51.502125Z"
+      "modified": "2026-06-21T17:35:51.502125Z",
+      "cover_url": "https://covers.heygabi.ai/Dakota%20Krout/Unmapped%20-%20Completionist%20Chronicles%2C%20Book%2013.png",
+      "cover_source": "audiobook"
     },
     {
       "path": "Dakota Krout/Untapped - Dakota Krout.epub",
@@ -375,7 +441,9 @@
       "source": "opf",
       "beside_audiobook": "Dakota Krout",
       "size_bytes": 756185,
-      "modified": "2026-08-05T00:33:28.909827Z"
+      "modified": "2026-08-05T00:33:28.909827Z",
+      "cover_url": "https://covers.heygabi.ai/Dakota%20Krout/Untapped%20-%20The%20Completionist%20Chronicles%2C%20Book%2011.png",
+      "cover_source": "audiobook"
     },
     {
       "path": "Dakota Krout/Worlds Only Hero - Dakota Krout.epub",
@@ -386,7 +454,9 @@
       "source": "opf",
       "beside_audiobook": "Dakota Krout",
       "size_bytes": 612016,
-      "modified": "2026-08-05T00:31:38.477375Z"
+      "modified": "2026-08-05T00:31:38.477375Z",
+      "cover_url": "https://covers.heygabi.ai/Dakota%20Krout/World%27s%20Only%20Hero.jpg",
+      "cover_source": "audiobook"
     },
     {
       "path": "Daniel L. Everett/How Language Began - The Story of Humanity's Greatest Invention.pdf",
@@ -397,7 +467,9 @@
       "source": "filename",
       "beside_audiobook": "Daniel L. Everett",
       "size_bytes": 2051549,
-      "modified": "2025-05-03T20:24:10.413535Z"
+      "modified": "2025-05-03T20:24:10.413535Z",
+      "cover_url": "https://covers.heygabi.ai/Daniel%20L.%20Everett/How%20Language%20Began%20-%20The%20Story%20of%20Humanity%27s%20Greatest%20Invention.jpg",
+      "cover_source": "audiobook"
     },
     {
       "path": "David Niemitz/Guild Mage- Apprentice - David Niemitz.epub",
@@ -408,7 +480,9 @@
       "source": "opf",
       "beside_audiobook": "David Niemitz",
       "size_bytes": 4109888,
-      "modified": "2026-08-10T02:20:00.537008Z"
+      "modified": "2026-08-10T02:20:00.537008Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/5eb2e349dcbb835cee697b18328886d933ba69c3d87320b252ddc59b199be41b.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Diana Marcum/The Tenth Island- Finding Joy, Beauty, and Unexpected Love in the Azores - Diana Marcum.epub",
@@ -419,7 +493,9 @@
       "source": "opf",
       "beside_audiobook": "Diana Marcum",
       "size_bytes": 3009680,
-      "modified": "2026-08-10T02:21:15.130850Z"
+      "modified": "2026-08-10T02:21:15.130850Z",
+      "cover_url": null,
+      "cover_source": null
     },
     {
       "path": "Django Wexler/How to Become the Dark Lord and Die Trying.pdf",
@@ -430,7 +506,9 @@
       "source": "filename",
       "beside_audiobook": "Django Wexler",
       "size_bytes": 8262507,
-      "modified": "2025-10-08T19:30:07.808518Z"
+      "modified": "2025-10-08T19:30:07.808518Z",
+      "cover_url": "https://covers.heygabi.ai/Django%20Wexler/How%20to%20Become%20the%20Dark%20Lord%20and%20Die%20Trying.jpg",
+      "cover_source": "audiobook"
     },
     {
       "path": "Ellen Javernick/What If Everybody Said That- (What If Everybody-) - Ellen Javernick.epub",
@@ -441,7 +519,9 @@
       "source": "opf",
       "beside_audiobook": "Ellen Javernick",
       "size_bytes": 4305892,
-      "modified": "2026-08-10T02:21:07.659182Z"
+      "modified": "2026-08-10T02:21:07.659182Z",
+      "cover_url": null,
+      "cover_source": null
     },
     {
       "path": "Erik Colombe/Undead Knight - Erik Colombe.epub",
@@ -452,7 +532,9 @@
       "source": "opf",
       "beside_audiobook": "Erik Colombe",
       "size_bytes": 3166897,
-      "modified": "2026-08-10T02:21:03.168800Z"
+      "modified": "2026-08-10T02:21:03.168800Z",
+      "cover_url": null,
+      "cover_source": null
     },
     {
       "path": "Fujino Omori/Is It Wrong to Try to Pick Up Girls in a Dungeon, Vol. 1.pdf",
@@ -463,7 +545,9 @@
       "source": "filename",
       "beside_audiobook": "Fujino Omori",
       "size_bytes": 4257706,
-      "modified": "2026-06-18T23:11:00.740678Z"
+      "modified": "2026-06-18T23:11:00.740678Z",
+      "cover_url": "https://covers.heygabi.ai/Fujino%20Omori/Is%20It%20Wrong%20to%20Try%20to%20Pick%20Up%20Girls%20in%20a%20Dungeon%2C%20Vol.%201.jpg",
+      "cover_source": "audiobook"
     },
     {
       "path": "Gretchen Rubin/Get It Done - How to Complete Your Dream Project.pdf",
@@ -474,7 +558,9 @@
       "source": "filename",
       "beside_audiobook": "Gretchen Rubin",
       "size_bytes": 543376,
-      "modified": "2026-01-16T02:00:50.723022Z"
+      "modified": "2026-01-16T02:00:50.723022Z",
+      "cover_url": "https://covers.heygabi.ai/Gretchen%20Rubin/Get%20It%20Done%20-%20How%20to%20Complete%20Your%20Dream%20Project.jpg",
+      "cover_source": "audiobook"
     },
     {
       "path": "Highschool DXD/High School DxD - Volume 07 - Ragnarok After the School.epub",
@@ -485,7 +571,9 @@
       "source": "opf",
       "beside_audiobook": "Highschool DXD",
       "size_bytes": 7083175,
-      "modified": "2026-06-21T17:51:35.457668Z"
+      "modified": "2026-06-21T17:51:35.457668Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/79a33fee3d9ae8e1735a8ae11d03d63ef9ac13043b03308369a036e870b0b3b1.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Highschool DXD/High School DxD - Volume 08 - Devil's Job.epub",
@@ -496,7 +584,9 @@
       "source": "opf",
       "beside_audiobook": "Highschool DXD",
       "size_bytes": 5352184,
-      "modified": "2026-06-21T17:51:34.483930Z"
+      "modified": "2026-06-21T17:51:34.483930Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/c54785b8700b3388ff99e3d2edea396394576c67a741f12fca47ce5ac91803b4.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Highschool DXD/High School DxD - Volume 09 - Pandemonium at the School Trip.epub",
@@ -507,7 +597,9 @@
       "source": "opf",
       "beside_audiobook": "Highschool DXD",
       "size_bytes": 5226729,
-      "modified": "2026-06-21T17:51:33.467046Z"
+      "modified": "2026-06-21T17:51:33.467046Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/61737fd619680a89da781983d0ed63de8b055facef4fbadc1450cd9a2e7d28da.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Highschool DXD/High School DxD - Volume 10 - Lion Heart of the School Festival.epub",
@@ -518,7 +610,9 @@
       "source": "opf",
       "beside_audiobook": "Highschool DXD",
       "size_bytes": 9058036,
-      "modified": "2026-06-21T17:51:32.682182Z"
+      "modified": "2026-06-21T17:51:32.682182Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/be964584c14624e378780e67a98d14f8aaabc481791200b60dec000e848ffcf5.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Highschool DXD/High School DxD - Volume 11 - Uroboros and the Promotion Test.epub",
@@ -529,7 +623,9 @@
       "source": "opf",
       "beside_audiobook": "Highschool DXD",
       "size_bytes": 7698500,
-      "modified": "2026-06-21T17:51:31.351065Z"
+      "modified": "2026-06-21T17:51:31.351065Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/38414c194a5043bd72c521d34ee9b00da66dc1c54990b53d368cf5c2708655b4.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Highschool DXD/High School DxD - Volume 12 - Heroes of Supplementary Lessons.epub",
@@ -540,7 +636,9 @@
       "source": "opf",
       "beside_audiobook": "Highschool DXD",
       "size_bytes": 5431084,
-      "modified": "2026-06-21T17:51:30.373930Z"
+      "modified": "2026-06-21T17:51:30.373930Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/4c3f6c2b49152d7a1fa61ef063b161de328c2ddc4e86eb4d05ea7b8c5ff39951.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Highschool DXD/High School DxD - Volume 13 - Ise SOS.epub",
@@ -551,7 +649,9 @@
       "source": "opf",
       "beside_audiobook": "Highschool DXD",
       "size_bytes": 11038613,
-      "modified": "2026-06-21T17:51:29.581673Z"
+      "modified": "2026-06-21T17:51:29.581673Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/6f92e07d9aec0b216adad0e4ba2ad02e71f7c75cc19d0f365d9d681deea6bcbd.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Highschool DXD/High School DxD - Volume 14 - Wizards of Career Counseling.epub",
@@ -562,7 +662,9 @@
       "source": "opf",
       "beside_audiobook": "Highschool DXD",
       "size_bytes": 4044879,
-      "modified": "2026-06-21T17:51:27.441677Z"
+      "modified": "2026-06-21T17:51:27.441677Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/3ff9458b9621cf4c9c1c6a60b2a14880a6811430f3950e8d3d3d42adb34105cb.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Highschool DXD/High School DxD - Volume 15 - Dark Knight of the Sunny-spot.epub",
@@ -573,7 +675,9 @@
       "source": "opf",
       "beside_audiobook": "Highschool DXD",
       "size_bytes": 2858694,
-      "modified": "2026-06-21T17:51:26.322401Z"
+      "modified": "2026-06-21T17:51:26.322401Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/72fc42ddd437f4ebba190ebedfbfbd8ae00c846352c6e65ab1446a89f5dbce6b.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Highschool DXD/High School DxD - Volume 16 - Daywalker of the Extracurricular Lesson.epub",
@@ -584,7 +688,9 @@
       "source": "opf",
       "beside_audiobook": "Highschool DXD",
       "size_bytes": 6019547,
-      "modified": "2026-06-21T17:51:25.068856Z"
+      "modified": "2026-06-21T17:51:25.068856Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/a082cec71f717f624e749bbc0abf29d4139cf14ab4dab77a41f174187a835fff.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Highschool DXD/High School DxD - Volume 17 - Valkyrie of the Teacher Training.epub",
@@ -595,7 +701,9 @@
       "source": "opf",
       "beside_audiobook": "Highschool DXD",
       "size_bytes": 4476617,
-      "modified": "2026-06-21T17:51:24.143094Z"
+      "modified": "2026-06-21T17:51:24.143094Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/b68ffc03f05ef5986cee6d68462c6a22d3fdc7f639c5807f9ffba0798e4e7d32.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Highschool DXD/High School DxD - Volume 18 - Funny Angel of the Christmas Day.epub",
@@ -606,7 +714,9 @@
       "source": "opf",
       "beside_audiobook": "Highschool DXD",
       "size_bytes": 4412430,
-      "modified": "2026-06-21T17:51:23.304858Z"
+      "modified": "2026-06-21T17:51:23.304858Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/55913b36907e36fce8277f168704709baf7d17928815cf30d2dcff77ce2b9fec.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Highschool DXD/High School DxD - Volume 19 - Durandal of the General Election.epub",
@@ -617,7 +727,9 @@
       "source": "opf",
       "beside_audiobook": "Highschool DXD",
       "size_bytes": 16384851,
-      "modified": "2026-06-21T17:51:22.386050Z"
+      "modified": "2026-06-21T17:51:22.386050Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/94881b57ff748f6b57229a96a7e3e2bd47548943ef911406be7fa97fb3ebfdca.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Highschool DXD/High School DxD - Volume 20 - Belial of Career Consultation.epub",
@@ -628,7 +740,9 @@
       "source": "opf",
       "beside_audiobook": "Highschool DXD",
       "size_bytes": 1258346,
-      "modified": "2026-06-21T17:51:20.286909Z"
+      "modified": "2026-06-21T17:51:20.286909Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/d917e1b7f341faed72ad8dc768194506c2f020df2279dc1f21f376153db42b8b.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Highschool DXD/High School DxD - Volume 21 - Lucifer of the Optional Attendance.epub",
@@ -639,7 +753,9 @@
       "source": "opf",
       "beside_audiobook": "Highschool DXD",
       "size_bytes": 4908354,
-      "modified": "2026-06-21T17:51:19.507909Z"
+      "modified": "2026-06-21T17:51:19.507909Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/69a166ee21bc63a46a91904bb8defc3760c21abd102197cbc067c0957099f372.png",
+      "cover_source": "epub"
     },
     {
       "path": "Honour Rae/All The Skills -  5 - Honour Rae.epub",
@@ -650,7 +766,9 @@
       "source": "opf",
       "beside_audiobook": "Honour Rae",
       "size_bytes": 673644,
-      "modified": "2026-08-05T00:31:50.215514Z"
+      "modified": "2026-08-05T00:31:50.215514Z",
+      "cover_url": "https://covers.heygabi.ai/Honour%20Rae/All%20the%20Skills%205-%20A%20Deck-Building%20LitRPG.jpg",
+      "cover_source": "audiobook"
     },
     {
       "path": "Honour Rae/All The Skills 3- A Deckbuilding LitRPG - Honour Rae.epub",
@@ -661,7 +779,9 @@
       "source": "opf",
       "beside_audiobook": "Honour Rae",
       "size_bytes": 2148336,
-      "modified": "2026-08-14T04:15:15.525540Z"
+      "modified": "2026-08-14T04:15:15.525540Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/ff78a6de9fc72a3d33191e9357e7c9106e40031728c11dc182a650f86064b722.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Honour Rae/All the Skills- A Deck-Building LitRPG - Honour Rae.epub",
@@ -672,7 +792,9 @@
       "source": "opf",
       "beside_audiobook": "Honour Rae",
       "size_bytes": 3791179,
-      "modified": "2026-08-14T04:15:26.712186Z"
+      "modified": "2026-08-14T04:15:26.712186Z",
+      "cover_url": "https://covers.heygabi.ai/Honour%20Rae/All%20the%20Skills-%20A%20Deck-Building%20LitRPG%20-%20All%20the%20Skills%2C%20Book%201.jpg",
+      "cover_source": "audiobook"
     },
     {
       "path": "Honour Rae/All The Skills- Book 2- A Deck-Building LitRPG - Honour Rae.epub",
@@ -683,7 +805,9 @@
       "source": "opf",
       "beside_audiobook": "Honour Rae",
       "size_bytes": 3868815,
-      "modified": "2026-08-14T04:15:19.521876Z"
+      "modified": "2026-08-14T04:15:19.521876Z",
+      "cover_url": null,
+      "cover_source": null
     },
     {
       "path": "Honour Rae/All The Skills- Book 4- A Deck-Building LitRPG - Honour Rae.epub",
@@ -694,7 +818,9 @@
       "source": "opf",
       "beside_audiobook": "Honour Rae",
       "size_bytes": 3707420,
-      "modified": "2026-08-14T04:15:30.391520Z"
+      "modified": "2026-08-14T04:15:30.391520Z",
+      "cover_url": null,
+      "cover_source": null
     },
     {
       "path": "Honour Rae/All The Skills- Book 6- A Deck-Building LitRPG - Honour Rae.epub",
@@ -705,7 +831,9 @@
       "source": "opf",
       "beside_audiobook": "Honour Rae",
       "size_bytes": 3566655,
-      "modified": "2026-08-14T04:15:23.039627Z"
+      "modified": "2026-08-14T04:15:23.039627Z",
+      "cover_url": null,
+      "cover_source": null
     },
     {
       "path": "J. R. Saileri/Rise of the Weakest Summoner- Volume XI - J. R. Saileri.epub",
@@ -716,7 +844,9 @@
       "source": "opf",
       "beside_audiobook": "J. R. Saileri",
       "size_bytes": 1161951,
-      "modified": "2026-08-10T02:19:57.651245Z"
+      "modified": "2026-08-10T02:19:57.651245Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/912dd8f4a7075a358aa2e519fd6c6699a5e83c0f898ac25af60e2f3bfc9fbd2e.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "J.R. Mathews/Jake's Magical Market 3 - Home Sweet Home.pdf",
@@ -727,7 +857,9 @@
       "source": "filename",
       "beside_audiobook": "J.R. Mathews",
       "size_bytes": 15241778,
-      "modified": "2026-02-18T02:47:41.121019Z"
+      "modified": "2026-02-18T02:47:41.121019Z",
+      "cover_url": "https://covers.heygabi.ai/J.R.%20Mathews/Jake%27s%20Magical%20Market%203%20-%20Home%20Sweet%20Home.jpg",
+      "cover_source": "audiobook"
     },
     {
       "path": "J.R. Mathews/Jake's Magical Market.pdf",
@@ -738,7 +870,9 @@
       "source": "filename",
       "beside_audiobook": "J.R. Mathews",
       "size_bytes": 6078828,
-      "modified": "2025-05-03T21:58:29.345107Z"
+      "modified": "2025-05-03T21:58:29.345107Z",
+      "cover_url": "https://covers.heygabi.ai/J.R.%20Mathews/Jake%27s%20Magical%20Market.jpg",
+      "cover_source": "audiobook"
     },
     {
       "path": "James Swain/The King Tides (Lancaster & Daniels Book 1) - James Swain.epub",
@@ -749,7 +883,9 @@
       "source": "opf",
       "beside_audiobook": "James Swain",
       "size_bytes": 3728866,
-      "modified": "2026-08-10T02:21:13.055798Z"
+      "modified": "2026-08-10T02:21:13.055798Z",
+      "cover_url": null,
+      "cover_source": null
     },
     {
       "path": "Jordan Stephanie Gray/The Wicked Sea.pdf",
@@ -760,7 +896,9 @@
       "source": "filename",
       "beside_audiobook": "Jordan Stephanie Gray",
       "size_bytes": 45080449,
-      "modified": "2026-06-05T18:24:50.370224Z"
+      "modified": "2026-06-05T18:24:50.370224Z",
+      "cover_url": "https://covers.heygabi.ai/Jordan%20Stephanie%20Gray/The%20Wicked%20Sea.jpg",
+      "cover_source": "audiobook"
     },
     {
       "path": "Kami Garcia/Beautiful Creatures - Beautiful Creatures, Book 1.pdf",
@@ -771,7 +909,9 @@
       "source": "filename",
       "beside_audiobook": "Kami Garcia",
       "size_bytes": 2969354,
-      "modified": "2025-05-03T21:12:15.853021Z"
+      "modified": "2025-05-03T21:12:15.853021Z",
+      "cover_url": "https://covers.heygabi.ai/Kami%20Garcia/Beautiful%20Creatures%20-%20Beautiful%20Creatures%2C%20Book%201.jpg",
+      "cover_source": "audiobook"
     },
     {
       "path": "Kerry Anne King/Whisper Me This- A Novel - Kerry Anne King.epub",
@@ -782,7 +922,9 @@
       "source": "opf",
       "beside_audiobook": "Kerry Anne King",
       "size_bytes": 1364977,
-      "modified": "2026-08-10T02:21:10.453058Z"
+      "modified": "2026-08-10T02:21:10.453058Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/acb2c344c5736a51a2d5397c73b1883cd0b40827a26346e8bcf304a5fa1ee1c5.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Kumo Kagyu/Goblin Slayer, Vol. 1.pdf",
@@ -793,7 +935,9 @@
       "source": "filename",
       "beside_audiobook": "Kumo Kagyu",
       "size_bytes": 68975830,
-      "modified": "2026-06-18T23:11:43.590321Z"
+      "modified": "2026-06-18T23:11:43.590321Z",
+      "cover_url": "https://covers.heygabi.ai/Kumo%20Kagyu/Goblin%20Slayer%2C%20Vol.%201.jpg",
+      "cover_source": "audiobook"
     },
     {
       "path": "Lawrence M. Krauss/The Greatest Story Ever Told - So Far - Why Are We Here.pdf",
@@ -804,7 +948,9 @@
       "source": "filename",
       "beside_audiobook": "Lawrence M. Krauss",
       "size_bytes": 3066225,
-      "modified": "2025-05-03T21:15:57.352506Z"
+      "modified": "2025-05-03T21:15:57.352506Z",
+      "cover_url": "https://covers.heygabi.ai/Lawrence%20M.%20Krauss/The%20Greatest%20Story%20Ever%20Told%20-%20So%20Far%20-%20Why%20Are%20We%20Here.jpg",
+      "cover_source": "audiobook"
     },
     {
       "path": "Mashton XX/Arcane Pathfinder Book 5- Daunting - Mashton XX.epub",
@@ -815,7 +961,9 @@
       "source": "opf",
       "beside_audiobook": "Mashton XX",
       "size_bytes": 3874660,
-      "modified": "2026-08-10T02:19:54.251142Z"
+      "modified": "2026-08-10T02:19:54.251142Z",
+      "cover_url": null,
+      "cover_source": null
     },
     {
       "path": "Maxime J. Durand/Board & Conquest- [A Kingdom Building LitRPG] - Maxime J. Durand.epub",
@@ -826,7 +974,9 @@
       "source": "opf",
       "beside_audiobook": "Maxime J. Durand",
       "size_bytes": 3346784,
-      "modified": "2026-08-10T02:20:05.871272Z"
+      "modified": "2026-08-10T02:20:05.871272Z",
+      "cover_url": "https://covers.heygabi.ai/Maxime%20J.%20Durand/Board%20%26%20Conquest%20-%20A%20Kingdom%20Building%20LitRPG.jpg",
+      "cover_source": "audiobook"
     },
     {
       "path": "Meg Waite Clayton/Beautiful Exiles - Meg Waite Clayton.epub",
@@ -837,7 +987,9 @@
       "source": "opf",
       "beside_audiobook": "Meg Waite Clayton",
       "size_bytes": 2675164,
-      "modified": "2026-08-10T02:21:17.650450Z"
+      "modified": "2026-08-10T02:21:17.650450Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/b383db2a0775af71e6f6fadec1af3fbe290efb635ab9bffa7474b5615fbd5251.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Michael-Scott Earle/Monster Empire Book 2 - Michael-Scott Earle.epub",
@@ -848,7 +1000,9 @@
       "source": "opf",
       "beside_audiobook": "Michael-Scott Earle",
       "size_bytes": 1657137,
-      "modified": "2026-08-05T00:26:51.202873Z"
+      "modified": "2026-08-05T00:26:51.202873Z",
+      "cover_url": "https://covers.heygabi.ai/Michael-Scott%20Earle/Michael-Scott%20Earle%20-%20%5BMonster%20Empire%20-%202%5D%20-%20Monster%20Empire%20Book%202%20%28Christopher%20Boucher%20and%20Jessica%20Threet%29.png",
+      "cover_source": "audiobook"
     },
     {
       "path": "Michael-Scott Earle/Space Knight Book 5 - Michael-Scott Earle.epub",
@@ -859,7 +1013,9 @@
       "source": "opf",
       "beside_audiobook": "Michael-Scott Earle",
       "size_bytes": 1135795,
-      "modified": "2026-08-05T00:27:26.146544Z"
+      "modified": "2026-08-05T00:27:26.146544Z",
+      "cover_url": "https://covers.heygabi.ai/Michael-Scott%20Earle/Michael-Scott%20Earle%20-%20%5BSpace%20Knight%20-%205%5D%20-%20Space%20Knight%20Book%205%20%28Alex%20Perone%20and%20Marissa%20Parness%29.png",
+      "cover_source": "audiobook"
     },
     {
       "path": "Michael-Scott Earle/Space Knight Book 6 - Michael-Scott Earle.epub",
@@ -870,7 +1026,9 @@
       "source": "opf",
       "beside_audiobook": "Michael-Scott Earle",
       "size_bytes": 1211001,
-      "modified": "2026-08-05T00:27:34.280029Z"
+      "modified": "2026-08-05T00:27:34.280029Z",
+      "cover_url": "https://covers.heygabi.ai/Michael-Scott%20Earle/Michael-Scott%20Earle%20-%20%5BSpace%20Knight%20-%206%5D%20-%20Space%20Knight%20Book%206%20%28Alex%20Perone%20and%20Marissa%20Parness%29.png",
+      "cover_source": "audiobook"
     },
     {
       "path": "Michael-Scott Earle/Tamer King of Dinosaurs Book 10 - Michael-Scott Earle.epub",
@@ -881,7 +1039,9 @@
       "source": "opf",
       "beside_audiobook": "Michael-Scott Earle",
       "size_bytes": 2084193,
-      "modified": "2026-08-05T00:28:18.273715Z"
+      "modified": "2026-08-05T00:28:18.273715Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/edd88cca8629d028a99ee434c4bf65bb5358400679ba7162278b8bf3080dcdd0.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Michael-Scott Earle/Tamer King of Dinosaurs Book 11 - Michael-Scott Earle.epub",
@@ -892,7 +1052,9 @@
       "source": "opf",
       "beside_audiobook": "Michael-Scott Earle",
       "size_bytes": 1149116,
-      "modified": "2026-08-05T00:28:42.093110Z"
+      "modified": "2026-08-05T00:28:42.093110Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/e780677b18df72aedd8624f09e95f8c23e10d4ad28c1a7e6a597ce4f355614c9.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Michael-Scott Earle/Tamer King of Dinosaurs Book 7 - Michael-Scott Earle.epub",
@@ -903,7 +1065,9 @@
       "source": "opf",
       "beside_audiobook": "Michael-Scott Earle",
       "size_bytes": 2118865,
-      "modified": "2026-08-05T00:27:43.525023Z"
+      "modified": "2026-08-05T00:27:43.525023Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/579cbbebbbf8cb2934236aff455080e6ad010d589a38fc405424e8adf59a9e88.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Michael-Scott Earle/Tamer King of Dinosaurs Book 8 - Michael-Scott Earle.epub",
@@ -914,7 +1078,9 @@
       "source": "opf",
       "beside_audiobook": "Michael-Scott Earle",
       "size_bytes": 4196405,
-      "modified": "2026-08-05T00:27:52.220964Z"
+      "modified": "2026-08-05T00:27:52.220964Z",
+      "cover_url": null,
+      "cover_source": null
     },
     {
       "path": "Michael-Scott Earle/Tamer King of Dinosaurs Book 9 - Michael-Scott Earle.epub",
@@ -925,7 +1091,9 @@
       "source": "opf",
       "beside_audiobook": "Michael-Scott Earle",
       "size_bytes": 1814866,
-      "modified": "2026-08-05T00:28:05.043126Z"
+      "modified": "2026-08-05T00:28:05.043126Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/882834a7850670f079c66cd8fc934659403d813e63f29d709bffd0728ac216ac.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Mike Duncan/The Storm Before the Storm.pdf",
@@ -936,7 +1104,9 @@
       "source": "filename",
       "beside_audiobook": "Mike Duncan",
       "size_bytes": 2078536,
-      "modified": "2025-05-03T21:11:39.595477Z"
+      "modified": "2025-05-03T21:11:39.595477Z",
+      "cover_url": "https://covers.heygabi.ai/Mike%20Duncan/The%20Storm%20Before%20the%20Storm.jpg",
+      "cover_source": "audiobook"
     },
     {
       "path": "Mike Omer/A Killer's Mind (Zoe Bentley Mystery Book 1) - Mike Omer.epub",
@@ -947,7 +1117,9 @@
       "source": "opf",
       "beside_audiobook": "Mike Omer",
       "size_bytes": 2235393,
-      "modified": "2026-08-10T02:21:06.009834Z"
+      "modified": "2026-08-10T02:21:06.009834Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/341275da6ccd15b20b2db91298789942bbc84a62d4a07eb1af7e3b29580025ed.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Morgan Taylor/I'm from the Sun - The Gustafer Yellowgold Story.pdf",
@@ -958,7 +1130,9 @@
       "source": "filename",
       "beside_audiobook": "Morgan Taylor",
       "size_bytes": 34151554,
-      "modified": "2025-05-03T20:22:09.255447Z"
+      "modified": "2025-05-03T20:22:09.255447Z",
+      "cover_url": "https://covers.heygabi.ai/Morgan%20Taylor/I%27m%20from%20the%20Sun%20-%20The%20Gustafer%20Yellowgold%20Story.jpg",
+      "cover_source": "audiobook"
     },
     {
       "path": "My First Secret - Sci-FiPNR origin story - K. Rose - K. Rose.epub",
@@ -969,7 +1143,9 @@
       "source": "opf",
       "beside_audiobook": null,
       "size_bytes": 381083,
-      "modified": "2026-08-16T19:51:27.558208Z"
+      "modified": "2026-08-16T19:51:27.558208Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/d2a33e40308959e38199936400fceb2114332fa37c7d3a91ac6787b0a340605e.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "My First Secret - Sci-FiPNR origin story - K. Rose_1.epub",
@@ -980,7 +1156,9 @@
       "source": "opf",
       "beside_audiobook": null,
       "size_bytes": 381082,
-      "modified": "2026-08-16T20:10:05.465461Z"
+      "modified": "2026-08-16T20:10:05.465461Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/d2a33e40308959e38199936400fceb2114332fa37c7d3a91ac6787b0a340605e.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "My First Secret - Sci-FiPNR origin story - K. Rose_2.epub",
@@ -991,7 +1169,9 @@
       "source": "opf",
       "beside_audiobook": null,
       "size_bytes": 381083,
-      "modified": "2026-08-16T20:19:39.775431Z"
+      "modified": "2026-08-16T20:19:39.775431Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/d2a33e40308959e38199936400fceb2114332fa37c7d3a91ac6787b0a340605e.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "My First Secret - Sci-FiPNR origin story - K. Rose_3.epub",
@@ -1002,7 +1182,9 @@
       "source": "opf",
       "beside_audiobook": null,
       "size_bytes": 381083,
-      "modified": "2026-08-16T20:24:48.625979Z"
+      "modified": "2026-08-16T20:24:48.625979Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/d2a33e40308959e38199936400fceb2114332fa37c7d3a91ac6787b0a340605e.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Neal Shusterman/The Toll.pdf",
@@ -1013,7 +1195,9 @@
       "source": "filename",
       "beside_audiobook": "Neal Shusterman",
       "size_bytes": 37598,
-      "modified": "2025-05-03T21:33:26.272868Z"
+      "modified": "2025-05-03T21:33:26.272868Z",
+      "cover_url": "https://covers.heygabi.ai/Neal%20Shusterman/The%20Toll.jpg",
+      "cover_source": "audiobook"
     },
     {
       "path": "Pirateaba/Fae and Fare - The Wandering Inn, Book 2.pdf",
@@ -1024,7 +1208,9 @@
       "source": "filename",
       "beside_audiobook": "Pirateaba",
       "size_bytes": 4784033,
-      "modified": "2025-05-03T21:03:38.369448Z"
+      "modified": "2025-05-03T21:03:38.369448Z",
+      "cover_url": "https://covers.heygabi.ai/Pirateaba/Fae%20and%20Fare%20-%20The%20Wandering%20Inn%2C%20Book%202.jpg",
+      "cover_source": "audiobook"
     },
     {
       "path": "Pirateaba/The Wandering Inn - The Wandering Inn, Book 1.pdf",
@@ -1035,7 +1221,9 @@
       "source": "filename",
       "beside_audiobook": "Pirateaba",
       "size_bytes": 1723929,
-      "modified": "2025-05-03T21:03:36.012469Z"
+      "modified": "2025-05-03T21:03:36.012469Z",
+      "cover_url": "https://covers.heygabi.ai/Pirateaba/The%20Wandering%20Inn%20-%20The%20Wandering%20Inn%2C%20Book%201.jpg",
+      "cover_source": "audiobook"
     },
     {
       "path": "Ransom Riggs/Miss Peregrine's Home for Peculiar Children.pdf",
@@ -1046,7 +1234,9 @@
       "source": "filename",
       "beside_audiobook": "Ransom Riggs",
       "size_bytes": 6415550,
-      "modified": "2025-05-03T20:38:33.851740Z"
+      "modified": "2025-05-03T20:38:33.851740Z",
+      "cover_url": "https://covers.heygabi.ai/Ransom%20Riggs/Miss%20Peregrine%27s%20Home%20for%20Peculiar%20Children.jpg",
+      "cover_source": "audiobook"
     },
     {
       "path": "Rebecca Yarros/Onyx Storm (The Empyrean) - Rebecca Yarros.epub",
@@ -1057,7 +1247,9 @@
       "source": "opf",
       "beside_audiobook": "Rebecca Yarros",
       "size_bytes": 3094900,
-      "modified": "2026-08-10T02:20:22.335394Z"
+      "modified": "2026-08-10T02:20:22.335394Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/a6069259f3aa91236bd95d1bdc2bbde4aac106a13924615bb36a91f951a44169.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Sarah A. Parker/When the Moon Hatched - A Novel.pdf",
@@ -1068,7 +1260,9 @@
       "source": "filename",
       "beside_audiobook": "Sarah A. Parker",
       "size_bytes": 1785328,
-      "modified": "2025-05-03T21:11:19.089164Z"
+      "modified": "2025-05-03T21:11:19.089164Z",
+      "cover_url": "https://covers.heygabi.ai/Sarah%20A.%20Parker/When%20the%20Moon%20Hatched%20-%20A%20Novel.jpg",
+      "cover_source": "audiobook"
     },
     {
       "path": "Seirei Tsukai no Blade Dance/Seirei Tsukai no Blade Dance - BR SS Compilation (1-6).epub",
@@ -1079,7 +1273,9 @@
       "source": "opf",
       "beside_audiobook": "Seirei Tsukai no Blade Dance",
       "size_bytes": 5509573,
-      "modified": "2026-06-21T17:51:17.634251Z"
+      "modified": "2026-06-21T17:51:17.634251Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/f1f2167b7a6fc452043bdca43d68d39d230fe64057a6939ae2bb0bd5be1bb116.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Seirei Tsukai no Blade Dance/Seirei Tsukai no Blade Dance - Extra.1 - Great Festival of the Spirits at the Imperial Capital.epub",
@@ -1090,7 +1286,9 @@
       "source": "opf",
       "beside_audiobook": "Seirei Tsukai no Blade Dance",
       "size_bytes": 974242,
-      "modified": "2026-06-21T17:51:18.533739Z"
+      "modified": "2026-06-21T17:51:18.533739Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/7aa80e6590ff5008a8fe777729267ac01a8ef3643586bab282bac0206f4d34e5.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Seirei Tsukai no Blade Dance/Seirei Tsukai no Blade Dance - Extra.2 - Est Looking After the Sick.epub",
@@ -1101,7 +1299,9 @@
       "source": "opf",
       "beside_audiobook": "Seirei Tsukai no Blade Dance",
       "size_bytes": 1667656,
-      "modified": "2026-06-21T17:51:16.775943Z"
+      "modified": "2026-06-21T17:51:16.775943Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/db3d74db400d63d204f9060097d27c6256785ce6b71c00b8cff748a308942603.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Seirei Tsukai no Blade Dance/Seirei Tsukai no Blade Dance - Extra.3 - The Princess Confidential Part-time Job.epub",
@@ -1112,7 +1312,9 @@
       "source": "opf",
       "beside_audiobook": "Seirei Tsukai no Blade Dance",
       "size_bytes": 1811483,
-      "modified": "2026-06-21T17:51:15.842058Z"
+      "modified": "2026-06-21T17:51:15.842058Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/5dbbf5adf748a39091e199dd4b7fbbd1eacacbe2200da015440978b98ddb53a9.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Seirei Tsukai no Blade Dance/Seirei Tsukai no Blade Dance - Extra.4 - Hunting the Legendary Giant Bust Spirit!.epub",
@@ -1123,7 +1325,9 @@
       "source": "opf",
       "beside_audiobook": "Seirei Tsukai no Blade Dance",
       "size_bytes": 1379355,
-      "modified": "2026-06-21T17:51:15.109209Z"
+      "modified": "2026-06-21T17:51:15.109209Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/659aa4b6bb574f7d22176c87d55f3a2437f0b00671799495295808dc43a48644.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Seirei Tsukai no Blade Dance/Seirei Tsukai no Blade Dance - Extra.5 - The Terrifying Mystery Hotpot Battle.epub",
@@ -1134,7 +1338,9 @@
       "source": "opf",
       "beside_audiobook": "Seirei Tsukai no Blade Dance",
       "size_bytes": 1811940,
-      "modified": "2026-06-21T17:51:14.464693Z"
+      "modified": "2026-06-21T17:51:14.464693Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/9e4bf3e54d781a19c62b3d07a937d06e04f42762b2a8ac77654592c1ab55ab2e.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Seirei Tsukai no Blade Dance/Seirei Tsukai no Blade Dance - Extra.6 - Elementalists on Break.epub",
@@ -1145,7 +1351,9 @@
       "source": "opf",
       "beside_audiobook": "Seirei Tsukai no Blade Dance",
       "size_bytes": 2086240,
-      "modified": "2026-06-21T17:51:13.449177Z"
+      "modified": "2026-06-21T17:51:13.449177Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/834dcb103c6718e311e145241a47a097e80070033baa8ee1c6ea63f77cb70169.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Seirei Tsukai no Blade Dance/Seirei Tsukai no Blade Dance - Volume 01 - The Sword, The Academy and The Hell Cat Girl.epub",
@@ -1156,7 +1364,9 @@
       "source": "opf",
       "beside_audiobook": "Seirei Tsukai no Blade Dance",
       "size_bytes": 6695753,
-      "modified": "2026-06-21T17:51:12.218100Z"
+      "modified": "2026-06-21T17:51:12.218100Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/b605f0114fb11c97f6f7c0c448d1b1915fcb0abd49d363b204a9eb1dfc1681c8.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Seirei Tsukai no Blade Dance/Seirei Tsukai no Blade Dance - Volume 02 - The Lost Queen.epub",
@@ -1167,7 +1377,9 @@
       "source": "opf",
       "beside_audiobook": "Seirei Tsukai no Blade Dance",
       "size_bytes": 8477676,
-      "modified": "2026-06-21T17:51:11.269835Z"
+      "modified": "2026-06-21T17:51:11.269835Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/a4cfc4f32b748fa330b2e0e6c5f8e7f8c131c2489243ad2c363dedd844703009.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Seirei Tsukai no Blade Dance/Seirei Tsukai no Blade Dance - Volume 03 - Pledge of the Wind.epub",
@@ -1178,7 +1390,9 @@
       "source": "opf",
       "beside_audiobook": "Seirei Tsukai no Blade Dance",
       "size_bytes": 16143561,
-      "modified": "2026-06-21T17:51:10.282089Z"
+      "modified": "2026-06-21T17:51:10.282089Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/538e187b6e2d426294079e58f0cc783bd6efe4fdb33723a7a340a5850413ae72.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Seirei Tsukai no Blade Dance/Seirei Tsukai no Blade Dance - Volume 04 - The Blade Dance.epub",
@@ -1189,7 +1403,9 @@
       "source": "opf",
       "beside_audiobook": "Seirei Tsukai no Blade Dance",
       "size_bytes": 4430617,
-      "modified": "2026-06-21T17:51:08.490446Z"
+      "modified": "2026-06-21T17:51:08.490446Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/39222061fb677a66df5d871a2ce8a8857af46902df50e60c6fa853f4cea97048.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Seirei Tsukai no Blade Dance/Seirei Tsukai no Blade Dance - Volume 05 - Demon Slayer.epub",
@@ -1200,7 +1416,9 @@
       "source": "opf",
       "beside_audiobook": "Seirei Tsukai no Blade Dance",
       "size_bytes": 6159891,
-      "modified": "2026-06-21T17:51:07.701109Z"
+      "modified": "2026-06-21T17:51:07.701109Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/aed60652c8d973c272f7b6e70403886eb0e392a04526444e9477b39bdb9ccf3f.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Seirei Tsukai no Blade Dance/Seirei Tsukai no Blade Dance - Volume 06 - The Reminisced Darkness Spirit.epub",
@@ -1211,7 +1429,9 @@
       "source": "opf",
       "beside_audiobook": "Seirei Tsukai no Blade Dance",
       "size_bytes": 12180359,
-      "modified": "2026-06-21T17:51:06.820646Z"
+      "modified": "2026-06-21T17:51:06.820646Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/2d68e51152e90822783b3cfd23b443124ff2b6cf22866a33d34b9770fd796b36.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Seirei Tsukai no Blade Dance/Seirei Tsukai no Blade Dance - Volume 07 - The Strongest Blade Dancer.epub",
@@ -1222,7 +1442,9 @@
       "source": "opf",
       "beside_audiobook": "Seirei Tsukai no Blade Dance",
       "size_bytes": 11589246,
-      "modified": "2026-06-21T17:51:05.216854Z"
+      "modified": "2026-06-21T17:51:05.216854Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/7305978e8f6f03b207ce76ebd4bd38cd6980cdccff22067a6f56aa07524b7a2a.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Seirei Tsukai no Blade Dance/Seirei Tsukai no Blade Dance - Volume 08 - The Night Before the Finale.epub",
@@ -1233,7 +1455,9 @@
       "source": "opf",
       "beside_audiobook": "Seirei Tsukai no Blade Dance",
       "size_bytes": 19438399,
-      "modified": "2026-06-21T17:51:03.354213Z"
+      "modified": "2026-06-21T17:51:03.354213Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/d49e25fb29dc02d6cddd7538778435332eb4bb05606c94fedfb4d2837ab8b9bd.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Seirei Tsukai no Blade Dance/Seirei Tsukai no Blade Dance - Volume 09 - Cross Fire.epub",
@@ -1244,7 +1468,9 @@
       "source": "opf",
       "beside_audiobook": "Seirei Tsukai no Blade Dance",
       "size_bytes": 11276816,
-      "modified": "2026-06-21T17:51:00.019655Z"
+      "modified": "2026-06-21T17:51:00.019655Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/937803177c456f7b2bc94c6a5789380ad77c71c70dcc835e65d94ad0a93b01e3.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Seirei Tsukai no Blade Dance/Seirei Tsukai no Blade Dance - Volume 10 - The Awakening of the Demon King.epub",
@@ -1255,7 +1481,9 @@
       "source": "opf",
       "beside_audiobook": "Seirei Tsukai no Blade Dance",
       "size_bytes": 9349865,
-      "modified": "2026-06-21T17:50:57.827093Z"
+      "modified": "2026-06-21T17:50:57.827093Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/7cdc0b87c6de7ec362d25d12c4e66b2dfc993d1f405d712f6d57031eca1a0452.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Seirei Tsukai no Blade Dance/Seirei Tsukai no Blade Dance - Volume 11 - Elemental Lord Assassination.epub",
@@ -1266,7 +1494,9 @@
       "source": "opf",
       "beside_audiobook": "Seirei Tsukai no Blade Dance",
       "size_bytes": 14100243,
-      "modified": "2026-06-21T17:50:56.738310Z"
+      "modified": "2026-06-21T17:50:56.738310Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/02f04bdee68f2d344da5385e05998218a5f863281f9b4734cfa339ffab61a331.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Seirei Tsukai no Blade Dance/Seirei Tsukai no Blade Dance - Volume 12 - Releasing the Sealed Sword.epub",
@@ -1277,7 +1507,9 @@
       "source": "opf",
       "beside_audiobook": "Seirei Tsukai no Blade Dance",
       "size_bytes": 7658797,
-      "modified": "2026-06-21T17:50:54.605262Z"
+      "modified": "2026-06-21T17:50:54.605262Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/d0e73edcc0b44fcb7b4dcae4824ed1f145ae4cab9d5ba50ed3a68625f918b352.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Seirei Tsukai no Blade Dance/Seirei Tsukai no Blade Dance - Volume 13 - Queen of Ice Blossoms.epub",
@@ -1288,7 +1520,9 @@
       "source": "opf",
       "beside_audiobook": "Seirei Tsukai no Blade Dance",
       "size_bytes": 8273573,
-      "modified": "2026-06-21T17:50:53.659163Z"
+      "modified": "2026-06-21T17:50:53.659163Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/87767436bcf35b82da08c70418292610794a0eccffd66ea3b985b240d22ef43f.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Seirei Tsukai no Blade Dance/Seirei Tsukai no Blade Dance - Volume 14 - Upheaval in the Imperial Capital.epub",
@@ -1299,7 +1533,9 @@
       "source": "opf",
       "beside_audiobook": "Seirei Tsukai no Blade Dance",
       "size_bytes": 10915117,
-      "modified": "2026-06-21T17:50:52.690177Z"
+      "modified": "2026-06-21T17:50:52.690177Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/cd0b9b71f7d4ae758f0342ec0dcca20d6c6f76850689e4a11ea284965c0afa7d.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Seirei Tsukai no Blade Dance/Seirei Tsukai no Blade Dance - Volume 15 - The Dragon King of Dracunia.epub",
@@ -1310,7 +1546,9 @@
       "source": "opf",
       "beside_audiobook": "Seirei Tsukai no Blade Dance",
       "size_bytes": 6385741,
-      "modified": "2026-06-21T17:50:50.881325Z"
+      "modified": "2026-06-21T17:50:50.881325Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/f04750d3337d0c1436c7d23f77fd2abdd9772710fb60eb45201c36f37ab2bb1b.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Seirei Tsukai no Blade Dance/Seirei Tsukai no Blade Dance - Volume 16 - The Demon King Returns in Triumph.epub",
@@ -1321,7 +1559,9 @@
       "source": "opf",
       "beside_audiobook": "Seirei Tsukai no Blade Dance",
       "size_bytes": 7639817,
-      "modified": "2026-06-21T17:50:50.041162Z"
+      "modified": "2026-06-21T17:50:50.041162Z",
+      "cover_url": null,
+      "cover_source": null
     },
     {
       "path": "Selkie Myth/Beneath the Dragoneye Moons- Immortal War - Selkie Myth.epub",
@@ -1332,7 +1572,9 @@
       "source": "opf",
       "beside_audiobook": "Selkie Myth",
       "size_bytes": 4781397,
-      "modified": "2026-08-14T04:19:27.232505Z"
+      "modified": "2026-08-14T04:19:27.232505Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/c4c9f8e2ea8d1978d29470d27c7c8cf868112eb3d29fcab4392fe7cc6860bef1.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Selkie Myth/Beneath the Dragoneye Moons- Mandate of Heaven - Selkie Myth.epub",
@@ -1343,7 +1585,9 @@
       "source": "opf",
       "beside_audiobook": "Selkie Myth",
       "size_bytes": 5219581,
-      "modified": "2026-08-14T04:19:23.681014Z"
+      "modified": "2026-08-14T04:19:23.681014Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/47f3b0f31c7f556f95160616ee21eb37574b148faf92429b3f46d18d32ddb444.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Selkie Myth/Beneath the Dragoneye Moons- New Horizons - Selkie Myth.epub",
@@ -1354,7 +1598,9 @@
       "source": "opf",
       "beside_audiobook": "Selkie Myth",
       "size_bytes": 5014483,
-      "modified": "2026-08-14T04:19:18.142321Z"
+      "modified": "2026-08-14T04:19:18.142321Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/596cfe913dddb514539cb066f2017ac155779143c24f99c2b1d971b73d41292c.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Selkie Myth/Beneath the Dragoneye Moons- Return to Remus - Selkie Myth.epub",
@@ -1365,7 +1611,9 @@
       "source": "opf",
       "beside_audiobook": "Selkie Myth",
       "size_bytes": 4773583,
-      "modified": "2026-08-14T04:19:12.469595Z"
+      "modified": "2026-08-14T04:19:12.469595Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/14fa62163e659624982bb4101f0a466c9bdfb4d035554e8935c8397cc892d634.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Selkie Myth/BtDEM 1 Oathbound Healer - Selkie Myth - 20250106.epub",
@@ -1376,7 +1624,9 @@
       "source": "opf",
       "beside_audiobook": "Selkie Myth",
       "size_bytes": 6167641,
-      "modified": "2026-06-21T17:30:47.983881Z"
+      "modified": "2026-06-21T17:30:47.983881Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/093c6901018ed3ed526960fa6effbc2d85fa4305d96abfa886512e80ad38be7f.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Selkie Myth/BtDEM 10 Under Ashen Skies - Selkie Myth - 20250114.epub",
@@ -1387,7 +1637,9 @@
       "source": "opf",
       "beside_audiobook": "Selkie Myth",
       "size_bytes": 7821565,
-      "modified": "2026-06-21T17:30:43.843825Z"
+      "modified": "2026-06-21T17:30:43.843825Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/2f2d97af3ab597116541edc9f08f85146410815f81e8c22e857d53a85ac15590.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Selkie Myth/BtDEM 12 Phoenix Peaks - Selkie Myth - 20250115.epub",
@@ -1398,7 +1650,9 @@
       "source": "opf",
       "beside_audiobook": "Selkie Myth",
       "size_bytes": 7683476,
-      "modified": "2026-06-21T17:30:44.447315Z"
+      "modified": "2026-06-21T17:30:44.447315Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/1e3a118c1f31b6eb48527a41466376e9c1717b017924a5af9cefac8913368038.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Selkie Myth/BtDEM 13 Moonfall - Selkie Myth - 20250115.epub",
@@ -1409,7 +1663,9 @@
       "source": "opf",
       "beside_audiobook": "Selkie Myth",
       "size_bytes": 7267947,
-      "modified": "2026-06-21T17:30:40.324133Z"
+      "modified": "2026-06-21T17:30:40.324133Z",
+      "cover_url": "https://covers.heygabi.ai/Selkie%20Myth/Moonfall%20-%20Beneath%20the%20Dragoneye%20Moons%2C%20Book%2013.jpg",
+      "cover_source": "audiobook"
     },
     {
       "path": "Selkie Myth/BtDEM 15 Rise from the Ashes - Selkie Myth - 20250515.epub",
@@ -1420,7 +1676,9 @@
       "source": "opf",
       "beside_audiobook": "Selkie Myth",
       "size_bytes": 7459802,
-      "modified": "2026-08-10T04:20:00.249167Z"
+      "modified": "2026-08-10T04:20:00.249167Z",
+      "cover_url": "https://covers.heygabi.ai/Selkie%20Myth/Rise%20from%20the%20Ashes%20-%20Beneath%20the%20Dragoneye%20Moons%2C%20Book%2015.jpg",
+      "cover_source": "audiobook"
     },
     {
       "path": "Selkie Myth/BtDEM 16 Of Gods and Dragons - Selkie Myth - 20270827.epub",
@@ -1431,7 +1689,9 @@
       "source": "opf",
       "beside_audiobook": "Selkie Myth",
       "size_bytes": 7588126,
-      "modified": "2026-08-10T04:20:00.459088Z"
+      "modified": "2026-08-10T04:20:00.459088Z",
+      "cover_url": "https://covers.heygabi.ai/Selkie%20Myth/Of%20Gods%20and%20Dragons%20-%20Beneath%20the%20Dragoneye%20Moons%2C%20Book%2016.jpg",
+      "cover_source": "audiobook"
     },
     {
       "path": "Selkie Myth/BtDEM 2 Adventures in the Argo - Selkie Myth - 20250107.epub",
@@ -1442,7 +1702,9 @@
       "source": "opf",
       "beside_audiobook": "Selkie Myth",
       "size_bytes": 11584514,
-      "modified": "2026-06-21T17:30:38.398365Z"
+      "modified": "2026-06-21T17:30:38.398365Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/2c991352c24138c5e638a777cbc9649ccd2e8a1b8de56bc1b8bdfe993c2c7df5.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Selkie Myth/BtDEM 3 Ranger's Dawn - Selkie Myth - 20250109.epub",
@@ -1453,7 +1715,9 @@
       "source": "opf",
       "beside_audiobook": "Selkie Myth",
       "size_bytes": 7813333,
-      "modified": "2026-06-21T17:30:45.821695Z"
+      "modified": "2026-06-21T17:30:45.821695Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/2ef42ddd7215d4d2604e81488461eb6e5076f5ff041a17ae3c98f2ea87448d1d.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Selkie Myth/BtDEM 4 Beyond the Wall - Selkie Myth - 20250110.epub",
@@ -1464,7 +1728,9 @@
       "source": "opf",
       "beside_audiobook": "Selkie Myth",
       "size_bytes": 7709746,
-      "modified": "2026-06-21T17:30:39.512031Z"
+      "modified": "2026-06-21T17:30:39.512031Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/f8a087e8d500f3e309f89314553a03a460311663cd9dcd5aa39a3bf2bc086180.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Selkie Myth/BtDEM 5  Moonveiled Journeys - Selkie Myth - 20250111.epub",
@@ -1475,7 +1741,9 @@
       "source": "opf",
       "beside_audiobook": "Selkie Myth",
       "size_bytes": 7705580,
-      "modified": "2026-06-21T17:30:42.391083Z"
+      "modified": "2026-06-21T17:30:42.391083Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/bb71e51e0832e72b3d38aded7c338e7bd1b481d6bf26c72e05e8a4882f076199.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Selkie Myth/BtDEM 6 Immortal Moments - Selkie Myth - 20250112.epub",
@@ -1486,7 +1754,9 @@
       "source": "opf",
       "beside_audiobook": "Selkie Myth",
       "size_bytes": 7571174,
-      "modified": "2026-06-21T17:30:41.352509Z"
+      "modified": "2026-06-21T17:30:41.352509Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/7eb6278f6c610680ecb1d048b1c7aa64eaf8e5e09c4e00f875d7f402071ef4d6.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Selkie Myth/BtDEM 9 The Gladiator Gauntlet - Selkie Myth - 20250114.epub",
@@ -1497,7 +1767,9 @@
       "source": "opf",
       "beside_audiobook": "Selkie Myth",
       "size_bytes": 7336716,
-      "modified": "2026-06-21T17:30:46.850173Z"
+      "modified": "2026-06-21T17:30:46.850173Z",
+      "cover_url": "https://covers.heygabi.ai/Selkie%20Myth/The%20Gladiator%20Gauntlet%20-%20Beneath%20the%20Dragoneye%20Moons%2C%20Book%209.jpg",
+      "cover_source": "audiobook"
     },
     {
       "path": "Shannon Chakraborty/The Adventures of Amina al-Sirafi - A Novel.pdf",
@@ -1508,7 +1780,9 @@
       "source": "filename",
       "beside_audiobook": "Shannon Chakraborty",
       "size_bytes": 5939404,
-      "modified": "2025-05-03T21:10:57.146252Z"
+      "modified": "2025-05-03T21:10:57.146252Z",
+      "cover_url": "https://covers.heygabi.ai/Shannon%20Chakraborty/The%20Adventures%20of%20Amina%20al-Sirafi%20-%20A%20Novel.jpg",
+      "cover_source": "audiobook"
     },
     {
       "path": "Shirtaloon/He Who Fights with Monsters 10- A LitRPG Adventure - Travis Deverell.epub",
@@ -1519,7 +1793,9 @@
       "source": "opf",
       "beside_audiobook": "Shirtaloon",
       "size_bytes": 3150003,
-      "modified": "2026-08-10T02:20:38.666774Z"
+      "modified": "2026-08-10T02:20:38.666774Z",
+      "cover_url": "https://covers.heygabi.ai/Shirtaloon/He%20Who%20Fights%20with%20Monsters%2010.jpg",
+      "cover_source": "audiobook"
     },
     {
       "path": "Shirtaloon/He Who Fights with Monsters 10.pdf",
@@ -1530,7 +1806,9 @@
       "source": "filename",
       "beside_audiobook": "Shirtaloon",
       "size_bytes": 128889,
-      "modified": "2025-05-03T20:49:40.083200Z"
+      "modified": "2025-05-03T20:49:40.083200Z",
+      "cover_url": "https://covers.heygabi.ai/Shirtaloon/He%20Who%20Fights%20with%20Monsters%2010.jpg",
+      "cover_source": "audiobook"
     },
     {
       "path": "Shirtaloon/He Who Fights with Monsters 12- A LitRPG Adventure.pdf",
@@ -1541,7 +1819,9 @@
       "source": "filename",
       "beside_audiobook": "Shirtaloon",
       "size_bytes": 170527,
-      "modified": "2025-05-27T19:48:24.748964Z"
+      "modified": "2025-05-27T19:48:24.748964Z",
+      "cover_url": "https://covers.heygabi.ai/Shirtaloon/He%20Who%20Fights%20with%20Monsters%2012-%20A%20LitRPG%20Adventure.jpg",
+      "cover_source": "audiobook"
     },
     {
       "path": "Shirtaloon/He Who Fights with Monsters 2- A LitRPG Adventure - Travis Deverell.epub",
@@ -1552,7 +1832,9 @@
       "source": "opf",
       "beside_audiobook": "Shirtaloon",
       "size_bytes": 2771821,
-      "modified": "2026-08-10T02:20:32.959512Z"
+      "modified": "2026-08-10T02:20:32.959512Z",
+      "cover_url": "https://covers.heygabi.ai/Shirtaloon/He%20Who%20Fights%20with%20Monsters%202.jpg",
+      "cover_source": "audiobook"
     },
     {
       "path": "Shirtaloon/He Who Fights with Monsters 3- A LitRPG Adventure - Travis Deverell.epub",
@@ -1563,7 +1845,9 @@
       "source": "opf",
       "beside_audiobook": "Shirtaloon",
       "size_bytes": 3170093,
-      "modified": "2026-08-10T02:20:27.380502Z"
+      "modified": "2026-08-10T02:20:27.380502Z",
+      "cover_url": "https://covers.heygabi.ai/Shirtaloon/He%20Who%20Fights%20with%20Monsters%203.jpg",
+      "cover_source": "audiobook"
     },
     {
       "path": "Shirtaloon/He Who Fights with Monsters 5- A LitRPG Adventure - Travis Deverell.epub",
@@ -1574,7 +1858,9 @@
       "source": "opf",
       "beside_audiobook": "Shirtaloon",
       "size_bytes": 2723021,
-      "modified": "2026-08-10T02:20:46.212078Z"
+      "modified": "2026-08-10T02:20:46.212078Z",
+      "cover_url": "https://covers.heygabi.ai/Shirtaloon/He%20Who%20Fights%20with%20Monsters%205.jpg",
+      "cover_source": "audiobook"
     },
     {
       "path": "Shirtaloon/He Who Fights with Monsters 6- A LitRPG Adventure - Travis Deverell.epub",
@@ -1585,7 +1871,9 @@
       "source": "opf",
       "beside_audiobook": "Shirtaloon",
       "size_bytes": 2590253,
-      "modified": "2026-08-10T02:20:50.261353Z"
+      "modified": "2026-08-10T02:20:50.261353Z",
+      "cover_url": "https://covers.heygabi.ai/Shirtaloon/He%20Who%20Fights%20with%20Monsters%206.jpg",
+      "cover_source": "audiobook"
     },
     {
       "path": "The Assassin King (The Symphony of Ages Book 6) - Sample - Elizabeth Haydon.epub",
@@ -1596,7 +1884,9 @@
       "source": "opf",
       "beside_audiobook": null,
       "size_bytes": 975843,
-      "modified": "2026-08-16T19:51:02.619454Z"
+      "modified": "2026-08-16T19:51:02.619454Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/fdc9971e2bac1f4bbb3b9b4ccc38936953104b13a27a2c5f81e8a29b5d53268e.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "The Assassin King (The Symphony of Ages Book 6)_nodrm.epub",
@@ -1607,7 +1897,9 @@
       "source": "opf",
       "beside_audiobook": null,
       "size_bytes": 975845,
-      "modified": "2026-08-16T20:09:46.068673Z"
+      "modified": "2026-08-16T20:09:46.068673Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/fdc9971e2bac1f4bbb3b9b4ccc38936953104b13a27a2c5f81e8a29b5d53268e.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "The Assassin King (The Symphony of Ages Book 6)_nodrm_1.epub",
@@ -1618,7 +1910,9 @@
       "source": "opf",
       "beside_audiobook": null,
       "size_bytes": 975845,
-      "modified": "2026-08-16T20:19:19.774059Z"
+      "modified": "2026-08-16T20:19:19.774059Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/fdc9971e2bac1f4bbb3b9b4ccc38936953104b13a27a2c5f81e8a29b5d53268e.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "The Assassin King (The Symphony of Ages Book 6)_nodrm_2.epub",
@@ -1629,7 +1923,9 @@
       "source": "opf",
       "beside_audiobook": null,
       "size_bytes": 975845,
-      "modified": "2026-08-16T20:24:28.041224Z"
+      "modified": "2026-08-16T20:24:28.041224Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/fdc9971e2bac1f4bbb3b9b4ccc38936953104b13a27a2c5f81e8a29b5d53268e.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "The Navigators/John (LifeChange Book 20) - The Navigators.epub",
@@ -1640,7 +1936,9 @@
       "source": "opf",
       "beside_audiobook": "The Navigators",
       "size_bytes": 6644795,
-      "modified": "2026-08-10T02:20:41.570638Z"
+      "modified": "2026-08-10T02:20:41.570638Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/d674217743c0ee62ec6b959417246ba1403ab2eb7a8659371c9f20beaf3d322a.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "WADW - Ava Cuvay - Ava Cuvay.epub",
@@ -1651,7 +1949,9 @@
       "source": "opf",
       "beside_audiobook": null,
       "size_bytes": 345593,
-      "modified": "2026-08-16T19:51:28.516395Z"
+      "modified": "2026-08-16T19:51:28.516395Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/9d1070f9d2df8499fe0f2b751f2435bbfa5affe14794050fb78621a8b9ec19d4.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "WADW - Ava Cuvay_1.epub",
@@ -1662,7 +1962,9 @@
       "source": "opf",
       "beside_audiobook": null,
       "size_bytes": 345592,
-      "modified": "2026-08-16T20:10:06.068568Z"
+      "modified": "2026-08-16T20:10:06.068568Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/9d1070f9d2df8499fe0f2b751f2435bbfa5affe14794050fb78621a8b9ec19d4.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "WADW - Ava Cuvay_2.epub",
@@ -1673,7 +1975,9 @@
       "source": "opf",
       "beside_audiobook": null,
       "size_bytes": 345592,
-      "modified": "2026-08-16T20:19:41.012894Z"
+      "modified": "2026-08-16T20:19:41.012894Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/9d1070f9d2df8499fe0f2b751f2435bbfa5affe14794050fb78621a8b9ec19d4.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "WADW - Ava Cuvay_3.epub",
@@ -1684,7 +1988,9 @@
       "source": "opf",
       "beside_audiobook": null,
       "size_bytes": 345593,
-      "modified": "2026-08-16T20:24:49.435170Z"
+      "modified": "2026-08-16T20:24:49.435170Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/9d1070f9d2df8499fe0f2b751f2435bbfa5affe14794050fb78621a8b9ec19d4.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Will Wight/Blackflame (Cradle Book 3) - Will Wight.epub",
@@ -1695,7 +2001,9 @@
       "source": "opf",
       "beside_audiobook": "Will Wight",
       "size_bytes": 3041449,
-      "modified": "2026-08-10T02:19:17.205542Z"
+      "modified": "2026-08-10T02:19:17.205542Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/60eec6913f72b7913114470b839dec92201efa2706bb0e51619b6fb82692ce0a.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Will Wight/Bloodline - Will Wight.epub",
@@ -1706,7 +2014,9 @@
       "source": "opf",
       "beside_audiobook": "Will Wight",
       "size_bytes": 3207125,
-      "modified": "2026-08-10T02:19:20.291392Z"
+      "modified": "2026-08-10T02:19:20.291392Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/5f1d2bec4e0b2cdf88a7f3d9d2a80f0806940cdfcb39403af47a35ad87a297e2.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Will Wight/Dreadgod (Cradle Book 11) - Will Wight.epub",
@@ -1717,7 +2027,9 @@
       "source": "opf",
       "beside_audiobook": "Will Wight",
       "size_bytes": 3147048,
-      "modified": "2026-08-10T02:19:23.615438Z"
+      "modified": "2026-08-10T02:19:23.615438Z",
+      "cover_url": null,
+      "cover_source": null
     },
     {
       "path": "Will Wight/Ghostwater - Will Wight.epub",
@@ -1728,7 +2040,9 @@
       "source": "opf",
       "beside_audiobook": "Will Wight",
       "size_bytes": 3130299,
-      "modified": "2026-08-10T02:19:34.462087Z"
+      "modified": "2026-08-10T02:19:34.462087Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/4c17fa900f222c4bc84af48c725cc8f75d9c4dcdab0f683756db03054c910bae.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Will Wight/Reaper - Will Wight.epub",
@@ -1739,7 +2053,9 @@
       "source": "opf",
       "beside_audiobook": "Will Wight",
       "size_bytes": 3075922,
-      "modified": "2026-08-10T02:19:31.831772Z"
+      "modified": "2026-08-10T02:19:31.831772Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/ecd206880264a559a562b1ad79839677aa5c678227aa3cccc196f0c644041a35.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Will Wight/Skysworn (Cradle Book 4) - Will Wight.epub",
@@ -1750,7 +2066,9 @@
       "source": "opf",
       "beside_audiobook": "Will Wight",
       "size_bytes": 3553751,
-      "modified": "2026-08-10T02:19:28.509167Z"
+      "modified": "2026-08-10T02:19:28.509167Z",
+      "cover_url": null,
+      "cover_source": null
     },
     {
       "path": "Will Wight/Soulsmith (Cradle Book 2) - Will Wight.epub",
@@ -1761,7 +2079,9 @@
       "source": "opf",
       "beside_audiobook": "Will Wight",
       "size_bytes": 3096137,
-      "modified": "2026-08-10T02:19:26.062235Z"
+      "modified": "2026-08-10T02:19:26.062235Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/10c2bbe629d1552a62a110db1b39e4012aad2738582abfc332aea0c8d7ea19f0.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Will Wight/The Captain (The Last Horizon Book 1) - Will Wight.epub",
@@ -1772,7 +2092,9 @@
       "source": "opf",
       "beside_audiobook": "Will Wight",
       "size_bytes": 2076122,
-      "modified": "2026-08-10T02:20:16.461089Z"
+      "modified": "2026-08-10T02:20:16.461089Z",
+      "cover_url": "https://covers.heygabi.ai/Will%20Wight/The%20Captain%20-%20The%20Last%20Horizon%2C%20Book%201.jpg",
+      "cover_source": "audiobook"
     },
     {
       "path": "Will Wight/The Engineer (The Last Horizon Book 2) - Will Wight.epub",
@@ -1783,7 +2105,9 @@
       "source": "opf",
       "beside_audiobook": "Will Wight",
       "size_bytes": 1400568,
-      "modified": "2026-08-10T02:20:12.667089Z"
+      "modified": "2026-08-10T02:20:12.667089Z",
+      "cover_url": "https://covers.heygabi.ai/Will%20Wight/The%20Engineer%20-%20The%20Last%20Horizon%2C%20Book%202.jpg",
+      "cover_source": "audiobook"
     },
     {
       "path": "Will Wight/The Knight (The Last Horizon Book 3) - Will Wight.epub",
@@ -1794,7 +2118,9 @@
       "source": "opf",
       "beside_audiobook": "Will Wight",
       "size_bytes": 1357702,
-      "modified": "2026-08-10T02:20:09.117004Z"
+      "modified": "2026-08-10T02:20:09.117004Z",
+      "cover_url": "https://covers.heygabi.ai/Will%20Wight/The%20Knight%20-%20The%20Last%20Horizon%2C%20Book%203.jpg",
+      "cover_source": "audiobook"
     },
     {
       "path": "Will Wight/Uncrowned - Will Wight.epub",
@@ -1805,7 +2131,9 @@
       "source": "opf",
       "beside_audiobook": "Will Wight",
       "size_bytes": 3158334,
-      "modified": "2026-08-10T02:19:37.215186Z"
+      "modified": "2026-08-10T02:19:37.215186Z",
+      "cover_url": "https://covers.heygabi.ai/ebooks/4cdda1828bb8f1da3f7ef4df6c943cfa3fa28c76f697111bac12b2a8f84c42f3.jpg",
+      "cover_source": "epub"
     },
     {
       "path": "Will Wight/Underlord (Cradle Book 6) - Will Wight.epub",
@@ -1816,7 +2144,9 @@
       "source": "opf",
       "beside_audiobook": "Will Wight",
       "size_bytes": 3737454,
-      "modified": "2026-08-10T02:19:40.699088Z"
+      "modified": "2026-08-10T02:19:40.699088Z",
+      "cover_url": null,
+      "cover_source": null
     },
     {
       "path": "Will Wight/Unsouled - Will Wight.epub",
@@ -1827,7 +2157,9 @@
       "source": "opf",
       "beside_audiobook": "Will Wight",
       "size_bytes": 3223671,
-      "modified": "2026-08-10T02:21:20.209767Z"
+      "modified": "2026-08-10T02:21:20.209767Z",
+      "cover_url": null,
+      "cover_source": null
     },
     {
       "path": "Will Wight/Waybound (Cradle Book 12) - Will Wight.epub",
@@ -1838,7 +2170,9 @@
       "source": "opf",
       "beside_audiobook": "Will Wight",
       "size_bytes": 3197514,
-      "modified": "2026-08-10T02:19:45.657090Z"
+      "modified": "2026-08-10T02:19:45.657090Z",
+      "cover_url": null,
+      "cover_source": null
     },
     {
       "path": "Will Wight/Wintersteel - Will Wight.epub",
@@ -1849,7 +2183,9 @@
       "source": "opf",
       "beside_audiobook": "Will Wight",
       "size_bytes": 3472507,
-      "modified": "2026-08-10T02:19:50.360222Z"
+      "modified": "2026-08-10T02:19:50.360222Z",
+      "cover_url": null,
+      "cover_source": null
     }
   ]
 }

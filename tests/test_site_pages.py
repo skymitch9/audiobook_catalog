@@ -130,3 +130,87 @@ class TestEbooksPageContracts:
         # The 📖 Ebooks nav button was removed on the owner's word
         # (2026-08-17): the ebooks page is not part of the audiobook nav.
         assert 'href="ebooks.html"' not in _template("index.html")
+
+
+class TestBookshelfContracts:
+    """The cover-first redesign (owner, 2026-08-17: "it can't be a raw list").
+
+    Grid of covers -> reading card -> chips, wearing the page's own
+    paper-and-ink identity. String-pins in the file's idiom: each assert names
+    a behaviour the page must keep, not an implementation detail for its own
+    sake.
+    """
+
+    def test_shelf_is_a_cover_grid_not_a_list(self):
+        html = _template("ebooks.html")
+        assert 'class="eb-shelf"' in html
+        assert ".eb-shelf{" in html and "display:grid" in html
+        assert 'class="eb-tile"' in html.replace("'eb-tile'", "")  # rendered tiles
+
+    def test_cover_images_lazy_load(self):
+        html = _template("ebooks.html")
+        assert 'loading="lazy"' in html
+        assert 'decoding="async"' in html
+
+    def test_placeholder_spine_is_the_designed_default_not_an_error(self):
+        # The spine is ALWAYS rendered under the (optional) image, so zero
+        # resolved covers — or a failed image load — still looks like a
+        # deliberate bookcase. cover_url is optional per row, never required.
+        html = _template("ebooks.html")
+        assert 'class="eb-spine"' in html
+        assert "eb-spine-title" in html and "eb-spine-author" in html
+        assert "b.cover_url" in html  # image only when the manifest has one
+        assert "addEventListener('error'" in html  # broken art -> spine, not glyph
+        assert "classList.remove('has-img')" in html
+
+    def test_cover_url_is_escaped_into_the_img_src(self):
+        assert "esc(b.cover_url)" in _template("ebooks.html")
+
+    def test_format_badge_rides_the_cover(self):
+        html = _template("ebooks.html")
+        assert 'class="eb-fmt"' in html
+        assert ".eb-fmt{" in html and "position:absolute" in html
+
+    def test_reading_card_is_a_dialog_in_the_pages_idiom(self):
+        html = _template("ebooks.html")
+        assert 'role="dialog"' in html and 'aria-modal="true"' in html
+        assert 'aria-labelledby="eb-card-title"' in html
+        assert "'Escape'" in html  # Esc closes
+        assert 'aria-label="Close"' in html
+
+    def test_reading_card_keeps_the_provisional_pill(self):
+        # The honesty contract follows the row into the card.
+        html = _template("ebooks.html")
+        assert "b.source === 'filename'" in html
+        assert "unverified metadata" in html
+
+    def test_also_on_audio_links_the_audiobook_hash_search(self):
+        # beside_audiobook rows link the audiobook catalog's own #q= search —
+        # the catalog's only book anchor (same contract as index_push's
+        # detail_url_for), URLSearchParams-encoded.
+        html = _template("ebooks.html")
+        assert "Also on audio" in html
+        assert "https://audiobooks.heygabi.ai/#" in html
+        assert "URLSearchParams" in html
+        assert "b.beside_audiobook" in html  # gated, never unconditional
+
+    def test_spine_cloth_tones_exist_in_both_schemes(self):
+        # Placeholders must look right in light AND dark — no colour may live
+        # in only one scheme (the file's own rule).
+        html = _template("ebooks.html")
+        for var in ("--cloth-1", "--cloth-2", "--cloth-3", "--cloth-4", "--cloth-ink"):
+            assert html.count(var + ":") >= 3, (
+                f"{var} must be defined on :root, the data-mode stamp, and the "
+                "prefers-color-scheme fallback"
+            )
+
+    def test_sort_offers_title_author_newest_size(self):
+        html = _template("ebooks.html")
+        for value in ("title", "author", "modified", "size"):
+            assert f'<option value="{value}">' in html
+
+    def test_search_and_format_chips_survive_the_redesign(self):
+        html = _template("ebooks.html")
+        assert 'id="eb-search"' in html
+        assert "format-chip" in html
+        assert "activeFormats" in html

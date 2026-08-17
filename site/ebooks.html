@@ -9,14 +9,22 @@
   ebook shelf, served at ebooks.heygabi.ai through the estate door; its parent
   is the estate front door (heygabi.ai), NOT the audiobook catalog. It does
   not sit in the audiobook nav family and it does not import the audiobook
-  site's estate-theme.css / ab-bridge.css — the whole look lives in the
+  site's estate-theme.css / ab-bridge.css - the whole look lives in the
   <style> block below: paper-and-ink, one sienna accent, light + dark.
+
+  BOOKSHELF, NOT A LIST (owner, 2026-08-17: "it can't be a raw list"). The
+  page is a cover-first grid: real cover art where the manifest resolved one
+  (cover_url - sibling audiobook cover or the epub's own embedded image, both
+  served from R2), and a typographic paper-spine placeholder for the rest.
+  The placeholder is the NORM-QUALITY path, not an error state: with zero
+  covers resolved the shelf must still look designed. Tapping a book opens
+  its reading card (a dialog in the page's own idiom).
 
   theme.js is deliberately KEPT (and only theme.js): the shared account modal
   (account-modal.js, an auth widget this page must not fork) exposes an
   Appearance section that drives window.estateTheme, and without the script
   those controls would be silently dead. This page ignores data-theme
-  entirely — it has exactly one theme, its own — but honours the resolved
+  entirely - it has exactly one theme, its own - but honours the resolved
   data-mode stamp for light/dark, with a prefers-color-scheme fallback so the
   palette is right even if scripts never run.
 -->
@@ -25,21 +33,21 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%239d4a1c'/%3E%3Cpath d='M32 18c-4.5-3.4-10.5-4.6-17-4.6v32c6.5 0 12.5 1.2 17 4.6 4.5-3.4 10.5-4.6 17-4.6v-32c-6.5 0-12.5 1.2-17 4.6z' fill='%23f6f1e6'/%3E%3Cpath d='M32 18v32' stroke='%239d4a1c' stroke-width='2.5' fill='none'/%3E%3C/svg%3E">
 <!--
   DISPLAY-ONLY, by design (ebook-split design doc, phase 1): this page renders
-  site/ebooks.json — the manifest the pipeline's sync step 1b rebuilds three
-  times a day — and offers no downloads. File access belongs to the auth
+  site/ebooks.json - the manifest the pipeline's sync step 1b rebuilds three
+  times a day - and offers no downloads. File access belongs to the auth
   migration's file-permissions phase, not here.
 
   The JSON is fetched client-side (same-origin), so a pipeline refresh of the
   manifest updates this page with no HTML rebuild. This file is a TEMPLATE:
   it lives in app/web/templates/ and is copied verbatim to site/ebooks.html by
-  app/writers.py (same convention as guess-game.html). Edit it HERE — edits to
+  app/writers.py (same convention as guess-game.html). Edit it HERE - edits to
   site/ebooks.html are wiped by the next build.
 -->
 <style>
 /* ============================ THE SHELF THEME ============================
    Paper-and-ink with one confident accent (burnt sienna). Both palettes are
    complete: light is the paper default on :root; dark is applied twice with
-   identical values — once for theme.js's resolved data-mode stamp, once as a
+   identical values - once for theme.js's resolved data-mode stamp, once as a
    prefers-color-scheme fallback for a scriptless load. No colour may live in
    only one scheme.
 
@@ -57,6 +65,23 @@
   --accent-deep:#7d3a14;  /* accent, pressed/hover */
   --caution:#8f2f2b;      /* oxblood: provisional metadata, errors */
 
+  /* book-cloth tones for the typographic spine placeholders - four muted
+     binding colours in the paper family, so a coverless shelf still reads
+     as a deliberate bookcase rather than a wall of missing images */
+  --cloth-1:#8a5a33;      /* tan leather */
+  --cloth-2:#5f6650;      /* moss cloth */
+  --cloth-3:#575d72;      /* slate ink */
+  --cloth-4:#7c3b30;      /* oxblood buckram */
+  --cloth-ink:#f6f1e6;    /* paper-coloured lettering on the cloth */
+  --cloth-rule:rgba(246,241,230,.55);
+
+  --fmtchip-bg:rgba(246,241,230,.92);
+  --fmtchip-ink:#5a4a33;
+  --fmtchip-line:rgba(44,36,24,.18);
+  --overlay:rgba(30,24,14,.55);
+  --tile-shadow:0 1px 3px rgba(0,0,0,.16);
+  --tile-shadow-hover:0 4px 12px rgba(0,0,0,.2);
+
   /* aliases for the shared auth widget (account-modal.js) */
   --bg:var(--paper); --bg-2:var(--card); --text:var(--ink);
   --border:var(--rule); --muted:var(--ink-faint);
@@ -70,16 +95,30 @@
   --sans:system-ui,-apple-system,'Segoe UI',sans-serif;
   --mono:ui-monospace,Consolas,'Courier New',monospace;
 }
-/* dark: lamplit ink-and-paper — via the estate mode stamp… */
+/* dark: lamplit ink-and-paper - via the estate mode stamp… */
 html[data-mode="dark"]{
   --paper:#201b13; --card:#2a241a; --ink:#eae1cf; --ink-faint:#a3957c;
   --rule:#453c2c; --accent:#d68f57; --accent-deep:#e5a878; --caution:#d07a6c;
+  --cloth-1:#6b4526; --cloth-2:#49503c; --cloth-3:#424859; --cloth-4:#5f2c23;
+  --cloth-ink:#eae1cf; --cloth-rule:rgba(234,225,207,.4);
+  --fmtchip-bg:rgba(32,27,19,.88); --fmtchip-ink:#d9cdb4;
+  --fmtchip-line:rgba(234,225,207,.2);
+  --overlay:rgba(10,8,4,.66);
+  --tile-shadow:0 1px 3px rgba(0,0,0,.5);
+  --tile-shadow-hover:0 4px 14px rgba(0,0,0,.55);
 }
 /* …and via the OS preference when no explicit light choice is stamped */
 @media (prefers-color-scheme: dark){
   html:not([data-mode="light"]){
     --paper:#201b13; --card:#2a241a; --ink:#eae1cf; --ink-faint:#a3957c;
     --rule:#453c2c; --accent:#d68f57; --accent-deep:#e5a878; --caution:#d07a6c;
+    --cloth-1:#6b4526; --cloth-2:#49503c; --cloth-3:#424859; --cloth-4:#5f2c23;
+    --cloth-ink:#eae1cf; --cloth-rule:rgba(234,225,207,.4);
+    --fmtchip-bg:rgba(32,27,19,.88); --fmtchip-ink:#d9cdb4;
+    --fmtchip-line:rgba(234,225,207,.2);
+    --overlay:rgba(10,8,4,.66);
+    --tile-shadow:0 1px 3px rgba(0,0,0,.5);
+    --tile-shadow-hover:0 4px 14px rgba(0,0,0,.55);
   }
 }
 
@@ -91,7 +130,7 @@ body{
   font-family:var(--serif);
   line-height:1.5;
 }
-#wrap{max-width:860px;margin:0 auto}
+#wrap{max-width:1060px;margin:0 auto}
 
 /* Masthead: eyebrow to the estate front door, serif wordmark, double rule */
 .masthead{display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap;
@@ -133,39 +172,143 @@ h1 .tail{color:var(--accent)}
 .format-chip.on{border-color:var(--accent);background:var(--accent);color:var(--paper)}
 #eb-count{color:var(--ink-faint);font-size:.85em;font-family:var(--sans)}
 
-/* The shelf */
-.eb-list{display:flex;flex-direction:column;gap:9px;margin-top:14px}
-.eb-row{
-  display:flex;gap:12px;align-items:center;flex-wrap:wrap;
-  background:var(--card);border:1px solid var(--rule);border-radius:10px;
-  padding:13px 16px;transition:border-color .15s,box-shadow .15s;
+/* ============================ THE BOOKSHELF ============================ */
+.eb-shelf{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(142px,1fr));
+  gap:24px 16px;margin-top:16px;
 }
-.eb-row:hover{border-color:var(--accent);box-shadow:0 1px 6px rgba(0,0,0,.07)}
-.eb-main{flex:1;min-width:220px}
-.eb-title{font-weight:700;font-size:1.06em;color:var(--ink)}
-.eb-author{color:var(--accent);font-size:.92em;margin-top:2px;font-style:italic}
-.eb-folder{color:var(--ink-faint);font-size:.78em;margin-top:3px;font-family:var(--mono)}
-.eb-badges{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-left:auto;
-  font-family:var(--sans)}
+.eb-tile{
+  display:flex;flex-direction:column;gap:8px;padding:0;border:0;margin:0;
+  background:none;cursor:pointer;text-align:left;font:inherit;color:inherit;
+  border-radius:8px;
+}
+.eb-tile:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.eb-tile:hover .eb-cover{box-shadow:var(--tile-shadow-hover);transform:translateY(-2px)}
+
+/* The cover face: real art when the manifest resolved a cover_url; the
+   typographic spine underneath is ALWAYS rendered and simply covered by the
+   image, so a failed image load falls back to a designed spine, never to a
+   broken-image glyph. */
+.eb-cover{
+  position:relative;aspect-ratio:2/3;border-radius:6px;overflow:hidden;
+  background:var(--card);box-shadow:var(--tile-shadow);
+  transition:box-shadow .15s,transform .15s;
+}
+.eb-cover img{
+  display:none;width:100%;height:100%;object-fit:cover;
+}
+.eb-cover.has-img img{display:block}
+.eb-cover.has-img .eb-spine{display:none}
+
+/* Typographic spine placeholder: paper lettering on book cloth, with the
+   page's double-rule signature top and bottom. Deliberate, never broken. */
+.eb-spine{
+  position:absolute;inset:0;display:flex;flex-direction:column;
+  justify-content:center;align-items:center;gap:9px;padding:26px 12px;
+  text-align:center;background:var(--cloth-1);color:var(--cloth-ink);
+}
+.eb-cover.cloth-2 .eb-spine{background:var(--cloth-2)}
+.eb-cover.cloth-3 .eb-spine{background:var(--cloth-3)}
+.eb-cover.cloth-4 .eb-spine{background:var(--cloth-4)}
+.eb-spine::before,.eb-spine::after{
+  content:"";position:absolute;left:9px;right:9px;height:0;
+  border-top:3px double var(--cloth-rule);
+}
+.eb-spine::before{top:10px}
+.eb-spine::after{bottom:10px}
+.eb-spine-title{
+  font-family:var(--serif);font-weight:700;font-size:.95em;line-height:1.3;
+  display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden;
+}
+.eb-spine-author{
+  font-family:var(--sans);font-size:.64em;letter-spacing:.14em;
+  text-transform:uppercase;opacity:.85;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+}
+
+/* Format badge, corner chip on the cover */
 .eb-fmt{
-  padding:3px 10px;border:1px solid var(--rule);border-radius:999px;
-  color:var(--ink-faint);font-size:.72em;font-weight:700;letter-spacing:.06em;
-  text-transform:uppercase;
+  position:absolute;top:7px;right:7px;padding:2px 8px;border-radius:999px;
+  font-family:var(--sans);font-size:.62em;font-weight:700;letter-spacing:.08em;
+  text-transform:uppercase;background:var(--fmtchip-bg);color:var(--fmtchip-ink);
+  border:1px solid var(--fmtchip-line);
 }
-.eb-size{color:var(--ink-faint);font-size:.8em;font-family:var(--mono);min-width:64px;text-align:right}
+
+/* Caption under the cover */
+.eb-cap{display:block;min-width:0}
+.eb-cap-title{
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+  font-weight:700;font-size:.88em;line-height:1.3;
+}
+.eb-cap-author{
+  display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  color:var(--ink-faint);font-size:.78em;font-style:italic;margin-top:1px;
+}
+
+/* ============================ THE READING CARD ============================
+   Tap a book, get its card: a dialog in the page's own idiom. */
+#eb-card-overlay{
+  position:fixed;inset:0;background:var(--overlay);z-index:50;
+  display:flex;align-items:center;justify-content:center;padding:18px;
+}
+#eb-card-overlay[hidden]{display:none}
+.eb-card{
+  position:relative;background:var(--card);color:var(--ink);
+  border:1px solid var(--rule);border-radius:14px;padding:24px;
+  max-width:600px;width:100%;max-height:min(88vh,660px);overflow:auto;
+  box-shadow:0 14px 44px rgba(0,0,0,.35);
+}
+.eb-card-close{
+  position:absolute;top:10px;right:10px;width:32px;height:32px;
+  border:1px solid var(--rule);border-radius:999px;background:var(--paper);
+  color:var(--ink-faint);font-family:var(--sans);font-size:1.05em;line-height:1;
+  cursor:pointer;
+}
+.eb-card-close:hover{border-color:var(--accent);color:var(--accent)}
+.eb-card-body{display:flex;gap:22px;align-items:flex-start}
+.eb-card-media{flex:0 0 158px;width:158px}
+.eb-card-media .eb-cover{box-shadow:var(--tile-shadow)}
+.eb-card-info{flex:1;min-width:0}
+.eb-card-info h2{
+  margin:0;font-family:var(--serif);font-weight:700;font-size:1.35em;
+  line-height:1.25;letter-spacing:-.01em;
+}
+.eb-card-author{color:var(--accent);font-style:italic;margin-top:3px}
+.eb-meta{
+  margin-top:14px;padding-top:12px;border-top:1px solid var(--rule);
+  display:grid;grid-template-columns:auto 1fr;gap:5px 16px;
+  font-family:var(--sans);font-size:.85em;
+}
+.eb-meta .k{color:var(--ink-faint);letter-spacing:.06em;text-transform:uppercase;font-size:.82em;padding-top:2px}
+.eb-meta .v{color:var(--ink)}
+.eb-meta .v.mono{font-family:var(--mono);font-size:.92em}
 .eb-provisional{
-  padding:3px 10px;border:1px dashed var(--caution);border-radius:999px;
+  display:inline-block;margin-top:12px;padding:3px 10px;
+  border:1px dashed var(--caution);border-radius:999px;
   color:var(--caution);font-size:.72em;letter-spacing:.04em;font-style:italic;
-  cursor:help;
+  font-family:var(--sans);cursor:help;
 }
+.eb-folder{color:var(--ink-faint);font-size:.78em;font-family:var(--mono)}
+.eb-audio-link{
+  display:inline-block;margin-top:14px;font-family:var(--sans);font-size:.9em;
+  color:var(--accent);text-decoration:none;border-bottom:1px solid var(--rule);
+}
+.eb-audio-link:hover{color:var(--accent-deep);border-bottom-color:var(--accent)}
+@media(max-width:540px){
+  .eb-card{padding:18px}
+  .eb-card-body{flex-direction:column;align-items:center}
+  .eb-card-media{flex:0 0 auto;width:150px}
+  .eb-card-info{width:100%}
+}
+
 .loading{text-align:center;padding:40px;color:var(--ink-faint);font-style:italic}
-.empty{text-align:center;padding:30px;color:var(--ink-faint);font-style:italic}
+.empty{text-align:center;padding:30px;color:var(--ink-faint);font-style:italic;grid-column:1/-1}
 .load-error{
   margin-top:16px;padding:16px;border:1px solid var(--caution);border-radius:10px;
-  background:var(--card);color:var(--ink);
+  background:var(--card);color:var(--ink);grid-column:1/-1;
 }
 .eb-footer{
-  margin-top:26px;padding-top:14px;border-top:3px double var(--rule);
+  margin-top:30px;padding-top:14px;border-top:3px double var(--rule);
   color:var(--ink-faint);font-size:.85em;line-height:1.55;
 }
 .eb-footer a{color:var(--accent);text-decoration:none;border-bottom:1px solid var(--rule)}
@@ -176,8 +319,9 @@ h1 .tail{color:var(--accent)}
   h1{font-size:2.1em}
   .masthead{gap:10px}
   #eb-search{width:100%}
-  .eb-badges{margin-left:0;width:100%}
-  .eb-size{text-align:left}
+  .eb-shelf{grid-template-columns:repeat(auto-fill,minmax(106px,1fr));gap:18px 10px}
+  .eb-spine{padding:20px 8px;gap:6px}
+  .eb-spine-title{font-size:.82em}
 }
 
 /* Sign-in / user chip: the shared widget's mount, dressed in shelf colours */
@@ -201,21 +345,20 @@ h1 .tail{color:var(--accent)}
     <select id="eb-sort" aria-label="Sort ebooks">
       <option value="title">Sort by Title</option>
       <option value="author">Sort by Author</option>
-      <option value="format">Sort by Format</option>
-      <option value="size">Sort by Size</option>
       <option value="modified">Sort by Newest</option>
+      <option value="size">Sort by Size</option>
     </select>
     <span id="eb-format-chips"></span>
     <span id="eb-count"></span>
   </div>
 
-  <div id="eb-list" class="eb-list">
-    <div class="loading">Loading ebooks...</div>
+  <div id="eb-list" class="eb-shelf" role="list">
+    <div class="loading">Loading the shelf...</div>
   </div>
 
   <div class="eb-footer">
     <div>
-      These are the household&#x27;s shared ebook files, listed straight from the
+      These are the household&#x27;s shared ebook files, shelved straight from the
       library. This page is browse-only — the files ride the same household
       library the rest of <a href="https://heygabi.ai">heygabi.ai</a> draws on.
     </div>
@@ -224,6 +367,17 @@ h1 .tail{color:var(--accent)}
     </div>
     <div style="margin-top:6px">
       Manifest generated at: <span id="eb-generated">…</span>
+    </div>
+  </div>
+</div>
+
+<!-- The reading card: filled and shown by openCard(); one dialog, reused. -->
+<div id="eb-card-overlay" hidden>
+  <div class="eb-card" role="dialog" aria-modal="true" aria-labelledby="eb-card-title">
+    <button type="button" class="eb-card-close" id="eb-card-close" aria-label="Close">&#x2715;</button>
+    <div class="eb-card-body">
+      <div class="eb-card-media" id="eb-card-media"></div>
+      <div class="eb-card-info" id="eb-card-info"></div>
     </div>
   </div>
 </div>
@@ -238,9 +392,15 @@ h1 .tail{color:var(--accent)}
   var chipsEl = document.getElementById('eb-format-chips');
   var countEl = document.getElementById('eb-count');
   var generatedEl = document.getElementById('eb-generated');
+  var overlayEl = document.getElementById('eb-card-overlay');
+  var cardMediaEl = document.getElementById('eb-card-media');
+  var cardInfoEl = document.getElementById('eb-card-info');
+  var cardCloseEl = document.getElementById('eb-card-close');
 
   var allBooks = [];
+  var shownBooks = [];      // what the shelf currently renders, in order
   var activeFormats = {};   // format -> true while its chip is toggled on
+  var lastFocused = null;   // focus returns to the tapped tile on close
 
   function esc(s) {
     return String(s == null ? '' : s)
@@ -255,6 +415,47 @@ h1 .tail{color:var(--accent)}
     return bytes + ' B';
   }
 
+  function humanDate(iso) {
+    var d = new Date(iso || '');
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  }
+
+  // Which book-cloth the placeholder spine wears: a stable pick from the
+  // title, so the shelf varies but a given book never changes bindings.
+  function clothClass(b) {
+    var s = String(b.title || b.filename || '');
+    var h = 0;
+    for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+    return 'cloth-' + ((h % 4) + 1);
+  }
+
+  // The cover face: img (lazy) over an always-rendered typographic spine.
+  // The spine is the designed default, not an error state - a missing or
+  // failed cover image simply leaves the spine showing.
+  function coverHtml(b) {
+    var hasImg = typeof b.cover_url === 'string' && b.cover_url !== '';
+    return '<span class="eb-cover ' + clothClass(b) + (hasImg ? ' has-img' : '') + '">' +
+      (hasImg
+        ? '<img loading="lazy" decoding="async" alt="" src="' + esc(b.cover_url) + '">'
+        : '') +
+      '<span class="eb-spine" aria-hidden="true">' +
+        '<span class="eb-spine-title">' + esc(b.title) + '</span>' +
+        (b.author ? '<span class="eb-spine-author">' + esc(b.author) + '</span>' : '') +
+      '</span>' +
+      '<span class="eb-fmt">' + esc(b.format) + '</span>' +
+    '</span>';
+  }
+
+  function wireImageFallback(rootEl) {
+    rootEl.querySelectorAll('.eb-cover.has-img img').forEach(function (img) {
+      img.addEventListener('error', function () {
+        // Broken art falls back to the designed spine, never a broken glyph.
+        img.closest('.eb-cover').classList.remove('has-img');
+      });
+    });
+  }
+
   function sortBooks(books, key) {
     var byText = function (field) {
       return function (a, b) {
@@ -264,7 +465,6 @@ h1 .tail{color:var(--accent)}
     };
     var sorted = books.slice();
     if (key === 'author') sorted.sort(byText('author'));
-    else if (key === 'format') sorted.sort(byText('format'));
     else if (key === 'size') sorted.sort(function (a, b) { return (b.size_bytes || 0) - (a.size_bytes || 0); });
     else if (key === 'modified') sorted.sort(function (a, b) { return String(b.modified || '').localeCompare(String(a.modified || '')); });
     else sorted.sort(byText('title'));
@@ -284,35 +484,22 @@ h1 .tail{color:var(--accent)}
   }
 
   function render() {
-    var books = sortBooks(visibleBooks(), sortEl.value);
-    countEl.textContent = books.length + ' of ' + allBooks.length + ' ebook' + (allBooks.length !== 1 ? 's' : '');
-    if (books.length === 0) {
+    shownBooks = sortBooks(visibleBooks(), sortEl.value);
+    countEl.textContent = shownBooks.length + ' of ' + allBooks.length + ' ebook' + (allBooks.length !== 1 ? 's' : '');
+    if (shownBooks.length === 0) {
       listEl.innerHTML = '<div class="empty">No ebooks match.</div>';
       return;
     }
-    listEl.innerHTML = books.map(function (b) {
-      // `source` is the manifest's honesty flag: 'opf' means title/author were
-      // read out of the file itself; 'filename' means they were parsed from
-      // the file name and a person should treat them as provisional.
-      var provisional = b.source === 'filename'
-        ? '<span class="eb-provisional" title="Title and author were parsed from the file name, not read from the file&#x27;s own metadata — treat them as provisional.">unverified metadata</span>'
-        : '';
-      var folder = b.beside_audiobook
-        ? '<div class="eb-folder">filed under: ' + esc(b.beside_audiobook) + '</div>'
-        : '';
-      return '<div class="eb-row">' +
-        '<div class="eb-main">' +
-          '<div class="eb-title">' + esc(b.title) + '</div>' +
-          (b.author ? '<div class="eb-author">' + esc(b.author) + '</div>' : '') +
-          folder +
-        '</div>' +
-        '<div class="eb-badges">' +
-          provisional +
-          '<span class="eb-fmt">' + esc(b.format) + '</span>' +
-          '<span class="eb-size">' + humanSize(b.size_bytes) + '</span>' +
-        '</div>' +
-      '</div>';
+    listEl.innerHTML = shownBooks.map(function (b, i) {
+      return '<button type="button" class="eb-tile" role="listitem" data-idx="' + i + '" aria-haspopup="dialog">' +
+        coverHtml(b) +
+        '<span class="eb-cap">' +
+          '<span class="eb-cap-title">' + esc(b.title) + '</span>' +
+          (b.author ? '<span class="eb-cap-author">' + esc(b.author) + '</span>' : '') +
+        '</span>' +
+      '</button>';
     }).join('');
+    wireImageFallback(listEl);
   }
 
   function renderChips() {
@@ -332,9 +519,62 @@ h1 .tail{color:var(--accent)}
     });
   }
 
+  // ------------------------------ reading card ------------------------------
+  function openCard(b) {
+    // `source` is the manifest's honesty flag: 'opf' means title/author were
+    // read out of the file itself; 'filename' means they were parsed from
+    // the file name and a person should treat them as provisional.
+    var provisional = b.source === 'filename'
+      ? '<div><span class="eb-provisional" title="Title and author were parsed from the file name, not read from the file&#x27;s own metadata — treat them as provisional.">unverified metadata</span></div>'
+      : '';
+    // "Also on audio": the file was filed beside an audiobook, so hand the
+    // reader the audiobook catalog's own search for this title.
+    var audio = b.beside_audiobook
+      ? '<a class="eb-audio-link" href="https://audiobooks.heygabi.ai/#' +
+          esc(new URLSearchParams({ q: String(b.title || '') }).toString()) +
+        '">Also on audio &#x2192;</a>'
+      : '';
+    var meta =
+      '<div class="eb-meta">' +
+        '<span class="k">Format</span><span class="v">' + esc(String(b.format || '').toUpperCase()) + '</span>' +
+        (b.size_bytes ? '<span class="k">Size</span><span class="v mono">' + humanSize(b.size_bytes) + '</span>' : '') +
+        (humanDate(b.modified) ? '<span class="k">Updated</span><span class="v">' + esc(humanDate(b.modified)) + '</span>' : '') +
+        (b.beside_audiobook ? '<span class="k">Filed under</span><span class="v"><span class="eb-folder">' + esc(b.beside_audiobook) + '</span></span>' : '') +
+      '</div>';
+    cardMediaEl.innerHTML = coverHtml(b);
+    wireImageFallback(cardMediaEl);
+    cardInfoEl.innerHTML =
+      '<h2 id="eb-card-title">' + esc(b.title) + '</h2>' +
+      (b.author ? '<div class="eb-card-author">' + esc(b.author) + '</div>' : '') +
+      meta + provisional + audio;
+    lastFocused = document.activeElement;
+    overlayEl.hidden = false;
+    cardCloseEl.focus();
+  }
+
+  function closeCard() {
+    overlayEl.hidden = true;
+    if (lastFocused && typeof lastFocused.focus === 'function') lastFocused.focus();
+    lastFocused = null;
+  }
+
+  listEl.addEventListener('click', function (ev) {
+    var tile = ev.target.closest('.eb-tile');
+    if (!tile) return;
+    var b = shownBooks[Number(tile.dataset.idx)];
+    if (b) openCard(b);
+  });
+  cardCloseEl.addEventListener('click', closeCard);
+  overlayEl.addEventListener('click', function (ev) {
+    if (ev.target === overlayEl) closeCard();
+  });
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Escape' && !overlayEl.hidden) closeCard();
+  });
+
   function load() {
     // Same-origin fetch: on the dev lane this is /dev/ebooks.json, on prod
-    // /ebooks.json — the relative URL keeps the two lanes honest for free.
+    // /ebooks.json - the relative URL keeps the two lanes honest for free.
     fetch('ebooks.json', { cache: 'no-cache' })
       .then(function (r) {
         if (!r.ok) throw new Error('HTTP ' + r.status + ' for ebooks.json');
@@ -347,7 +587,7 @@ h1 .tail{color:var(--accent)}
         render();
       })
       .catch(function (err) {
-        // A failed load is a failed load — say what happened in words, and do
+        // A failed load is a failed load - say what happened in words, and do
         // not dress a network problem up as anything else.
         console.error('[ebooks] manifest load failed:', err);
         listEl.innerHTML = '<div class="load-error">Could not load the ebook list ' +
@@ -365,7 +605,7 @@ h1 .tail{color:var(--accent)}
 
 <!-- Shared identity bar (sign-in chip), same mount as the other pages.
      Kept in its own module so a Firebase hiccup can never take the book list
-     down with it — this page's real content needs no account at all. -->
+     down with it - this page's real content needs no account at all. -->
 <script type="module">
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
   import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
