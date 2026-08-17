@@ -63,10 +63,29 @@ Each row carries `cover_url` (absolute, or null) and `cover_source`:
     fetches the image once and stages it like any other ebook cover, so the
     pipeline makes no network call and a dead upstream link cannot blank a
     cover already in the bucket.
+  - `'pdf_page1'` — a PDF's own page 1, RENDERED (PyMuPDF) and staged through
+    the same sha256/downscale/upload path as an EPUB cover. Owner approval,
+    2026-08-17: "Apply and make it automatic but we need to check that first
+    page ... make sure it's an image or at least some kind of cover page and
+    not just a chapter or some huge block of text."
+    ⚠️ **Gated, and the gate is the feature.** `classify_cover_page` reads
+    page 1's text length, its union image coverage, and its ink and colour
+    fractions, and only a page that is image-dominant, near-textless and
+    actually inked is rendered. A chapter page, a legal page, or a SCAN of a
+    printed page is refused. An ambiguous middle case is refused too, unless
+    an optional Claude vision check is configured (it is not, on this machine
+    — see `AI_COVER_KEY_ENV`). ⚠️ It never overwrites a sibling-audiobook
+    cover: 26 of this library's 30 PDFs are covered that way already.
   - `null` — the page renders its typographic spine placeholder. ⚠️ For a
     `.pdf` only: **every EPUB must resolve a cover**, enforced by
     `tests/test_ebook_covers.py::test_every_published_epub_has_a_cover` and
     by `app.tools.audit_site` (the promote gate).
+
+A refused (or otherwise coverless) book is NAMED in the manifest's top-level
+`needs_human_cover` list — `{path, title, format, reason}` — which the same
+two guards read: a coverless PDF must either resolve a cover **or** appear
+there, so a text-first PDF cannot break promote and a silent cover gap cannot
+exist. The list is published even when empty; see `build_needs_human_cover`.
 
 Extraction is soft the way this whole file is soft: a malformed epub or a
 missing OPF entry degrades to null, never breaks the build.
@@ -163,6 +182,89 @@ DOWNSCALE_RUNGS = ((1600, 85), (1400, 82), (1200, 78), (1000, 72), (800, 65))
 # full-page scan or effectively the whole book as their cover item, and
 # reading that into memory to re-encode it is the cost this ceiling refuses.
 MAX_SOURCE_COVER_BYTES = 40 * 1024 * 1024
+
+# ---------------------------------------------------------------------------
+# PDF page-1 auto-cover: the gate (owner approval, 2026-08-17)
+#
+# ⚠️ The owner's requirement, verbatim: "Apply and make it automatic but we
+# need to check that first page ... make sure it's an image or at least some
+# kind of cover page and not just a chapter or some huge block of text."
+#
+# So page 1 is RENDERED only if it looks like a cover. Two structural signals,
+# both cheap, both read straight off the page:
+#
+#   text_chars     — extractable text on the page. A cover carries a title;
+#                    a chapter or a legal page carries paragraphs.
+#   image_coverage — the fraction of the page area covered by the UNION of
+#                    its image boxes (grid-sampled). A cover is one big image
+#                    (or a few tiles that add up to one); a title page has a
+#                    small decorative logo, or nothing.
+#
+# ...plus two PIXEL signals that separate a real cover from a SCANNED PAGE OF
+# TEXT, which is image-dominant and carries no extractable text at all — the
+# one input the structural rule alone would wave through:
+#
+#   ink_fraction   — pixels that are not near-white. A scanned text page is
+#                    mostly paper.
+#   colour_fraction— pixels with real saturation. A scanned text page is grey.
+#
+# ⚠️ MEASURED against the four real PDFs and nine interior-page counterexamples
+# (see tests/test_ebook_covers.py::test_the_pdf_gate_*). Ground truth, page 1:
+#
+#   file                       chars  imgcov    ink  colour   verdict
+#   mistborn_adventuregame         0   1.000  0.983   0.726   cover
+#   mistborn_alloyoflaw            2   1.000  0.962   0.508   cover  (8 tiles!)
+#   mistborn_terris                0   1.000  0.986   0.813   cover
+#   SL001_Stormlight_Handbook    102   1.000  0.999   0.812   cover
+#
+# and the counterexamples that must be REFUSED:
+#
+#   adventuregame p1             101   0.045  0.286   0.000   coverage
+#   adventuregame p2/p5    1977/4868   0.000      -       -   text
+#   alloyoflaw p1               1993   1.000  0.965   0.844   text  ⚠️
+#   alloyoflaw p2                 89   0.045  0.282   0.000   coverage
+#   terris p2/p5            108/3772   0.045      -       -   coverage/text
+#   Stormlight p1/p2/p5    2572-7505   1.000  0.97+   0.03+   text  ⚠️
+#
+# ⚠️ The two marked ⚠️ are why BOTH signals are needed. Alloy of Law's page 2
+# and every Stormlight interior page carry a FULL-PAGE image (coverage 1.0) and
+# are unmistakably text pages — only the text count rejects them. Conversely
+# Alloy of Law's own cover is EIGHT tiled images whose largest is 17% of the
+# page — only the UNION coverage accepts it. Neither signal alone is the gate.
+PDF_COVER_TEXT_MAX_CHARS = 300        # a cover carries a title, not paragraphs
+PDF_TEXT_PAGE_CHARS = 800             # past this it is unambiguously a text page
+PDF_IMAGE_COVERAGE_MIN = 0.60         # a cover is dominated by its art
+PDF_IMAGE_COVERAGE_FLOOR = 0.30       # below this there is no dominant image
+PDF_INK_MIN = 0.50                    # a scanned text page is mostly paper
+PDF_COLOUR_MIN = 0.15                 # ...and mostly grey
+PDF_COVERAGE_GRID = 40                # 1600 sample points; union, not max-box
+PDF_PIXEL_PROBE_DPI = 36              # ~300px wide — enough for ink and colour
+PDF_NEAR_WHITE_LEVEL = 239            # min(r,g,b) >= this counts as paper
+PDF_SATURATION_LEVEL = 29             # max-min >= this counts as coloured
+
+# The rendered cover. 1600px on the longest side matches DOWNSCALE_RUNGS[0], so
+# a PDF cover and an EPUB cover land at the same page weight; anything over the
+# cap still falls through `downscale_cover` like every other cover here.
+PDF_RENDER_LONGEST_PX = 1600
+PDF_RENDER_JPEG_QUALITY = 85
+
+# The optional AI rung, for the AMBIGUOUS middle only (see `classify_cover_page`).
+#
+# ⚠️ NOT CONFIGURED on this machine, checked 2026-08-17: `.env` and
+# `.env.example` name no Anthropic key (ROOT_DIR, GITHUB_TOKEN, HARDCOVER_TOKEN,
+# DOESTHEDOGDIE_API_KEY, PIPELINE_TRIGGER_TOKEN, LIBRARY_MAPPING_TOKEN,
+# POLL_SYNC_TOKEN ... and no ANTHROPIC_*). So the rung is skipped and every
+# ambiguous page-1 is REFUSED by name. To turn it on, add ANTHROPIC_API_KEY to
+# `.env` — `app.config` already calls load_dotenv() at import.
+#
+# ⚠️ Deliberately keyed on an EXPLICIT env var rather than a bare Anthropic()
+# client. The SDK would also resolve an `ant auth login` profile from the
+# owner's home directory, which would make an UNATTENDED pipeline (three runs a
+# day) silently spend his personal credits. An unattended job gets an explicit
+# key or it gets nothing.
+AI_COVER_KEY_ENV = "ANTHROPIC_API_KEY"
+AI_COVER_MODEL = "claude-haiku-4-5"  # the cheapest vision-capable model
+AI_COVER_PROBE_DPI = 72              # ~600px — plenty for "cover or text page?"
 
 _COVER_EXT_BY_MEDIA_TYPE = {
     "image/jpeg": ".jpg",
@@ -431,17 +533,18 @@ def extract_epub_cover(epub_path: Path) -> tuple[bytes, str] | None:
         return None
 
 
-def stage_epub_cover(epub_path: Path, covers_dir: Path) -> str | None:
-    """Extract and stage one epub's cover; return its R2 object key, or None.
+def _stage_cover_bytes(data: bytes, ext: str, covers_dir: Path, label: str) -> str | None:
+    """Write one cover into the staging dir; return its R2 object key, or None.
 
-    sha256-named (content-addressed), so re-runs are idempotent and identical
-    covers dedupe to one object. The write is skipped when the file already
-    exists — the upload step's own sha diff makes the push idempotent too.
+    ⚠️ The ONE staging implementation — EPUB extraction and PDF page-1 renders
+    both land here, so both are sha256-named (content-addressed), both dedupe
+    to one object, and both ride the same step 5.7 upload. A second copy of
+    this fold would be a second naming scheme, and the upload step keys on the
+    path relative to site/covers.
+
+    The write is skipped when the file already exists; the upload step's own
+    sha diff makes the push idempotent too.
     """
-    got = extract_epub_cover(epub_path)
-    if got is None:
-        return None
-    data, ext = got
     digest = hashlib.sha256(data).hexdigest()
     out = covers_dir / f"{digest}{ext}"
     try:
@@ -449,9 +552,318 @@ def stage_epub_cover(epub_path: Path, covers_dir: Path) -> str | None:
             covers_dir.mkdir(parents=True, exist_ok=True)
             out.write_bytes(data)
     except OSError as e:
-        print(f"[ebooks] [WARN] could not stage cover for {epub_path.name}: {e}")
+        print(f"[ebooks] [WARN] could not stage cover for {label}: {e}")
         return None
     return f"{EBOOK_COVER_PREFIX}/{digest}{ext}"
+
+
+def stage_epub_cover(epub_path: Path, covers_dir: Path) -> str | None:
+    """Extract and stage one epub's cover; return its R2 object key, or None."""
+    got = extract_epub_cover(epub_path)
+    if got is None:
+        return None
+    data, ext = got
+    return _stage_cover_bytes(data, ext, covers_dir, epub_path.name)
+
+
+# ---------------------------------------------------------------------------
+# Covers, source 2b: the PDF's own page 1, rendered — BEHIND A LIKENESS GATE
+#
+# Owner approval, 2026-08-17: "Apply and make it automatic but we need to check
+# that first page ... make sure it's an image or at least some kind of cover
+# page and not just a chapter or some huge block of text."
+#
+# So this is not "render page 1". It is "render page 1 IF page 1 looks like a
+# cover, and otherwise say so by name". A refused PDF stays coverless and lands
+# in the manifest's `needs_human_cover` list; a text page is NEVER shipped as
+# a cover. See the threshold block near the top of this file for the measured
+# ground truth the numbers are tuned against.
+# ---------------------------------------------------------------------------
+def page_cover_signals(page) -> dict:
+    """The four gate signals for one PyMuPDF page.
+
+    Returns `{text_chars, image_coverage, ink_fraction, colour_fraction}`. The
+    two pixel signals are None when Pillow is unavailable — the caller degrades
+    to structure-only and says so in its reason (never silently).
+
+    Soft like the rest of this file: a page that will not render its own
+    pixmap yields None pixel signals rather than raising.
+    """
+    rect = page.rect
+    area = abs(rect.width * rect.height) or 1.0
+
+    text_chars = len(page.get_text("text").strip())
+
+    # Union coverage, grid-sampled. ⚠️ NOT max-single-image: Alloy of Law's
+    # cover is eight tiles whose largest is 17% of the page, and a max-box
+    # rule refuses it. Boxes are clipped to the page first, since a bleed
+    # image can extend past the crop box and inflate a naive area sum.
+    boxes = []
+    for info in page.get_image_info():
+        try:
+            x0, y0, x1, y1 = info["bbox"]
+        except (KeyError, TypeError, ValueError):
+            continue
+        x0, x1 = (x0, x1) if x0 <= x1 else (x1, x0)
+        y0, y1 = (y0, y1) if y0 <= y1 else (y1, y0)
+        x0, y0 = max(x0, rect.x0), max(y0, rect.y0)
+        x1, y1 = min(x1, rect.x1), min(y1, rect.y1)
+        if x1 > x0 and y1 > y0:
+            boxes.append((x0, y0, x1, y1))
+
+    n = PDF_COVERAGE_GRID
+    hits = 0
+    if boxes:
+        for i in range(n):
+            x = rect.x0 + (i + 0.5) * rect.width / n
+            for j in range(n):
+                y = rect.y0 + (j + 0.5) * rect.height / n
+                if any(bx0 <= x <= bx1 and by0 <= y <= by1 for bx0, by0, bx1, by1 in boxes):
+                    hits += 1
+    coverage = hits / float(n * n)
+
+    ink, colour = _page_pixel_signals(page)
+    return {
+        "text_chars": text_chars,
+        "image_coverage": coverage,
+        "ink_fraction": ink,
+        "colour_fraction": colour,
+        "page_area": area,
+    }
+
+
+def _page_pixel_signals(page) -> tuple[float | None, float | None]:
+    """(non-white fraction, saturated fraction) of a low-DPI render, or (None, None).
+
+    ⚠️ This is the SCANNED-TEXT-PAGE defence. A scan of a printed page is one
+    full-page image with no extractable text — structurally identical to a
+    cover — but it is ~85% white paper with no colour, where every one of this
+    library's four real covers is 96-99% inked and 50-81% coloured.
+
+    Computed with Pillow band arithmetic rather than a Python pixel loop: at
+    36 DPI a letter page is ~120k pixels, and the loop form measured slower
+    than the rest of the gate put together.
+    """
+    try:
+        import io  # noqa: F401  (kept for symmetry with downscale_cover's imports)
+
+        from PIL import Image, ImageChops
+    except ImportError:
+        return None, None
+
+    try:
+        import pymupdf
+
+        pix = page.get_pixmap(dpi=PDF_PIXEL_PROBE_DPI)
+        if pix.n != 3 or pix.alpha:
+            pix = pymupdf.Pixmap(pymupdf.csRGB, pix)
+        im = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
+    except Exception as e:  # noqa: BLE001 — an unrenderable page is not a crash
+        print(f"[ebooks] [WARN] could not probe PDF page pixels ({type(e).__name__}: {e})")
+        return None, None
+
+    try:
+        total = im.width * im.height or 1
+        r, g, b = im.split()
+        low = ImageChops.darker(ImageChops.darker(r, g), b)   # per-pixel min channel
+        high = ImageChops.lighter(ImageChops.lighter(r, g), b)  # per-pixel max channel
+        sat = ImageChops.difference(high, low)
+        near_white = sum(low.histogram()[PDF_NEAR_WHITE_LEVEL:])
+        coloured = sum(sat.histogram()[PDF_SATURATION_LEVEL:])
+        return 1.0 - near_white / total, coloured / total
+    except Exception as e:  # noqa: BLE001
+        print(f"[ebooks] [WARN] could not measure PDF page pixels ({type(e).__name__}: {e})")
+        return None, None
+    finally:
+        im.close()
+
+
+def classify_cover_page(signals: dict) -> tuple[str, str]:
+    """('cover' | 'text' | 'ambiguous', a human-readable reason).
+
+    The reason is not decoration — it is what lands in the manifest's
+    `needs_human_cover` list and in the build log, so a person can see WHY a
+    PDF was refused without re-deriving it. "1 book was refused" without
+    saying which page looked like what is the failure this string exists to
+    prevent.
+    """
+    chars = signals["text_chars"]
+    cov = signals["image_coverage"]
+    ink = signals["ink_fraction"]
+    colour = signals["colour_fraction"]
+    shape = f"{chars} chars of text, {cov:.0%} image coverage"
+    if ink is not None and colour is not None:
+        shape += f", {ink:.0%} ink, {colour:.0%} colour"
+    else:
+        shape += " (pixel check unavailable — Pillow not installed)"
+
+    # 1. Unambiguously a text page. Checked FIRST because a full-page
+    #    background image makes coverage useless here: every Stormlight
+    #    Handbook interior page is 100% covered AND 2,500+ characters.
+    if chars > PDF_TEXT_PAGE_CHARS:
+        return "text", f"page 1 is a text page — {shape}"
+
+    # 2. No dominant image and no colour: a title, legal or contents page.
+    if cov < PDF_IMAGE_COVERAGE_FLOOR and not (colour is not None and colour >= PDF_COLOUR_MIN):
+        return "text", f"page 1 carries no dominant image — {shape}"
+
+    # 3. Cover-like: little text, image-dominant, and actually inked/coloured
+    #    rather than a scan of a printed page. When the pixel probe is
+    #    unavailable the structural half stands alone, and the reason says so.
+    pixel_ok = (ink is None and colour is None) or (
+        (ink or 0) >= PDF_INK_MIN or (colour or 0) >= PDF_COLOUR_MIN
+    )
+    if chars <= PDF_COVER_TEXT_MAX_CHARS and cov >= PDF_IMAGE_COVERAGE_MIN and pixel_ok:
+        return "cover", f"page 1 looks like a cover — {shape}"
+
+    # 4. Everything else. Refused unless the AI rung is configured and agrees.
+    return "ambiguous", f"page 1 is ambiguous — {shape}"
+
+
+def ai_cover_verdict(jpeg_bytes: bytes) -> bool | None:
+    """True/False from one Claude vision call, or None when the rung is off.
+
+    ⚠️ Rung (b) of the gate, and OPTIONAL BY DESIGN: it is consulted only for
+    the ambiguous middle, never for a page the deterministic rung already
+    settled. `AI_COVER_KEY_ENV` is unset on this machine, so in practice this
+    returns None and the caller refuses the page by name — which is the safe
+    direction, and the whole reason the deterministic rung is tuned to leave
+    the middle small.
+
+    Never raises: no key, no SDK, no network, a malformed answer — all None.
+    """
+    import os
+
+    key = (os.environ.get(AI_COVER_KEY_ENV) or "").strip()
+    if not key:
+        return None
+    try:
+        import base64
+
+        import anthropic
+    except ImportError:
+        print("[ebooks] [WARN] anthropic SDK not installed — AI cover check skipped")
+        return None
+
+    try:
+        client = anthropic.Anthropic(api_key=key)
+        response = client.messages.create(
+            model=AI_COVER_MODEL,
+            max_tokens=16,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": "image/jpeg",
+                                "data": base64.standard_b64encode(jpeg_bytes).decode("ascii"),
+                            },
+                        },
+                        {
+                            "type": "text",
+                            "text": (
+                                "Is this a book or product COVER (title art, front jacket), "
+                                "or an INTERIOR text page (a chapter, contents, copyright or "
+                                "legal page, or a scan of printed text)? "
+                                "Answer with exactly one word: COVER or INTERIOR."
+                            ),
+                        },
+                    ],
+                }
+            ],
+        )
+    except Exception as e:  # noqa: BLE001 — a cover check must never break the build
+        print(f"[ebooks] [WARN] AI cover check failed ({type(e).__name__}: {e})")
+        return None
+
+    # ⚠️ Check stop_reason before reading content: a refusal returns HTTP 200
+    # with an empty content list, and content[0] would IndexError.
+    if getattr(response, "stop_reason", None) == "refusal":
+        print("[ebooks] [WARN] AI cover check was refused — treating as unavailable")
+        return None
+    answer = " ".join(
+        b.text for b in response.content if getattr(b, "type", None) == "text"
+    ).strip().upper()
+    if answer.startswith("COVER"):
+        return True
+    if answer.startswith("INTERIOR"):
+        return False
+    print(f"[ebooks] [WARN] AI cover check gave an unusable answer ({answer!r})")
+    return None
+
+
+def render_pdf_page(page, longest_px: int, quality: int) -> bytes | None:
+    """One page as JPEG bytes at roughly `longest_px` on its long side, or None."""
+    try:
+        rect = page.rect
+        longest_pt = max(abs(rect.width), abs(rect.height)) or 1.0
+        dpi = int(72.0 * longest_px / longest_pt)
+        dpi = max(36, min(dpi, 300))
+        pix = page.get_pixmap(dpi=dpi)
+        return pix.tobytes("jpeg", jpg_quality=quality)
+    except Exception as e:  # noqa: BLE001
+        print(f"[ebooks] [WARN] could not render a PDF page ({type(e).__name__}: {e})")
+        return None
+
+
+def stage_pdf_cover(pdf_path: Path, covers_dir: Path) -> tuple[str | None, str]:
+    """(R2 object key or None, the reason) for one PDF's page-1 auto-cover.
+
+    ⚠️ Returns a REASON in both directions, always. A None key with no reason
+    is exactly the silent cover gap the owner's check exists to stop; the
+    caller records the reason in the manifest's `needs_human_cover` list.
+    """
+    try:
+        import pymupdf
+    except ImportError:
+        return None, "PyMuPDF not installed — PDF page-1 auto-cover unavailable"
+
+    try:
+        with pymupdf.open(pdf_path) as doc:
+            if doc.is_encrypted and doc.needs_pass:
+                return None, "PDF is password-protected"
+            if doc.page_count < 1:
+                return None, "PDF has no pages"
+            page = doc[0]
+            signals = page_cover_signals(page)
+            verdict, reason = classify_cover_page(signals)
+
+            if verdict == "ambiguous":
+                probe = render_pdf_page(page, 600, 80)
+                said_cover = ai_cover_verdict(probe) if probe else None
+                if said_cover is True:
+                    verdict = "cover"
+                    reason += " — AI vision check says cover"
+                elif said_cover is False:
+                    return None, reason + " — AI vision check says interior page"
+                else:
+                    return None, reason + " — no AI check available, so refused"
+            if verdict != "cover":
+                return None, reason
+
+            data = render_pdf_page(page, PDF_RENDER_LONGEST_PX, PDF_RENDER_JPEG_QUALITY)
+    except Exception as e:  # noqa: BLE001 — step 1b's soft-fail stance is sacred
+        return None, f"PDF page 1 unreadable ({type(e).__name__}: {e})"
+
+    if data is None:
+        return None, reason + " — but page 1 would not render"
+    if len(data) > MAX_COVER_BYTES:
+        shrunk = downscale_cover(data)
+        if shrunk is None:
+            return None, reason + " — but the render missed the page-weight cap"
+        print(
+            f"[ebooks] downscaled rendered cover for {pdf_path.name}: "
+            f"{len(data) / 1048576:.1f} MB -> {len(shrunk) / 1048576:.2f} MB"
+        )
+        data = shrunk
+
+    key = _stage_cover_bytes(data, ".jpg", covers_dir, pdf_path.name)
+    if key is None:
+        return None, reason + " — but the render could not be staged"
+    return key, reason
 
 
 # ---------------------------------------------------------------------------
@@ -521,7 +933,16 @@ def scan(
     covers_dir: Path | None = None,
     extract: bool = True,
     cover_overrides: dict[str, str] | None = None,
+    cover_notes: dict[str, str] | None = None,
 ) -> list[dict]:
+    """Every ebook under `root`, as manifest rows.
+
+    `cover_notes` is an OUT parameter: pass a dict and it is filled with
+    `{path -> why this book has no cover}` for the books the automatic sources
+    could not settle. `build_manifest` turns it into the published
+    `needs_human_cover` list. Kept off the rows themselves so the row schema
+    every consumer reads stays exactly as documented.
+    """
     ebooks: list[dict] = []
     for path in sorted(root.rglob("*")):
         if not path.is_file() or path.suffix.lower() not in EBOOK_EXTS:
@@ -554,18 +975,29 @@ def scan(
         # Tsukai no Blade Dance"). Published as-is; the consumer decides.
         beside = rel.parts[0] if len(rel.parts) > 1 else None
 
-        # Covers, in the approved order: sibling audiobook's cover first (the
-        # catalog already publishes it), the epub's own embedded image second,
-        # a hand-placed override third, null fourth (the page's typographic
-        # spine placeholder).
+        # Covers, in the approved order:
+        #   1. the sibling audiobook's cover — the catalog already publishes it,
+        #      and ⚠️ it is NEVER overwritten: 26 of this library's 30 PDFs get
+        #      their cover this way and the auto-render must not touch them;
+        #   2. the epub's own embedded image — the book's OWN art;
+        #   3. a hand-placed override;
+        #   4. a PDF's rendered page 1, behind the likeness gate;
+        #   5. null — the page's typographic spine placeholder.
+        #
+        # ⚠️ The override outranks the PDF render, which is the REVERSE of the
+        # EPUB order (where the book's own cover beats an override). Deliberate:
+        # an embedded EPUB cover is the publisher's own art and authoritative,
+        # whereas a rendered page 1 is a MACHINE GUESS — a person who has gone
+        # to the trouble of placing a cover has overruled the guess by doing so.
         rel_posix = str(rel).replace("\\", "/")
+        suffix = path.suffix.lower()
         cover_url: str | None = None
         cover_source: str | None = None
         href = sibling_cover_href(title, beside, catalog_covers or {})
         if href:
             cover_url = canonical_cover_url(href) or None
             cover_source = "audiobook" if cover_url else None
-        elif extract and covers_dir is not None and path.suffix.lower() == ".epub":
+        elif extract and covers_dir is not None and suffix == ".epub":
             key = stage_epub_cover(path, covers_dir)
             if key:
                 cover_url = canonical_cover_url("covers/" + key) or None
@@ -575,6 +1007,14 @@ def scan(
             if override:
                 cover_url = canonical_cover_url("covers/" + override) or None
                 cover_source = "override" if cover_url else None
+        if cover_url is None and extract and covers_dir is not None and suffix == ".pdf":
+            key, why = stage_pdf_cover(path, covers_dir)
+            if key:
+                cover_url = canonical_cover_url("covers/" + key) or None
+                cover_source = "pdf_page1" if cover_url else None
+                print(f"[ebooks] auto-cover for {path.name}: {why}")
+            if cover_url is None and cover_notes is not None:
+                cover_notes[rel_posix] = why
 
         stat = path.stat()
         ebooks.append(
@@ -598,6 +1038,48 @@ def scan(
     return ebooks
 
 
+# ---------------------------------------------------------------------------
+# The needs-a-human list (PDF auto-covers, 2026-08-17)
+# ---------------------------------------------------------------------------
+NEEDS_HUMAN_COVER_KEY = "needs_human_cover"
+
+# What a coverless book says when nothing more specific was recorded — an EPUB
+# that resolved none of its three sources, or a PDF from a dry run.
+DEFAULT_COVERLESS_REASON = (
+    "no sibling audiobook cover, no embedded cover, and no hand-placed override"
+)
+
+
+def build_needs_human_cover(ebooks: list[dict], cover_notes: dict[str, str] | None = None) -> list[dict]:
+    """Every coverless row, with the reason it is coverless.
+
+    ⚠️ The point of this list is the OTHER half of the coverage guard. "Every
+    EPUB has a cover" is enforceable because an EPUB always can have one; a PDF
+    whose page 1 is genuinely a wall of text cannot, and refusing it is the
+    CORRECT outcome. So the PDF rule is "resolves a cover OR is named here" —
+    which lets a text-first PDF through the promote gate while making a SILENT
+    cover gap impossible: a coverless PDF that is not on this list fails.
+
+    Lists coverless rows of EVERY format, deliberately. An EPUB appearing here
+    does NOT excuse it from `test_every_published_epub_has_a_cover` — that rule
+    is unconditional, and this list is descriptive, not a way to opt out of it.
+    """
+    notes = cover_notes or {}
+    out = []
+    for e in ebooks:
+        if (e.get("cover_url") or "").strip():
+            continue
+        out.append(
+            {
+                "path": e.get("path"),
+                "title": e.get("title"),
+                "format": e.get("format"),
+                "reason": notes.get(e.get("path"), DEFAULT_COVERLESS_REASON),
+            }
+        )
+    return out
+
+
 def build_manifest(dry: bool = False) -> int:
     """Scan the library and write `site/ebooks.json`. Returns an exit code.
 
@@ -612,14 +1094,18 @@ def build_manifest(dry: bool = False) -> int:
         return 1
 
     # Dry runs stay read-only: the sibling join is a pure read, but epub
-    # extraction stages files under site/covers/ebooks/, so it is skipped.
+    # extraction and PDF rendering stage files under site/covers/ebooks/, so
+    # both are skipped.
+    cover_notes: dict[str, str] = {}
     ebooks = scan(
         root,
         catalog_covers=load_catalog_covers(CATALOG_PATH),
         covers_dir=EBOOK_COVERS_DIR,
         extract=not dry,
         cover_overrides=load_cover_overrides(),
+        cover_notes=cover_notes,
     )
+    needs_human_cover = build_needs_human_cover(ebooks, cover_notes)
 
     by_format: dict[str, int] = {}
     by_source: dict[str, int] = {}
@@ -632,7 +1118,11 @@ def build_manifest(dry: bool = False) -> int:
     print(f"[ebooks] {len(ebooks)} file(s) under {root}")
     print(f"[ebooks]   by format: {by_format}")
     print(f"[ebooks]   metadata from: {by_source}")
-    print(f"[ebooks]   covers: {by_cover}" + ("  (dry: epub extraction skipped)" if dry else ""))
+    print(f"[ebooks]   covers: {by_cover}" + ("  (dry: cover staging skipped)" if dry else ""))
+    if needs_human_cover:
+        print(f"[ebooks]   needs a human cover: {len(needs_human_cover)}")
+        for e in needs_human_cover:
+            print(f"[ebooks]     - {e['title']}  ({e['path']}) — {e['reason']}")
 
     if dry:
         for e in ebooks[:10]:
@@ -645,6 +1135,12 @@ def build_manifest(dry: bool = False) -> int:
         "root": str(root).replace("\\", "/"),
         "count": len(ebooks),
         "ebooks": ebooks,
+        # ⚠️ Published even when empty, and that is the point: the promote gate
+        # treats an ABSENT key as "this ref predates the list" (a warning) and a
+        # PRESENT key as enforceable. An empty list is the positive statement
+        # "nothing is waiting on a person", which is what makes a silent cover
+        # gap impossible on any manifest this script writes.
+        "needs_human_cover": needs_human_cover,
     }
 
     OUT_PATH.parent.mkdir(parents=True, exist_ok=True)

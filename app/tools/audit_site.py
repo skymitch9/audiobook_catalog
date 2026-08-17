@@ -10,8 +10,10 @@ Audit the committed site artifacts for the core catalog guarantees:
      resolution: exact or case-insensitive match on the FULL author string),
      or is explicitly excluded in scripts/audit_exclusions.json.
   5. Every EPUB in site/ebooks.json has a cover_url. Owner rule, 2026-08-17:
-     "all epubs must resolve a cover". PDFs are exempt by design (they carry
-     no embedded art; the page hides them behind a checkbox instead).
+     "all epubs must resolve a cover". And every PDF either resolves one or is
+     NAMED in the manifest's `needs_human_cover` list — a PDF whose page 1 is
+     a wall of text correctly gets no auto-cover, but a coverless PDF nobody
+     named is a silent gap and fails.
      Emergency escape hatch: ALLOW_COVERLESS_EPUBS=1.
 
      The map that actually ships is the one EMBEDDED in site/index.html at
@@ -42,6 +44,13 @@ EXCLUSIONS_REL_PATH = Path("scripts") / "audit_exclusions.json"
 AUTHOR_MAP_NAME = "author_drive_map.json"
 COVER_MANIFEST_NAME = "covers_manifest.json"
 EBOOKS_MANIFEST_NAME = "ebooks.json"
+
+# The manifest key naming books no automatic cover source could settle. ⚠️ Kept
+# in step with scripts.build_ebook_manifest.NEEDS_HUMAN_COVER_KEY, but NOT
+# imported from it: this module audits only files tracked in git so it can run
+# in CI without the audio library, and importing the builder would drag in
+# app.config (which needs ROOT_DIR) through its import chain.
+EBOOK_NEEDS_HUMAN_COVER_KEY = "needs_human_cover"
 
 # Emergency escape hatch for check 5. Documented as emergency-only in
 # docs/access/GIT_CI_DEPLOY.md; it lets a known-broken shelf reach prod.
@@ -274,17 +283,26 @@ def _check_ebook_covers(site_dir: Path) -> tuple:
     therefore auto-promote), this gates the promotion itself, because a ref
     can reach `promote.yml` without having gone through today's tests.
 
-    PDFs are exempt BY DESIGN, not by oversight: they carry no embedded art,
-    and the owner's decision the same day was a "show PDFs" checkbox on the
-    page (default off), not a cover hunt for them.
+    PDFs get the HONEST version of the same rule (2026-08-17, when page-1
+    auto-covers landed): **every PDF resolves a cover OR is named in the
+    manifest's `needs_human_cover` list.** A PDF whose first page is genuinely
+    a wall of text cannot have one — refusing it is correct, and shipping that
+    page as a cover is the thing the owner's likeness check exists to stop — so
+    a text-first PDF must not break promote. But a coverless PDF that nobody
+    named is a SILENT gap, and that fails. Naming is the whole contract.
 
     A missing manifest is a WARNING, not a failure: an old `prod-*` rollback
     tag predates site/ebooks.json entirely, and this gate must not make such
-    a ref unpromotable.
+    a ref unpromotable. The `needs_human_cover` key gets the same treatment
+    for the same reason — a ref that predates it is warned about, not blocked.
+    Every manifest `scripts/build_ebook_manifest.py` writes carries the key
+    (empty when nothing is waiting), so the failure path is live for any
+    current ref.
 
     Escape hatch: ALLOW_COVERLESS_EPUBS=1, emergency use only — it lets a
     known-broken shelf reach prod, so use it to unblock an unrelated urgent
-    promotion and never as a way to live with missing covers.
+    promotion and never as a way to live with missing covers. It covers the
+    unnamed-PDF failure too, for the same emergency and with the same warning.
     """
     import os
 
@@ -300,30 +318,72 @@ def _check_ebook_covers(site_dir: Path) -> tuple:
     except (json.JSONDecodeError, OSError, KeyError, TypeError) as e:
         return [f"{path} is unreadable or malformed ({e}) — the ebook shelf would not render"], []
 
-    epubs = [
-        e for e in entries
-        if isinstance(e, dict) and str(e.get("format") or "").lower() == "epub"
-    ]
+    rows = [e for e in entries if isinstance(e, dict)]
+    by_format = lambda fmt: [e for e in rows if str(e.get("format") or "").lower() == fmt]  # noqa: E731
+    coverless = lambda es: [e for e in es if not str(e.get("cover_url") or "").strip()]  # noqa: E731
+    named_of = lambda es: _summarize(  # noqa: E731
+        [f"{e.get('title')} ({e.get('path')})" for e in es], limit=25
+    )
+    escape_hatch = os.environ.get(ALLOW_COVERLESS_EPUBS_ENV) == "1"
+    failures, warnings = [], []
+
+    epubs = by_format("epub")
     if not epubs:
-        return [], [f"{path} lists no EPUBs — nothing to audit"]
+        warnings.append(f"{path} lists no EPUBs — nothing to audit")
+    else:
+        naked = coverless(epubs)
+        if not naked:
+            print(f"[OK] ebook covers: all {len(epubs)} EPUBs have a cover")
+        elif escape_hatch:
+            warnings.append(
+                f"{ALLOW_COVERLESS_EPUBS_ENV}=1 — EMERGENCY OVERRIDE: promoting with "
+                f"{len(naked)} coverless EPUB(s): {named_of(naked)}"
+            )
+        else:
+            failures.append(
+                f"{len(naked)} of {len(epubs)} EPUBs have no cover: {named_of(naked)}"
+                " — rebuild with `python -m scripts.build_ebook_manifest` (oversized covers are"
+                " downscaled, not rejected) or add one to scripts/ebook_cover_overrides.json;"
+                f" emergency only: {ALLOW_COVERLESS_EPUBS_ENV}=1"
+            )
 
-    coverless = [e for e in epubs if not str(e.get("cover_url") or "").strip()]
-    if not coverless:
-        print(f"[OK] ebook covers: all {len(epubs)} EPUBs have a cover")
-        return [], []
+    pdfs = by_format("pdf")
+    naked_pdfs = coverless(pdfs)
+    if not pdfs:
+        pass  # a library with no PDFs is fine; nothing to say
+    elif EBOOK_NEEDS_HUMAN_COVER_KEY not in manifest:
+        if naked_pdfs:
+            warnings.append(
+                f"{path} has no '{EBOOK_NEEDS_HUMAN_COVER_KEY}' list — {len(naked_pdfs)} coverless "
+                "PDF(s) not audited (pre-auto-cover ref?)"
+            )
+    else:
+        listed = {
+            str(e.get("path"))
+            for e in (manifest.get(EBOOK_NEEDS_HUMAN_COVER_KEY) or [])
+            if isinstance(e, dict)
+        }
+        unnamed = [e for e in naked_pdfs if str(e.get("path")) not in listed]
+        if not unnamed:
+            print(
+                f"[OK] PDF covers: {len(pdfs) - len(naked_pdfs)} of {len(pdfs)} PDFs have a cover, "
+                f"{len(naked_pdfs)} named as needing a human"
+            )
+        elif escape_hatch:
+            warnings.append(
+                f"{ALLOW_COVERLESS_EPUBS_ENV}=1 — EMERGENCY OVERRIDE: promoting with "
+                f"{len(unnamed)} unnamed coverless PDF(s): {named_of(unnamed)}"
+            )
+        else:
+            failures.append(
+                f"{len(unnamed)} of {len(pdfs)} PDFs have no cover and are not named in "
+                f"'{EBOOK_NEEDS_HUMAN_COVER_KEY}': {named_of(unnamed)}"
+                " — rebuild with `python -m scripts.build_ebook_manifest`, which auto-covers a"
+                " PDF whose page 1 passes the cover-likeness gate and names the rest;"
+                f" emergency only: {ALLOW_COVERLESS_EPUBS_ENV}=1"
+            )
 
-    named = _summarize([f"{e.get('title')} ({e.get('path')})" for e in coverless], limit=25)
-    if os.environ.get(ALLOW_COVERLESS_EPUBS_ENV) == "1":
-        return [], [
-            f"{ALLOW_COVERLESS_EPUBS_ENV}=1 — EMERGENCY OVERRIDE: promoting with "
-            f"{len(coverless)} coverless EPUB(s): {named}"
-        ]
-    return [
-        f"{len(coverless)} of {len(epubs)} EPUBs have no cover: {named}"
-        " — rebuild with `python -m scripts.build_ebook_manifest` (oversized covers are"
-        " downscaled, not rejected) or add one to scripts/ebook_cover_overrides.json;"
-        f" emergency only: {ALLOW_COVERLESS_EPUBS_ENV}=1"
-    ], []
+    return failures, warnings
 
 
 def _stale_exclusion_warnings(rows: list, authors: list, exclusions: dict) -> list:

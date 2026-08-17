@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-17T15:00:42.302362Z",
+  "generated_at": "2026-08-17T16:21:03.871226Z",
   "root": "C:/Users/nbasl/OpenAudible/books",
   "count": 168,
   "ebooks": [
@@ -126,8 +126,8 @@
       "beside_audiobook": "Brandon Sanderson",
       "size_bytes": 76203055,
       "modified": "2026-06-21T17:43:06.306453Z",
-      "cover_url": null,
-      "cover_source": null
+      "cover_url": "https://covers.heygabi.ai/ebooks/058fa9b337bfb0c3281e68067a60f1ec1676ec165510ced29f59002c1047621e.jpg",
+      "cover_source": "pdf_page1"
     },
     {
       "path": "Brandon Sanderson/mistborn_alloyoflaw.pdf",
@@ -140,8 +140,8 @@
       "beside_audiobook": "Brandon Sanderson",
       "size_bytes": 36000709,
       "modified": "2026-06-21T17:42:26.111745Z",
-      "cover_url": null,
-      "cover_source": null
+      "cover_url": "https://covers.heygabi.ai/ebooks/d7f7b86ff2c26e5f0fde5f2f29b26cc24e5138632182e004c908f6933e2bab69.jpg",
+      "cover_source": "pdf_page1"
     },
     {
       "path": "Brandon Sanderson/mistborn_terris_wroughtofcopper.pdf",
@@ -154,8 +154,8 @@
       "beside_audiobook": "Brandon Sanderson",
       "size_bytes": 19262067,
       "modified": "2026-06-21T17:42:15.222769Z",
-      "cover_url": null,
-      "cover_source": null
+      "cover_url": "https://covers.heygabi.ai/ebooks/476aa91a24f9e5ec23b2a803f653320843fa7e991c913f67a203edccfdc5afe4.jpg",
+      "cover_source": "pdf_page1"
     },
     {
       "path": "Brandon Sanderson/Oathbringer.pdf",
@@ -238,8 +238,8 @@
       "beside_audiobook": "Brandon Sanderson",
       "size_bytes": 189930310,
       "modified": "2026-06-21T17:38:09.894893Z",
-      "cover_url": null,
-      "cover_source": null
+      "cover_url": "https://covers.heygabi.ai/ebooks/c5a035ad2062be0408c482ae2c4e7685e8e0299cb579a77384a307ac8fd37053.jpg",
+      "cover_source": "pdf_page1"
     },
     {
       "path": "Brandon Sanderson/snapshot_brandonsanderson.epub",
@@ -2355,5 +2355,6 @@
       "cover_url": "https://covers.heygabi.ai/ebooks/db685cb68d6a17b7bb4552ea7e977838a169eea66aacb0cf5ea928989331b0c3.jpg",
       "cover_source": "epub"
     }
-  ]
+  ],
+  "needs_human_cover": []
 }

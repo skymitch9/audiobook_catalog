@@ -212,10 +212,14 @@ class AuditSiteTestCase(unittest.TestCase):
 
     # ---- check 5: every EPUB has a cover (owner rule, 2026-08-17) ----
 
-    def write_ebooks(self, entries):
-        (self.site / "ebooks.json").write_text(
-            json.dumps({"count": len(entries), "ebooks": entries}), encoding="utf-8"
-        )
+    def write_ebooks(self, entries, needs_human_cover=None):
+        payload = {"count": len(entries), "ebooks": entries}
+        if needs_human_cover is not None:
+            payload["needs_human_cover"] = needs_human_cover
+        (self.site / "ebooks.json").write_text(json.dumps(payload), encoding="utf-8")
+
+    def pdf_row(self, title="A PDF", cover=None):
+        return {"format": "pdf", "title": title, "path": f"A/{title}.pdf", "cover_url": cover}
 
     def epub_row(self, title="An Ebook", cover="https://covers.heygabi.ai/ebooks/a.jpg"):
         return {"format": "epub", "title": title, "path": f"A/{title}.epub", "cover_url": cover}
@@ -250,13 +254,94 @@ class AuditSiteTestCase(unittest.TestCase):
         self.write_ebooks([self.epub_row("Blank", cover="   ")])
         self.assertEqual(self.run_audit(), 1)
 
-    def test_pdfs_without_covers_do_not_fail(self):
-        # Exempt by design: the page hides them behind a checkbox instead.
+    def test_pdfs_without_covers_do_not_fail_the_epub_rule(self):
+        # The EPUB rule never applied to PDFs; they have their own (below).
         self.setup_clean_catalog()
         self.write_ebooks(
-            [self.epub_row(), {"format": "pdf", "title": "A PDF", "path": "A/d.pdf", "cover_url": None}]
+            [self.epub_row(), self.pdf_row("Handbook")],
+            needs_human_cover=[{"path": "A/Handbook.pdf", "reason": "page 1 is a text page"}],
         )
         self.assertEqual(self.run_audit(), 0)
+
+    # ---- check 5b: every PDF resolves a cover OR is named (2026-08-17) ----
+    #
+    # ⚠️ The honest shape of the PDF rule. A PDF whose first page is a wall of
+    # text CANNOT have an auto-cover — refusing it is correct, and shipping
+    # that page as cover art is exactly what the owner's likeness check exists
+    # to prevent. So a refused PDF must not break promote. What must break
+    # promote is a coverless PDF nobody NAMED: that is a silent gap.
+
+    def test_a_covered_pdf_passes(self):
+        self.setup_clean_catalog()
+        self.write_ebooks(
+            [self.epub_row(), self.pdf_row("Art", cover="https://covers.heygabi.ai/ebooks/b.jpg")],
+            needs_human_cover=[],
+        )
+        self.assertEqual(self.run_audit(), 0)
+
+    def test_a_named_coverless_pdf_passes(self):
+        self.setup_clean_catalog()
+        self.write_ebooks(
+            [self.epub_row(), self.pdf_row("Text First")],
+            needs_human_cover=[{"path": "A/Text First.pdf", "reason": "page 1 is a text page"}],
+        )
+        code, out = self.audit_output()
+        self.assertEqual(code, 0)
+        self.assertIn("1 named as needing a human", out)
+
+    def test_an_unnamed_coverless_pdf_fails_the_promote_gate(self):
+        self.setup_clean_catalog()
+        self.write_ebooks([self.epub_row(), self.pdf_row("Silent Gap")], needs_human_cover=[])
+        code, out = self.audit_output()
+        self.assertEqual(code, 1)
+        # NAMES the offender — a count alone sends the next person hunting.
+        self.assertIn("Silent Gap", out)
+        self.assertIn("1 of 1 PDFs have no cover", out)
+
+    def test_naming_one_pdf_does_not_excuse_another(self):
+        self.setup_clean_catalog()
+        self.write_ebooks(
+            [self.pdf_row("Named"), self.pdf_row("Unnamed"), self.epub_row()],
+            needs_human_cover=[{"path": "A/Named.pdf", "reason": "page 1 is a text page"}],
+        )
+        code, out = self.audit_output()
+        self.assertEqual(code, 1)
+        self.assertIn("Unnamed", out)
+        self.assertIn("1 of 2 PDFs", out)
+
+    def test_a_manifest_without_the_list_warns_but_does_not_fail(self):
+        # A pre-auto-cover `prod-*` rollback tag must stay promotable, same
+        # posture as a missing ebooks.json entirely.
+        self.setup_clean_catalog()
+        self.write_ebooks([self.epub_row(), self.pdf_row("Old Ref")])  # no needs_human_cover key
+        code, out = self.audit_output()
+        self.assertEqual(code, 0)
+        self.assertIn("pre-auto-cover ref", out)
+
+    def test_a_covered_pdf_needs_no_list_at_all(self):
+        # An old ref whose PDFs all had sibling covers isn't even warned about.
+        self.setup_clean_catalog()
+        self.write_ebooks([self.pdf_row("Art", cover="https://covers.heygabi.ai/ebooks/b.jpg")])
+        code, out = self.audit_output()
+        self.assertEqual(code, 0)
+        self.assertNotIn("pre-auto-cover ref", out)
+
+    def test_the_escape_hatch_covers_the_pdf_rule_too(self):
+        import os
+        from app.tools.audit_site import ALLOW_COVERLESS_EPUBS_ENV
+
+        self.setup_clean_catalog()
+        self.write_ebooks([self.epub_row(), self.pdf_row("Silent Gap")], needs_human_cover=[])
+        self.assertEqual(self.run_audit(), 1)  # fails without it
+
+        os.environ[ALLOW_COVERLESS_EPUBS_ENV] = "1"
+        try:
+            code, out = self.audit_output()
+        finally:
+            del os.environ[ALLOW_COVERLESS_EPUBS_ENV]
+        self.assertEqual(code, 0)
+        self.assertIn("EMERGENCY OVERRIDE", out)
+        self.assertIn("Silent Gap", out)  # still says what it let through
 
     def test_missing_ebook_manifest_warns_but_does_not_fail(self):
         # A pre-ebooks `prod-*` rollback tag must stay promotable.

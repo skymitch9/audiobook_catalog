@@ -756,5 +756,424 @@ def test_the_escape_hatch_is_honoured(tmp_path, monkeypatch):
     assert "EMERGENCY" in str(excinfo.value)
 
 
+# --------------------------------------------------------------------------- #
+# PDF page-1 auto-covers, and THE COVER-LIKENESS GATE — source 2b (2026-08-17)
+#
+# ⚠️ Owner approval, verbatim: "Apply and make it automatic but we need to check
+# that first page ... make sure it's an image or at least some kind of cover
+# page and not just a chapter or some huge block of text."
+#
+# So the gate is the feature, and these tests pin BOTH directions:
+#   - the four real covers he approved must pass (if the gate refuses one, the
+#     GATE is wrong, not the data);
+#   - a text-heavy interior page of those same PDFs, re-rendered as a fake
+#     page 1, must be refused. That is the watched-failing proof — a gate that
+#     only ever says yes proves nothing.
+# --------------------------------------------------------------------------- #
+
+requires_pymupdf = pytest.mark.skipif(
+    __import__("importlib.util", fromlist=["util"]).find_spec("pymupdf") is None,
+    reason="PyMuPDF drives the PDF page-1 auto-cover",
+)
+
+
+def _png(width, height, painter=None):
+    """A PNG of the given size; `painter(draw, w, h)` may add content."""
+    from PIL import Image, ImageDraw
+
+    im = Image.new("RGB", (width, height), (255, 255, 255))
+    if painter is not None:
+        painter(ImageDraw.Draw(im), width, height)
+    buf = __import__("io").BytesIO()
+    im.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def make_pdf(path: Path, pages, *, title_text=None):
+    """A real PDF. `pages` is a list of dicts: {text=..., image=<png bytes>}."""
+    import pymupdf
+
+    doc = pymupdf.open()
+    for spec in pages:
+        page = doc.new_page(width=432, height=648)  # 6x9in, a book page
+        if spec.get("image") is not None:
+            page.insert_image(page.rect, stream=spec["image"])
+        if spec.get("text"):
+            page.insert_textbox(
+                pymupdf.Rect(36, 36, 396, 612), spec["text"], fontsize=9, fontname="helv"
+            )
+    doc.save(path)
+    doc.close()
+    return path
+
+
+def cover_png():
+    """A saturated full-bleed cover: high ink, high colour."""
+
+    def paint(draw, w, h):
+        for y in range(h):
+            draw.line([(0, y), (w, y)], fill=(180, 40 + y % 60, 30))
+
+    return _png(432, 648, paint)
+
+
+def scanned_text_png():
+    """A SCAN of a printed page: full-page image, no extractable text, mostly paper.
+
+    ⚠️ The case the structural half of the gate cannot see. It is one image
+    covering the whole page with zero characters — identical in shape to a real
+    cover — and only the ink/colour probe tells them apart.
+    """
+
+    def paint(draw, w, h):
+        for i in range(40):
+            y = 40 + i * 14
+            draw.line([(50, y), (w - 50, y)], fill=(20, 20, 20), width=2)
+
+    return _png(432, 648, paint)
+
+
+def verdict_for(pdf_path):
+    import pymupdf
+
+    with pymupdf.open(pdf_path) as doc:
+        return bem.classify_cover_page(bem.page_cover_signals(doc[0]))
+
+
+@requires_pymupdf
+def test_the_pdf_gate_accepts_a_full_bleed_cover(tmp_path):
+    p = make_pdf(tmp_path / "b.pdf", [{"image": cover_png()}])
+    verdict, reason = verdict_for(p)
+    assert verdict == "cover", reason
+
+
+@requires_pymupdf
+def test_the_pdf_gate_accepts_a_cover_with_its_title_on_it(tmp_path):
+    # Real covers DO carry text — the Stormlight Handbook's has 102 characters
+    # of title and series line. A gate that demanded zero text would refuse it.
+    p = make_pdf(tmp_path / "b.pdf", [{"image": cover_png(), "text": "THE WAY OF KINGS\nBook One"}])
+    verdict, reason = verdict_for(p)
+    assert verdict == "cover", reason
+
+
+@requires_pymupdf
+def test_the_pdf_gate_refuses_a_wall_of_text(tmp_path):
+    # The owner's exact worry: "not just a chapter or some huge block of text".
+    p = make_pdf(tmp_path / "b.pdf", [{"text": "Chapter One. " * 200}])
+    verdict, reason = verdict_for(p)
+    assert verdict == "text", reason
+    assert "text page" in reason
+
+
+@requires_pymupdf
+def test_the_pdf_gate_refuses_a_text_page_that_sits_on_a_full_page_image(tmp_path):
+    # ⚠️ MEASURED on the real library: every Stormlight Handbook interior page
+    # and Alloy of Law's page 2 carry a FULL-PAGE background image AND 2,000+
+    # characters. Image coverage alone would wave all of them through.
+    p = make_pdf(tmp_path / "b.pdf", [{"image": cover_png(), "text": "Chapter One. " * 200}])
+    verdict, reason = verdict_for(p)
+    assert verdict == "text", reason
+
+
+@requires_pymupdf
+def test_the_pdf_gate_refuses_a_title_page_with_a_small_logo(tmp_path):
+    # A little decorative art and a line of text — a title or legal page. This
+    # is adventuregame p1 / alloyoflaw p2 / terris p2, measured.
+    def build(path):
+        import pymupdf
+
+        doc = pymupdf.open()
+        page = doc.new_page(width=432, height=648)
+        page.insert_image(pymupdf.Rect(190, 80, 240, 130), stream=cover_png())
+        page.insert_textbox(pymupdf.Rect(36, 300, 396, 400), "A Book\nby An Author", fontsize=11)
+        doc.save(path)
+        doc.close()
+        return path
+
+    verdict, reason = verdict_for(build(tmp_path / "b.pdf"))
+    assert verdict == "text", reason
+    assert "no dominant image" in reason
+
+
+@requires_pymupdf
+def test_the_pdf_gate_refuses_a_scan_of_a_printed_page(tmp_path):
+    # ⚠️ Image-dominant AND textless — structurally a cover. Only the pixel
+    # probe (mostly paper, no colour) catches it, and with no AI rung
+    # configured an ambiguous page is REFUSED rather than guessed at.
+    p = make_pdf(tmp_path / "b.pdf", [{"image": scanned_text_png()}])
+    verdict, reason = verdict_for(p)
+    assert verdict != "cover", reason
+
+
+@requires_pymupdf
+def test_the_pdf_gate_refuses_a_blank_first_page(tmp_path):
+    p = make_pdf(tmp_path / "b.pdf", [{}])
+    verdict, _ = verdict_for(p)
+    assert verdict != "cover"
+
+
+@requires_pymupdf
+def test_a_refused_pdf_stages_nothing_and_says_why(tmp_path):
+    p = make_pdf(tmp_path / "b.pdf", [{"text": "Chapter One. " * 200}])
+    covers = tmp_path / "covers" / "ebooks"
+    key, reason = bem.stage_pdf_cover(p, covers)
+    assert key is None
+    assert "text page" in reason  # NAMED, never a bare None
+    assert not covers.exists()  # and nothing written
+
+
+@requires_pymupdf
+def test_an_accepted_pdf_stages_a_sha256_named_jpeg_under_the_cap(tmp_path):
+    p = make_pdf(tmp_path / "b.pdf", [{"image": cover_png()}])
+    covers = tmp_path / "covers" / "ebooks"
+    key, reason = bem.stage_pdf_cover(p, covers)
+    assert key and key.startswith("ebooks/") and key.endswith(".jpg"), reason
+    staged = covers / key.split("/", 1)[1]
+    assert re.fullmatch(r"[0-9a-f]{64}\.jpg", staged.name)
+    assert staged.stat().st_size <= bem.MAX_COVER_BYTES
+    assert staged.read_bytes()[:2] == b"\xff\xd8"  # a real JPEG
+    # Idempotent: same bytes, same key, no rewrite.
+    first = staged.stat().st_mtime_ns
+    assert bem.stage_pdf_cover(p, covers)[0] == key
+    assert staged.stat().st_mtime_ns == first
+
+
+@requires_pymupdf
+def test_a_corrupt_pdf_is_a_named_refusal_not_a_crash(tmp_path):
+    p = tmp_path / "broken.pdf"
+    p.write_text("%PDF-1.4 and then nothing", encoding="utf-8")
+    key, reason = bem.stage_pdf_cover(p, tmp_path / "covers")
+    assert key is None and reason
+
+
+def test_the_ai_rung_is_skipped_when_no_key_is_configured(monkeypatch):
+    # ⚠️ Rung (b) is optional and UNCONFIGURED here. The contract is that its
+    # absence refuses the ambiguous page rather than crashing or guessing.
+    monkeypatch.delenv(bem.AI_COVER_KEY_ENV, raising=False)
+    assert bem.ai_cover_verdict(b"\xff\xd8\xff\xe0not-really-a-jpeg") is None
+
+
+# --------------------------------------------------------------------------- #
+# The four the owner approved, against the REAL files
+# --------------------------------------------------------------------------- #
+
+APPROVED_PDFS = [
+    "Brandon Sanderson/mistborn_adventuregame.pdf",
+    "Brandon Sanderson/mistborn_alloyoflaw.pdf",
+    "Brandon Sanderson/mistborn_terris_wroughtofcopper.pdf",
+    "Brandon Sanderson/SL001_Stormlight_Handbook_digital.pdf",
+]
+
+
+@requires_pymupdf
+@pytest.mark.parametrize("rel", APPROVED_PDFS)
+def test_the_owner_approved_pdfs_pass_the_gate(rel):
+    """⚠️ These four are real covers, personally approved 2026-08-17.
+
+    If this fails, the GATE is wrong — do not "fix" it by editing the list.
+    Skips where the library is absent (CI), like the other on-disk tests.
+    """
+    src = Path(bem.ROOT_DIR) / rel
+    if not src.exists():
+        pytest.skip(f"{src} not present (no audio library on this machine)")
+    verdict, reason = verdict_for(src)
+    assert verdict == "cover", f"{rel}: {reason}"
+
+
+@requires_pymupdf
+@pytest.mark.parametrize("rel", APPROVED_PDFS)
+def test_an_interior_page_of_the_same_pdfs_is_refused(rel):
+    """The watched-failing half: a text-heavy interior page as a fake page 1.
+
+    Same file, same renderer, same gate — only the page differs. Page 5 is a
+    body page in all four (1,900-4,900 characters, measured).
+    """
+    import pymupdf
+
+    src = Path(bem.ROOT_DIR) / rel
+    if not src.exists():
+        pytest.skip(f"{src} not present (no audio library on this machine)")
+    with pymupdf.open(src) as doc:
+        if doc.page_count < 6:
+            pytest.skip("too few pages to have an interior page")
+        verdict, reason = bem.classify_cover_page(bem.page_cover_signals(doc[5]))
+    assert verdict != "cover", f"{rel} p5 was accepted as a cover: {reason}"
+
+
+# --------------------------------------------------------------------------- #
+# The needs-a-human list, and the PDF half of the coverage guard
+# --------------------------------------------------------------------------- #
+
+
+def test_needs_human_cover_names_every_coverless_row_with_a_reason():
+    rows = [
+        {"path": "A/fine.epub", "title": "Fine", "format": "epub", "cover_url": "https://x/1.jpg"},
+        {"path": "A/doc.pdf", "title": "A PDF", "format": "pdf", "cover_url": None},
+        {"path": "A/blank.pdf", "title": "Blank", "format": "pdf", "cover_url": "   "},
+    ]
+    out = bem.build_needs_human_cover(rows, {"A/doc.pdf": "page 1 is a text page — 4000 chars"})
+    assert [e["path"] for e in out] == ["A/doc.pdf", "A/blank.pdf"]
+    assert out[0]["reason"].startswith("page 1 is a text page")
+    assert out[0]["title"] == "A PDF" and out[0]["format"] == "pdf"
+    assert out[1]["reason"] == bem.DEFAULT_COVERLESS_REASON  # never blank
+
+
+def test_needs_human_cover_is_empty_when_everything_resolves():
+    rows = [{"path": "A/x.pdf", "title": "X", "format": "pdf", "cover_url": "https://x/1.jpg"}]
+    assert bem.build_needs_human_cover(rows) == []
+
+
+def test_the_manifest_publishes_the_list_even_when_empty(build_env):
+    # ⚠️ The empty list is a POSITIVE statement ("nothing waits on a person"),
+    # and it is what lets the promote gate tell "no gap" from "old ref".
+    root, out, _covers, _catalog = build_env
+    make_epub(root / "Author Folder" / "book.epub")
+    assert bem.build_manifest() == 0
+    payload = _written(out)
+    assert payload[bem.NEEDS_HUMAN_COVER_KEY] == []
+
+
+@requires_pymupdf
+def test_a_refused_pdf_reaches_the_published_list_by_name(build_env):
+    root, out, _covers, _catalog = build_env
+    make_pdf(root / "Author Folder" / "manual.pdf", [{"text": "Chapter One. " * 200}])
+    assert bem.build_manifest() == 0
+    payload = _written(out)
+    (row,) = payload["ebooks"]
+    assert row["cover_url"] is None and row["cover_source"] is None
+    (named,) = payload[bem.NEEDS_HUMAN_COVER_KEY]
+    assert named["path"] == "Author Folder/manual.pdf"
+    assert "text page" in named["reason"]
+
+
+@requires_pymupdf
+def test_a_cover_like_pdf_is_auto_covered_as_pdf_page1(build_env):
+    root, out, covers, _catalog = build_env
+    make_pdf(root / "Author Folder" / "art.pdf", [{"image": cover_png()}])
+    assert bem.build_manifest() == 0
+    payload = _written(out)
+    (row,) = payload["ebooks"]
+    assert row["cover_source"] == "pdf_page1"
+    assert row["cover_url"].startswith("https://covers.heygabi.ai/ebooks/")
+    assert row["cover_url"].endswith(".jpg")
+    assert len(list(covers.iterdir())) == 1
+    assert payload[bem.NEEDS_HUMAN_COVER_KEY] == []
+
+
+@requires_pymupdf
+def test_a_sibling_audiobook_cover_is_never_overwritten_by_the_render(build_env):
+    """⚠️ 26 of this library's 30 PDFs are covered by their sibling audiobook.
+
+    The auto-cover path must only ever touch the coverless ones.
+    """
+    root, out, covers, catalog = build_env
+    make_pdf(root / "Author Folder" / "Shelf Book.pdf", [{"image": cover_png()}])
+    catalog.write_text(
+        "title,author,cover_href\n" 'Shelf Book,A,"covers/Author Folder/Shelf Book.jpg"\n',
+        encoding="utf-8",
+    )
+    assert bem.build_manifest() == 0
+    (row,) = _written(out)["ebooks"]
+    assert row["cover_source"] == "audiobook"
+    assert not covers.exists()  # nothing rendered, nothing staged
+
+
+@requires_pymupdf
+def test_a_hand_placed_override_outranks_the_rendered_page(build_env, monkeypatch, tmp_path):
+    """The reverse of the EPUB order, and deliberately so.
+
+    An embedded EPUB cover is the publisher's own art; a rendered PDF page is a
+    machine guess, and a person who placed a cover has already overruled it.
+    """
+    root, out, covers, _catalog = build_env
+    make_pdf(root / "Author Folder" / "art.pdf", [{"image": cover_png()}])
+    ov = tmp_path / "ov.json"
+    ov.write_text(
+        json.dumps({"covers": {"Author Folder/art.pdf": {"key": "ebooks/abc123.jpg"}}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(bem, "COVER_OVERRIDES_PATH", ov)
+    assert bem.build_manifest() == 0
+    (row,) = _written(out)["ebooks"]
+    assert row["cover_source"] == "override"
+    assert row["cover_url"] == BASE + "ebooks/abc123.jpg"
+    assert not covers.exists()  # the render was never attempted
+
+
+@requires_pymupdf
+def test_dry_runs_render_nothing(build_env, capsys):
+    root, out, covers, _catalog = build_env
+    make_pdf(root / "Author Folder" / "art.pdf", [{"image": cover_png()}])
+    assert bem.build_manifest(dry=True) == 0
+    assert not out.exists() and not covers.exists()
+
+
+def test_every_published_pdf_resolves_a_cover_or_is_named():
+    """The published manifest's PDF half of the coverage rule.
+
+    A PDF may legitimately have no cover — its first page can be a wall of
+    text, and shipping that as cover art is exactly what the owner's likeness
+    check refuses. What it may NOT be is silently coverless: every coverless
+    PDF has to be named, with a reason, in `needs_human_cover`.
+    """
+    import os
+
+    manifest_path = bem.PROJECT_ROOT / "site" / "ebooks.json"
+    if not manifest_path.exists():
+        pytest.skip(f"{manifest_path} not present in this checkout")
+    if os.environ.get(ALLOW_COVERLESS_ENV) == "1":
+        pytest.skip(f"{ALLOW_COVERLESS_ENV}=1 — EMERGENCY ESCAPE HATCH")
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    pdfs = [e for e in manifest.get("ebooks", []) if (e.get("format") or "").lower() == "pdf"]
+    if not pdfs:
+        pytest.skip("no PDFs in the published manifest")
+    listed = {e.get("path") for e in manifest.get(bem.NEEDS_HUMAN_COVER_KEY, [])}
+    unnamed = [
+        e for e in pdfs if not (e.get("cover_url") or "").strip() and e.get("path") not in listed
+    ]
+    assert not unnamed, (
+        f"{len(unnamed)} of {len(pdfs)} PDF(s) have no cover and are not named in "
+        f"'{bem.NEEDS_HUMAN_COVER_KEY}':\n"
+        + "\n".join(f"  - {e.get('title')}  ({e.get('path')})" for e in unnamed)
+        + "\n\nRe-run `python -m scripts.build_ebook_manifest`: it auto-covers a PDF whose "
+        "page 1 passes the cover-likeness gate and names every one it refuses."
+    )
+
+
+def test_the_pdf_coverage_guard_actually_fires(tmp_path, monkeypatch):
+    """A guard that cannot fail is false confidence — so prove this one fails.
+
+    A coverless PDF that IS named passes; the same PDF unnamed fails, and the
+    message says which book.
+    """
+    scratch = tmp_path / "site"
+    scratch.mkdir()
+    naked = {"format": "pdf", "title": "Unnamed Manual", "path": "A/manual.pdf", "cover_url": None}
+    listed = {"format": "pdf", "title": "Known Gap", "path": "A/known.pdf", "cover_url": None}
+    covered = {"format": "pdf", "title": "Fine", "path": "A/f.pdf", "cover_url": "https://x/1.jpg"}
+
+    def write(rows, needs):
+        (scratch / "ebooks.json").write_text(
+            json.dumps({"ebooks": rows, bem.NEEDS_HUMAN_COVER_KEY: needs}), encoding="utf-8"
+        )
+
+    monkeypatch.setattr(bem, "PROJECT_ROOT", tmp_path)
+    monkeypatch.delenv(ALLOW_COVERLESS_ENV, raising=False)
+
+    # Named -> passes.
+    write([covered, listed], [{"path": "A/known.pdf", "reason": "page 1 is a text page"}])
+    test_every_published_pdf_resolves_a_cover_or_is_named()
+
+    # Unnamed -> fails, NAMING the offender.
+    write([covered, listed, naked], [{"path": "A/known.pdf", "reason": "page 1 is a text page"}])
+    with pytest.raises(AssertionError) as excinfo:
+        test_every_published_pdf_resolves_a_cover_or_is_named()
+    message = str(excinfo.value)
+    assert "Unnamed Manual" in message and "A/manual.pdf" in message
+    assert "1 of 3 PDF(s)" in message
+    assert "Known Gap" not in message  # the named one is not an offender
+
+
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-q"]))
