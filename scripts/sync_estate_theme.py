@@ -229,7 +229,13 @@ def main(argv: List[str] | None = None) -> int:
         dest.parent.mkdir(parents=True, exist_ok=True)
         # Byte writes throughout: no newline translation, so a re-run of this
         # script on Windows cannot silently rewrite every line of every file.
-        if dest.is_file() and dest.read_bytes() == body:
+        #
+        # ⚠️ The skip compares NORMALISED, for the same reason the drift check
+        # does. This machine has core.autocrlf on, so a fresh checkout puts CRLF
+        # on disk while this script produces LF; an exact comparison would
+        # rewrite every one of these files on every run, dirty the tree for no
+        # reason, and trip the deploy's clean-tree guard.
+        if dest.is_file() and _normalise(dest.read_bytes()) == _normalise(body):
             continue
         dest.write_bytes(body)
         print(f"  wrote {rel.as_posix()}")
