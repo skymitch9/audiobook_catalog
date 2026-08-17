@@ -1562,7 +1562,7 @@ function wireAppearance(container){
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
   import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
   import { coverUrl } from './covers-base.js';
-  import { getSession, signInWithGoogle, signOutGoogle, whenAdmin, handleRedirectResult, renderDevSiteLink, getSiteRole } from './identity.js';
+  import { getSession, signInWithGoogle, signOutGoogle, whenAdmin, handleRedirectResult, renderDevSiteLink, getSiteRole, resolveSiteAccess } from './identity.js';
   import { submitReview, getReviews, renderStars, bookIdFromTitle, computeAverageRating, formatDate, deleteReview } from './reviews.js';
   import { addUserWarning, getUserWarnings, deleteUserWarning, requestWarningCheck, getWarningRequest } from './user-warnings.js';
   import { col, FIREBASE_CONFIG } from './fb-env.js';
@@ -1588,6 +1588,20 @@ function wireAppearance(container){
   if (db && app) {
     getSiteRole(db, app).then((r) => { _siteRole = r; }).catch(() => {});
   }
+
+  // The MODERATOR+ answer, for the content-note sweep (the 2026-08-17 delete
+  // split). Same source club-read.html uses — the worker-verified /api/me
+  // capability list via resolveSiteAccess, 'operateClub' being the capability
+  // the gate for warning.modDelete is written against (catalog-platform
+  // ACTION_GATES). resolveSiteAccess memoises per page load and whenAdmin()
+  // already calls it, so this costs no extra request. Presentation only:
+  // firestore.rules enforces the same thing.
+  let _siteAccess = null;
+  if (db && app) {
+    resolveSiteAccess(db, app).then((a) => { _siteAccess = a; }).catch(() => {});
+  }
+  const canModerateWarnings = () =>
+    !!_siteAccess && _siteAccess.capabilities.includes('operateClub');
 
   // Collect a redirect sign-in on the way back from Google.
   //
@@ -2149,13 +2163,24 @@ function wireAppearance(container){
       em.style.cssText = 'color:var(--muted,#888);font-size:.85em;';
       em.textContent = '— added by ' + w.displayName;
       li.appendChild(em);
-      if (session && (w.displayName || '').toLowerCase() === session.displayName.toLowerCase()) {
+      // Delete affordance (the 2026-08-17 split): your own note always, and
+      // ANYONE's note for a site moderator+ — the same rules-enforced answer
+      // firestore.rules checks, so what is offered and what is allowed agree.
+      // Someone else's note gets a confirm; your own keeps its one-click ✕.
+      const isOwn = !!session
+        && (w.displayName || '').toLowerCase() === session.displayName.toLowerCase();
+      const asMod = !isOwn && canModerateWarnings();
+      if (isOwn || asMod) {
         const del = document.createElement('button');
         del.textContent = '✕';
-        del.title = 'Remove your warning';
+        del.title = isOwn ? 'Remove your warning' : 'Remove this note (site moderator)';
         del.style.cssText = 'background:none;border:none;color:var(--neon-magenta,#c00);cursor:pointer;padding:0 4px;';
         del.addEventListener('click', async () => {
-          await deleteUserWarning(db, w, session);
+          if (asMod && !confirm(`Remove "${w.label}" added by ${w.displayName}?`)) return;
+          const r = await deleteUserWarning(db, w, session, { canModerate: canModerateWarnings() });
+          // Was silently discarded before: a refused delete looked like a dead
+          // button (estate rule — nobody sees a bare status, or nothing at all).
+          if (!r.success) { alert(r.error); return; }
           renderUserWarnings(bookTitle);
         });
         li.appendChild(del);

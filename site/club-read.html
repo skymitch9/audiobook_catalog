@@ -580,6 +580,21 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
   const isMod = () => ['host', 'moderator'].includes(myRole()) || siteCan('manageClub');
   // The operational gate — mirrors canOperateClub in clubs.js/firestore.rules.
   const canOperate = () => isMod() || siteCan('operateClub');
+  // Reader content-note removal (the 2026-08-17 delete split): your own note
+  // always, anyone's note for a site moderator+ — 'operateClub' is exactly the
+  // capability firestore.rules' canDeleteUserWarning() and the worker's
+  // warning.modDelete gate are written against. Club host/mod does NOT count
+  // here: content notes are site-wide, not club-scoped, so this asks
+  // siteCan('operateClub') rather than canOperate().
+  const canModerateWarnings = () => siteCan('operateClub');
+  const cwDelBtn = (w) => {
+    const isOwn = !!session
+      && (w.displayName || '').toLowerCase() === session.displayName.toLowerCase();
+    const asMod = !isOwn && canModerateWarnings();
+    if (!isOwn && !asMod) return '';
+    const title = isOwn ? 'Remove your warning' : 'Remove this note (site moderator)';
+    return ` <button class="cw-del" data-cw-del="${escapeHtml(w.id)}"${asMod ? ' data-cw-mod="1"' : ''} title="${title}">✕</button>`;
+  };
   const myProgress = () => {
     const p = progressAll.find(p => p.slug === mySlug);
     return p ? p.milestonePosition : -1;
@@ -1032,7 +1047,7 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
           <summary>\u26a0 Content notes (${(bookWarnings || []).length + userWarnings.length})</summary>
           <ul>${(bookWarnings || []).map(w =>
             `<li>${escapeHtml(w.label)} <a href="${escapeHtml(w.source_url)}" target="_blank" rel="noopener">source</a></li>`).join('')}${userWarnings.map(w =>
-            `<li>${escapeHtml(w.label)} <span class="cw-by">— added by ${escapeHtml(w.displayName)}</span>${session && (w.displayName || '').toLowerCase() === session.displayName.toLowerCase() ? ` <button class="cw-del" data-cw-del="${escapeHtml(w.id)}" title="Remove your warning">✕</button>` : ''}</li>`).join('')}</ul>
+            `<li>${escapeHtml(w.label)} <span class="cw-by">— added by ${escapeHtml(w.displayName)}</span>${cwDelBtn(w)}</li>`).join('')}</ul>
           ${session && !isArchived() ? '<button id="cw-add" class="cw-add-btn">+ Add a warning</button>' : ''}
         </details>` : ''}
       ${isArchived() ? `
@@ -1327,7 +1342,11 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
       btn.addEventListener('click', async () => {
         const w = userWarnings.find(x => x.id === btn.dataset.cwDel);
         if (!w) return;
-        const r = await deleteUserWarning(db, w, session);
+        // Someone else's note (the moderator sweep) confirms first; your own
+        // keeps its one-click ✕.
+        if (btn.dataset.cwMod === '1'
+            && !confirm(`Remove "${w.label}" added by ${w.displayName}?`)) return;
+        const r = await deleteUserWarning(db, w, session, { canModerate: canModerateWarnings() });
         if (r.success) reload(); else showError(r.error);
       }));
 

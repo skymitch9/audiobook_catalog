@@ -34,8 +34,14 @@ rules_version = '2';
 // a separate deliberate deploy — see docs/TODO.md.
 //
 // Deletes that a normal member action performs (members, club content,
-// reading lists, user warnings, cw_requests) stay open because no rule can
-// bind a display name to a person. Accepted, documented residual risk.
+// reading lists, cw_requests) stay open because no rule can bind a display
+// name to a person. Accepted, documented residual risk.
+//
+// ⚠️ ONE EXCEPTION, 2026-08-17 (owner-approved): user_content_warnings
+// delete is no longer open. It is author-or-moderator, bound by an
+// `authorUid` field the client now stamps at write time — see
+// canDeleteUserWarning() below for the whole story, including what it
+// deliberately does NOT protect.
 //
 // Audited end to end 2026-08-10; club/uid layer added 2026-08-14 against
 // every writer in site/*.js, site/*.html, app/*.py and app/tools/*.py.
@@ -409,6 +415,59 @@ service cloud.firestore {
              && request.resource.data.displayName is string;
     }
 
+    // ---- Reader content-warning deletes (the 2026-08-17 split) ----
+    //
+    // Was `allow delete: if true`: ANY visitor could remove ANY reader's
+    // content note. Un-offered by the UI, never enforced. Owner-approved
+    // tightening: the AUTHOR or a site moderator+, split in the shadow
+    // vocabulary as warning.selfDelete (member floor) and warning.modDelete
+    // (moderator floor) — catalog-platform ACTION_GATES.
+    //
+    // ⚠️ THE BINDING IS A NEW FIELD, NOT AN EXISTING IDIOM. There is no
+    // "author check" anywhere else in this file to copy: /reviews delete is
+    // site-ADMIN-only precisely because a displayName-keyed doc proves
+    // nothing (see the file header and the /reviews comment). So the client
+    // (site/user-warnings.js) now stamps `authorUid` — the live Firebase uid
+    // from identity.js getLiveUser() — beside displayName, and THAT is what
+    // this compares. Deliberately NOT request.auth.token.name: Google lets
+    // anyone set their display name to any string, so a name match would be
+    // a spoofable gate dressed as a real one (the exact trap the 2026-08-16
+    // isAdmin() rewrite removed).
+    //
+    // ⚠️ WHAT THIS DOES NOT PROTECT, on purpose:
+    //   - Docs with NO authorUid (anything written before the client half
+    //     promotes to prod, or by a legacy/mirror-only session) are
+    //     moderator-deletable ONLY — their own author cannot remove them.
+    //     Measured 2026-08-17 before deploying: BOTH lanes were EMPTY
+    //     (0 docs, prod and _dev), so this stranded nothing. Re-adding the
+    //     same note stamps authorUid and makes it self-deletable again.
+    //   - Such an unstamped doc can still be CLAIMED (update authorUid to
+    //     your own uid, then delete), because create/update stay shape-only
+    //     by design. That is no worse than the `if true` it replaces, and
+    //     warningAuthorUidStable() below stops it once a doc IS stamped.
+    function warningAuthorIsRequester() {
+      return request.auth != null
+             && 'authorUid' in resource.data
+             && resource.data.authorUid == request.auth.uid;
+    }
+
+    // Cheap check first: the author path costs no document reads, the role
+    // path costs an exists()+get() on site_roles.
+    function canDeleteUserWarning() {
+      return warningAuthorIsRequester() || isSiteModerator() || isSiteAdmin();
+    }
+
+    // UPDATE only (resource is guaranteed to exist): a doc that already
+    // carries an authorUid must keep exactly that one. Without this, the
+    // open shape-only update would be a one-PATCH bypass of the delete rule
+    // above — set authorUid to your own uid, then delete anyone's note.
+    // Re-adding your own note (setDoc, same composite id) passes: same uid.
+    function warningAuthorUidStable() {
+      return !('authorUid' in resource.data)
+             || (('authorUid' in request.resource.data)
+                 && request.resource.data.authorUid == resource.data.authorUid);
+    }
+
     // ---- Prod collections ----
 
     match /leaderboard/{docId} {
@@ -475,10 +534,13 @@ service cloud.firestore {
       allow delete: if isSiteAdmin();
     }
 
+    // Create/read unchanged (open by design, like reviews). Delete was
+    // `if true` until 2026-08-17 — see canDeleteUserWarning() above.
     match /user_content_warnings/{docId} {
       allow read: if true;
-      allow write: if validUserWarning();
-      allow delete: if true;
+      allow create: if validUserWarning();
+      allow update: if validUserWarning() && warningAuthorUidStable();
+      allow delete: if canDeleteUserWarning();
     }
 
     // ⚠️ `allow delete: if true` is LOAD-BEARING and must stay.
@@ -684,8 +746,9 @@ service cloud.firestore {
 
     match /user_content_warnings_dev/{docId} {
       allow read: if true;
-      allow write: if validUserWarning();
-      allow delete: if true;
+      allow create: if validUserWarning();                                // mirrors
+      allow update: if validUserWarning() && warningAuthorUidStable();    // /user_content_warnings
+      allow delete: if canDeleteUserWarning();                            // keep in step
     }
 
     // delete stays open — fetch_content_warnings.py clears this lane too.
