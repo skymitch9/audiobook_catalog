@@ -174,7 +174,13 @@ def _copy_static_to_site(site_dir: Path) -> None:
 #:   - ebooks.html: display-only ebook shelf; renders site/ebooks.json
 #:     client-side (ebook-split design phase 1), so the pipeline's manifest
 #:     refresh updates it with no HTML rebuild
-STATIC_TEMPLATE_PAGES = ("guess-game.html", "ebooks.html")
+#:   - read.html: the in-browser reader (viewer phase 1b). ⚠️ Its LOGIC is in
+#:     site/reader.js, not in the page — /read's CSP is `script-src 'self'`
+#:     with no 'unsafe-inline', so an inline <script> would be blocked in
+#:     production and nowhere else. reader.js is a hand-written committed file
+#:     in site/, like identity.js and ebook-notes.js; only the PAGE is a
+#:     template. tests/test_reader_page.py pins that this tuple lists it.
+STATIC_TEMPLATE_PAGES = ("guess-game.html", "ebooks.html", "read.html")
 
 
 def _copy_template_pages_to_site(site_dir: Path) -> None:

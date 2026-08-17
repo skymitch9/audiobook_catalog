@@ -63,3 +63,72 @@
 
 /static/img/*
   Cache-Control: public, max-age=604800
+
+# ---------------------------------------------------------------------------
+# THE READER'S CSP — viewer phase 1b, 2026-08-17
+# ---------------------------------------------------------------------------
+# /read is the FIRST page on this origin that wants a Content-Security-Policy,
+# and the reason is specific: it handles a large binary from a CREDENTIALED
+# endpoint, holding a Firebase ID token, and hands it to a vendored renderer.
+# Nothing else here has that shape. The rest of the site still ships no CSP;
+# widening that is a separate decision, not a side effect of this one.
+#
+# ⚠️ BOTH LANES AND BOTH PATH FORMS ARE LISTED, and each line earns its place:
+#   * `/dev/read` — the dev lane is a PATH, not a host, so a `/read` rule does
+#     NOT cover it. Reviewing on the dev lane with no CSP would mean the
+#     header's first real exercise is in production.
+#   * `/read/` — the trailing-slash 308 trap. Cloudflare redirects, and a rule
+#     matching only the canonical form leaves the redirected request bare.
+# Cloudflare's `*` is a path splat, not a glob (see the note above), so these
+# have to be spelled out rather than written as one pattern.
+#
+# ⚠️ WHAT EACH DIRECTIVE IS FOR — do not trim one without reading its reason:
+#   script-src   'self' plus gstatic/apis.google.com for the Firebase SDK,
+#                exactly the estate's posture. ⚠️ NO 'unsafe-inline': this is
+#                why site/reader.js is an external module and must stay one.
+#                ⚠️ NO 'unsafe-eval' either — pdf.js is given
+#                `isEvalSupported: false` so it never asks. Turning the flag
+#                off beats widening the header.
+#   connect-src  the gated Worker (the manifest AND every range request) plus
+#                Google's token endpoints. ⚠️ If this is wrong the fetch dies
+#                as an OPAQUE network error, indistinguishable from the Worker
+#                being down — the exact misdiagnosis the estate already ate
+#                once when a CSP silently blocked a subdomain.
+#   worker-src   pdf.js runs its parser on a real Worker thread, self-hosted.
+#                blob: is kept because pdf.js falls back to a blob worker when
+#                a direct module worker is refused.
+#   img-src      blob: and data: are how a renderer materialises extracted
+#                images. ⚠️ Omitting blob: gives a reader that loads,
+#                paginates and shows NO pictures — a failure that looks like a
+#                data problem. The R2 covers host is named for the shelf's art.
+#   frame-src /
+#   child-src    blob:, for viewer phase 2 — an EPUB renderer draws into an
+#                iframe it creates. Present now so the EPUB build does not
+#                have to touch this file and re-verify it.
+#   base-uri /
+#   form-action /
+#   frame-ancestors  'none' everywhere: this page submits nothing, has no base
+#                tag, and must never be framed by anything.
+/read
+  Content-Security-Policy: default-src 'none'; script-src 'self' https://www.gstatic.com https://apis.google.com; connect-src https://audiobook-api.heygabi.ai https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://www.googleapis.com; img-src 'self' data: blob: https://covers.heygabi.ai; style-src 'self' 'unsafe-inline'; font-src 'self' data:; worker-src 'self' blob:; frame-src 'self' blob: https://audiobook-catalog.firebaseapp.com; child-src 'self' blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+
+/read/
+  Content-Security-Policy: default-src 'none'; script-src 'self' https://www.gstatic.com https://apis.google.com; connect-src https://audiobook-api.heygabi.ai https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://www.googleapis.com; img-src 'self' data: blob: https://covers.heygabi.ai; style-src 'self' 'unsafe-inline'; font-src 'self' data:; worker-src 'self' blob:; frame-src 'self' blob: https://audiobook-catalog.firebaseapp.com; child-src 'self' blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+
+/dev/read
+  Content-Security-Policy: default-src 'none'; script-src 'self' https://www.gstatic.com https://apis.google.com; connect-src https://audiobook-api.heygabi.ai https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://www.googleapis.com; img-src 'self' data: blob: https://covers.heygabi.ai; style-src 'self' 'unsafe-inline'; font-src 'self' data:; worker-src 'self' blob:; frame-src 'self' blob: https://audiobook-catalog.firebaseapp.com; child-src 'self' blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+
+/dev/read/
+  Content-Security-Policy: default-src 'none'; script-src 'self' https://www.gstatic.com https://apis.google.com; connect-src https://audiobook-api.heygabi.ai https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://www.googleapis.com; img-src 'self' data: blob: https://covers.heygabi.ai; style-src 'self' 'unsafe-inline'; font-src 'self' data:; worker-src 'self' blob:; frame-src 'self' blob: https://audiobook-catalog.firebaseapp.com; child-src 'self' blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+
+# The vendored pdf.js is version-pinned by PATH (site/static/pdfjs/) and its
+# bytes never change in place, so the /* no-cache default above is pure cost
+# for 3.6 MB of renderer on every page load. Long cache, like the covers.
+# ⚠️ NOT `immutable`: the path does NOT change when the version does (the
+# update procedure overwrites in place — see VENDORED.md), so a lie here would
+# strand a browser on an old renderer with no way to correct it.
+/static/pdfjs/*
+  Cache-Control: public, max-age=604800
+
+/dev/static/pdfjs/*
+  Cache-Control: public, max-age=604800

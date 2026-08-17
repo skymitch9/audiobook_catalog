@@ -46,11 +46,18 @@
   (ROLES.md §1e): signed out / signed in but not approved / approved but
   without the ebook grant. None of them renders a single book.
 
-  DISPLAY-ONLY, still: this page offers no downloads. `can_download` rides the
-  gated answer (the estate's per-person grant, admin+ by default) so a future
-  reader knows what to draw, but the FILES are not reachable from here at all
-  — file access belongs to the reader's own server-side gate, never a hidden
-  button.
+  NO DOWNLOADS FROM HERE, still — and since 2026-08-17 there IS a Read button
+  on PDF cards, which is not the same thing. It is a LINK to /read, a separate
+  page that does its own sign-in and its own gated range requests; no file is
+  reachable from this page. `can_download` rides the gated answer (the LADDER's
+  `download`, admin+) for a future download affordance and is deliberately NOT
+  consulted by the Read button: reading is the estate's `vis_ebooks` grant that
+  opened this shelf, and gating Read on `download` would show every member a
+  shelf none of them could read.
+
+  ⚠️ EPUB cards get no Read button on purpose (viewer phase 2 adds it), because
+  the reader answers an honest "not yet" for that format and a button that
+  opens onto a refusal is a dead affordance.
 
   PDFs ARE HIDDEN BY DEFAULT (owner, 2026-08-17). They are game handbooks and
   household documents rather than books, and they are the one format with
@@ -416,6 +423,14 @@ h1 .tail{color:var(--accent)}
   .eb-card-info{width:100%}
 }
 
+/* The READ action on a reading card (viewer phase 1b, 2026-08-17). PDFs only
+   for now — see the openCard() comment for why an EPUB card has no button. */
+.eb-read{display:inline-block;margin-top:14px;padding:9px 18px;border-radius:9px;
+  background:var(--accent);color:var(--card);font-family:var(--sans);
+  font-weight:600;font-size:.9em;text-decoration:none}
+.eb-read:hover{background:var(--accent-deep);color:var(--card)}
+.eb-read-note{display:block;margin-top:8px;font-family:var(--sans);
+  font-size:.78em;color:var(--ink-faint);line-height:1.5}
 .loading{text-align:center;padding:40px;color:var(--ink-faint);font-style:italic}
 /* The permission gate (2026-08-17). It is a designed state, not an error
    state: a signed-out visitor should meet a closed shelf that looks made,
@@ -807,10 +822,36 @@ h1 .tail{color:var(--accent)}
       '</div>';
     cardMediaEl.innerHTML = coverHtml(b);
     wireImageFallback(cardMediaEl);
+    // READ — viewer phase 1b, 2026-08-17. A link, not a fetch: the reader page
+    // does its own sign-in and its own gated request, and the FILE is not
+    // reachable from this page at all.
+    //
+    // ⚠️ PDFs ONLY, and the absence on EPUB cards is deliberate rather than
+    // unfinished: the reader opens PDFs today and answers an honest "not yet"
+    // for EPUB (viewer phase 2). Offering a button that opens onto that
+    // sentence would be a dead affordance, which is exactly what ROLES.md §1e
+    // forbids — better no control than one that refuses.
+    //
+    // ⚠️ AND IT IS NOT A PERMISSION CONTROL. `can_download` is NOT consulted
+    // here and must not be: reading is the estate's `vis_ebooks` grant, which
+    // this reader already holds by virtue of seeing the shelf, while
+    // `download` (admin+) governs taking a file away. Hiding Read behind
+    // `can_download` would show the shelf to members and let none of them read.
+    // The real gate is server-side on every request; this is a link.
+    //
+    // Relative on purpose: `/ebooks` -> `/read`, `/dev/ebooks` -> `/dev/read`,
+    // and `ebooks.heygabi.ai/` -> `ebooks.heygabi.ai/read`. Extensionless and
+    // with no trailing slash — both forms break, for two different reasons the
+    // read.html header spells out.
+    var read = String(b.format || '').toLowerCase() === 'pdf' && b.anchor
+      ? '<a class="eb-read" href="read?b=' + encodeURIComponent(b.anchor) + '">Read &#x2192;</a>'
+      : (String(b.format || '').toLowerCase() === 'epub'
+          ? '<span class="eb-read-note">Reading EPUBs in the browser is not switched on yet — PDFs are.</span>'
+          : '');
     cardInfoEl.innerHTML =
       '<h2 id="eb-card-title">' + esc(b.title) + '</h2>' +
       (b.author ? '<div class="eb-card-author">' + esc(b.author) + '</div>' : '') +
-      meta + provisional + audio;
+      meta + provisional + audio + read;
 
     // Content notes: the slot is always drawn, the filling is the module's.
     // Wrapped so a throwing hook loses the notes and not the open card.

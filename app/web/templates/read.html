@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<!--
+  THE READER — viewer phase 1b, 2026-08-17. One book at a time, in the browser,
+  behind the same gate as the shelf.
+
+  ⚠️ THIS FILE IS A TEMPLATE. It lives in app/web/templates/ and is copied
+  VERBATIM to site/read.html by app/writers.py (STATIC_TEMPLATE_PAGES, the same
+  convention ebooks.html and guess-game.html already use). Edit it HERE — an
+  edit to site/read.html is wiped by the next catalog build.
+
+  ⚠️ THE LOGIC IS NOT IN THIS FILE, and that is not tidiness. site/reader.js is
+  an external module because /read's Content-Security-Policy (site/_headers) is
+  `script-src 'self'` plus gstatic, with NO 'unsafe-inline' — this page handles
+  a large binary from a credentialed endpoint and is the first page on this
+  origin that wants a CSP at all. An inline <script> here would be blocked in
+  production and nowhere else, which is the worst kind of bug to find.
+
+  WHERE IT LIVES, and the trailing-slash trap. The canonical URL is
+  ebooks.heygabi.ai/read?b=<anchor> — EXTENSIONLESS and with NO trailing slash.
+  Both halves are load-bearing:
+    * Cloudflare Pages 308s /read.html to /read, and ebooks-door passes
+      responses through VERBATIM, so a .html link escapes the redirect onto the
+      audiobook host and bounces the reader off ebooks.heygabi.ai entirely.
+      That exact bug was measured on /ebooks.html on 2026-08-17.
+    * /read/ (with the slash) would re-base every relative URL on this page —
+      reader.js, fb-env.js, identity.js, the vendored pdf.js — onto /read/,
+      where none of them exist.
+  The dev lane is a PATH, not a host: /dev/read?b=<anchor> on
+  audiobooks.heygabi.ai. Every asset reference here is RELATIVE for exactly
+  that reason, so the dev lane loads the dev copies.
+
+  ⚠️ ebooks-door needs no change. It proxies every non-/ path verbatim, so
+  /read arrives on ebooks.heygabi.ai the moment the page exists on PROD — and
+  not before. Until this is promoted it is reviewable only on the dev lane.
+
+  THE GATE IS SERVER-SIDE AND IS NOT HERE. This page decides nothing: the
+  Worker (GET /api/ebooks/manifest and GET /api/ebook/:anchor/file) verifies a
+  Firebase ID token and requires the estate's `vis_ebooks` grant on EVERY
+  request, including every range. A person who deletes the gate markup with
+  devtools gets a 401, not a book.
+
+  ⚠️ READING IS `vis_ebooks`, NOT `download`. The ladder's `download`
+  capability floors at `admin` and governs taking a file away — a surface that
+  does not exist yet. Nothing on this page consults it, and nothing should:
+  gating the reader on it would lock every ordinary member out of the books
+  they were granted.
+
+  PDFs ONLY, for now, and it SAYS SO. An EPUB anchor gets an honest sentence
+  rather than a spinner that never ends. See reader.js's EPUB_SEAM comment for
+  what viewer phase 2 replaces.
+
+  theme.js is kept, and only theme.js: the shared account modal exposes an
+  Appearance section that drives window.estateTheme, and without the script
+  those controls would be silently dead. Like the shelf, this page has one
+  theme — its own — and honours the resolved data-mode stamp for light/dark
+  with a prefers-color-scheme fallback so the palette is right even if scripts
+  never run.
+-->
+<script src="static/js/theme.js"></script>
+<title>Read — The Household Shelf</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%239d4a1c'/%3E%3Cpath d='M32 18c-4.5-3.4-10.5-4.6-17-4.6v32c6.5 0 12.5 1.2 17 4.6 4.5-3.4 10.5-4.6 17-4.6v-32c-6.5 0-12.5 1.2-17 4.6z' fill='%23f6f1e6'/%3E%3Cpath d='M32 18v32' stroke='%239d4a1c' stroke-width='2.5' fill='none'/%3E%3C/svg%3E">
+<style>
+/* The shelf's paper-and-ink palette, carried over so the reader is plainly the
+   same place. Both schemes are complete: light on :root, dark applied twice —
+   once for theme.js's resolved data-mode stamp, once as a prefers-color-scheme
+   fallback for a scriptless load. No colour lives in only one scheme.
+   The --bg/--text/--border/--muted/--neon-* names are ALIASES the shared
+   account-modal.js reads, pointed at this page's own inks. */
+:root{
+  --paper:#f6f1e6; --card:#fdfaf2; --ink:#2c2418; --ink-faint:#8a7d66;
+  --rule:#ddd2ba; --accent:#9d4a1c; --accent-deep:#7d3a14; --caution:#8f2f2b;
+  --stage:#e8e0cf;        /* the desk the page sits on */
+  --bg:var(--paper); --bg-2:var(--card); --text:var(--ink);
+  --border:var(--rule); --muted:var(--ink-faint);
+  --neon-cyan:var(--accent); --neon-yellow:var(--ink); --neon-magenta:var(--caution);
+  --et-bg:var(--paper); --et-glow:none; --et-title-case:none;
+  --et-font-mono:ui-monospace,Consolas,'Courier New',monospace;
+  --serif:Georgia,'Iowan Old Style','Palatino Linotype','Book Antiqua',serif;
+  --sans:system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:ui-monospace,Consolas,'Courier New',monospace;
+}
+html[data-mode="dark"]{
+  --paper:#201b13; --card:#2a241a; --ink:#eae1cf; --ink-faint:#a3957c;
+  --rule:#453c2c; --accent:#d68f57; --accent-deep:#e5a878; --caution:#d07a6c;
+  --stage:#171309;
+}
+@media (prefers-color-scheme: dark){
+  html:not([data-mode="light"]){
+    --paper:#201b13; --card:#2a241a; --ink:#eae1cf; --ink-faint:#a3957c;
+    --rule:#453c2c; --accent:#d68f57; --accent-deep:#e5a878; --caution:#d07a6c;
+    --stage:#171309;
+  }
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0; padding:20px 16px; min-height:100vh;
+  background:var(--paper); color:var(--ink);
+  font-family:var(--serif); line-height:1.5;
+}
+#wrap{max-width:1100px;margin:0 auto}
+
+.masthead{display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap;
+  padding-bottom:12px;border-bottom:3px double var(--rule);margin-bottom:16px}
+.masthead-id{flex:1;min-width:220px}
+.eyebrow{font-family:var(--sans);font-size:.72em;letter-spacing:.22em;
+  text-transform:uppercase;color:var(--ink-faint);text-decoration:none}
+.eyebrow:hover{color:var(--accent)}
+h1{margin:2px 0 0;font-family:var(--serif);font-weight:700;font-size:2.1em;
+  letter-spacing:-.01em;line-height:1.1}
+h1 .tail{color:var(--accent)}
+#identity-bar{margin-left:auto;font-family:var(--sans)}
+#identity-bar #account-btn{border-radius:8px}
+
+/* The gate / every closed state. A designed state, not an error state: a
+   signed-out visitor should meet a closed door that looks made. */
+#rd-gate{max-width:520px;margin:48px auto;padding:28px 26px;background:var(--card);
+  border:1px solid var(--rule);border-radius:14px;text-align:center;
+  box-shadow:0 1px 0 var(--rule)}
+#rd-gate h2{margin:0 0 10px;font-family:var(--serif);font-size:1.35rem;font-weight:600}
+#rd-gate p{margin:0 0 18px;color:var(--ink-faint);line-height:1.55;font-size:.95rem}
+.rd-act{display:inline-block;padding:10px 20px;border:0;border-radius:9px;
+  background:var(--accent);color:var(--card);font:inherit;font-weight:600;
+  cursor:pointer;text-decoration:none}
+.rd-act:hover{background:var(--accent-deep)}
+.rd-act.quiet{background:transparent;color:var(--accent);
+  border:1px solid var(--rule);margin-left:8px}
+.rd-act.quiet:hover{background:transparent;border-color:var(--accent)}
+.rd-act[hidden]{display:none}
+
+/* The reader shell */
+#rd-shell[hidden]{display:none}
+.rd-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;
+  font-family:var(--sans);font-size:.9rem;margin-bottom:10px}
+#rd-title{flex:1;min-width:180px;font-family:var(--serif);font-size:1.05rem;
+  font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rd-bar button{padding:6px 11px;border:1px solid var(--rule);border-radius:8px;
+  background:var(--card);color:var(--ink);font:inherit;cursor:pointer}
+.rd-bar button:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.rd-bar button:disabled{opacity:.4;cursor:default}
+.rd-pager{display:flex;gap:6px;align-items:center;color:var(--ink-faint)}
+#rd-page-now{width:4.5em;padding:6px 8px;border:1px solid var(--rule);
+  border-radius:8px;background:var(--card);color:var(--ink);
+  font:inherit;font-family:var(--mono);text-align:right}
+#rd-page-total{font-family:var(--mono);color:var(--ink-faint)}
+.rd-back{font-family:var(--sans);font-size:.85rem;color:var(--accent);
+  text-decoration:none;border-bottom:1px solid var(--rule)}
+.rd-back:hover{border-bottom-color:var(--accent)}
+
+#rd-stage{position:relative;background:var(--stage);border:1px solid var(--rule);
+  border-radius:12px;padding:14px;min-height:60vh;display:flex;
+  align-items:flex-start;justify-content:center;overflow:auto}
+/* ⚠️ The canvas is painted white by reader.js before every render. A PDF page
+   is transparent where it has no content, and an unpainted canvas is BLACK in
+   a dark-mode browser — which reads as "the book failed to load". */
+#rd-canvas{max-width:100%;height:auto;box-shadow:0 2px 14px rgba(0,0,0,.28);
+  background:#fff;border-radius:2px}
+#rd-busy{position:absolute;inset:0;display:flex;align-items:center;
+  justify-content:center;font-family:var(--sans);font-size:.9rem;
+  color:var(--ink-faint);background:color-mix(in srgb,var(--stage) 72%,transparent);
+  border-radius:12px}
+#rd-busy[hidden]{display:none}
+
+.rd-footer{margin-top:18px;padding-top:12px;border-top:3px double var(--rule);
+  color:var(--ink-faint);font-size:.82em;line-height:1.55}
+.rd-footer a{color:var(--accent);text-decoration:none;border-bottom:1px solid var(--rule)}
+
+@media(max-width:600px){
+  body{padding:14px 8px}
+  h1{font-size:1.7em}
+  #rd-stage{padding:8px;border-radius:9px}
+}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div class="masthead">
+    <div class="masthead-id">
+      <a class="eyebrow" href="https://heygabi.ai">heygabi.ai</a>
+      <h1>Read<span class="tail">.</span></h1>
+    </div>
+    <div id="identity-bar"></div>
+  </div>
+
+  <!-- Ships VISIBLE with a neutral "checking" line, because Firebase reads its
+       persisted session asynchronously: a page that renders "signed out"
+       immediately shows a signed-in reader a flash of the sign-in button (the
+       bug admin.js found live on 2026-08-14). Nothing decisive renders until
+       the auth state resolves, or the 8s backstop fires for a blocked
+       gstatic. -->
+  <div id="rd-gate">
+    <h2 id="rd-gate-title">Opening the book</h2>
+    <p id="rd-gate-why">Checking your sign-in…</p>
+    <button type="button" class="rd-act" id="rd-gate-signin" hidden>Sign in with Google</button>
+    <a class="rd-act quiet" id="rd-gate-back" href="ebooks" hidden>Back to the shelf</a>
+  </div>
+
+  <div id="rd-shell" hidden>
+    <div class="rd-bar">
+      <a class="rd-back" href="ebooks">&#x2190; Shelf</a>
+      <span id="rd-title"></span>
+      <button type="button" id="rd-zoom-out" aria-label="Zoom out">&#x2212;</button>
+      <button type="button" id="rd-zoom-in" aria-label="Zoom in">+</button>
+      <div class="rd-pager">
+        <button type="button" id="rd-prev" aria-label="Previous page">&#x2190;</button>
+        <input id="rd-page-now" type="number" min="1" step="1" value="1" aria-label="Page number" />
+        <span>/ <span id="rd-page-total">?</span></span>
+        <button type="button" id="rd-next" aria-label="Next page">&#x2192;</button>
+      </div>
+    </div>
+
+    <div id="rd-stage">
+      <canvas id="rd-canvas" width="1" height="1"></canvas>
+      <div id="rd-busy" hidden>Fetching the page…</div>
+    </div>
+  </div>
+
+  <div class="rd-footer">
+    <div>
+      One book at a time, streamed straight from the household library — nothing
+      is downloaded to this device. Back to the <a href="ebooks">shelf</a>, or to
+      <a href="https://audiobooks.heygabi.ai">audiobooks &#x2192;</a>.
+    </div>
+  </div>
+</div>
+
+<script type="module" src="reader.js"></script>
+</body>
+</html>

@@ -118,6 +118,17 @@ __pycache__/
 # Distribution / packaging
 .Python
 build/
+# ⚠️ EXCEPT the vendored pdf.js renderer, whose upstream layout happens to use
+# the name `build/` (viewer phase 1b, 2026-08-17). The Python `build/` rule
+# above matched `site/static/pdfjs/build/` and SILENTLY dropped both renderer
+# files from a `git add site/static/pdfjs` — caught only because the commit was
+# checked file-by-file. Shipping that would have deployed a reader page whose
+# renderer 404s, i.e. a book that never opens, with nothing in any test or
+# build log to say why. tests/test_reader_page.py now asserts these are TRACKED
+# IN GIT rather than merely present on disk, which is the check that would have
+# caught it on its own.
+!site/static/pdfjs/build/
+!site/static/pdfjs/build/*.js
 develop-eggs/
 dist/
 downloads/
