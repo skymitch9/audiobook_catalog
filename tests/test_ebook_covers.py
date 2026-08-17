@@ -40,11 +40,15 @@ BASE = "https://covers.heygabi.ai/"
 
 
 def folder_index(*rows):
-    """rows: (folder, catalog_title, href_filename)."""
+    """rows: (folder, catalog_title, href_filename).
+
+    The third element of each stored tuple is the catalog's RAW title — the
+    identity half of the join (see tests/test_ebook_warning_keys.py).
+    """
     by_folder = {}
     for folder, title, fname in rows:
         by_folder.setdefault(folder, []).append(
-            (bem._norm_title(title), f"covers/{folder}/{fname}")
+            (bem._norm_title(title), f"covers/{folder}/{fname}", title)
         )
     return by_folder
 
@@ -138,7 +142,7 @@ def test_load_catalog_covers_groups_by_folder(tmp_path):
     )
     idx = bem.load_catalog_covers(p)
     assert set(idx) == {"Folder A", "Folder B"}
-    assert idx["Folder A"] == [("book one", "covers/Folder A/Book One.jpg")]
+    assert idx["Folder A"] == [("book one", "covers/Folder A/Book One.jpg", "Book One")]
 
 
 def test_load_catalog_covers_missing_file_is_empty(tmp_path):

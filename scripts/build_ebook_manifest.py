@@ -32,6 +32,7 @@ says `Oathbound Healer`. That is the whole argument for this file.
       "author": "Brandon Sanderson",
       "source": "opf",
       "beside_audiobook": "Brandon Sanderson",
+      "audiobook_title": "Dragonsteel Prime - A Cosmere Novel",
       "size_bytes": 812345,
       "modified": "2026-01-14T09:12:03Z",
       "cover_url": "https://covers.heygabi.ai/Brandon Sanderson/….jpg",
@@ -101,6 +102,26 @@ author were read out of the file itself and are trustworthy. `filename` means
 they were parsed from the name because the file carries no usable metadata —
 a PDF, or an EPUB with an empty `dc:title`. A consumer should treat `filename`
 rows as provisional and let a person confirm them.
+
+## `audiobook_title` — what the AUDIOBOOK catalog calls this book (2026-08-17)
+
+⚠️ Emitted per row, `null` when this ebook has no resolvable audiobook
+sibling. It exists for the gated shelf's **content notes**, which read and
+write the estate-wide `user_content_warnings` store — a store keyed by
+`bookIdFromTitle(title)` where *title* is the audiobook catalog's spelling.
+
+The ebook's own title comes from epub metadata and is a THIRD spelling of the
+same book (`library_catalog/docs/info/content-warnings.md` §2 measured 27 of
+92 shared books producing a different key from the library's own title). Key a
+note on it and the note is filed where nobody looks **and** finds none of the
+notes written elsewhere — both halves fail silently and both look exactly like
+"nobody has added a warning yet". So the shelf keys on `audiobook_title` when
+there is one, and on its own title only when there is not (that IS this
+catalog's spelling for an ebook-only file).
+
+Derived by `sibling_catalog_match` — the SAME conservative join the sibling
+cover uses, extended to hand back the matched row's raw title. One join, so a
+cover and a content note can never disagree about which audiobook this is.
 
 ⚠️ **No `work_key` is emitted, deliberately.** That key is computed by exactly
 one implementation, in `library_catalog/packages/core/src/titles.ts`. Emitting it
@@ -311,14 +332,22 @@ def _norm_title(s: str | None) -> str:
     return _NORM_RE.sub(" ", (s or "").lower()).strip()
 
 
-def load_catalog_covers(catalog_path: Path) -> dict[str, list[tuple[str, str]]]:
-    """catalog.csv's covers, grouped by the author/series folder its cover_href
+def load_catalog_covers(catalog_path: Path) -> dict[str, list[tuple[str, str, str]]]:
+    """catalog.csv's rows, grouped by the author/series folder its cover_href
     lives under — the same folder name `beside_audiobook` carries.
+
+    Each row is `(normalised_title, cover_href, catalog_title)`. ⚠️ The THIRD
+    element is the catalog's OWN spelling of the title, raw and unfolded, and
+    it is not decoration: `sibling_catalog_match` hands it to the manifest as
+    `audiobook_title`, which is the key the content-notes feature files and
+    reads reader notes under (see this file's `scan()` and
+    `site/ebook-notes.js`). The comparison form is fold-only and never
+    emitted; the raw string is what travels.
 
     Soft on purpose: a missing or unreadable catalog means no sibling joins
     this run (covers degrade to extraction/placeholder), never a failed build.
     """
-    by_folder: dict[str, list[tuple[str, str]]] = {}
+    by_folder: dict[str, list[tuple[str, str, str]]] = {}
     try:
         with catalog_path.open(encoding="utf-8", newline="") as f:
             for r in csv.DictReader(f):
@@ -326,7 +355,8 @@ def load_catalog_covers(catalog_path: Path) -> dict[str, list[tuple[str, str]]]:
                 parts = href.split("/", 2)
                 if len(parts) != 3 or parts[0] != "covers" or not parts[1] or not parts[2]:
                     continue
-                by_folder.setdefault(parts[1], []).append((_norm_title(r.get("title")), href))
+                raw = (r.get("title") or "").strip()
+                by_folder.setdefault(parts[1], []).append((_norm_title(raw), href, raw))
     except OSError:
         return {}
     except Exception as e:  # a torn CSV mid-rebuild must not kill step 1b
@@ -356,10 +386,37 @@ def _subtitle_extension(ebook_norm: str, catalog_norm: str) -> bool:
     return bool(nxt) and not nxt[0].isdigit()
 
 
-def sibling_cover_href(title: str | None, beside: str | None, by_folder: dict[str, list[tuple[str, str]]]) -> str | None:
-    """The catalog cover_href for the audiobook this ebook sits beside, or None.
+def _agreed_row(rows: list[tuple[str, str, str]]) -> tuple[str, str, str] | None:
+    """The one catalog row these candidates agree on, or None.
 
-    Conservative by design — a wrong cover is worse than a placeholder:
+    Agreement is on the **cover_href**, which is the original rule and is kept
+    verbatim: two catalog rows naming the same cover are one book spelled
+    twice; two naming different covers are genuinely ambiguous and refused.
+    Among rows that agree, the pick is `sorted()[0]` — deterministic, so a
+    rebuild never silently swaps which spelling of the title travels.
+    """
+    if len({href for _, href, _ in rows}) != 1:
+        return None
+    return sorted(rows)[0]
+
+
+def sibling_catalog_match(
+    title: str | None, beside: str | None, by_folder: dict[str, list[tuple[str, str, str]]]
+) -> tuple[str, str] | None:
+    """`(cover_href, catalog_title)` for the audiobook this ebook sits beside.
+
+    ⚠️ ONE join, TWO consumers. It began life as the cover join and is now
+    also the **identity** join: `catalog_title` is *what the audiobook catalog
+    itself calls this book*, which is the convention every content warning in
+    this estate is keyed by (`library_catalog/docs/info/content-warnings.md`
+    §2 — the library reaches the same answer from its own
+    `audiobook_holding.title` cache). Deriving it here rather than a second
+    time keeps one implementation of "which audiobook is this ebook?", and
+    means a cover and a content note can never disagree about it.
+
+    Conservative by design — a wrong cover is worse than a placeholder, and a
+    wrong identity is worse still (it files a reader's note under a key nobody
+    reads, which looks exactly like "nobody has added one yet"):
       1. exact normalised title match in the same folder, if it names exactly
          one cover file;
       2. else a subtitle extension (see _subtitle_extension) matching exactly
@@ -372,13 +429,27 @@ def sibling_cover_href(title: str | None, beside: str | None, by_folder: dict[st
     candidates = by_folder.get(beside)
     if not candidates:
         return None
-    exact = {href for ct, href in candidates if ct == t}
-    if exact:
-        return exact.pop() if len(exact) == 1 else None
-    prefixed = {href for ct, href in candidates if _subtitle_extension(t, ct)}
-    if len(prefixed) == 1:
-        return prefixed.pop()
-    return None
+    exact = [r for r in candidates if r[0] == t]
+    picked = _agreed_row(exact) if exact else None
+    if picked is None and not exact:
+        prefixed = [r for r in candidates if _subtitle_extension(t, r[0])]
+        picked = _agreed_row(prefixed) if prefixed else None
+    if picked is None:
+        return None
+    return picked[1], picked[2]
+
+
+def sibling_cover_href(
+    title: str | None, beside: str | None, by_folder: dict[str, list[tuple[str, str, str]]]
+) -> str | None:
+    """The catalog cover_href for the audiobook this ebook sits beside, or None.
+
+    A thin read of `sibling_catalog_match` — kept as its own name because the
+    cover tests, and every reader who arrives here looking for covers, know it
+    by this one.
+    """
+    match = sibling_catalog_match(title, beside, by_folder)
+    return match[0] if match else None
 
 
 # ---------------------------------------------------------------------------
@@ -993,7 +1064,14 @@ def scan(
         suffix = path.suffix.lower()
         cover_url: str | None = None
         cover_source: str | None = None
-        href = sibling_cover_href(title, beside, catalog_covers or {})
+        # ONE join, two answers: the sibling's cover AND the sibling's own
+        # title. The title is the content-notes key (see `audiobook_title` in
+        # the row below) and is recorded even when the cover it came with is
+        # later beaten by an embedded EPUB cover — identity and artwork are
+        # different questions and must not be able to disagree.
+        sibling = sibling_catalog_match(title, beside, catalog_covers or {})
+        href = sibling[0] if sibling else None
+        audiobook_title = sibling[1] if sibling else None
         if href:
             cover_url = canonical_cover_url(href) or None
             cover_source = "audiobook" if cover_url else None
@@ -1027,6 +1105,15 @@ def scan(
                 "author": author,
                 "source": source,
                 "beside_audiobook": beside,
+                # ⚠️ WHAT THE AUDIOBOOK CATALOG CALLS THIS BOOK, or null.
+                # The content-notes key (site/ebook-notes.js): the estate's
+                # warnings are keyed by `bookIdFromTitle(<audiobook title>)`,
+                # and the ebook's own epub-metadata title is a DIFFERENT
+                # spelling — filing under it writes notes nobody reads and
+                # reads none of the notes written elsewhere, both silently.
+                # A raw title, never a slug: `bookIdFromTitle` has exactly one
+                # implementation and it is in JavaScript (site/reviews.js).
+                "audiobook_title": audiobook_title,
                 "size_bytes": stat.st_size,
                 "modified": datetime.fromtimestamp(stat.st_mtime, timezone.utc)
                 .isoformat()

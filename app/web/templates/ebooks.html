@@ -68,6 +68,18 @@
   every deep link silently, with the page simply failing to scroll. A deep link
   to a PDF turns the checkbox on rather than being a dead link.
 
+  CONTENT NOTES, 2026-08-17 (the ebooks half of the owner's "port content
+  warning feature over to all physical book and the ebook site"). Each reading
+  card carries a compact notes block: published pipeline warnings plus readers'
+  own, from the estate-wide `user_content_warnings` store the book modal on
+  audiobooks.heygabi.ai and library.heygabi.ai already share. ⚠️ Drawn by
+  site/ebook-notes.js, which CALLS site/user-warnings.js — no second copy of
+  the store, the doc id, the 80-char bound or the delete rules exists. ⚠️ And
+  the notes are keyed by `audiobook_title` (the manifest's record of what the
+  AUDIOBOOK catalog calls this book), NOT by the epub's own title: see that
+  module's header for why keying on the ebook's own spelling fails silently in
+  both directions.
+
   The manifest is fetched client-side WITH A BEARER, so a pipeline refresh
   updates this page with no HTML rebuild. ⚠️ Bearer-per-request, never a
   signed URL: a copied URL must be a 401, and a signed URL cannot be revoked
@@ -354,6 +366,49 @@ h1 .tail{color:var(--accent)}
   color:var(--accent);text-decoration:none;border-bottom:1px solid var(--rule);
 }
 .eb-audio-link:hover{color:var(--accent-deep);border-bottom-color:var(--accent)}
+
+/* ======================= CONTENT NOTES (2026-08-17) =======================
+   The ebooks half of "port content warning feature over to all physical book
+   and the ebook site". Published pipeline notes + readers' own, drawn by
+   site/ebook-notes.js into a slot the reading card provides. Compact on
+   purpose: it sits UNDER the metadata in a dialog that is already full, so it
+   reads as a footnote to the book rather than a second panel competing with
+   it. Sans for the apparatus, serif inherited for the note text itself. */
+.eb-notes{
+  margin-top:16px;padding-top:12px;border-top:1px solid var(--rule);
+  font-family:var(--sans);font-size:.85em;
+}
+.eb-notes-h{
+  margin:0 0 6px;font-family:var(--sans);font-size:.78em;font-weight:700;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);
+}
+.eb-notes-status{color:var(--ink-faint);margin:6px 0 2px;font-style:italic}
+/* Provenance: WHICH title these notes were looked up under. Never decoration —
+   a subtitle-extension join can pull a sibling volume's notes, and saying so
+   costs one line (the same rule the library's panel follows). */
+.eb-notes-prov{
+  color:var(--ink-faint);font-size:.92em;margin:2px 0 6px;
+  border-left:2px solid var(--rule);padding-left:8px;
+}
+.eb-notes-prov em{color:var(--ink);font-style:italic}
+.eb-notes-list{margin:4px 0 6px;padding-left:18px;color:var(--ink)}
+.eb-notes-list li{margin:2px 0;font-family:var(--serif);font-size:1.02em}
+.eb-notes-by{color:var(--ink-faint);font-size:.82em;font-family:var(--sans)}
+.eb-notes-src{color:var(--accent);font-size:.8em;font-family:var(--sans)}
+.eb-notes-x{
+  background:none;border:0;color:var(--caution);cursor:pointer;padding:0 4px;
+  font-family:var(--sans);font-size:.9em;line-height:1;
+}
+.eb-notes-x:hover{color:var(--accent-deep)}
+.eb-notes-x:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.eb-notes-add{
+  margin-top:6px;padding:4px 11px;border:1px solid var(--rule);border-radius:999px;
+  background:none;color:var(--ink-faint);font-family:var(--sans);font-size:.92em;
+  cursor:pointer;transition:border-color .15s,color .15s;
+}
+.eb-notes-add:hover{border-color:var(--accent);color:var(--accent)}
+.eb-notes-empty{color:var(--ink-faint);font-style:italic}
+
 @media(max-width:540px){
   .eb-card{padding:18px}
   .eb-card-body{flex-direction:column;align-items:center}
@@ -494,6 +549,16 @@ h1 .tail{color:var(--accent)}
   var shownBooks = [];      // what the shelf currently renders, in order
   var activeFormats = {};   // format -> true while its chip is toggled on
   var lastFocused = null;   // focus returns to the tapped tile on close
+
+  // The reading card's one extension point. The AUTH module below registers a
+  // function here (window.ebooksShelf.onCard) and openCard hands it the book
+  // plus an empty slot; this script never learns what goes in it.
+  //
+  // ⚠️ Same split as the manifest fetch, for the same reason: this half is a
+  // plain script that cannot fail on a Firebase hiccup, so a broken or blocked
+  // module costs the card its notes block and NOTHING else — never the card,
+  // never the shelf.
+  var cardHook = null;
 
   // ------------------------------ the PDF preference ------------------------
   // Owner, 2026-08-17: the PDFs are hidden by default and revealed by a
@@ -746,6 +811,23 @@ h1 .tail{color:var(--accent)}
       '<h2 id="eb-card-title">' + esc(b.title) + '</h2>' +
       (b.author ? '<div class="eb-card-author">' + esc(b.author) + '</div>' : '') +
       meta + provisional + audio;
+
+    // Content notes: the slot is always drawn, the filling is the module's.
+    // Wrapped so a throwing hook loses the notes and not the open card.
+    var notesSlot = document.createElement('div');
+    notesSlot.className = 'eb-notes';
+    cardInfoEl.appendChild(notesSlot);
+    if (typeof cardHook === 'function') {
+      try {
+        cardHook(b, notesSlot);
+      } catch (e) {
+        console.warn('[ebooks] content notes failed to render:', e);
+        notesSlot.remove();
+      }
+    } else {
+      notesSlot.remove();  // nothing registered: no empty rule under the meta
+    }
+
     lastFocused = document.activeElement;
     overlayEl.hidden = false;
     cardCloseEl.focus();
@@ -816,6 +898,9 @@ h1 .tail{color:var(--accent)}
       listEl.innerHTML = '<div class="load-error">' + sentence + '</div>';
       generatedEl.textContent = 'unavailable';
     },
+    /** Register the reading card's content-notes filler:
+     *  `(book, slotEl) => void`, called once per card open. */
+    onCard: function (fn) { cardHook = typeof fn === 'function' ? fn : null; },
   };
 
   searchEl.addEventListener('input', render);
@@ -835,7 +920,8 @@ h1 .tail{color:var(--accent)}
   import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
   import { FIREBASE_CONFIG } from './fb-env.js';
   import { mountAccountModal } from './account-modal.js';
-  import { getLiveUser, signInWithGoogle, handleRedirectResult } from './identity.js';
+  import { getLiveUser, signInWithGoogle, handleRedirectResult, getSession, resolveSiteAccess } from './identity.js';
+  import { renderEbookNotes } from './ebook-notes.js';
 
   /** The gated manifest. ⚠️ Its OWN origin — this page is served from
    *  ebooks.heygabi.ai (through the ebooks-door Worker) and from
@@ -865,13 +951,45 @@ h1 .tail{color:var(--accent)}
     gateEl.hidden = true;
     controlsEl.hidden = false;
     listEl.hidden = false;
+    // Content notes are registered BEFORE the first render, because a deep
+    // link opens a card during render() — a hook installed afterwards would
+    // miss exactly the arrival that matters most.
+    //
+    // ⚠️ `session` is the localStorage mirror (identity.js getSession), NOT
+    // the live user, and that is deliberate: the note's document id embeds
+    // `displayName.toLowerCase()`, and the book modal on audiobooks.heygabi.ai
+    // spells it from the same mirror. Taking the live token's displayName here
+    // instead would file the SAME person's notes under a second id whenever
+    // the two differ, and one person cannot warn about a topic twice is the
+    // rule the id encodes.
+    window.ebooksShelf.onCard((book, slot) => {
+      renderEbookNotes(db, slot, book, {
+        session: getSession(),
+        canModerate: canModerateNotes,
+      });
+    });
     window.ebooksShelf.render(manifest);
   }
 
   let app = null;
+  let db = null;
+
+  // The site role, for the content notes' moderator ✕. Resolved ONCE per page
+  // load (resolveSiteAccess memoises), and read at CLICK time rather than at
+  // render time — a card can open before the answer settles, and an affordance
+  // that never appears is indistinguishable from one that was refused.
+  //
+  // ⚠️ 'operateClub' is the moderator+ capability the rest of this estate's UI
+  // consults for exactly this control (index.html's canModerateWarnings). It
+  // is not the gate: firestore.rules' canDeleteUserWarning is, and it fails
+  // closed if this answer is generous.
+  let _siteAccess = null;
+  const canModerateNotes = () =>
+    !!_siteAccess && _siteAccess.capabilities.includes('operateClub');
+
   try {
     app = initializeApp(FIREBASE_CONFIG);
-    const db = getFirestore(app);
+    db = getFirestore(app);
     mountAccountModal(db, app, document.getElementById('identity-bar'));
   } catch (e) {
     console.warn('[ebooks] identity failed to initialise:', e);
@@ -920,6 +1038,11 @@ h1 .tail{color:var(--accent)}
       );
       return;
     }
+
+    // Fire-and-forget, alongside the manifest fetch rather than before it: the
+    // shelf must not wait on a role answer only the ✕ on somebody else's
+    // content note ever needs.
+    if (db) resolveSiteAccess(db, app).then((a) => { _siteAccess = a; }).catch(() => {});
 
     let res;
     try {
