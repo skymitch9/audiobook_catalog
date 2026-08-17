@@ -214,3 +214,101 @@ class TestBookshelfContracts:
         assert 'id="eb-search"' in html
         assert "format-chip" in html
         assert "activeFormats" in html
+
+
+class TestShowPdfsCheckbox:
+    """PDFs are hidden by default behind a checkbox (owner, 2026-08-17).
+
+    The owner's decision instead of a cover hunt for them: they are game
+    handbooks and household documents, and they are the one format with no
+    embedded art to extract. The contract that matters is that HIDDEN MEANS
+    HIDDEN — the grid, this page's search, and the format chips must all agree,
+    because a "168 ebooks" count that includes rows you cannot reach is the
+    kind of quiet lie that costs an afternoon.
+    """
+
+    def test_the_checkbox_exists_and_is_unticked_in_the_markup(self):
+        html = _template("ebooks.html")
+        assert 'id="eb-show-pdfs"' in html
+        assert "Show PDFs" in html
+        # DEFAULT OFF: no `checked` attribute anywhere on the input.
+        checkbox = html.split('id="eb-show-pdfs"')[0].rsplit("<input", 1)[1] + html.split(
+            'id="eb-show-pdfs"'
+        )[1].split(">")[0]
+        assert "checked" not in checkbox, "the PDF checkbox must ship unticked"
+
+    def test_the_preference_persists_in_localstorage(self):
+        html = _template("ebooks.html")
+        assert "eb:showPdfs" in html
+        assert "localStorage.getItem" in html and "localStorage.setItem" in html
+
+    def test_storage_failure_cannot_take_the_shelf_down(self):
+        # Private-mode Safari and locked-down profiles throw on localStorage.
+        html = _template("ebooks.html")
+        prefs = html.split("function readPdfPref")[1].split("function isHiddenFormat")[0]
+        assert "try {" in prefs and "catch" in prefs
+
+    def test_hidden_means_hidden_in_the_search_and_the_chips_too(self):
+        html = _template("ebooks.html")
+        assert "function eligibleBooks" in html
+        # The search filter and the chip census both read the eligible pool,
+        # never allBooks — that is what makes "hidden" mean hidden.
+        search_fn = html.split("function visibleBooks")[1].split("function render(")[0]
+        assert "eligibleBooks()" in search_fn and "allBooks.filter" not in search_fn
+        chips_fn = html.split("function renderChips")[1].split("function renderPdfToggle")[0]
+        assert "eligibleBooks()" in chips_fn
+
+    def test_the_count_describes_the_pool_the_reader_can_actually_reach(self):
+        render_fn = _template("ebooks.html").split("function render(")[1].split("function renderChips")[0]
+        assert "eligibleBooks()" in render_fn
+        assert "allBooks.length" not in render_fn
+
+
+class TestDeepLinkAnchors:
+    """Per-book anchors, so estate search lands on the book (2026-08-17).
+
+    ⚠️ ONE implementation of the anchor id, in
+    scripts/build_ebook_manifest.ebook_anchor(); the page READS the manifest's
+    `anchor` field and app/index_push.py builds detail_url from the same value.
+    A recomputation here would break every deep link SILENTLY — the page would
+    simply not scroll, with no error anywhere — which is exactly why this is
+    pinned by a test rather than left to a comment.
+    """
+
+    def test_tiles_carry_the_manifests_anchor_as_their_element_id(self):
+        html = _template("ebooks.html")
+        assert "b.anchor" in html
+        assert "esc(b.anchor)" in html, "the id must be escaped like every other field"
+
+    def test_the_page_never_recomputes_the_anchor(self):
+        html = _template("ebooks.html")
+        for hint in ("sha256", "createHash", "crypto.subtle"):
+            assert hint not in html, (
+                f"'{hint}' suggests the page is deriving the anchor itself — it must "
+                "read the manifest's value (build_ebook_manifest.ebook_anchor is the "
+                "one implementation)"
+            )
+
+    def test_a_hash_on_load_scrolls_to_the_book_and_opens_its_card(self):
+        html = _template("ebooks.html")
+        assert "function goToAnchor" in html
+        assert "scrollIntoView" in html
+        assert "goToAnchor();" in html.split("renderChips();")[-1], (
+            "deep links must resolve AFTER the manifest loads — the tiles do not "
+            "exist before that, which is why the browser's own fragment scroll cannot do it"
+        )
+        assert "addEventListener('hashchange'" in html
+
+    def test_a_deep_link_to_a_pdf_is_not_a_dead_link(self):
+        # Arriving at a hidden PDF turns the checkbox on rather than silently
+        # doing nothing.
+        goto = _template("ebooks.html").split("function goToAnchor")[1].split("function openCard")[0]
+        assert "isHiddenFormat(b)" in goto
+        assert "showPdfs = true" in goto
+
+    def test_opening_a_card_makes_the_url_copyable_without_re_scrolling(self):
+        html = _template("ebooks.html")
+        assert "history.replaceState" in html
+        assert "location.hash = " not in html, (
+            "assigning location.hash re-scrolls the page mid-dialog; replaceState does not"
+        )

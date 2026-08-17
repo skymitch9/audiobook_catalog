@@ -9,8 +9,13 @@ the mechanics:
   1. sibling audiobook cover (join against site/catalog.csv, conservative —
      a wrong cover is worse than a placeholder);
   2. the image inside the EPUB itself (OPF cover-image entry), staged
-     sha256-named under site/covers/ebooks/ for the existing R2 upload step;
-  3. null -> the page's typographic spine placeholder.
+     sha256-named under site/covers/ebooks/ for the existing R2 upload step —
+     DOWNSCALED when oversized, never rejected (2026-08-17);
+  3. a hand-placed cover from scripts/ebook_cover_overrides.json;
+  4. null -> the page's typographic spine placeholder. ⚠️ Reachable by PDFs
+     only: `test_every_published_epub_has_a_cover` is the owner's rule that
+     every EPUB resolves one, and `test_the_coverage_guard_actually_fires`
+     proves that guard can fail.
 
 ⚠️ The join's conservatism is the point of half these tests: the "Tamer:
 King of Dinosaurs Book 10 must NOT wear book 1's cover" cases are measured
@@ -18,6 +23,7 @@ against the real library, not hypothetical.
 """
 
 import json
+import re
 import zipfile
 from pathlib import Path
 
@@ -595,6 +601,60 @@ def test_manifest_rows_always_carry_the_cover_keys(build_env):
     assert bem.build_manifest() == 0
     (e,) = _written(out)["ebooks"]
     assert "cover_url" in e and "cover_source" in e
+
+
+# --------------------------------------------------------------------------- #
+# Per-book anchors — the estate-search deep link (2026-08-17)
+# --------------------------------------------------------------------------- #
+
+
+def test_anchor_is_stable_and_id_safe():
+    a = bem.ebook_anchor("Will Wight/Unsouled - Will Wight.epub")
+    assert a == bem.ebook_anchor("Will Wight/Unsouled - Will Wight.epub")  # stable
+    assert re.fullmatch(r"b-[0-9a-f]{12}", a), a  # never starts with a digit
+
+
+def test_anchor_survives_the_characters_real_paths_carry():
+    # Spaces, ampersands, colons, non-ASCII — a slug would mangle these; the
+    # hash does not care, which is the whole reason it is a hash.
+    for rel in (
+        "James Swain/The King Tides (Lancaster & Daniels Book 1) - James Swain.epub",
+        "Seirei Tsukai no Blade Dance/Seirei Tsukai — Volume 16.epub",
+        "Ellen Javernick/What If Everybody Said That- (What If Everybody-).epub",
+    ):
+        assert re.fullmatch(r"b-[0-9a-f]{12}", bem.ebook_anchor(rel))
+
+
+def test_different_paths_get_different_anchors():
+    paths = [
+        "A/Book.epub",
+        "B/Book.epub",
+        "A/Book 2.epub",
+        "A/Book.pdf",
+    ]
+    assert len({bem.ebook_anchor(p) for p in paths}) == len(paths)
+
+
+def test_every_manifest_row_carries_an_anchor(build_env):
+    root, out, _covers, _catalog = build_env
+    make_epub(root / "Author Folder" / "book.epub")
+    (root / "Author Folder" / "doc.pdf").write_bytes(b"%PDF-1.4 fake")
+    assert bem.build_manifest() == 0
+    rows = _written(out)["ebooks"]
+    assert len(rows) == 2
+    for e in rows:
+        assert e["anchor"] == bem.ebook_anchor(e["path"])
+
+
+def test_the_shipped_manifests_anchors_are_unique():
+    """Two books sharing an anchor would silently swallow one another's links."""
+    path = bem.PROJECT_ROOT / "site" / "ebooks.json"
+    if not path.exists():
+        pytest.skip("no committed manifest in this checkout")
+    rows = json.loads(path.read_text(encoding="utf-8")).get("ebooks", [])
+    anchors = [e.get("anchor") for e in rows]
+    assert all(anchors), "every published row must carry an anchor"
+    assert len(set(anchors)) == len(anchors), "anchor collision in site/ebooks.json"
 
 
 # --------------------------------------------------------------------------- #

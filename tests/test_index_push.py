@@ -231,6 +231,7 @@ def ebook(**overrides):
     """A manifest entry as written by scripts/build_ebook_manifest.py."""
     e = {
         "path": "Brandon Sanderson/Dragonsteel_Prime_by_Brandon_Sanderson.epub",
+        "anchor": "b-0123456789ab",
         "filename": "Dragonsteel_Prime_by_Brandon_Sanderson.epub",
         "format": "epub",
         "title": "Dragonsteel Prime",
@@ -261,7 +262,10 @@ def test_ebook_row_shape():
     assert r["creator"] == "Brandon Sanderson"
     assert r["series"] is None and r["series_index"] is None and r["year"] is None
     assert r["cover_url"] is None  # a manifest row without a cover pushes null
-    assert r["detail_url"] == "https://audiobooks.heygabi.ai/ebooks.html"
+    # A DEEP LINK to the book on the shelf's own hostname (2026-08-17), not the
+    # bare page: estate search used to drop the reader at the top of a
+    # 168-tile shelf to find their own book.
+    assert r["detail_url"] == "https://ebooks.heygabi.ai/#b-0123456789ab"
 
 
 # --------------------------------------------------------------------------- #
@@ -356,9 +360,38 @@ def test_ebook_rows_are_json_serialisable():
     json.dumps(build_ebook_rows(manifest(ebook())))
 
 
-def test_ebooks_detail_url_honours_site_url_env(monkeypatch):
-    monkeypatch.setenv("SITE_URL", "https://example.test/")
-    assert ebooks_detail_url() == "https://example.test/ebooks.html"
+def test_ebooks_detail_url_honours_its_own_env_not_the_audiobook_site_url(monkeypatch):
+    # ⚠️ The shelf has its OWN hostname; SITE_URL is the audiobook site's and
+    # must not steer it (that would send every ebook deep link to the wrong
+    # host the moment someone pointed SITE_URL at a staging lane).
+    monkeypatch.setenv("SITE_URL", "https://audiobooks.example.test/")
+    monkeypatch.setenv("EBOOKS_SITE_URL", "https://shelf.example.test/")
+    assert ebooks_detail_url("b-abc123") == "https://shelf.example.test/#b-abc123"
+
+
+def test_ebooks_detail_url_defaults_to_the_shelf_hostname(monkeypatch):
+    monkeypatch.delenv("EBOOKS_SITE_URL", raising=False)
+    assert ebooks_detail_url("b-abc123") == "https://ebooks.heygabi.ai/#b-abc123"
+
+
+def test_an_anchorless_entry_degrades_to_the_bare_shelf_never_a_broken_link(capsys):
+    # An older manifest predates the anchor field. A worse link is acceptable;
+    # a link to '#undefined' or '#None' is not — and it says so, loudly.
+    (r,) = build_ebook_rows(manifest(ebook(anchor=None)))
+    assert r["detail_url"] == "https://ebooks.heygabi.ai/"
+    assert "carry no `anchor`" in capsys.readouterr().err
+
+
+def test_the_anchor_is_read_from_the_manifest_never_recomputed():
+    """The one-implementation rule, pinned.
+
+    build_ebook_manifest.ebook_anchor() is the single definition; the pusher
+    and the page both READ the emitted value. If this module ever grows its
+    own derivation, this test is what catches it — a made-up anchor must
+    travel through untouched.
+    """
+    (r,) = build_ebook_rows(manifest(ebook(anchor="b-notarealhash")))
+    assert r["detail_url"].endswith("#b-notarealhash")
 
 
 # --------------------------------------------------------------------------- #

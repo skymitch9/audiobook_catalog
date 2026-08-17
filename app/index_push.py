@@ -46,6 +46,14 @@ source 404s) and the design says the shared pool holds them, so 'audiobook'
 the source means "the household's shared pool", and ``format`` carries the
 medium. A missing or malformed manifest never blocks the audiobook rows:
 ebooks degrade to absent, loudly.
+
+Ebook ``detail_url`` is a DEEP LINK — ``https://ebooks.heygabi.ai/#<anchor>``
+since 2026-08-17 (it used to be the bare shelf, which left the reader hunting
+their own book among 168). The anchor is READ from the manifest, never
+computed here: ``scripts/build_ebook_manifest.ebook_anchor()`` is its one
+implementation, and ``app/web/templates/ebooks.html`` stamps the same value as
+the tile's element id. A second derivation would break every deep link
+silently — the page would simply not scroll, with no error anywhere.
 """
 
 from __future__ import annotations
@@ -65,6 +73,11 @@ from app.config import COVERS_BASE_URL, SITE_CSV_NAME, SITE_DIR
 # Same source + default as app/tools/send_discord_notification.py and
 # scripts/health_check.py — the repo VARIABLE SITE_URL wins when set.
 DEFAULT_SITE_URL = "https://audiobooks.heygabi.ai/"
+
+# The ebook shelf's OWN hostname. It stopped being a page on the audiobook site
+# on 2026-08-17 ("make it seem like it's own custom page") and estate search
+# should send people to the shelf's own door, not through the audiobook site's.
+DEFAULT_EBOOKS_SITE_URL = "https://ebooks.heygabi.ai"
 
 # The ebook manifest sync step 1b writes (scripts/build_ebook_manifest.py
 # OUT_PATH) — read here, never re-derived: one pipeline, one source of data.
@@ -222,10 +235,25 @@ def _str_or_empty(value: object) -> str:
     return value.strip() if isinstance(value, str) else ""
 
 
-def ebooks_detail_url(site_url: Optional[str] = None) -> str:
-    """The ebooks page (design phase 1's surface) — the whole shelf; the page has no per-book anchor."""
-    site = (site_url or os.environ.get("SITE_URL") or DEFAULT_SITE_URL).rstrip("/")
-    return site + "/ebooks.html"
+def ebooks_detail_url(anchor: Optional[str] = None, site_url: Optional[str] = None) -> str:
+    """Deep link to one book on the ebook shelf — `https://ebooks.heygabi.ai/#<anchor>`.
+
+    ⚠️ The anchor is NOT computed here. It is read from the manifest, where
+    `scripts/build_ebook_manifest.ebook_anchor()` is its one implementation —
+    the page stamps the same value as the tile's element id, so a second
+    derivation in a second place would break every estate-search deep link
+    silently (the page would simply not scroll, with no error anywhere).
+
+    Before 2026-08-17 this pointed at `<audiobook site>/ebooks.html` and every
+    ebook in estate search landed on the top of the shelf, leaving the reader
+    to find their own book among 168. The shelf has had its own hostname since
+    it became its own page; use it.
+
+    An entry with no anchor (an older manifest) degrades to the bare shelf URL
+    — the previous behaviour, which is a worse link but never a broken one.
+    """
+    site = (site_url or os.environ.get("EBOOKS_SITE_URL") or DEFAULT_EBOOKS_SITE_URL).rstrip("/")
+    return f"{site}/#{anchor}" if anchor else site + "/"
 
 
 def build_ebook_rows(manifest: Optional[dict]) -> List[Dict[str, object]]:
@@ -260,7 +288,7 @@ def build_ebook_rows(manifest: Optional[dict]) -> List[Dict[str, object]]:
     seen: set[str] = set()
     skipped_unusable = 0
     skipped_duplicate = 0
-    detail_url = ebooks_detail_url()
+    anchorless = 0
 
     for e in manifest.get("ebooks", []):
         if not isinstance(e, dict):
@@ -276,6 +304,9 @@ def build_ebook_rows(manifest: Optional[dict]) -> List[Dict[str, object]]:
             skipped_duplicate += 1
             continue
         seen.add(source_id)
+        anchor = _str_or_empty(e.get("anchor"))
+        if not anchor:
+            anchorless += 1
         rows.append(
             {
                 "source_id": source_id,
@@ -286,10 +317,17 @@ def build_ebook_rows(manifest: Optional[dict]) -> List[Dict[str, object]]:
                 "year": None,
                 "format": "ebook",
                 "cover_url": canonical_cover_url(_str_or_empty(e.get("cover_url"))) or None,
-                "detail_url": detail_url,
+                "detail_url": ebooks_detail_url(anchor or None),
             }
         )
 
+    if anchorless:
+        print(
+            f"[WARN] ebook projection: {anchorless} entry(ies) carry no `anchor` — their detail_url "
+            "lands on the top of the shelf instead of the book. Rebuild the manifest "
+            "(`python scripts/build_ebook_manifest.py`).",
+            file=sys.stderr,
+        )
     if skipped_unusable:
         print(f"[WARN] ebook projection: skipped {skipped_unusable} entry(ies) without a usable title/path", file=sys.stderr)
     if skipped_duplicate:

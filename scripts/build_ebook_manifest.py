@@ -491,6 +491,30 @@ def load_cover_overrides(path: Path | None = None) -> dict[str, str]:
     return out
 
 
+# ---------------------------------------------------------------------------
+# The per-book anchor (estate-search deep links, 2026-08-17)
+# ---------------------------------------------------------------------------
+def ebook_anchor(rel_path: str) -> str:
+    """The stable `#fragment` that scrolls ebooks.heygabi.ai to this book.
+
+    ⚠️ ONE implementation, emitted into the manifest, read by BOTH consumers —
+    `app/index_push.py` (which builds `detail_url` from it) and
+    `app/web/templates/ebooks.html` (which stamps it as the tile's element id).
+    Neither recomputes it. A second copy of this fold in JavaScript is exactly
+    the drift this repo has already shipped once, and here it would break
+    silently: every estate-search result would land on a dead anchor and the
+    page would simply not scroll, with no error anywhere.
+
+    Derived from the same identity `index_push` keys on — the manifest `path`,
+    which its `source_id` ('ebook:<path>') is also built from, unique by
+    construction (one file, one path). Hashed rather than slugified because
+    the raw path carries spaces, slashes, ampersands and non-ASCII; 12 hex
+    digits is 48 bits, ample for ~170 books. Prefixed because a fragment id
+    must not start with a digit.
+    """
+    return "b-" + hashlib.sha256(rel_path.encode("utf-8")).hexdigest()[:12]
+
+
 def scan(
     root: Path,
     catalog_covers: dict[str, list[tuple[str, str]]] | None = None,
@@ -556,6 +580,7 @@ def scan(
         ebooks.append(
             {
                 "path": rel_posix,
+                "anchor": ebook_anchor(rel_posix),
                 "filename": path.name,
                 "format": path.suffix.lower().lstrip("."),
                 "title": title,

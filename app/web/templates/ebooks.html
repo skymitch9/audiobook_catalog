@@ -37,6 +37,22 @@
   times a day - and offers no downloads. File access belongs to the auth
   migration's file-permissions phase, not here.
 
+  PDFs ARE HIDDEN BY DEFAULT (owner, 2026-08-17). They are game handbooks and
+  household documents rather than books, and they are the one format with
+  nothing to extract a cover from - so instead of hunting covers for them, the
+  control row carries a "Show PDFs" checkbox, unticked. Hidden means hidden
+  EVERYWHERE: out of the grid, out of this page's search, and out of the format
+  chips. The preference persists in localStorage (key `eb:showPdfs`).
+
+  EVERY BOOK HAS AN ANCHOR (same day). Each tile's element id is the manifest's
+  own `anchor` field, which app/index_push.py also builds the estate-search
+  `detail_url` from (https://ebooks.heygabi.ai/#<anchor>), so a search result
+  lands on the book rather than the top of a 168-tile shelf. ⚠️ ONE
+  implementation of that id, in scripts/build_ebook_manifest.ebook_anchor();
+  this page READS it and must never recompute it - a drifted copy would break
+  every deep link silently, with the page simply failing to scroll. A deep link
+  to a PDF turns the checkbox on rather than being a dead link.
+
   The JSON is fetched client-side (same-origin), so a pipeline refresh of the
   manifest updates this page with no HTML rebuild. This file is a TEMPLATE:
   it lives in app/web/templates/ and is copied verbatim to site/ebooks.html by
@@ -171,6 +187,33 @@ h1 .tail{color:var(--accent)}
 .format-chip:hover{border-color:var(--accent);color:var(--accent)}
 .format-chip.on{border-color:var(--accent);background:var(--accent);color:var(--paper)}
 #eb-count{color:var(--ink-faint);font-size:.85em;font-family:var(--sans)}
+
+/* "Show PDFs" — same pill silhouette as the format chips, so the control row
+   still reads as one family, but a checkbox because it is a preference (it
+   persists) rather than a transient filter. */
+.eb-toggle{
+  display:inline-flex;align-items:center;gap:7px;cursor:pointer;
+  padding:6px 13px;border:1px solid var(--rule);border-radius:999px;
+  background:var(--card);color:var(--ink-faint);font-weight:600;font-size:.78em;
+  letter-spacing:.06em;text-transform:uppercase;font-family:var(--sans);
+  transition:border-color .15s,color .15s;user-select:none;
+}
+/* display:inline-flex above would otherwise beat the [hidden] attribute the
+   script sets when the library has no PDFs at all. */
+.eb-toggle[hidden]{display:none}
+.eb-toggle:hover{border-color:var(--accent);color:var(--accent)}
+.eb-toggle input{accent-color:var(--accent);margin:0;cursor:pointer}
+.eb-toggle:has(input:checked){border-color:var(--accent);color:var(--accent)}
+.eb-toggle:focus-within{outline:2px solid var(--accent);outline-offset:2px}
+
+/* A book arrived at by its #anchor: a brief accent frame, so a deep link from
+   estate search lands on something visibly pointed-at rather than dumping the
+   reader mid-grid with no idea which tile was meant. */
+@keyframes eb-anchor-glow{
+  from{box-shadow:0 0 0 3px var(--accent)}
+  to{box-shadow:0 0 0 3px transparent}
+}
+.eb-tile.eb-anchored .eb-cover{animation:eb-anchor-glow 2.4s ease-out 1}
 
 /* ============================ THE BOOKSHELF ============================ */
 .eb-shelf{
@@ -349,6 +392,15 @@ h1 .tail{color:var(--accent)}
       <option value="size">Sort by Size</option>
     </select>
     <span id="eb-format-chips"></span>
+    <!-- Owner, 2026-08-17: PDFs get no cover hunt; they get a checkbox, off by
+         default. Hidden means hidden - out of the grid, out of the search, and
+         out of the format chips - until this is ticked. The preference sticks
+         (localStorage), because someone who wants the PDFs wants them every
+         visit, not once. -->
+    <label class="eb-toggle" for="eb-show-pdfs" title="PDFs are household documents and game handbooks rather than books; hidden by default.">
+      <input type="checkbox" id="eb-show-pdfs" />
+      <span>Show PDFs<span id="eb-pdf-count"></span></span>
+    </label>
     <span id="eb-count"></span>
   </div>
 
@@ -390,6 +442,8 @@ h1 .tail{color:var(--accent)}
   var searchEl = document.getElementById('eb-search');
   var sortEl = document.getElementById('eb-sort');
   var chipsEl = document.getElementById('eb-format-chips');
+  var pdfToggleEl = document.getElementById('eb-show-pdfs');
+  var pdfCountEl = document.getElementById('eb-pdf-count');
   var countEl = document.getElementById('eb-count');
   var generatedEl = document.getElementById('eb-generated');
   var overlayEl = document.getElementById('eb-card-overlay');
@@ -401,6 +455,40 @@ h1 .tail{color:var(--accent)}
   var shownBooks = [];      // what the shelf currently renders, in order
   var activeFormats = {};   // format -> true while its chip is toggled on
   var lastFocused = null;   // focus returns to the tapped tile on close
+
+  // ------------------------------ the PDF preference ------------------------
+  // Owner, 2026-08-17: the PDFs are hidden by default and revealed by a
+  // checkbox. They are game handbooks and household documents, not books, and
+  // they are the one format with nothing to extract a cover from.
+  var PDF_PREF_KEY = 'eb:showPdfs';
+
+  function readPdfPref() {
+    // Storage can throw outright (Safari private mode, a locked-down profile),
+    // and a dead preference must never take the shelf down with it.
+    try {
+      return window.localStorage.getItem(PDF_PREF_KEY) === '1';
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function writePdfPref(on) {
+    try {
+      window.localStorage.setItem(PDF_PREF_KEY, on ? '1' : '0');
+    } catch (e) { /* preference simply will not persist; the page still works */ }
+  }
+
+  var showPdfs = readPdfPref();
+
+  function isHiddenFormat(b) {
+    return !showPdfs && String(b.format || '').toLowerCase() === 'pdf';
+  }
+
+  // The pool everything else works from: the shelf, the search, the chips and
+  // the count all agree on it, so "hidden" means hidden everywhere.
+  function eligibleBooks() {
+    return allBooks.filter(function (b) { return !isHiddenFormat(b); });
+  }
 
   function esc(s) {
     return String(s == null ? '' : s)
@@ -474,7 +562,7 @@ h1 .tail{color:var(--accent)}
   function visibleBooks() {
     var q = (searchEl.value || '').toLowerCase().trim();
     var anyFormat = Object.keys(activeFormats).some(function (f) { return activeFormats[f]; });
-    return allBooks.filter(function (b) {
+    return eligibleBooks().filter(function (b) {
       if (anyFormat && !activeFormats[b.format]) return false;
       if (!q) return true;
       return String(b.title || '').toLowerCase().indexOf(q) !== -1 ||
@@ -484,14 +572,21 @@ h1 .tail{color:var(--accent)}
   }
 
   function render() {
+    var pool = eligibleBooks();
     shownBooks = sortBooks(visibleBooks(), sortEl.value);
-    countEl.textContent = shownBooks.length + ' of ' + allBooks.length + ' ebook' + (allBooks.length !== 1 ? 's' : '');
+    countEl.textContent = shownBooks.length + ' of ' + pool.length + ' ebook' + (pool.length !== 1 ? 's' : '');
     if (shownBooks.length === 0) {
       listEl.innerHTML = '<div class="empty">No ebooks match.</div>';
       return;
     }
     listEl.innerHTML = shownBooks.map(function (b, i) {
-      return '<button type="button" class="eb-tile" role="listitem" data-idx="' + i + '" aria-haspopup="dialog">' +
+      // The element id is the manifest's own `anchor` - the SAME value
+      // app/index_push.py builds each ebook's estate-search detail_url from,
+      // computed in exactly one place (build_ebook_manifest.ebook_anchor).
+      // Never recompute it here: a drifted copy would break every deep link
+      // silently, with the page simply failing to scroll.
+      var anchorId = typeof b.anchor === 'string' && b.anchor ? ' id="' + esc(b.anchor) + '"' : '';
+      return '<button type="button"' + anchorId + ' class="eb-tile" role="listitem" data-idx="' + i + '" aria-haspopup="dialog">' +
         coverHtml(b) +
         '<span class="eb-cap">' +
           '<span class="eb-cap-title">' + esc(b.title) + '</span>' +
@@ -503,8 +598,10 @@ h1 .tail{color:var(--accent)}
   }
 
   function renderChips() {
+    // Chips describe the ELIGIBLE pool, so an unticked "Show PDFs" leaves no
+    // pdf chip to click - the alternative is a chip that filters to nothing.
     var formats = {};
-    allBooks.forEach(function (b) { if (b.format) formats[b.format] = (formats[b.format] || 0) + 1; });
+    eligibleBooks().forEach(function (b) { if (b.format) formats[b.format] = (formats[b.format] || 0) + 1; });
     chipsEl.innerHTML = Object.keys(formats).sort().map(function (f) {
       return '<button type="button" class="format-chip" data-format="' + esc(f) + '">' +
         esc(f) + ' (' + formats[f] + ')</button>';
@@ -517,6 +614,68 @@ h1 .tail{color:var(--accent)}
         render();
       });
     });
+  }
+
+  function renderPdfToggle() {
+    var n = allBooks.filter(function (b) { return String(b.format || '').toLowerCase() === 'pdf'; }).length;
+    // No PDFs in the library at all -> no control. A checkbox that toggles
+    // nothing is furniture.
+    pdfToggleEl.closest('.eb-toggle').hidden = n === 0;
+    pdfCountEl.textContent = n ? ' (' + n + ')' : '';
+    pdfToggleEl.checked = showPdfs;
+  }
+
+  pdfToggleEl.addEventListener('change', function () {
+    showPdfs = pdfToggleEl.checked;
+    writePdfPref(showPdfs);
+    // Drop a stale 'pdf' chip selection on the way out: leaving it set would
+    // filter the shelf to nothing the moment PDFs come back.
+    if (!showPdfs) delete activeFormats.pdf;
+    renderChips();
+    render();
+  });
+
+  // ------------------------------ deep links --------------------------------
+  // Estate search links straight at a book: https://ebooks.heygabi.ai/#<anchor>
+  function bookByAnchor(anchor) {
+    if (!anchor) return null;
+    for (var i = 0; i < allBooks.length; i++) {
+      if (allBooks[i].anchor === anchor) return allBooks[i];
+    }
+    return null;
+  }
+
+  function currentAnchor() {
+    return String(window.location.hash || '').replace(/^#/, '');
+  }
+
+  function goToAnchor() {
+    var b = bookByAnchor(currentAnchor());
+    if (!b) return;  // an unknown hash is left alone; the shelf still renders
+
+    // A deep link to a PDF must NOT be a dead link just because the checkbox
+    // is off. Reveal them for this visit - and persist it, since the reader
+    // has now demonstrably asked for one.
+    if (isHiddenFormat(b)) {
+      showPdfs = true;
+      writePdfPref(true);
+      renderPdfToggle();
+      renderChips();
+      render();
+    }
+    // A search or chip filter can also be hiding the target; clear the search
+    // rather than leave the link silently doing nothing.
+    if (shownBooks.indexOf(b) === -1) {
+      searchEl.value = '';
+      activeFormats = {};
+      renderChips();
+      render();
+    }
+    var el = document.getElementById(b.anchor);
+    if (!el) return;
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    el.classList.add('eb-anchored');
+    openCard(b);
   }
 
   // ------------------------------ reading card ------------------------------
@@ -550,12 +709,21 @@ h1 .tail{color:var(--accent)}
     lastFocused = document.activeElement;
     overlayEl.hidden = false;
     cardCloseEl.focus();
+    // Put the book's own anchor in the address bar so the open card is a
+    // copyable link - the same URL estate search hands out. replaceState, not
+    // location.hash: assigning the hash would re-scroll the page mid-dialog.
+    if (b.anchor && typeof window.history.replaceState === 'function') {
+      window.history.replaceState(null, '', '#' + b.anchor);
+    }
   }
 
   function closeCard() {
     overlayEl.hidden = true;
     if (lastFocused && typeof lastFocused.focus === 'function') lastFocused.focus();
     lastFocused = null;
+    if (window.location.hash && typeof window.history.replaceState === 'function') {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
   }
 
   listEl.addEventListener('click', function (ev) {
@@ -563,6 +731,12 @@ h1 .tail{color:var(--accent)}
     if (!tile) return;
     var b = shownBooks[Number(tile.dataset.idx)];
     if (b) openCard(b);
+  });
+
+  // Back/forward, or a second estate-search link pasted into the same tab.
+  window.addEventListener('hashchange', function () {
+    if (currentAnchor()) goToAnchor();
+    else if (!overlayEl.hidden) closeCard();
   });
   cardCloseEl.addEventListener('click', closeCard);
   overlayEl.addEventListener('click', function (ev) {
@@ -583,8 +757,13 @@ h1 .tail{color:var(--accent)}
       .then(function (manifest) {
         allBooks = Array.isArray(manifest.ebooks) ? manifest.ebooks : [];
         generatedEl.textContent = manifest.generated_at || 'unknown';
+        renderPdfToggle();
         renderChips();
         render();
+        // Deep links resolve only once the manifest is in - the tiles (and so
+        // their anchor ids) do not exist before this point, which is why the
+        // browser's own fragment scroll cannot do this job.
+        goToAnchor();
       })
       .catch(function (err) {
         // A failed load is a failed load - say what happened in words, and do

@@ -1,10 +1,11 @@
 {
-  "generated_at": "2026-08-17T06:21:28.065845Z",
+  "generated_at": "2026-08-17T06:31:08.363154Z",
   "root": "C:/Users/nbasl/OpenAudible/books",
   "count": 168,
   "ebooks": [
     {
       "path": "Brandon Sanderson/Defiant.pdf",
+      "anchor": "b-a49cd096d824",
       "filename": "Defiant.pdf",
       "format": "pdf",
       "title": "Defiant",
@@ -18,6 +19,7 @@
     },
     {
       "path": "Brandon Sanderson/Dragonsteel_Prime_by_Brandon_Sanderson.epub",
+      "anchor": "b-0510263c35b8",
       "filename": "Dragonsteel_Prime_by_Brandon_Sanderson.epub",
       "format": "epub",
       "title": "Dragonsteel Prime",
@@ -31,6 +33,7 @@
     },
     {
       "path": "Brandon Sanderson/dreamer.epub",
+      "anchor": "b-289c08153c71",
       "filename": "dreamer.epub",
       "format": "epub",
       "title": "Dreamer",
@@ -44,6 +47,7 @@
     },
     {
       "path": "Brandon Sanderson/firstborn_defendingelysium.epub",
+      "anchor": "b-d737dc01a527",
       "filename": "firstborn_defendingelysium.epub",
       "format": "epub",
       "title": "Firstborn / Defending Elysium",
@@ -57,6 +61,7 @@
     },
     {
       "path": "Brandon Sanderson/Isles_of_the_Emberdark_by_Brandon_Sanderson_for_Kindle.epub",
+      "anchor": "b-5f57c5436aac",
       "filename": "Isles_of_the_Emberdark_by_Brandon_Sanderson_for_Kindle.epub",
       "format": "epub",
       "title": "Isles of the Emberdark",
@@ -70,6 +75,7 @@
     },
     {
       "path": "Brandon Sanderson/legion_brandonsanderson.epub",
+      "anchor": "b-36c02d9022cb",
       "filename": "legion_brandonsanderson.epub",
       "format": "epub",
       "title": "Legion",
@@ -83,6 +89,7 @@
     },
     {
       "path": "Brandon Sanderson/legion_skindeep.epub",
+      "anchor": "b-b7ac580aaeec",
       "filename": "legion_skindeep.epub",
       "format": "epub",
       "title": "Legion: Skin Deep",
@@ -96,6 +103,7 @@
     },
     {
       "path": "Brandon Sanderson/Long_Chills_and_Case_Dough_by_Brandon_Sanderson.epub",
+      "anchor": "b-9596451cd2a8",
       "filename": "Long_Chills_and_Case_Dough_by_Brandon_Sanderson.epub",
       "format": "epub",
       "title": "Long Chills and Case Dough",
@@ -109,6 +117,7 @@
     },
     {
       "path": "Brandon Sanderson/mistborn_adventuregame.pdf",
+      "anchor": "b-f70c306e616e",
       "filename": "mistborn_adventuregame.pdf",
       "format": "pdf",
       "title": "mistborn_adventuregame",
@@ -122,6 +131,7 @@
     },
     {
       "path": "Brandon Sanderson/mistborn_alloyoflaw.pdf",
+      "anchor": "b-bf765c922f09",
       "filename": "mistborn_alloyoflaw.pdf",
       "format": "pdf",
       "title": "mistborn_alloyoflaw",
@@ -135,6 +145,7 @@
     },
     {
       "path": "Brandon Sanderson/mistborn_terris_wroughtofcopper.pdf",
+      "anchor": "b-b84e1cb93e3e",
       "filename": "mistborn_terris_wroughtofcopper.pdf",
       "format": "pdf",
       "title": "mistborn_terris_wroughtofcopper",
@@ -148,6 +159,7 @@
     },
     {
       "path": "Brandon Sanderson/Oathbringer.pdf",
+      "anchor": "b-03cdb6b9fcd5",
       "filename": "Oathbringer.pdf",
       "format": "pdf",
       "title": "Oathbringer",
@@ -161,6 +173,7 @@
     },
     {
       "path": "Brandon Sanderson/perfectstate.epub",
+      "anchor": "b-9371b9953071",
       "filename": "perfectstate.epub",
       "format": "epub",
       "title": "Perfect State",
@@ -174,6 +187,7 @@
     },
     {
       "path": "Brandon Sanderson/Rhythm of War - Book Four of the Stormlight Archive.pdf",
+      "anchor": "b-1bf414f2d68f",
       "filename": "Rhythm of War - Book Four of the Stormlight Archive.pdf",
       "format": "pdf",
       "title": "Rhythm of War",
@@ -187,6 +201,7 @@
     },
     {
       "path": "Brandon Sanderson/shadowsforsilenceintheforestsofhell.epub",
+      "anchor": "b-dec45a63879d",
       "filename": "shadowsforsilenceintheforestsofhell.epub",
       "format": "epub",
       "title": "Shadows for Silence in the Forests of Hell",
@@ -200,6 +215,7 @@
     },
     {
       "path": "Brandon Sanderson/sixthofthedusk.epub",
+      "anchor": "b-f1612e2575a0",
       "filename": "sixthofthedusk.epub",
       "format": "epub",
       "title": "Sixth of the Dusk",
@@ -213,6 +229,7 @@
     },
     {
       "path": "Brandon Sanderson/SL001_Stormlight_Handbook_digital.pdf",
+      "anchor": "b-588ae2ee2177",
       "filename": "SL001_Stormlight_Handbook_digital.pdf",
       "format": "pdf",
       "title": "SL001_Stormlight_Handbook_digital",
@@ -226,6 +243,7 @@
     },
     {
       "path": "Brandon Sanderson/snapshot_brandonsanderson.epub",
+      "anchor": "b-86887aef68af",
       "filename": "snapshot_brandonsanderson.epub",
       "format": "epub",
       "title": "Snapshot",
@@ -239,6 +257,7 @@
     },
     {
       "path": "Brandon Sanderson/The Way of Kings - The Stormlight Archive, Book 1.pdf",
+      "anchor": "b-39ab13ebdca3",
       "filename": "The Way of Kings - The Stormlight Archive, Book 1.pdf",
       "format": "pdf",
       "title": "The Way of Kings",
@@ -252,6 +271,7 @@
     },
     {
       "path": "Brandon Sanderson/The_Frugal_Wizard_s_Handbook_for_Surviving_Medieval_England_by_Brandon_Sanderson.epub",
+      "anchor": "b-9d62b69ffcc8",
       "filename": "The_Frugal_Wizard_s_Handbook_for_Surviving_Medieval_England_by_Brandon_Sanderson.epub",
       "format": "epub",
       "title": "The Frugal Wizard’s Handbook for Surviving Medieval England",
@@ -265,6 +285,7 @@
     },
     {
       "path": "Brandon Sanderson/The_Sunlit_Man_by_Brandon_Sanderson.epub",
+      "anchor": "b-8c00e46b9e05",
       "filename": "The_Sunlit_Man_by_Brandon_Sanderson.epub",
       "format": "epub",
       "title": "The Sunlit Man",
@@ -278,6 +299,7 @@
     },
     {
       "path": "Brandon Sanderson/theemperorssoul.epub",
+      "anchor": "b-b6ff5e2e94ff",
       "filename": "theemperorssoul.epub",
       "format": "epub",
       "title": "The Emperor's Soul",
@@ -291,6 +313,7 @@
     },
     {
       "path": "Brandon Sanderson/Tress_of_the_Emerald_Sea_by_Brandon_Sanderson.epub",
+      "anchor": "b-8f183321c2e0",
       "filename": "Tress_of_the_Emerald_Sea_by_Brandon_Sanderson.epub",
       "format": "epub",
       "title": "Tress of the Emerald Sea",
@@ -304,6 +327,7 @@
     },
     {
       "path": "Brandon Sanderson/White Sand Omnibus (Brandon Sanderson's White Sand) - Rik Hoskin.epub",
+      "anchor": "b-e633438ff59f",
       "filename": "White Sand Omnibus (Brandon Sanderson's White Sand) - Rik Hoskin.epub",
       "format": "epub",
       "title": "White Sand Omnibus (Brandon Sanderson's White Sand)",
@@ -317,6 +341,7 @@
     },
     {
       "path": "Brandon Sanderson/whitesand.epub",
+      "anchor": "b-d636da147a72",
       "filename": "whitesand.epub",
       "format": "epub",
       "title": "White Sand",
@@ -330,6 +355,7 @@
     },
     {
       "path": "Brandon Sanderson/Wind and Truth - Book Five of the Stormlight Archive.pdf",
+      "anchor": "b-c68642c6dd49",
       "filename": "Wind and Truth - Book Five of the Stormlight Archive.pdf",
       "format": "pdf",
       "title": "Wind and Truth",
@@ -343,6 +369,7 @@
     },
     {
       "path": "Brandon Sanderson/Yumi_and_the_Nightmare_Painter_by_Brandon_Sanderson.epub",
+      "anchor": "b-8e7ec9740840",
       "filename": "Yumi_and_the_Nightmare_Painter_by_Brandon_Sanderson.epub",
       "format": "epub",
       "title": "Yumi and the Nightmare Painter",
@@ -356,6 +383,7 @@
     },
     {
       "path": "Brené Brown/Atlas of the Heart.pdf",
+      "anchor": "b-0e813712ee22",
       "filename": "Atlas of the Heart.pdf",
       "format": "pdf",
       "title": "Atlas of the Heart",
@@ -369,6 +397,7 @@
     },
     {
       "path": "Dakota Krout/Dungeon Born - Dakota Krout.epub",
+      "anchor": "b-154d33f4af2c",
       "filename": "Dungeon Born - Dakota Krout.epub",
       "format": "epub",
       "title": "Dungeon Born",
@@ -382,6 +411,7 @@
     },
     {
       "path": "Dakota Krout/Invent Short Story - Dakota Krout.epub",
+      "anchor": "b-8bc5b0c1310c",
       "filename": "Invent Short Story - Dakota Krout.epub",
       "format": "epub",
       "title": "Invent Short Story",
@@ -395,6 +425,7 @@
     },
     {
       "path": "Dakota Krout/The Divine Dungeon Complete Series- Dungeon Core GameLit Fantasy - Dakota Krout.epub",
+      "anchor": "b-e3b3c2e1011c",
       "filename": "The Divine Dungeon Complete Series- Dungeon Core GameLit Fantasy - Dakota Krout.epub",
       "format": "epub",
       "title": "The Divine Dungeon Complete Series: Dungeon Core GameLit Fantasy",
@@ -408,6 +439,7 @@
     },
     {
       "path": "Dakota Krout/Uncapped - Dakota Krout.epub",
+      "anchor": "b-1113bc58edae",
       "filename": "Uncapped - Dakota Krout.epub",
       "format": "epub",
       "title": "Uncapped",
@@ -421,6 +453,7 @@
     },
     {
       "path": "Dakota Krout/Unmapped - Dakota Krout.epub",
+      "anchor": "b-267ccddaed23",
       "filename": "Unmapped - Dakota Krout.epub",
       "format": "epub",
       "title": "Unmapped",
@@ -434,6 +467,7 @@
     },
     {
       "path": "Dakota Krout/Untapped - Dakota Krout.epub",
+      "anchor": "b-0881b1327b34",
       "filename": "Untapped - Dakota Krout.epub",
       "format": "epub",
       "title": "Untapped",
@@ -447,6 +481,7 @@
     },
     {
       "path": "Dakota Krout/Worlds Only Hero - Dakota Krout.epub",
+      "anchor": "b-e3243c114ef0",
       "filename": "Worlds Only Hero - Dakota Krout.epub",
       "format": "epub",
       "title": "World's Only Hero",
@@ -460,6 +495,7 @@
     },
     {
       "path": "Daniel L. Everett/How Language Began - The Story of Humanity's Greatest Invention.pdf",
+      "anchor": "b-cfd295b56648",
       "filename": "How Language Began - The Story of Humanity's Greatest Invention.pdf",
       "format": "pdf",
       "title": "How Language Began",
@@ -473,6 +509,7 @@
     },
     {
       "path": "David Niemitz/Guild Mage- Apprentice - David Niemitz.epub",
+      "anchor": "b-270e2c6867d9",
       "filename": "Guild Mage- Apprentice - David Niemitz.epub",
       "format": "epub",
       "title": "Guild Mage: Apprentice",
@@ -486,6 +523,7 @@
     },
     {
       "path": "Diana Marcum/The Tenth Island- Finding Joy, Beauty, and Unexpected Love in the Azores - Diana Marcum.epub",
+      "anchor": "b-5c938f1e7d70",
       "filename": "The Tenth Island- Finding Joy, Beauty, and Unexpected Love in the Azores - Diana Marcum.epub",
       "format": "epub",
       "title": "The Tenth Island: Finding Joy, Beauty, and Unexpected Love in the Azores",
@@ -499,6 +537,7 @@
     },
     {
       "path": "Django Wexler/How to Become the Dark Lord and Die Trying.pdf",
+      "anchor": "b-5b37e8b28f09",
       "filename": "How to Become the Dark Lord and Die Trying.pdf",
       "format": "pdf",
       "title": "How to Become the Dark Lord and Die Trying",
@@ -512,6 +551,7 @@
     },
     {
       "path": "Ellen Javernick/What If Everybody Said That- (What If Everybody-) - Ellen Javernick.epub",
+      "anchor": "b-5194e01c829a",
       "filename": "What If Everybody Said That- (What If Everybody-) - Ellen Javernick.epub",
       "format": "epub",
       "title": "What If Everybody Said That? (What If Everybody?)",
@@ -525,6 +565,7 @@
     },
     {
       "path": "Erik Colombe/Undead Knight - Erik Colombe.epub",
+      "anchor": "b-c41f5c0d2425",
       "filename": "Undead Knight - Erik Colombe.epub",
       "format": "epub",
       "title": "Undead Knight",
@@ -538,6 +579,7 @@
     },
     {
       "path": "Fujino Omori/Is It Wrong to Try to Pick Up Girls in a Dungeon, Vol. 1.pdf",
+      "anchor": "b-a4a5f689e727",
       "filename": "Is It Wrong to Try to Pick Up Girls in a Dungeon, Vol. 1.pdf",
       "format": "pdf",
       "title": "Is It Wrong to Try to Pick Up Girls in a Dungeon, Vol. 1",
@@ -551,6 +593,7 @@
     },
     {
       "path": "Gretchen Rubin/Get It Done - How to Complete Your Dream Project.pdf",
+      "anchor": "b-ae26fd395607",
       "filename": "Get It Done - How to Complete Your Dream Project.pdf",
       "format": "pdf",
       "title": "Get It Done",
@@ -564,6 +607,7 @@
     },
     {
       "path": "Highschool DXD/High School DxD - Volume 07 - Ragnarok After the School.epub",
+      "anchor": "b-abe116c7d664",
       "filename": "High School DxD - Volume 07 - Ragnarok After the School.epub",
       "format": "epub",
       "title": "High School DxD - Volume 07 - Ragnarok After the School",
@@ -577,6 +621,7 @@
     },
     {
       "path": "Highschool DXD/High School DxD - Volume 08 - Devil's Job.epub",
+      "anchor": "b-1b9f9588fd49",
       "filename": "High School DxD - Volume 08 - Devil's Job.epub",
       "format": "epub",
       "title": "High School DxD - Volume 08 - Devil's Job",
@@ -590,6 +635,7 @@
     },
     {
       "path": "Highschool DXD/High School DxD - Volume 09 - Pandemonium at the School Trip.epub",
+      "anchor": "b-05baa7c6ab1c",
       "filename": "High School DxD - Volume 09 - Pandemonium at the School Trip.epub",
       "format": "epub",
       "title": "High School DxD - Volume 09 - Pandemonium at the School Trip",
@@ -603,6 +649,7 @@
     },
     {
       "path": "Highschool DXD/High School DxD - Volume 10 - Lion Heart of the School Festival.epub",
+      "anchor": "b-140bd85eeaad",
       "filename": "High School DxD - Volume 10 - Lion Heart of the School Festival.epub",
       "format": "epub",
       "title": "High School DxD - Volume 10 - Lion Heart of the School Festival",
@@ -616,6 +663,7 @@
     },
     {
       "path": "Highschool DXD/High School DxD - Volume 11 - Uroboros and the Promotion Test.epub",
+      "anchor": "b-72b8dbae84f9",
       "filename": "High School DxD - Volume 11 - Uroboros and the Promotion Test.epub",
       "format": "epub",
       "title": "High School DxD - Volume 11 - Uroboros and the Promotion Test",
@@ -629,6 +677,7 @@
     },
     {
       "path": "Highschool DXD/High School DxD - Volume 12 - Heroes of Supplementary Lessons.epub",
+      "anchor": "b-3f3c3cdb0a62",
       "filename": "High School DxD - Volume 12 - Heroes of Supplementary Lessons.epub",
       "format": "epub",
       "title": "High School DxD - Volume 12 - Heroes of Supplementary Lessons",
@@ -642,6 +691,7 @@
     },
     {
       "path": "Highschool DXD/High School DxD - Volume 13 - Ise SOS.epub",
+      "anchor": "b-806569a6dc99",
       "filename": "High School DxD - Volume 13 - Ise SOS.epub",
       "format": "epub",
       "title": "High School DxD - Volume 13 - Ise SOS",
@@ -655,6 +705,7 @@
     },
     {
       "path": "Highschool DXD/High School DxD - Volume 14 - Wizards of Career Counseling.epub",
+      "anchor": "b-f438e9cd203d",
       "filename": "High School DxD - Volume 14 - Wizards of Career Counseling.epub",
       "format": "epub",
       "title": "High School DxD - Volume 14 - Wizards of Career Counseling",
@@ -668,6 +719,7 @@
     },
     {
       "path": "Highschool DXD/High School DxD - Volume 15 - Dark Knight of the Sunny-spot.epub",
+      "anchor": "b-11e62ddb5df0",
       "filename": "High School DxD - Volume 15 - Dark Knight of the Sunny-spot.epub",
       "format": "epub",
       "title": "High School DxD - Volume 15 - Dark Knight of the Sunny-spot",
@@ -681,6 +733,7 @@
     },
     {
       "path": "Highschool DXD/High School DxD - Volume 16 - Daywalker of the Extracurricular Lesson.epub",
+      "anchor": "b-b1cc028e257a",
       "filename": "High School DxD - Volume 16 - Daywalker of the Extracurricular Lesson.epub",
       "format": "epub",
       "title": "High School DxD - Volume 16 - Daywalker of the Extracurricular Lesson",
@@ -694,6 +747,7 @@
     },
     {
       "path": "Highschool DXD/High School DxD - Volume 17 - Valkyrie of the Teacher Training.epub",
+      "anchor": "b-e83a3afc7fe5",
       "filename": "High School DxD - Volume 17 - Valkyrie of the Teacher Training.epub",
       "format": "epub",
       "title": "High School DxD - Volume 17 - Valkyrie of the Teacher Training",
@@ -707,6 +761,7 @@
     },
     {
       "path": "Highschool DXD/High School DxD - Volume 18 - Funny Angel of the Christmas Day.epub",
+      "anchor": "b-1d601d712853",
       "filename": "High School DxD - Volume 18 - Funny Angel of the Christmas Day.epub",
       "format": "epub",
       "title": "High School DxD - Volume 18 - Funny Angel of the Christmas Day",
@@ -720,6 +775,7 @@
     },
     {
       "path": "Highschool DXD/High School DxD - Volume 19 - Durandal of the General Election.epub",
+      "anchor": "b-dbe7e82db4ed",
       "filename": "High School DxD - Volume 19 - Durandal of the General Election.epub",
       "format": "epub",
       "title": "High School DxD - Volume 19 - Durandal of the General Election",
@@ -733,6 +789,7 @@
     },
     {
       "path": "Highschool DXD/High School DxD - Volume 20 - Belial of Career Consultation.epub",
+      "anchor": "b-9396aeb93b87",
       "filename": "High School DxD - Volume 20 - Belial of Career Consultation.epub",
       "format": "epub",
       "title": "High School DxD - Volume 20 - Belial of Career Consultation",
@@ -746,6 +803,7 @@
     },
     {
       "path": "Highschool DXD/High School DxD - Volume 21 - Lucifer of the Optional Attendance.epub",
+      "anchor": "b-892927cd87e7",
       "filename": "High School DxD - Volume 21 - Lucifer of the Optional Attendance.epub",
       "format": "epub",
       "title": "High School DxD - Volume 21 - Lucifer of the Optional Attendance",
@@ -759,6 +817,7 @@
     },
     {
       "path": "Honour Rae/All The Skills -  5 - Honour Rae.epub",
+      "anchor": "b-b9d16a35fd4f",
       "filename": "All The Skills -  5 - Honour Rae.epub",
       "format": "epub",
       "title": "All The Skills - 5",
@@ -772,6 +831,7 @@
     },
     {
       "path": "Honour Rae/All The Skills 3- A Deckbuilding LitRPG - Honour Rae.epub",
+      "anchor": "b-a93af3be7372",
       "filename": "All The Skills 3- A Deckbuilding LitRPG - Honour Rae.epub",
       "format": "epub",
       "title": "All The Skills 3: A Deckbuilding LitRPG",
@@ -785,6 +845,7 @@
     },
     {
       "path": "Honour Rae/All the Skills- A Deck-Building LitRPG - Honour Rae.epub",
+      "anchor": "b-7f98d8fe1cbd",
       "filename": "All the Skills- A Deck-Building LitRPG - Honour Rae.epub",
       "format": "epub",
       "title": "All the Skills: A Deck-Building LitRPG",
@@ -798,6 +859,7 @@
     },
     {
       "path": "Honour Rae/All The Skills- Book 2- A Deck-Building LitRPG - Honour Rae.epub",
+      "anchor": "b-08522c841e5d",
       "filename": "All The Skills- Book 2- A Deck-Building LitRPG - Honour Rae.epub",
       "format": "epub",
       "title": "All The Skills: Book 2: A Deck-Building LitRPG",
@@ -811,6 +873,7 @@
     },
     {
       "path": "Honour Rae/All The Skills- Book 4- A Deck-Building LitRPG - Honour Rae.epub",
+      "anchor": "b-a4d4769dc370",
       "filename": "All The Skills- Book 4- A Deck-Building LitRPG - Honour Rae.epub",
       "format": "epub",
       "title": "All The Skills: Book 4: A Deck-Building LitRPG",
@@ -824,6 +887,7 @@
     },
     {
       "path": "Honour Rae/All The Skills- Book 6- A Deck-Building LitRPG - Honour Rae.epub",
+      "anchor": "b-77e07662ba8c",
       "filename": "All The Skills- Book 6- A Deck-Building LitRPG - Honour Rae.epub",
       "format": "epub",
       "title": "All The Skills: Book 6: A Deck-Building LitRPG",
@@ -837,6 +901,7 @@
     },
     {
       "path": "J. R. Saileri/Rise of the Weakest Summoner- Volume XI - J. R. Saileri.epub",
+      "anchor": "b-4b06059fa53e",
       "filename": "Rise of the Weakest Summoner- Volume XI - J. R. Saileri.epub",
       "format": "epub",
       "title": "Rise of the Weakest Summoner: Volume XI",
@@ -850,6 +915,7 @@
     },
     {
       "path": "J.R. Mathews/Jake's Magical Market 3 - Home Sweet Home.pdf",
+      "anchor": "b-160652edc65c",
       "filename": "Jake's Magical Market 3 - Home Sweet Home.pdf",
       "format": "pdf",
       "title": "Jake's Magical Market 3",
@@ -863,6 +929,7 @@
     },
     {
       "path": "J.R. Mathews/Jake's Magical Market.pdf",
+      "anchor": "b-fd62d12b0609",
       "filename": "Jake's Magical Market.pdf",
       "format": "pdf",
       "title": "Jake's Magical Market",
@@ -876,6 +943,7 @@
     },
     {
       "path": "James Swain/The King Tides (Lancaster & Daniels Book 1) - James Swain.epub",
+      "anchor": "b-15a862a4a16e",
       "filename": "The King Tides (Lancaster & Daniels Book 1) - James Swain.epub",
       "format": "epub",
       "title": "The King Tides (Lancaster & Daniels Book 1)",
@@ -889,6 +957,7 @@
     },
     {
       "path": "Jordan Stephanie Gray/The Wicked Sea.pdf",
+      "anchor": "b-f2adec176458",
       "filename": "The Wicked Sea.pdf",
       "format": "pdf",
       "title": "The Wicked Sea",
@@ -902,6 +971,7 @@
     },
     {
       "path": "Kami Garcia/Beautiful Creatures - Beautiful Creatures, Book 1.pdf",
+      "anchor": "b-26a3ffc1104a",
       "filename": "Beautiful Creatures - Beautiful Creatures, Book 1.pdf",
       "format": "pdf",
       "title": "Beautiful Creatures",
@@ -915,6 +985,7 @@
     },
     {
       "path": "Kerry Anne King/Whisper Me This- A Novel - Kerry Anne King.epub",
+      "anchor": "b-ddc9f754f89b",
       "filename": "Whisper Me This- A Novel - Kerry Anne King.epub",
       "format": "epub",
       "title": "Whisper Me This: A Novel",
@@ -928,6 +999,7 @@
     },
     {
       "path": "Kumo Kagyu/Goblin Slayer, Vol. 1.pdf",
+      "anchor": "b-6ddc9e4b2d31",
       "filename": "Goblin Slayer, Vol. 1.pdf",
       "format": "pdf",
       "title": "Goblin Slayer, Vol. 1",
@@ -941,6 +1013,7 @@
     },
     {
       "path": "Lawrence M. Krauss/The Greatest Story Ever Told - So Far - Why Are We Here.pdf",
+      "anchor": "b-dc70194df65f",
       "filename": "The Greatest Story Ever Told - So Far - Why Are We Here.pdf",
       "format": "pdf",
       "title": "The Greatest Story Ever Told - So Far",
@@ -954,6 +1027,7 @@
     },
     {
       "path": "Mashton XX/Arcane Pathfinder Book 5- Daunting - Mashton XX.epub",
+      "anchor": "b-85a3556e1f44",
       "filename": "Arcane Pathfinder Book 5- Daunting - Mashton XX.epub",
       "format": "epub",
       "title": "Arcane Pathfinder Book 5: Daunting",
@@ -967,6 +1041,7 @@
     },
     {
       "path": "Maxime J. Durand/Board & Conquest- [A Kingdom Building LitRPG] - Maxime J. Durand.epub",
+      "anchor": "b-00655872fb26",
       "filename": "Board & Conquest- [A Kingdom Building LitRPG] - Maxime J. Durand.epub",
       "format": "epub",
       "title": "Board & Conquest: [A Kingdom Building LitRPG]",
@@ -980,6 +1055,7 @@
     },
     {
       "path": "Meg Waite Clayton/Beautiful Exiles - Meg Waite Clayton.epub",
+      "anchor": "b-f52df805b6a6",
       "filename": "Beautiful Exiles - Meg Waite Clayton.epub",
       "format": "epub",
       "title": "Beautiful Exiles",
@@ -993,6 +1069,7 @@
     },
     {
       "path": "Michael-Scott Earle/Monster Empire Book 2 - Michael-Scott Earle.epub",
+      "anchor": "b-c72074857cbe",
       "filename": "Monster Empire Book 2 - Michael-Scott Earle.epub",
       "format": "epub",
       "title": "Monster Empire Book 2",
@@ -1006,6 +1083,7 @@
     },
     {
       "path": "Michael-Scott Earle/Space Knight Book 5 - Michael-Scott Earle.epub",
+      "anchor": "b-5f28d6bbebdc",
       "filename": "Space Knight Book 5 - Michael-Scott Earle.epub",
       "format": "epub",
       "title": "Space Knight Book 5",
@@ -1019,6 +1097,7 @@
     },
     {
       "path": "Michael-Scott Earle/Space Knight Book 6 - Michael-Scott Earle.epub",
+      "anchor": "b-5aaf7da90836",
       "filename": "Space Knight Book 6 - Michael-Scott Earle.epub",
       "format": "epub",
       "title": "Space Knight Book 6",
@@ -1032,6 +1111,7 @@
     },
     {
       "path": "Michael-Scott Earle/Tamer King of Dinosaurs Book 10 - Michael-Scott Earle.epub",
+      "anchor": "b-74992f207ccb",
       "filename": "Tamer King of Dinosaurs Book 10 - Michael-Scott Earle.epub",
       "format": "epub",
       "title": "Tamer: King of Dinosaurs Book 10",
@@ -1045,6 +1125,7 @@
     },
     {
       "path": "Michael-Scott Earle/Tamer King of Dinosaurs Book 11 - Michael-Scott Earle.epub",
+      "anchor": "b-afafd16c6fcb",
       "filename": "Tamer King of Dinosaurs Book 11 - Michael-Scott Earle.epub",
       "format": "epub",
       "title": "Tamer: King of Dinosaurs Book 11",
@@ -1058,6 +1139,7 @@
     },
     {
       "path": "Michael-Scott Earle/Tamer King of Dinosaurs Book 7 - Michael-Scott Earle.epub",
+      "anchor": "b-bd62620a97be",
       "filename": "Tamer King of Dinosaurs Book 7 - Michael-Scott Earle.epub",
       "format": "epub",
       "title": "Tamer: King of Dinosaurs Book 7",
@@ -1071,6 +1153,7 @@
     },
     {
       "path": "Michael-Scott Earle/Tamer King of Dinosaurs Book 8 - Michael-Scott Earle.epub",
+      "anchor": "b-d98a839e55c9",
       "filename": "Tamer King of Dinosaurs Book 8 - Michael-Scott Earle.epub",
       "format": "epub",
       "title": "Tamer: King of Dinosaurs Book 8",
@@ -1084,6 +1167,7 @@
     },
     {
       "path": "Michael-Scott Earle/Tamer King of Dinosaurs Book 9 - Michael-Scott Earle.epub",
+      "anchor": "b-16740474ef43",
       "filename": "Tamer King of Dinosaurs Book 9 - Michael-Scott Earle.epub",
       "format": "epub",
       "title": "Tamer: King of Dinosaurs Book 9",
@@ -1097,6 +1181,7 @@
     },
     {
       "path": "Mike Duncan/The Storm Before the Storm.pdf",
+      "anchor": "b-f33fd9ff577e",
       "filename": "The Storm Before the Storm.pdf",
       "format": "pdf",
       "title": "The Storm Before the Storm",
@@ -1110,6 +1195,7 @@
     },
     {
       "path": "Mike Omer/A Killer's Mind (Zoe Bentley Mystery Book 1) - Mike Omer.epub",
+      "anchor": "b-f9316937f585",
       "filename": "A Killer's Mind (Zoe Bentley Mystery Book 1) - Mike Omer.epub",
       "format": "epub",
       "title": "A Killer's Mind (Zoe Bentley Mystery Book 1)",
@@ -1123,6 +1209,7 @@
     },
     {
       "path": "Morgan Taylor/I'm from the Sun - The Gustafer Yellowgold Story.pdf",
+      "anchor": "b-04db7112c592",
       "filename": "I'm from the Sun - The Gustafer Yellowgold Story.pdf",
       "format": "pdf",
       "title": "I'm from the Sun",
@@ -1136,6 +1223,7 @@
     },
     {
       "path": "My First Secret - Sci-FiPNR origin story - K. Rose - K. Rose.epub",
+      "anchor": "b-85c4db776a71",
       "filename": "My First Secret - Sci-FiPNR origin story - K. Rose - K. Rose.epub",
       "format": "epub",
       "title": "My First Secret - Sci-FiPNR origin story - K. Rose",
@@ -1149,6 +1237,7 @@
     },
     {
       "path": "My First Secret - Sci-FiPNR origin story - K. Rose_1.epub",
+      "anchor": "b-bbad49c8cd6d",
       "filename": "My First Secret - Sci-FiPNR origin story - K. Rose_1.epub",
       "format": "epub",
       "title": "My First Secret - Sci-FiPNR origin story - K. Rose",
@@ -1162,6 +1251,7 @@
     },
     {
       "path": "My First Secret - Sci-FiPNR origin story - K. Rose_2.epub",
+      "anchor": "b-4e983de60a95",
       "filename": "My First Secret - Sci-FiPNR origin story - K. Rose_2.epub",
       "format": "epub",
       "title": "My First Secret - Sci-FiPNR origin story - K. Rose",
@@ -1175,6 +1265,7 @@
     },
     {
       "path": "My First Secret - Sci-FiPNR origin story - K. Rose_3.epub",
+      "anchor": "b-913877e40129",
       "filename": "My First Secret - Sci-FiPNR origin story - K. Rose_3.epub",
       "format": "epub",
       "title": "My First Secret - Sci-FiPNR origin story - K. Rose",
@@ -1188,6 +1279,7 @@
     },
     {
       "path": "Neal Shusterman/The Toll.pdf",
+      "anchor": "b-105a9712a5e0",
       "filename": "The Toll.pdf",
       "format": "pdf",
       "title": "The Toll",
@@ -1201,6 +1293,7 @@
     },
     {
       "path": "Pirateaba/Fae and Fare - The Wandering Inn, Book 2.pdf",
+      "anchor": "b-8e35a63ff5df",
       "filename": "Fae and Fare - The Wandering Inn, Book 2.pdf",
       "format": "pdf",
       "title": "Fae and Fare",
@@ -1214,6 +1307,7 @@
     },
     {
       "path": "Pirateaba/The Wandering Inn - The Wandering Inn, Book 1.pdf",
+      "anchor": "b-6e25da67a885",
       "filename": "The Wandering Inn - The Wandering Inn, Book 1.pdf",
       "format": "pdf",
       "title": "The Wandering Inn",
@@ -1227,6 +1321,7 @@
     },
     {
       "path": "Ransom Riggs/Miss Peregrine's Home for Peculiar Children.pdf",
+      "anchor": "b-3587cb3a4665",
       "filename": "Miss Peregrine's Home for Peculiar Children.pdf",
       "format": "pdf",
       "title": "Miss Peregrine's Home for Peculiar Children",
@@ -1240,6 +1335,7 @@
     },
     {
       "path": "Rebecca Yarros/Onyx Storm (The Empyrean) - Rebecca Yarros.epub",
+      "anchor": "b-e7dd47513421",
       "filename": "Onyx Storm (The Empyrean) - Rebecca Yarros.epub",
       "format": "epub",
       "title": "Onyx Storm (The Empyrean)",
@@ -1253,6 +1349,7 @@
     },
     {
       "path": "Sarah A. Parker/When the Moon Hatched - A Novel.pdf",
+      "anchor": "b-589d3eb8850b",
       "filename": "When the Moon Hatched - A Novel.pdf",
       "format": "pdf",
       "title": "When the Moon Hatched",
@@ -1266,6 +1363,7 @@
     },
     {
       "path": "Seirei Tsukai no Blade Dance/Seirei Tsukai no Blade Dance - BR SS Compilation (1-6).epub",
+      "anchor": "b-b86ae0d61a22",
       "filename": "Seirei Tsukai no Blade Dance - BR SS Compilation (1-6).epub",
       "format": "epub",
       "title": "Seirei Tsukai no Blade Dance - BR SS Compilation",
@@ -1279,6 +1377,7 @@
     },
     {
       "path": "Seirei Tsukai no Blade Dance/Seirei Tsukai no Blade Dance - Extra.1 - Great Festival of the Spirits at the Imperial Capital.epub",
+      "anchor": "b-3649398411e5",
       "filename": "Seirei Tsukai no Blade Dance - Extra.1 - Great Festival of the Spirits at the Imperial Capital.epub",
       "format": "epub",
       "title": "Seirei Tsukai no Blade Dance - Extra.1 - Great Festival of the Spirits at the Imperial Capital",
@@ -1292,6 +1391,7 @@
     },
     {
       "path": "Seirei Tsukai no Blade Dance/Seirei Tsukai no Blade Dance - Extra.2 - Est Looking After the Sick.epub",
+      "anchor": "b-c0043a22638d",
       "filename": "Seirei Tsukai no Blade Dance - Extra.2 - Est Looking After the Sick.epub",
       "format": "epub",
       "title": "Seirei Tsukai no Blade Dance - Extra.2 - Est Looking After the Sick",
@@ -1305,6 +1405,7 @@
     },
     {
       "path": "Seirei Tsukai no Blade Dance/Seirei Tsukai no Blade Dance - Extra.3 - The Princess Confidential Part-time Job.epub",
+      "anchor": "b-adaca9f73089",
       "filename": "Seirei Tsukai no Blade Dance - Extra.3 - The Princess Confidential Part-time Job.epub",
       "format": "epub",
       "title": "Seirei Tsukai no Blade Dance - Extra.3 - The Princess' Confidential Part-time Job",
@@ -1318,6 +1419,7 @@
     },
     {
       "path": "Seirei Tsukai no Blade Dance/Seirei Tsukai no Blade Dance - Extra.4 - Hunting the Legendary Giant Bust Spirit!.epub",
+      "anchor": "b-7de7206bfa03",
       "filename": "Seirei Tsukai no Blade Dance - Extra.4 - Hunting the Legendary Giant Bust Spirit!.epub",
       "format": "epub",
       "title": "Seirei Tsukai no Blade Dance - Extra.4 - Hunting the Legendary Giant Bust Spirit!",
@@ -1331,6 +1433,7 @@
     },
     {
       "path": "Seirei Tsukai no Blade Dance/Seirei Tsukai no Blade Dance - Extra.5 - The Terrifying Mystery Hotpot Battle.epub",
+      "anchor": "b-35fec2e08274",
       "filename": "Seirei Tsukai no Blade Dance - Extra.5 - The Terrifying Mystery Hotpot Battle.epub",
       "format": "epub",
       "title": "Seirei Tsukai no Blade Dance - Extra.5 - The Terrifying Mystery Hotpot Battle",
@@ -1344,6 +1447,7 @@
     },
     {
       "path": "Seirei Tsukai no Blade Dance/Seirei Tsukai no Blade Dance - Extra.6 - Elementalists on Break.epub",
+      "anchor": "b-9fb7b33798b0",
       "filename": "Seirei Tsukai no Blade Dance - Extra.6 - Elementalists on Break.epub",
       "format": "epub",
       "title": "Seirei Tsukai no Blade Dance - Extra.6 - Elementalists on Break",
@@ -1357,6 +1461,7 @@
     },
     {
       "path": "Seirei Tsukai no Blade Dance/Seirei Tsukai no Blade Dance - Volume 01 - The Sword, The Academy and The Hell Cat Girl.epub",
+      "anchor": "b-5de1764ae68c",
       "filename": "Seirei Tsukai no Blade Dance - Volume 01 - The Sword, The Academy and The Hell Cat Girl.epub",
       "format": "epub",
       "title": "Seirei Tsukai no Blade Dance - Volume 01 - The Sword, The Academy and The Hell Cat Girl",
@@ -1370,6 +1475,7 @@
     },
     {
       "path": "Seirei Tsukai no Blade Dance/Seirei Tsukai no Blade Dance - Volume 02 - The Lost Queen.epub",
+      "anchor": "b-1a5bdd81fef6",
       "filename": "Seirei Tsukai no Blade Dance - Volume 02 - The Lost Queen.epub",
       "format": "epub",
       "title": "Seirei Tsukai no Blade Dance - Volume 02 - The Lost Queen",
@@ -1383,6 +1489,7 @@
     },
     {
       "path": "Seirei Tsukai no Blade Dance/Seirei Tsukai no Blade Dance - Volume 03 - Pledge of the Wind.epub",
+      "anchor": "b-e75cbb215738",
       "filename": "Seirei Tsukai no Blade Dance - Volume 03 - Pledge of the Wind.epub",
       "format": "epub",
       "title": "Seirei Tsukai no Blade Dance - Volume 03 - Pledge of the Wind",
@@ -1396,6 +1503,7 @@
     },
     {
       "path": "Seirei Tsukai no Blade Dance/Seirei Tsukai no Blade Dance - Volume 04 - The Blade Dance.epub",
+      "anchor": "b-02563b8fc491",
       "filename": "Seirei Tsukai no Blade Dance - Volume 04 - The Blade Dance.epub",
       "format": "epub",
       "title": "Seirei Tsukai no Blade Dance - Volume 04 - The Blade Dance",
@@ -1409,6 +1517,7 @@
     },
     {
       "path": "Seirei Tsukai no Blade Dance/Seirei Tsukai no Blade Dance - Volume 05 - Demon Slayer.epub",
+      "anchor": "b-0dbf148bf4a4",
       "filename": "Seirei Tsukai no Blade Dance - Volume 05 - Demon Slayer.epub",
       "format": "epub",
       "title": "Seirei Tsukai no Blade Dance - Volume 05 - Demon Slayer",
@@ -1422,6 +1531,7 @@
     },
     {
       "path": "Seirei Tsukai no Blade Dance/Seirei Tsukai no Blade Dance - Volume 06 - The Reminisced Darkness Spirit.epub",
+      "anchor": "b-6e0f5ebce3c5",
       "filename": "Seirei Tsukai no Blade Dance - Volume 06 - The Reminisced Darkness Spirit.epub",
       "format": "epub",
       "title": "Seirei Tsukai no Blade Dance - Volume 06 - The Reminisced Darkness Spirit",
@@ -1435,6 +1545,7 @@
     },
     {
       "path": "Seirei Tsukai no Blade Dance/Seirei Tsukai no Blade Dance - Volume 07 - The Strongest Blade Dancer.epub",
+      "anchor": "b-b84fb0338397",
       "filename": "Seirei Tsukai no Blade Dance - Volume 07 - The Strongest Blade Dancer.epub",
       "format": "epub",
       "title": "Seirei Tsukai no Blade Dance - Volume 07 - The Strongest Blade Dancer",
@@ -1448,6 +1559,7 @@
     },
     {
       "path": "Seirei Tsukai no Blade Dance/Seirei Tsukai no Blade Dance - Volume 08 - The Night Before the Finale.epub",
+      "anchor": "b-e53f82b323ec",
       "filename": "Seirei Tsukai no Blade Dance - Volume 08 - The Night Before the Finale.epub",
       "format": "epub",
       "title": "Seirei Tsukai no Blade Dance - Volume 08 - The Night Before the Finale",
@@ -1461,6 +1573,7 @@
     },
     {
       "path": "Seirei Tsukai no Blade Dance/Seirei Tsukai no Blade Dance - Volume 09 - Cross Fire.epub",
+      "anchor": "b-567a788376f0",
       "filename": "Seirei Tsukai no Blade Dance - Volume 09 - Cross Fire.epub",
       "format": "epub",
       "title": "Seirei Tsukai no Blade Dance - Volume 09 - Cross Fire",
@@ -1474,6 +1587,7 @@
     },
     {
       "path": "Seirei Tsukai no Blade Dance/Seirei Tsukai no Blade Dance - Volume 10 - The Awakening of the Demon King.epub",
+      "anchor": "b-dc5bdb6e621f",
       "filename": "Seirei Tsukai no Blade Dance - Volume 10 - The Awakening of the Demon King.epub",
       "format": "epub",
       "title": "Seirei Tsukai no Blade Dance - Volume 10 - The Awakening of the Demon King",
@@ -1487,6 +1601,7 @@
     },
     {
       "path": "Seirei Tsukai no Blade Dance/Seirei Tsukai no Blade Dance - Volume 11 - Elemental Lord Assassination.epub",
+      "anchor": "b-0157d34e2ab1",
       "filename": "Seirei Tsukai no Blade Dance - Volume 11 - Elemental Lord Assassination.epub",
       "format": "epub",
       "title": "Seirei Tsukai no Blade Dance - Volume 11 - Elemental Lord Assassination",
@@ -1500,6 +1615,7 @@
     },
     {
       "path": "Seirei Tsukai no Blade Dance/Seirei Tsukai no Blade Dance - Volume 12 - Releasing the Sealed Sword.epub",
+      "anchor": "b-cc755eab707f",
       "filename": "Seirei Tsukai no Blade Dance - Volume 12 - Releasing the Sealed Sword.epub",
       "format": "epub",
       "title": "Seirei Tsukai no Blade Dance - Volume 12 - Releasing the Sealed Sword",
@@ -1513,6 +1629,7 @@
     },
     {
       "path": "Seirei Tsukai no Blade Dance/Seirei Tsukai no Blade Dance - Volume 13 - Queen of Ice Blossoms.epub",
+      "anchor": "b-aef70a16e398",
       "filename": "Seirei Tsukai no Blade Dance - Volume 13 - Queen of Ice Blossoms.epub",
       "format": "epub",
       "title": "Seirei Tsukai no Blade Dance - Volume 13 - Queen of Ice Blossoms",
@@ -1526,6 +1643,7 @@
     },
     {
       "path": "Seirei Tsukai no Blade Dance/Seirei Tsukai no Blade Dance - Volume 14 - Upheaval in the Imperial Capital.epub",
+      "anchor": "b-ad28d53e1e4f",
       "filename": "Seirei Tsukai no Blade Dance - Volume 14 - Upheaval in the Imperial Capital.epub",
       "format": "epub",
       "title": "Seirei Tsukai no Blade Dance - Volume 14 - Upheaval in the Imperial Capital",
@@ -1539,6 +1657,7 @@
     },
     {
       "path": "Seirei Tsukai no Blade Dance/Seirei Tsukai no Blade Dance - Volume 15 - The Dragon King of Dracunia.epub",
+      "anchor": "b-0defa98317d2",
       "filename": "Seirei Tsukai no Blade Dance - Volume 15 - The Dragon King of Dracunia.epub",
       "format": "epub",
       "title": "Seirei Tsukai no Blade Dance - Volume 15 - The Dragon King of Dracunia",
@@ -1552,6 +1671,7 @@
     },
     {
       "path": "Seirei Tsukai no Blade Dance/Seirei Tsukai no Blade Dance - Volume 16 - The Demon King Returns in Triumph.epub",
+      "anchor": "b-06c77ff431fe",
       "filename": "Seirei Tsukai no Blade Dance - Volume 16 - The Demon King Returns in Triumph.epub",
       "format": "epub",
       "title": "Seirei Tsukai no Blade Dance - Volume 16 - The Demon King Returns in Triumph",
@@ -1565,6 +1685,7 @@
     },
     {
       "path": "Selkie Myth/Beneath the Dragoneye Moons- Immortal War - Selkie Myth.epub",
+      "anchor": "b-0829aa4ecf61",
       "filename": "Beneath the Dragoneye Moons- Immortal War - Selkie Myth.epub",
       "format": "epub",
       "title": "Beneath the Dragoneye Moons: Immortal War",
@@ -1578,6 +1699,7 @@
     },
     {
       "path": "Selkie Myth/Beneath the Dragoneye Moons- Mandate of Heaven - Selkie Myth.epub",
+      "anchor": "b-8c7c3c3139ba",
       "filename": "Beneath the Dragoneye Moons- Mandate of Heaven - Selkie Myth.epub",
       "format": "epub",
       "title": "Beneath the Dragoneye Moons: Mandate of Heaven",
@@ -1591,6 +1713,7 @@
     },
     {
       "path": "Selkie Myth/Beneath the Dragoneye Moons- New Horizons - Selkie Myth.epub",
+      "anchor": "b-134b163cae48",
       "filename": "Beneath the Dragoneye Moons- New Horizons - Selkie Myth.epub",
       "format": "epub",
       "title": "Beneath the Dragoneye Moons: New Horizons",
@@ -1604,6 +1727,7 @@
     },
     {
       "path": "Selkie Myth/Beneath the Dragoneye Moons- Return to Remus - Selkie Myth.epub",
+      "anchor": "b-4ffb4f36fa34",
       "filename": "Beneath the Dragoneye Moons- Return to Remus - Selkie Myth.epub",
       "format": "epub",
       "title": "Beneath the Dragoneye Moons: Return to Remus",
@@ -1617,6 +1741,7 @@
     },
     {
       "path": "Selkie Myth/BtDEM 1 Oathbound Healer - Selkie Myth - 20250106.epub",
+      "anchor": "b-7ba7c08a5956",
       "filename": "BtDEM 1 Oathbound Healer - Selkie Myth - 20250106.epub",
       "format": "epub",
       "title": "Oathbound Healer - MM",
@@ -1630,6 +1755,7 @@
     },
     {
       "path": "Selkie Myth/BtDEM 10 Under Ashen Skies - Selkie Myth - 20250114.epub",
+      "anchor": "b-f4d1177f63e2",
       "filename": "BtDEM 10 Under Ashen Skies - Selkie Myth - 20250114.epub",
       "format": "epub",
       "title": "Under Ashen Skies- MM",
@@ -1643,6 +1769,7 @@
     },
     {
       "path": "Selkie Myth/BtDEM 12 Phoenix Peaks - Selkie Myth - 20250115.epub",
+      "anchor": "b-d9f9f8643354",
       "filename": "BtDEM 12 Phoenix Peaks - Selkie Myth - 20250115.epub",
       "format": "epub",
       "title": "Phoenix Peaks - MM",
@@ -1656,6 +1783,7 @@
     },
     {
       "path": "Selkie Myth/BtDEM 13 Moonfall - Selkie Myth - 20250115.epub",
+      "anchor": "b-53dee963b7e4",
       "filename": "BtDEM 13 Moonfall - Selkie Myth - 20250115.epub",
       "format": "epub",
       "title": "Moonfall",
@@ -1669,6 +1797,7 @@
     },
     {
       "path": "Selkie Myth/BtDEM 15 Rise from the Ashes - Selkie Myth - 20250515.epub",
+      "anchor": "b-b3d3f54a52fb",
       "filename": "BtDEM 15 Rise from the Ashes - Selkie Myth - 20250515.epub",
       "format": "epub",
       "title": "Rise from the Ashes",
@@ -1682,6 +1811,7 @@
     },
     {
       "path": "Selkie Myth/BtDEM 16 Of Gods and Dragons - Selkie Myth - 20270827.epub",
+      "anchor": "b-d7a6a1ee4f7d",
       "filename": "BtDEM 16 Of Gods and Dragons - Selkie Myth - 20270827.epub",
       "format": "epub",
       "title": "Of Gods and Dragons",
@@ -1695,6 +1825,7 @@
     },
     {
       "path": "Selkie Myth/BtDEM 2 Adventures in the Argo - Selkie Myth - 20250107.epub",
+      "anchor": "b-2171f8e775b6",
       "filename": "BtDEM 2 Adventures in the Argo - Selkie Myth - 20250107.epub",
       "format": "epub",
       "title": "Adventures in the Argo - MM",
@@ -1708,6 +1839,7 @@
     },
     {
       "path": "Selkie Myth/BtDEM 3 Ranger's Dawn - Selkie Myth - 20250109.epub",
+      "anchor": "b-2dc1b513062a",
       "filename": "BtDEM 3 Ranger's Dawn - Selkie Myth - 20250109.epub",
       "format": "epub",
       "title": "Ranger's Dawn - MM",
@@ -1721,6 +1853,7 @@
     },
     {
       "path": "Selkie Myth/BtDEM 4 Beyond the Wall - Selkie Myth - 20250110.epub",
+      "anchor": "b-8cfd3bc7d47f",
       "filename": "BtDEM 4 Beyond the Wall - Selkie Myth - 20250110.epub",
       "format": "epub",
       "title": "Beyond the Wall - MM",
@@ -1734,6 +1867,7 @@
     },
     {
       "path": "Selkie Myth/BtDEM 5  Moonveiled Journeys - Selkie Myth - 20250111.epub",
+      "anchor": "b-aeb899b2db2a",
       "filename": "BtDEM 5  Moonveiled Journeys - Selkie Myth - 20250111.epub",
       "format": "epub",
       "title": "Moonveiled Journeys - MM",
@@ -1747,6 +1881,7 @@
     },
     {
       "path": "Selkie Myth/BtDEM 6 Immortal Moments - Selkie Myth - 20250112.epub",
+      "anchor": "b-01e6eb03c5f3",
       "filename": "BtDEM 6 Immortal Moments - Selkie Myth - 20250112.epub",
       "format": "epub",
       "title": "Immortal Moments - MM",
@@ -1760,6 +1895,7 @@
     },
     {
       "path": "Selkie Myth/BtDEM 9 The Gladiator Gauntlet - Selkie Myth - 20250114.epub",
+      "anchor": "b-7cee7ba12cf4",
       "filename": "BtDEM 9 The Gladiator Gauntlet - Selkie Myth - 20250114.epub",
       "format": "epub",
       "title": "The Gladiator Gauntlet",
@@ -1773,6 +1909,7 @@
     },
     {
       "path": "Shannon Chakraborty/The Adventures of Amina al-Sirafi - A Novel.pdf",
+      "anchor": "b-d5cc780bb6cf",
       "filename": "The Adventures of Amina al-Sirafi - A Novel.pdf",
       "format": "pdf",
       "title": "The Adventures of Amina al-Sirafi",
@@ -1786,6 +1923,7 @@
     },
     {
       "path": "Shirtaloon/He Who Fights with Monsters 10- A LitRPG Adventure - Travis Deverell.epub",
+      "anchor": "b-d24c8c57a236",
       "filename": "He Who Fights with Monsters 10- A LitRPG Adventure - Travis Deverell.epub",
       "format": "epub",
       "title": "He Who Fights with Monsters 10: A LitRPG Adventure",
@@ -1799,6 +1937,7 @@
     },
     {
       "path": "Shirtaloon/He Who Fights with Monsters 10.pdf",
+      "anchor": "b-575f2fedadc9",
       "filename": "He Who Fights with Monsters 10.pdf",
       "format": "pdf",
       "title": "He Who Fights with Monsters 10",
@@ -1812,6 +1951,7 @@
     },
     {
       "path": "Shirtaloon/He Who Fights with Monsters 12- A LitRPG Adventure.pdf",
+      "anchor": "b-6488d401cf55",
       "filename": "He Who Fights with Monsters 12- A LitRPG Adventure.pdf",
       "format": "pdf",
       "title": "He Who Fights with Monsters 12- A LitRPG Adventure",
@@ -1825,6 +1965,7 @@
     },
     {
       "path": "Shirtaloon/He Who Fights with Monsters 2- A LitRPG Adventure - Travis Deverell.epub",
+      "anchor": "b-67f8d12111ea",
       "filename": "He Who Fights with Monsters 2- A LitRPG Adventure - Travis Deverell.epub",
       "format": "epub",
       "title": "He Who Fights with Monsters 2: A LitRPG Adventure",
@@ -1838,6 +1979,7 @@
     },
     {
       "path": "Shirtaloon/He Who Fights with Monsters 3- A LitRPG Adventure - Travis Deverell.epub",
+      "anchor": "b-c595fedd15ab",
       "filename": "He Who Fights with Monsters 3- A LitRPG Adventure - Travis Deverell.epub",
       "format": "epub",
       "title": "He Who Fights with Monsters 3: A LitRPG Adventure",
@@ -1851,6 +1993,7 @@
     },
     {
       "path": "Shirtaloon/He Who Fights with Monsters 5- A LitRPG Adventure - Travis Deverell.epub",
+      "anchor": "b-2c38c7a29bd4",
       "filename": "He Who Fights with Monsters 5- A LitRPG Adventure - Travis Deverell.epub",
       "format": "epub",
       "title": "He Who Fights with Monsters 5: A LitRPG Adventure",
@@ -1864,6 +2007,7 @@
     },
     {
       "path": "Shirtaloon/He Who Fights with Monsters 6- A LitRPG Adventure - Travis Deverell.epub",
+      "anchor": "b-72f4710264a2",
       "filename": "He Who Fights with Monsters 6- A LitRPG Adventure - Travis Deverell.epub",
       "format": "epub",
       "title": "He Who Fights with Monsters 6: A LitRPG Adventure",
@@ -1877,6 +2021,7 @@
     },
     {
       "path": "The Assassin King (The Symphony of Ages Book 6) - Sample - Elizabeth Haydon.epub",
+      "anchor": "b-9b55a12aa7fa",
       "filename": "The Assassin King (The Symphony of Ages Book 6) - Sample - Elizabeth Haydon.epub",
       "format": "epub",
       "title": "The Assassin King (The Symphony of Ages Book 6) - Sample",
@@ -1890,6 +2035,7 @@
     },
     {
       "path": "The Assassin King (The Symphony of Ages Book 6)_nodrm.epub",
+      "anchor": "b-b10411e8a08d",
       "filename": "The Assassin King (The Symphony of Ages Book 6)_nodrm.epub",
       "format": "epub",
       "title": "The Assassin King (The Symphony of Ages Book 6) - Sample",
@@ -1903,6 +2049,7 @@
     },
     {
       "path": "The Assassin King (The Symphony of Ages Book 6)_nodrm_1.epub",
+      "anchor": "b-25494ca2c165",
       "filename": "The Assassin King (The Symphony of Ages Book 6)_nodrm_1.epub",
       "format": "epub",
       "title": "The Assassin King (The Symphony of Ages Book 6) - Sample",
@@ -1916,6 +2063,7 @@
     },
     {
       "path": "The Assassin King (The Symphony of Ages Book 6)_nodrm_2.epub",
+      "anchor": "b-16c754ec402b",
       "filename": "The Assassin King (The Symphony of Ages Book 6)_nodrm_2.epub",
       "format": "epub",
       "title": "The Assassin King (The Symphony of Ages Book 6) - Sample",
@@ -1929,6 +2077,7 @@
     },
     {
       "path": "The Navigators/John (LifeChange Book 20) - The Navigators.epub",
+      "anchor": "b-fcc1744375fd",
       "filename": "John (LifeChange Book 20) - The Navigators.epub",
       "format": "epub",
       "title": "John (LifeChange Book 20)",
@@ -1942,6 +2091,7 @@
     },
     {
       "path": "WADW - Ava Cuvay - Ava Cuvay.epub",
+      "anchor": "b-be916e987a59",
       "filename": "WADW - Ava Cuvay - Ava Cuvay.epub",
       "format": "epub",
       "title": "WADW - Ava Cuvay",
@@ -1955,6 +2105,7 @@
     },
     {
       "path": "WADW - Ava Cuvay_1.epub",
+      "anchor": "b-bad25938c199",
       "filename": "WADW - Ava Cuvay_1.epub",
       "format": "epub",
       "title": "WADW - Ava Cuvay",
@@ -1968,6 +2119,7 @@
     },
     {
       "path": "WADW - Ava Cuvay_2.epub",
+      "anchor": "b-515c2fe9406f",
       "filename": "WADW - Ava Cuvay_2.epub",
       "format": "epub",
       "title": "WADW - Ava Cuvay",
@@ -1981,6 +2133,7 @@
     },
     {
       "path": "WADW - Ava Cuvay_3.epub",
+      "anchor": "b-543281d5cddf",
       "filename": "WADW - Ava Cuvay_3.epub",
       "format": "epub",
       "title": "WADW - Ava Cuvay",
@@ -1994,6 +2147,7 @@
     },
     {
       "path": "Will Wight/Blackflame (Cradle Book 3) - Will Wight.epub",
+      "anchor": "b-f963cdc86047",
       "filename": "Blackflame (Cradle Book 3) - Will Wight.epub",
       "format": "epub",
       "title": "Blackflame (Cradle Book 3)",
@@ -2007,6 +2161,7 @@
     },
     {
       "path": "Will Wight/Bloodline - Will Wight.epub",
+      "anchor": "b-40d92258e03f",
       "filename": "Bloodline - Will Wight.epub",
       "format": "epub",
       "title": "Bloodline",
@@ -2020,6 +2175,7 @@
     },
     {
       "path": "Will Wight/Dreadgod (Cradle Book 11) - Will Wight.epub",
+      "anchor": "b-11c1d5fccffb",
       "filename": "Dreadgod (Cradle Book 11) - Will Wight.epub",
       "format": "epub",
       "title": "Dreadgod (Cradle Book 11)",
@@ -2033,6 +2189,7 @@
     },
     {
       "path": "Will Wight/Ghostwater - Will Wight.epub",
+      "anchor": "b-58ffe335083a",
       "filename": "Ghostwater - Will Wight.epub",
       "format": "epub",
       "title": "Ghostwater",
@@ -2046,6 +2203,7 @@
     },
     {
       "path": "Will Wight/Reaper - Will Wight.epub",
+      "anchor": "b-bbdc65ebaad4",
       "filename": "Reaper - Will Wight.epub",
       "format": "epub",
       "title": "Reaper",
@@ -2059,6 +2217,7 @@
     },
     {
       "path": "Will Wight/Skysworn (Cradle Book 4) - Will Wight.epub",
+      "anchor": "b-c1f1a9981363",
       "filename": "Skysworn (Cradle Book 4) - Will Wight.epub",
       "format": "epub",
       "title": "Skysworn (Cradle Book 4)",
@@ -2072,6 +2231,7 @@
     },
     {
       "path": "Will Wight/Soulsmith (Cradle Book 2) - Will Wight.epub",
+      "anchor": "b-14940a87138a",
       "filename": "Soulsmith (Cradle Book 2) - Will Wight.epub",
       "format": "epub",
       "title": "Soulsmith (Cradle Book 2)",
@@ -2085,6 +2245,7 @@
     },
     {
       "path": "Will Wight/The Captain (The Last Horizon Book 1) - Will Wight.epub",
+      "anchor": "b-a4355bbd8c93",
       "filename": "The Captain (The Last Horizon Book 1) - Will Wight.epub",
       "format": "epub",
       "title": "The Captain (The Last Horizon Book 1)",
@@ -2098,6 +2259,7 @@
     },
     {
       "path": "Will Wight/The Engineer (The Last Horizon Book 2) - Will Wight.epub",
+      "anchor": "b-0c1dc61d44b8",
       "filename": "The Engineer (The Last Horizon Book 2) - Will Wight.epub",
       "format": "epub",
       "title": "The Engineer (The Last Horizon Book 2)",
@@ -2111,6 +2273,7 @@
     },
     {
       "path": "Will Wight/The Knight (The Last Horizon Book 3) - Will Wight.epub",
+      "anchor": "b-706eb1946077",
       "filename": "The Knight (The Last Horizon Book 3) - Will Wight.epub",
       "format": "epub",
       "title": "The Knight (The Last Horizon Book 3)",
@@ -2124,6 +2287,7 @@
     },
     {
       "path": "Will Wight/Uncrowned - Will Wight.epub",
+      "anchor": "b-d58cd484be5f",
       "filename": "Uncrowned - Will Wight.epub",
       "format": "epub",
       "title": "Uncrowned",
@@ -2137,6 +2301,7 @@
     },
     {
       "path": "Will Wight/Underlord (Cradle Book 6) - Will Wight.epub",
+      "anchor": "b-9dae7eae1431",
       "filename": "Underlord (Cradle Book 6) - Will Wight.epub",
       "format": "epub",
       "title": "Underlord (Cradle Book 6)",
@@ -2150,6 +2315,7 @@
     },
     {
       "path": "Will Wight/Unsouled - Will Wight.epub",
+      "anchor": "b-63c540aeb3a3",
       "filename": "Unsouled - Will Wight.epub",
       "format": "epub",
       "title": "Unsouled",
@@ -2163,6 +2329,7 @@
     },
     {
       "path": "Will Wight/Waybound (Cradle Book 12) - Will Wight.epub",
+      "anchor": "b-6d3295496c49",
       "filename": "Waybound (Cradle Book 12) - Will Wight.epub",
       "format": "epub",
       "title": "Waybound (Cradle Book 12)",
@@ -2176,6 +2343,7 @@
     },
     {
       "path": "Will Wight/Wintersteel - Will Wight.epub",
+      "anchor": "b-a5504fdf6917",
       "filename": "Wintersteel - Will Wight.epub",
       "format": "epub",
       "title": "Wintersteel",
