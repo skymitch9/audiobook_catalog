@@ -213,7 +213,29 @@ def load_ebook_manifest(path: Path) -> Optional[dict]:
     this module takes toward the index itself.
     """
     if not path.exists():
-        print(f"[INFO] ebook manifest not found ({path}): pushing audiobook rows only")
+        # ⚠️ AS OF 2026-08-17 THIS IS THE NORMAL CASE IN CI, and the consequence
+        # is not "no new ebooks" but "every ebook row LEAVES the index" — the
+        # push is a snapshot REPLACE for the whole `audiobook` source. Said
+        # loudly here because it is the one place the fact is observable.
+        #
+        # Why: site/ebooks.json is gitignored now (the ebook permission gate;
+        # this repo is PUBLIC, so a tracked manifest is world-readable at a raw
+        # URL). CI checks out the branch and therefore has no manifest. The
+        # PIPELINE machine still has one, so a local `python -m app.index_push`
+        # restores the rows — but nothing does that automatically yet.
+        #
+        # 🔴 OWNER DECISION OUTSTANDING (see docs/TODO.md): either move the index
+        # push out of CI into the local pipeline (one writer, has the manifest,
+        # needs INDEX_PUSH_TOKEN on this machine), or teach CI to read the
+        # manifest from the private `ebooks-gated` bucket. Until one of those
+        # lands, ebook rows are absent from estate search for everyone — which
+        # is the SAFE direction, and a lost feature rather than a leak.
+        print(
+            f"[WARN] ebook manifest not found ({path}): pushing audiobook rows only. "
+            "⚠️ This snapshot REPLACES the source, so every ebook row is now ABSENT "
+            "from estate search until an index push runs somewhere that has the manifest.",
+            file=sys.stderr,
+        )
         return None
     try:
         manifest = json.loads(path.read_text(encoding="utf-8"))

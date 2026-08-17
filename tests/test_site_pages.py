@@ -52,26 +52,56 @@ class TestTemplatePageCopy:
 
 
 class TestEbooksPageContracts:
-    def test_fetches_manifest_same_origin_relative(self):
+    def test_fetches_the_GATED_manifest_with_a_bearer(self):
+        """⚠️ SUPERSEDES test_fetches_manifest_same_origin_relative (2026-08-17).
+
+        The page used to fetch the RELATIVE 'ebooks.json' so each lane read
+        its own manifest. That file left the deployment AND left git with the
+        permission gate (owner directive: "ebooks should be like the other
+        site where we grant permission to view it. I don't want people
+        scraping my books"), so a relative fetch would now 404 on both lanes.
+
+        What replaced it, and what this pins: the absolute gated endpoint,
+        called with a bearer. A same-origin relative fetch reappearing here
+        would mean someone put the manifest back in the deployment.
+        """
         html = _template("ebooks.html")
-        assert "fetch('ebooks.json'" in html, (
-            "the page must fetch the RELATIVE 'ebooks.json' so the /dev/ and "
-            "prod lanes each read their own manifest"
+        assert "https://audiobook-api.heygabi.ai/api/ebooks/manifest" in html
+        assert "Authorization" in html and "Bearer" in html, (
+            "the manifest is bearer-gated — a fetch without one is a 401"
         )
-        assert "/ebooks.json'" not in html.replace("'ebooks.json'", ""), (
-            "no absolute-path fetch of the manifest — that would cross lanes"
+        assert "fetch('ebooks.json'" not in html, (
+            "the relative manifest fetch is gone; it would 404 and, if it did "
+            "not, it would mean the shelf is public again"
         )
 
-    def test_display_only_no_download_links(self):
-        # Phase 1 is display-only: file access tiers belong to the auth
-        # migration's file-permissions phase. The page must not link at the
-        # ebook files themselves.
+    def test_the_gate_has_a_distinct_sentence_for_each_cause(self):
+        # §1e: not signed in ≠ awaiting approval ≠ no grant ≠ an outage.
+        # One message for four causes sends people to ask for access they
+        # already hold. The Worker writes the specific sentences; the page
+        # must carry the signed-out one and must tell 401 from 403 from the
+        # rest rather than collapsing them.
         html = _template("ebooks.html")
-        assert "download" not in html.lower().replace("downloads", ""), (
-            "no download affordance in phase 1"
-        )
+        assert "res.status === 401" in html
+        assert "res.status === 403" in html
+        assert "outage, not a permission decision" in html
+        assert "Sign in with Google" in html
+
+    def test_no_book_data_and_no_direct_file_links_in_the_page_source(self):
+        # The page is a SHIM: every book arrives at runtime, behind the gate.
+        # A view-source of the signed-out page must be a shelf with no books.
+        html = _template("ebooks.html")
         for ext in (".epub'", '.epub"', ".pdf'", '.pdf"'):
-            assert ext not in html, "no direct file links in phase 1"
+            assert ext not in html, "no direct file links — and no filenames at all"
+
+    def test_display_only_no_download_affordance(self):
+        # Still display-only. `can_download` is READ from the gated answer so
+        # a future reader knows what to draw, but this page draws nothing:
+        # there must be no anchor, no `download` attribute, no button.
+        html = _template("ebooks.html")
+        assert "download=" not in html.lower(), "no download attribute"
+        assert "<a download" not in html.lower()
+        assert "downloadbtn" not in html.lower().replace(" ", "")
 
     def test_filename_sourced_rows_are_marked_provisional(self):
         html = _template("ebooks.html")

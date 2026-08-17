@@ -137,6 +137,23 @@ jobs:
         rm -rf _site/dev
         mkdir -p _site/dev
         cp -r main-src/site/. _site/dev/
+        # ⚠️ THE EBOOK MANIFEST NEVER SHIPS. Owner directive 2026-08-17:
+        # "I don't want people scraping my books." site/ebooks.json is
+        # gitignored on main as of that day, so main-src cannot carry it —
+        # but the PROD branch still holds the last committed copy until a
+        # promote moves the removal across, and prod-src/site/. is copied
+        # verbatim into the site ROOT. This line is what closes prod on the
+        # very next push to main instead of on the next promote, because the
+        # workflow file itself comes from the triggering ref.
+        # It stays after the promote too: a mechanical guard beats a written
+        # rule, and an accidental re-negation in .gitignore would otherwise
+        # republish the whole shelf silently.
+        rm -f _site/ebooks.json _site/dev/ebooks.json
+        if [ -f "_site/ebooks.json" ] || [ -f "_site/dev/ebooks.json" ]; then
+          echo "::error::ebooks.json survived the strip — refusing to publish the shelf"
+          exit 1
+        fi
+        echo "✓ ebooks.json is absent from both lanes (gated manifest, not a public file)"
         echo "Root files:  $(find _site -maxdepth 1 -type f | wc -l)"
         echo "Dev files:   $(find _site/dev -maxdepth 1 -type f | wc -l)"
         echo "Total size:  $(du -sh _site | cut -f1)"

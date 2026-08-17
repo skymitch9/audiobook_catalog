@@ -400,9 +400,17 @@ def test_the_anchor_is_read_from_the_manifest_never_recomputed():
 # --------------------------------------------------------------------------- #
 
 
-def test_missing_manifest_is_none_with_info(tmp_path, capsys):
+def test_missing_manifest_is_none_and_says_the_ROWS_LEAVE(tmp_path, capsys):
+    """⚠️ Upgraded from INFO to WARN on 2026-08-17, and the sentence changed
+    with it. A missing manifest used to mean "no ebooks this run"; since the
+    permission gate made site/ebooks.json gitignored, it is the NORMAL case in
+    CI — and because the push is a snapshot REPLACE, it means every ebook row
+    leaves estate search. A one-line INFO for that would be exactly the silent
+    regression the estate's verification rules exist to stop."""
     assert load_ebook_manifest(tmp_path / "ebooks.json") is None
-    assert "not found" in capsys.readouterr().out
+    err = capsys.readouterr().err
+    assert "not found" in err
+    assert "ABSENT" in err, "the consequence must be stated, not just the cause"
 
 
 def test_unparseable_manifest_is_none_with_warn(tmp_path, capsys):

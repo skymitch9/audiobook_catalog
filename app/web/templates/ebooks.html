@@ -32,10 +32,25 @@
 <title>Ebooks — The Household Shelf</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%239d4a1c'/%3E%3Cpath d='M32 18c-4.5-3.4-10.5-4.6-17-4.6v32c6.5 0 12.5 1.2 17 4.6 4.5-3.4 10.5-4.6 17-4.6v-32c-6.5 0-12.5 1.2-17 4.6z' fill='%23f6f1e6'/%3E%3Cpath d='M32 18v32' stroke='%239d4a1c' stroke-width='2.5' fill='none'/%3E%3C/svg%3E">
 <!--
-  DISPLAY-ONLY, by design (ebook-split design doc, phase 1): this page renders
-  site/ebooks.json - the manifest the pipeline's sync step 1b rebuilds three
-  times a day - and offers no downloads. File access belongs to the auth
-  migration's file-permissions phase, not here.
+  ⚠️ PERMISSION-GATED SINCE 2026-08-17 (owner directive: "ebooks should be
+  like the other site where we grant permission to view it. I don't want
+  people scraping my books"). This file is now a SHIM: the markup, the theme
+  and every line of the bookshelf below are unchanged, but the data no longer
+  comes from a public file. site/ebooks.json left the deployment AND left git
+  (the repo is public, so shipping it there would have moved a door in front
+  of an open window); the manifest lives in a private R2 bucket and is served
+  by GET https://audiobook-api.heygabi.ai/api/ebooks/manifest, which verifies
+  a Firebase ID token and requires the estate's `ebooks` visibility grant.
+
+  So the page has three states and each says which one it is, in words
+  (ROLES.md §1e): signed out / signed in but not approved / approved but
+  without the ebook grant. None of them renders a single book.
+
+  DISPLAY-ONLY, still: this page offers no downloads. `can_download` rides the
+  gated answer (the estate's per-person grant, admin+ by default) so a future
+  reader knows what to draw, but the FILES are not reachable from here at all
+  — file access belongs to the reader's own server-side gate, never a hidden
+  button.
 
   PDFs ARE HIDDEN BY DEFAULT (owner, 2026-08-17). They are game handbooks and
   household documents rather than books, and they are the one format with
@@ -53,8 +68,10 @@
   every deep link silently, with the page simply failing to scroll. A deep link
   to a PDF turns the checkbox on rather than being a dead link.
 
-  The JSON is fetched client-side (same-origin), so a pipeline refresh of the
-  manifest updates this page with no HTML rebuild. This file is a TEMPLATE:
+  The manifest is fetched client-side WITH A BEARER, so a pipeline refresh
+  updates this page with no HTML rebuild. ⚠️ Bearer-per-request, never a
+  signed URL: a copied URL must be a 401, and a signed URL cannot be revoked
+  mid-session. This file is a TEMPLATE:
   it lives in app/web/templates/ and is copied verbatim to site/ebooks.html by
   app/writers.py (same convention as guess-game.html). Edit it HERE - edits to
   site/ebooks.html are wiped by the next build.
@@ -345,6 +362,18 @@ h1 .tail{color:var(--accent)}
 }
 
 .loading{text-align:center;padding:40px;color:var(--ink-faint);font-style:italic}
+/* The permission gate (2026-08-17). It is a designed state, not an error
+   state: a signed-out visitor should meet a closed shelf that looks made,
+   not a broken page. Same paper-and-ink idiom as the reading card. */
+#eb-gate{max-width:520px;margin:48px auto;padding:28px 26px;background:var(--card);
+  border:1px solid var(--rule);border-radius:14px;text-align:center;
+  box-shadow:0 1px 0 var(--rule)}
+#eb-gate h2{margin:0 0 10px;font-family:var(--serif);font-size:1.35rem;color:var(--ink);font-weight:600}
+#eb-gate p{margin:0 0 18px;color:var(--ink-faint);line-height:1.55;font-size:.95rem}
+#eb-gate .eb-gate-act{display:inline-block;padding:10px 20px;border:0;border-radius:9px;
+  background:var(--accent);color:var(--card);font:inherit;font-weight:600;cursor:pointer}
+#eb-gate .eb-gate-act:hover{background:var(--accent-deep)}
+#eb-gate .eb-gate-act[hidden]{display:none}
 .empty{text-align:center;padding:30px;color:var(--ink-faint);font-style:italic;grid-column:1/-1}
 .load-error{
   margin-top:16px;padding:16px;border:1px solid var(--caution);border-radius:10px;
@@ -383,7 +412,19 @@ h1 .tail{color:var(--accent)}
     <div id="identity-bar"></div>
   </div>
 
-  <div class="controls-row">
+  <!-- The gate. Ships VISIBLE with a neutral "checking" line, because
+       Firebase reads its persisted session asynchronously: a page that
+       renders "signed out" immediately shows a signed-in reader a flash of
+       the sign-in button (the bug admin.js found live on 2026-08-14). The
+       button itself ships hidden and nothing decisive renders until the auth
+       state resolves — or the 8s backstop fires for a blocked gstatic. -->
+  <div id="eb-gate">
+    <h2 id="eb-gate-title">The shelf is closed</h2>
+    <p id="eb-gate-why">Checking your sign-in…</p>
+    <button type="button" class="eb-gate-act" id="eb-gate-signin" hidden>Sign in with Google</button>
+  </div>
+
+  <div class="controls-row" id="eb-controls" hidden>
     <input id="eb-search" type="search" placeholder="Search title, author, filename..." aria-label="Search ebooks" />
     <select id="eb-sort" aria-label="Sort ebooks">
       <option value="title">Sort by Title</option>
@@ -404,9 +445,7 @@ h1 .tail{color:var(--accent)}
     <span id="eb-count"></span>
   </div>
 
-  <div id="eb-list" class="eb-shelf" role="list">
-    <div class="loading">Loading the shelf...</div>
-  </div>
+  <div id="eb-list" class="eb-shelf" role="list" hidden></div>
 
   <div class="eb-footer">
     <div>
@@ -747,58 +786,192 @@ h1 .tail{color:var(--accent)}
     if (ev.key === 'Escape' && !overlayEl.hidden) closeCard();
   });
 
-  function load() {
-    // Same-origin fetch: on the dev lane this is /dev/ebooks.json, on prod
-    // /ebooks.json - the relative URL keeps the two lanes honest for free.
-    fetch('ebooks.json', { cache: 'no-cache' })
-      .then(function (r) {
-        if (!r.ok) throw new Error('HTTP ' + r.status + ' for ebooks.json');
-        return r.json();
-      })
-      .then(function (manifest) {
-        allBooks = Array.isArray(manifest.ebooks) ? manifest.ebooks : [];
-        generatedEl.textContent = manifest.generated_at || 'unknown';
-        renderPdfToggle();
-        renderChips();
-        render();
-        // Deep links resolve only once the manifest is in - the tiles (and so
-        // their anchor ids) do not exist before this point, which is why the
-        // browser's own fragment scroll cannot do this job.
-        goToAnchor();
-      })
-      .catch(function (err) {
-        // A failed load is a failed load - say what happened in words, and do
-        // not dress a network problem up as anything else.
-        console.error('[ebooks] manifest load failed:', err);
-        listEl.innerHTML = '<div class="load-error">Could not load the ebook list ' +
-          '(the ebooks.json manifest did not load). This is a loading problem, not ' +
-          'a permissions one — try a refresh, and if it keeps happening tell Mitch.</div>';
-        generatedEl.textContent = 'unavailable';
-      });
-  }
+  // ------------------------- the shelf's public API -------------------------
+  // ⚠️ THE SHELF NO LONGER FETCHES ANYTHING. Until 2026-08-17 this function
+  // did a same-origin relative fetch of the manifest file; that file is gone
+  // deployment and from git, because the repo is PUBLIC and leaving the
+  // manifest there would have put a door in front of an open window.
+  //
+  // The manifest now arrives from the module below, which holds the Firebase
+  // token and calls the gated endpoint. This split is deliberate: the
+  // rendering half stays a plain non-module script that cannot fail on a
+  // Firebase hiccup, and the AUTH half is the only thing that talks to a
+  // network. Nothing here decides who may see the shelf — the Worker does,
+  // server-side, on every request.
+  window.ebooksShelf = {
+    /** Paint the shelf from a manifest object the caller already obtained. */
+    render: function (manifest) {
+      allBooks = Array.isArray(manifest.ebooks) ? manifest.ebooks : [];
+      generatedEl.textContent = manifest.generated_at || 'unknown';
+      renderPdfToggle();
+      renderChips();
+      render();
+      // Deep links resolve only once the manifest is in - the tiles (and so
+      // their anchor ids) do not exist before this point, which is why the
+      // browser's own fragment scroll cannot do this job.
+      goToAnchor();
+    },
+    /** The honest failure state for a reader who IS allowed in. */
+    failed: function (sentence) {
+      listEl.innerHTML = '<div class="load-error">' + sentence + '</div>';
+      generatedEl.textContent = 'unavailable';
+    },
+  };
 
   searchEl.addEventListener('input', render);
   sortEl.addEventListener('change', render);
-  load();
 })();
 </script>
 
-<!-- Shared identity bar (sign-in chip), same mount as the other pages.
-     Kept in its own module so a Firebase hiccup can never take the book list
-     down with it - this page's real content needs no account at all. -->
+<!-- Shared identity bar (sign-in chip) AND the permission gate.
+     ⚠️ THE GATE IS HERE AND NOT IN THE SHELF SCRIPT, on purpose. This page's
+     content is no longer public (owner directive 2026-08-17), so a Firebase
+     hiccup can no longer be shrugged off — but the SHELF half above stays a
+     plain script that only renders what it is handed, so a broken module can
+     only ever fail CLOSED. Nothing below decides access: it fetches, and the
+     Worker decides, server-side, on every request. -->
 <script type="module">
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
   import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
   import { FIREBASE_CONFIG } from './fb-env.js';
   import { mountAccountModal } from './account-modal.js';
+  import { getLiveUser, signInWithGoogle, handleRedirectResult } from './identity.js';
 
+  /** The gated manifest. ⚠️ Its OWN origin — this page is served from
+   *  ebooks.heygabi.ai (through the ebooks-door Worker) and from
+   *  audiobooks.heygabi.ai; both are named in audiobook-worker's
+   *  SITE_ORIGINS, which is what makes the cross-origin call legal. */
+  const MANIFEST_URL = 'https://audiobook-api.heygabi.ai/api/ebooks/manifest';
+
+  const gateEl = document.getElementById('eb-gate');
+  const gateTitle = document.getElementById('eb-gate-title');
+  const gateWhy = document.getElementById('eb-gate-why');
+  const gateBtn = document.getElementById('eb-gate-signin');
+  const controlsEl = document.getElementById('eb-controls');
+  const listEl = document.getElementById('eb-list');
+
+  /** Show one of the closed states. Every one says what happened, what it
+   *  needs and how to get it — never a bare status, never a raw body. */
+  function closed(title, why, opts) {
+    gateTitle.textContent = title;
+    gateWhy.textContent = why;
+    gateBtn.hidden = !(opts && opts.signIn);
+    gateEl.hidden = false;
+    controlsEl.hidden = true;
+    listEl.hidden = true;
+  }
+
+  function opened(manifest) {
+    gateEl.hidden = true;
+    controlsEl.hidden = false;
+    listEl.hidden = false;
+    window.ebooksShelf.render(manifest);
+  }
+
+  let app = null;
   try {
-    const app = initializeApp(FIREBASE_CONFIG);
+    app = initializeApp(FIREBASE_CONFIG);
     const db = getFirestore(app);
     mountAccountModal(db, app, document.getElementById('identity-bar'));
   } catch (e) {
-    console.warn('[ebooks] identity bar failed to mount:', e);
+    console.warn('[ebooks] identity failed to initialise:', e);
+    closed(
+      'The shelf could not check your sign-in',
+      'Sign-in did not load, so the shelf cannot tell who you are. This is a loading problem on our side, not a decision about you — try a refresh, and if it keeps happening tell Mitch.',
+      {},
+    );
   }
+
+  // A blocked or very slow gstatic must not leave "Checking your sign-in…"
+  // on screen forever — the admin.js backstop, ported.
+  let resolved = false;
+  const backstop = setTimeout(() => {
+    if (resolved) return;
+    resolved = true;
+    closed(
+      'The shelf could not check your sign-in',
+      'Sign-in is taking too long to load. Try a refresh; if it keeps happening tell Mitch.',
+      {},
+    );
+  }, 8000);
+
+  gateBtn.addEventListener('click', async () => {
+    gateBtn.disabled = true;
+    try {
+      await signInWithGoogle(app);
+      await boot();
+    } catch (e) {
+      gateWhy.textContent = 'Sign-in did not complete. Try again, or tell Mitch if it keeps failing.';
+    }
+    gateBtn.disabled = false;
+  });
+
+  async function boot() {
+    if (!app) return;
+    const user = await getLiveUser(app).catch(() => null);
+    resolved = true;
+    clearTimeout(backstop);
+
+    if (!user || !user.uid) {
+      closed(
+        'The shelf is closed',
+        'These are the household’s own ebook files, so the shelf is not public. Sign in with Google and, if you have been given the ebook grant, it will fill in.',
+        { signIn: true },
+      );
+      return;
+    }
+
+    let res;
+    try {
+      const token = await user.getIdToken();
+      res = await fetch(MANIFEST_URL, { headers: { Authorization: 'Bearer ' + token } });
+    } catch (e) {
+      // ⚠️ An outage is NOT a permission failure (§1e point 5). Mislabelling
+      // it sends people asking for access they already hold.
+      closed(
+        'The shelf did not answer',
+        'The shelf’s server did not respond. This is an outage, not a permission decision — try again shortly.',
+        {},
+      );
+      return;
+    }
+
+    if (res.ok) {
+      let manifest;
+      try {
+        manifest = await res.json();
+      } catch (e) {
+        closed('The shelf did not answer', 'The shelf’s answer was unreadable. Try a refresh; if it keeps happening tell Mitch.', {});
+        return;
+      }
+      opened(manifest);
+      return;
+    }
+
+    // The Worker writes the sentence for each distinct cause — not signed in,
+    // awaiting approval, revoked, or approved-without-the-ebook-grant — so
+    // the page shows ITS words rather than inventing a fifth meaning here.
+    let body = null;
+    try { body = await res.json(); } catch (e) { /* no body worth reading */ }
+    const said = body && typeof body.detail === 'string' ? body.detail : null;
+
+    if (res.status === 401) {
+      closed('The shelf is closed', said || 'Your sign-in has lapsed — sign in again.', { signIn: true });
+      return;
+    }
+    if (res.status === 403) {
+      closed('You do not have the ebook shelf yet', said || 'Ask Mitch to switch on “Ebooks” for your account.', {});
+      return;
+    }
+    closed(
+      'The shelf did not answer',
+      said || 'Something went wrong on the shelf’s server. Try again shortly.',
+      {},
+    );
+  }
+
+  // A redirect sign-in lands back here; resolve it before asking who is live.
+  handleRedirectResult(app).catch(() => {}).then(boot);
 </script>
 </body>
 </html>

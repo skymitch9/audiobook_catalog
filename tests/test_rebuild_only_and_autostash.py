@@ -143,8 +143,15 @@ def test_auto_commit_git_add_allowlist_unchanged(monkeypatch):
         "git", "add", "site/catalog.csv", "site/index.html",
         "site/covers_manifest.json", "site/covers-base.js",
         "site/stats.html", "site/chapters.json", "site/content_warnings.json",
-        "site/additions_log.json", "site/ebooks.json", "author_drive_map.json",
+        "site/additions_log.json", "author_drive_map.json",
     ]
+    # ⚠️ site/ebooks.json is DELIBERATELY absent since 2026-08-17. The manifest
+    # is gitignored (owner directive: "I don't want people scraping my books"
+    # — this repo is PUBLIC, so a tracked manifest is world-readable at a raw
+    # URL whatever the deployment serves). Naming an ignored path here would
+    # make `git add` exit 1, the same noise site/covers/ used to make. If a
+    # future session re-adds it, this assertion is the tripwire.
+    assert "site/ebooks.json" not in add_calls[0]
 
 
 def test_auto_commit_still_warns_and_attempts_push_on_genuine_rebase_conflict(monkeypatch, capsys):

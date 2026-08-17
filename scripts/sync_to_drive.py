@@ -1336,6 +1336,22 @@ def _run_pipeline_body(
                 print("  [WARN] Some covers failed to upload — they will retry next run.")
         except Exception as e:
             print(f"  [WARN] Cover upload failed: {e}")
+
+        # STEP 5.8 - the ebook manifest to its PRIVATE bucket. Since
+        # 2026-08-17 site/ebooks.json is gitignored and out of the public
+        # deployment (owner directive: "I don't want people scraping my
+        # books"), so this upload is the ONLY way a refreshed shelf reaches a
+        # reader. A failure is a WARN, not a stop: the previously published
+        # manifest keeps serving, so readers get a stale shelf rather than
+        # none, and the rest of the run (commit, index push) still lands.
+        print("\n[STEP 5.8] Publishing ebook manifest to the gated bucket...")
+        try:
+            from scripts.publish_ebooks_manifest import main as publish_ebooks_main
+            rc = publish_ebooks_main([])
+            if rc != 0:
+                print("  [WARN] Ebook manifest not published - the previous one still serves.")
+        except Exception as e:
+            print(f"  [WARN] Ebook manifest publish failed: {e}")
     elif uploaded_count > 0:
         print("\n[STEP 5] Skipped catalog rebuild (dry-run)")
 
@@ -1526,6 +1542,21 @@ def _run_rebuild_only_body(trigger: str = "manual") -> None:
             print("  [WARN] Some covers failed to upload — they will retry next run.")
     except Exception as e:
         print(f"  [WARN] Cover upload failed: {e}")
+
+    # STEP 5.8 - the ebook manifest to its PRIVATE bucket. Since 2026-08-17
+    # site/ebooks.json is gitignored and out of the public deployment (owner
+    # directive: "I don't want people scraping my books"), so this upload is
+    # the ONLY way a refreshed shelf reaches a reader. A failure is a WARN,
+    # not a stop: the previously published manifest keeps serving, so readers
+    # get a stale shelf rather than none, and the commit still lands.
+    print("\n[REBUILD-ONLY] Publishing ebook manifest to the gated bucket (STEP 5.8)...")
+    try:
+        from scripts.publish_ebooks_manifest import main as publish_ebooks_main
+        rc = publish_ebooks_main([])
+        if rc != 0:
+            print("  [WARN] Ebook manifest not published - the previous one still serves.")
+    except Exception as e:
+        print(f"  [WARN] Ebook manifest publish failed: {e}")
 
     print("\n[REBUILD-ONLY] Auto-commit & push (STEP 6)...")
     pstatus.step("publish")
@@ -1801,12 +1832,20 @@ def _auto_commit_and_push() -> None:
         # breakage — but returncode is not checked here, so the noise would
         # have been invisible too).
         # site/covers_manifest.json is its replacement — the committed record
+        #
+        # ⚠️ site/ebooks.json LEFT THIS LIST on 2026-08-17, for the same class
+        # of reason and a sharper one: the manifest is now gitignored because
+        # this repo is PUBLIC, so committing it would publish the whole shelf
+        # at a raw URL regardless of what the deployment serves (owner
+        # directive: "I don't want people scraping my books"). Naming an
+        # ignored path here would make `git add` exit 1 - the same noise
+        # site/covers/ used to make. It reaches readers through STEP 5.8.
         # of what is in the bucket, and what the promote audit checks.
         subprocess.run(
             ["git", "add", "site/catalog.csv", "site/index.html",
              "site/covers_manifest.json", "site/covers-base.js",
              "site/stats.html", "site/chapters.json", "site/content_warnings.json",
-             "site/additions_log.json", "site/ebooks.json", "author_drive_map.json"],
+             "site/additions_log.json", "author_drive_map.json"],
             cwd=str(PROJECT_ROOT), capture_output=True,
         )
 

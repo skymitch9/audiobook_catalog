@@ -24,7 +24,28 @@ docs/
 !site/discussion_prompts.json
 !site/content_warnings.json
 !site/additions_log.json
-!site/ebooks.json
+# ⚠️ site/ebooks.json IS DELIBERATELY NOT NEGATED — it was, until 2026-08-17.
+# Owner directive: "ebooks should be like the other site where we grant
+# permission to view it. I don't want people scraping my books." Two public
+# surfaces had to close, and closing only one would have moved a door in front
+# of an open window:
+#   1. the Pages deployment (deploy.yml assembles _site/ from each branch's
+#      committed site/, so a tracked manifest shipped to
+#      audiobooks.heygabi.ai/ebooks.json), and
+#   2. ⚠️ THIS REPO, which is PUBLIC and must stay public (it is the only repo
+#      with workflows; two crons would exhaust metered Actions minutes on a
+#      private one). A tracked file here is world-readable at a stable raw URL
+#      no matter what the site serves.
+# The manifest is still WRITTEN to site/ by sync step 1b and every local check
+# still reads it — it simply never leaves this machine except through
+# scripts/publish_ebooks_manifest.py, into the PRIVATE `ebooks-gated` R2
+# bucket, behind apps/audiobook-worker's GET /api/ebooks/manifest.
+# ⚠️ Do not "fix" this by re-adding the negation. site/covers_manifest.json
+# below stays negated: it is a list of sha256 hashes, not a list of books.
+site/ebooks.json
+# The publish receipt (which sha256 is in the bucket) — machine-local state,
+# like the covers upload's own bookkeeping.
+scripts/.ebooks_published.json
 !site/covers_manifest.json
 !vitest.config.js
 !firebase.json
