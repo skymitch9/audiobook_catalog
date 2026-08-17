@@ -61,6 +61,15 @@
   (measured 2026-08-17). Nothing in this page may hand the renderer a whole
   file — see site/epub-loader.js's header for the trap.
 
+  SAVE YOUR SPOT, since viewer phase 3 (2026-08-17, owner: "for reading ebooks
+  we also need to have it save your spot. this will be so important for pwa").
+  Nothing on this page decides any of it — site/reading-position.js owns the
+  store, the key and the reconcile, and its header is the thing to read. The
+  page's only contribution is #rd-resume: the cross-device OFFER, which ships
+  hidden and is revealed only when another device's position is both newer and
+  elsewhere. ⚠️ It is an offer, never a jump — sync that relocates a reader
+  mid-sentence without asking is the complaint every syncing reader collects.
+
   theme.js is kept, and only theme.js: the shared account modal exposes an
   Appearance section that drives window.estateTheme, and without the script
   those controls would be silently dead. Like the shelf, this page has one
@@ -181,6 +190,22 @@ h1 .tail{color:var(--accent)}
   overflow:hidden;text-overflow:ellipsis;max-width:26ch}
 .rd-pager[hidden]{display:none}
 
+/* The cross-device resume offer. A quiet strip above the book, not a modal:
+   it must never cover the text it is offering to leave. `display:flex` beats
+   the `hidden` attribute's UA `display:none`, so it needs the explicit rule
+   the PDF stage needed for the same reason. */
+#rd-resume{display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+  margin-bottom:10px;padding:9px 13px;border:1px solid var(--rule);
+  border-left:3px solid var(--accent);border-radius:9px;background:var(--card);
+  font-family:var(--sans);font-size:.88rem;color:var(--ink-faint)}
+#rd-resume[hidden]{display:none}
+#rd-resume-why{flex:1;min-width:180px;color:var(--ink)}
+#rd-resume button{padding:5px 11px;border:1px solid var(--rule);border-radius:8px;
+  background:transparent;color:var(--accent);font:inherit;cursor:pointer}
+#rd-resume button:hover{border-color:var(--accent)}
+#rd-resume-jump{background:var(--accent);color:var(--card);border-color:var(--accent)}
+#rd-resume-jump:hover{background:var(--accent-deep)}
+
 #rd-busy{position:absolute;inset:0;display:flex;align-items:center;
   justify-content:center;font-family:var(--sans);font-size:.9rem;
   color:var(--ink-faint);background:color-mix(in srgb,var(--stage) 72%,transparent);
@@ -240,6 +265,18 @@ h1 .tail{color:var(--accent)}
         <span class="rd-pager" id="rd-pager-epub" hidden><span id="rd-loc"></span></span>
         <button type="button" id="rd-next" aria-label="Next page">&#x2192;</button>
       </div>
+    </div>
+
+    <!-- SAVE YOUR SPOT — the cross-device offer, and it is an OFFER.
+         ⚠️ It appears only when the stored position from ANOTHER device is
+         newer than this one's AND points somewhere else. It never moves the
+         page by itself: a reader relocated mid-sentence without being asked is
+         the single most common complaint about every syncing reader ever
+         shipped. Ships hidden; reader.js fills and reveals it. -->
+    <div id="rd-resume" hidden>
+      <span id="rd-resume-why"></span>
+      <button type="button" id="rd-resume-jump">Jump there</button>
+      <button type="button" id="rd-resume-stay">Stay here</button>
     </div>
 
     <div id="rd-stage">

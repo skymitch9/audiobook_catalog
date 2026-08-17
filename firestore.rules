@@ -54,6 +54,15 @@ rules_version = '2';
 // canDeleteUserWarning() below for the whole story, including what it
 // deliberately does NOT protect.
 //
+// ⚠️ A SECOND EXCEPTION, 2026-08-17 (owner: "for reading ebooks we also need
+// to have it save your spot"): /readingPositions (+ _dev) is OWNER-ONLY —
+// get and write require request.auth and a doc id that starts with the
+// caller's own uid; list is refused outright. It is not a loosening of the
+// shape-only model but the first collection that never needed it: the
+// reader's readership all hold verified Firebase ID tokens by construction
+// (the Worker demands one for every byte), so there is no legacy uid-less
+// population to strand. See ownsPositionDoc() below.
+//
 // Audited end to end 2026-08-10; club/uid layer added 2026-08-14 against
 // every writer in site/*.js, site/*.html, app/*.py and app/tools/*.py.
 // Prod and *_dev rules must always stay in step.
@@ -91,6 +100,48 @@ service cloud.firestore {
       return request.resource.data.displayName is string
              && request.resource.data.bookId is string
              && request.resource.data.status is string;
+    }
+
+    // ---- Reading positions (the ebook reader's "save your spot") ----
+    //
+    // ⚠️ THE FIRST GENUINELY PER-PERSON COLLECTION IN THIS FILE, and the
+    // exception to the trust model in the header rather than a contradiction
+    // of it. Everything above is shape-only because it must keep working for
+    // LEGACY v1 sessions that have no uid at all — a recorded owner decision
+    // this file is told not to "fix". The reader has no such population: its
+    // readers are, by construction, people who presented a verified Firebase
+    // ID token to the Worker to get the bytes at all. So this one CAN be
+    // locked to its owner, and is.
+    //
+    // Doc id is `${uid}_${bookId}` (site/reading-position.js positionDocId),
+    // and reading the uid back out of it is what makes ownership enforceable
+    // instead of advisory. Neither half can contain the separator: a Firebase
+    // uid is alphanumeric, a bookIdFromTitle slug is [a-z0-9-].
+    //
+    //   get   — your OWN document only.
+    //   list  — nobody. Enumerating what a household reads is not a query any
+    //           client needs, and the collection holds one row per person per
+    //           book. Same posture as site_roles.
+    //   write — your OWN document, with a shape (below). Delete is yours too:
+    //           "forget where I was" is a legitimate thing to want.
+    //
+    // ⚠️ `pos.kind` is REQUIRED, and that is a real guard rather than
+    // paperwork: a CFI interpreted as a page number is a silent jump to the
+    // wrong place, so a document whose locator has lost its type is refused
+    // rather than stored. See site/reading-position.js §2.
+    function ownsPositionDoc(docId) {
+      return request.auth != null
+             && docId.split('_')[0] == request.auth.uid;
+    }
+
+    function validReadingPosition() {
+      return request.resource.data.uid == request.auth.uid
+             && request.resource.data.bookId is string
+             && request.resource.data.bookId.size() > 0
+             && request.resource.data.format in ['pdf', 'epub']
+             && request.resource.data.pos is map
+             && request.resource.data.pos.kind in ['page', 'cfi']
+             && request.resource.data.updatedAt is number;
     }
 
     function validClub() {
@@ -661,6 +712,14 @@ service cloud.firestore {
       allow delete: if true;
     }
 
+    // Owner-only, both lanes. See ownsPositionDoc/validReadingPosition above.
+    match /readingPositions/{docId} {
+      allow get: if ownsPositionDoc(docId);
+      allow list: if false;
+      allow create, update: if ownsPositionDoc(docId) && validReadingPosition();
+      allow delete: if ownsPositionDoc(docId);
+    }
+
     match /clubs/{clubId} {
       allow read: if true;
       // A club may be BORN claimed: the new UI stamps the creator's own uid
@@ -876,6 +935,16 @@ service cloud.firestore {
       allow read: if true;
       allow write: if validReadingList();
       allow delete: if true;
+    }
+
+    // Mirrors /readingPositions — keep the two in step. ⚠️ The DATA lane is
+    // suffixed but the RULE is the same rule: ownership is not a lane
+    // property, and a dev-lane hole is a prod-lane hole with a nicer name.
+    match /readingPositions_dev/{docId} {
+      allow get: if ownsPositionDoc(docId);
+      allow list: if false;
+      allow create, update: if ownsPositionDoc(docId) && validReadingPosition();
+      allow delete: if ownsPositionDoc(docId);
     }
 
     // Mirrors /clubs — see every note there, uid layer included. The

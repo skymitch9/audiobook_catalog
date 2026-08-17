@@ -711,6 +711,210 @@ def test_NOTHING_asks_getLiveUsers_snapshot_for_a_token() -> None:
     )
 
 
+# ==========================================================================
+# VIEWER PHASE 3 — SAVE YOUR SPOT (2026-08-17)
+#
+# Owner: "for reading ebooks we also need to have it save your spot. this will
+# be so important for pwa."
+#
+# ⚠️ EVERY FAILURE THIS FEATURE CAN HAVE IS SILENT. A position filed under the
+# wrong id is not an error, it is "you were never here". A first paint that
+# waits on Firestore is not an error, it is a reader that feels slow. A book
+# that failed to open recording page 1 is not an error, it is somebody's place
+# quietly destroyed. Nothing throws, nothing logs, and none of it is visible
+# until a person notices their book opened at the beginning.
+#
+# The DECISIONS are pinned in site/__tests__/reading-position.test.js (the doc
+# id's shape, last-write-wins, the arming guard). What is pinned HERE is the
+# set of joins that are conventions rather than code: the rules block that
+# makes ownership real, the imports that keep one implementation of the book
+# key, and the two shapes in reader.js that would each undo the design while
+# still passing every unit test.
+# ==========================================================================
+
+RULES = REPO / "firestore.rules"
+POSITION_JS = REPO / "site" / "reading-position.js"
+
+
+def test_the_position_store_is_TRACKED_IN_GIT_not_merely_on_disk() -> None:
+    """Third time this file asks the question; see the pdf.js and zip.js notes.
+
+    An untracked store module is a reader that loses everybody's place the
+    moment it deploys, with the feature working perfectly on the machine that
+    built it.
+    """
+    required = ["site/reading-position.js", "site/__tests__/reading-position.test.js"]
+    out = subprocess.run(
+        ["git", "ls-files", "--", *required],
+        cwd=REPO, capture_output=True, text=True, check=False,
+    )
+    tracked = set(out.stdout.split())
+    for path in required:
+        assert path in tracked, f"{path} is NOT tracked by git"
+        assert (REPO / path).stat().st_size > 0, f"{path} is empty"
+
+
+def test_the_position_is_NOT_keyed_on_the_anchor() -> None:
+    """⚠️ THE SILENT-ORPHAN TRAP, flagged by the viewer design in advance (§7.1).
+
+    The anchor is `sha256(RELATIVE PATH)[:12]`, so re-filing or renaming a book
+    changes it. A deep link that dies is a page that does not scroll; a POSITION
+    that dies is a person's place in a book, gone, with no error anywhere.
+
+    The key is the estate's own book identity instead — and it is IMPORTED, not
+    re-derived: `ebook-notes.warningTitleFor()` already answers "which title
+    identifies this ebook", and its header explains why keying on the epub's own
+    spelling fails silently in both directions.
+    """
+    js = strip_comments(read(READER_JS))
+    assert re.search(r"import \{[^}]*\bwarningTitleFor\b[^}]*\} from './ebook-notes.js'", js), (
+        "reader.js must take the book key from ebook-notes.warningTitleFor()"
+    )
+    assert "warningTitleFor(cfg.book)" in js
+    # The anchor still travels — as a FIELD. What must not exist is a doc id
+    # built out of it.
+    store = strip_comments(read(POSITION_JS))
+    assert "positionDocId(uid, bookId)" in store
+    assert "anchor" not in store[store.index("export function positionDocId"):
+                                 store.index("export function localKey")], (
+        "the anchor must never appear in the document id — it is a hint field"
+    )
+
+
+def test_the_first_paint_never_waits_for_the_network() -> None:
+    """⚠️ The whole reason there are two stores.
+
+    The per-device localStorage row is read SYNCHRONOUSLY and used for the very
+    first draw; Firestore's answer arrives afterwards and is reconciled. An
+    `await` on the lookup would put a household's uplink between a reader and
+    their book — and the PWA case this was asked for is exactly the one where
+    that network is worst.
+    """
+    js = strip_comments(read(READER_JS))
+    assert "await loadLocal" not in js, "the local row must be read synchronously"
+    assert "await loadRemote" not in js, (
+        "the Firestore lookup must not be awaited on the open path — it "
+        "reconciles in the background"
+    )
+    assert "loadRemote(db, uid, bookId).then(" in js
+
+
+def test_a_newer_remote_position_is_OFFERED_and_never_applied_silently() -> None:
+    """⚠️ Cross-device sync that relocates a reader mid-sentence without asking
+    is the single most common complaint about every syncing reader ever shipped.
+
+    The offer ships HIDDEN in the markup and is only ever revealed — the
+    resolveAdmin() idiom this repo already uses for anything a page may not be
+    entitled to show.
+    """
+    js = strip_comments(read(READER_JS))
+    assert "offerJump(remote," in js
+    html = read(TEMPLATE)
+    assert '<div id="rd-resume" hidden>' in html
+    assert 'id="rd-resume-jump"' in html and 'id="rd-resume-stay"' in html
+    # ⚠️ Same trap as #rd-stage: `display:flex` beats the hidden attribute's UA
+    # `display:none`, so the bar needs an explicit rule or it is always on.
+    assert "#rd-resume[hidden]{display:none}" in html
+    # And still no inline script — the CSP has not loosened for this either.
+    for tag in re.findall(r"<script\b[^>]*>", strip_comments(html)):
+        assert " src=" in tag, f"inline script in read.html would be CSP-blocked: {tag}"
+
+
+def test_a_book_that_failed_to_open_records_nothing() -> None:
+    """⚠️ THE GUARD THAT COSTS THE MOST WHEN IT IS MISSING.
+
+    A broken file, a lapsed token or a refused range all end in a closed state
+    — and if the keeper were live by then, "page 1" would already have been
+    written over a real position. Arming is therefore explicit and happens only
+    after a page has genuinely rendered.
+    """
+    store = strip_comments(read(POSITION_JS))
+    assert "arm() { armed = true; }" in store
+    assert "if (!armed" in store, "record() must refuse until armed"
+    js = strip_comments(read(READER_JS))
+    assert js.count("state.keeper?.arm()") == 2, (
+        "both renderers must arm the keeper, and only after their first render"
+    )
+
+
+def test_a_stale_locator_falls_back_to_the_start_never_to_a_broken_render() -> None:
+    """⚠️ foliate's `init({ lastLocation })` awaits `renderer.goTo()` OUTSIDE any
+    try, so a CFI that no longer resolves REJECTS init — and the reader answers
+    "this book would not open" for a book that opens perfectly.
+
+    So the bookmark is a SECOND navigation, after `init({ showTextStart: true })`
+    has already put a readable page on screen. `view.goTo()` catches its own
+    failures, so a dead bookmark costs a bookmark and never a book.
+    """
+    js = strip_comments(read(READER_JS))
+    assert "lastLocation" not in js, (
+        "the stored CFI must NOT be passed to foliate's init() — see "
+        "goToStoredLocation in reader.js for why"
+    )
+    assert "await view.init({ showTextStart: true })" in js
+    assert "goToStoredLocation" in js
+    # The PDF half's equivalent: a page number out of range resolves to a real
+    # page, never to an empty canvas.
+    assert "function pageFrom(row, numPages)" in js
+
+
+def test_the_final_save_rides_pagehide_and_visibilitychange_not_beforeunload() -> None:
+    """⚠️ A mobile browser routinely kills a backgrounded tab without ever
+    firing an unload event — which is precisely the life a PWA reader lives,
+    and precisely the case this feature was asked for.
+    """
+    js = strip_comments(read(READER_JS))
+    assert "addEventListener('pagehide'" in js
+    assert "addEventListener('visibilitychange'" in js
+    assert "beforeunload" not in js, (
+        "beforeunload does not fire when a mobile browser discards a tab"
+    )
+
+
+def test_the_rules_make_a_reading_position_owner_only() -> None:
+    """⚠️ RULES ARE PROJECT-WIDE THE MOMENT THEY DEPLOY — there is no dev lane
+    for enforcement — so both lanes' blocks must be identical in posture, and
+    `list` must be refused outright.
+
+    The ownership check reads the uid back out of the document id, which is what
+    makes it enforceable rather than advisory: neither half of `${uid}_${bookId}`
+    can contain the separator (a Firebase uid is alphanumeric, a bookIdFromTitle
+    slug is [a-z0-9-]). ⚠️ Changing the doc id shape is a rules change AND a
+    migration, never an edit.
+    """
+    rules = read(RULES)
+    assert "docId.split('_')[0] == request.auth.uid" in rules
+    assert "request.auth != null" in rules
+    for name in ("readingPositions", "readingPositions_dev"):
+        block = re.search(rf"match /{name}/\{{docId\}} \{{\n(?:.+\n)+?    \}}", rules)
+        assert block, f"no rules block for {name}"
+        body = block.group(0)
+        assert "allow get: if ownsPositionDoc(docId);" in body
+        # ⚠️ `list` is refused, not merely unused. A collection-wide query would
+        # enumerate what a household reads, and the doc-id wildcard is not
+        # reliably bound for a list operation — so an `allow read` here would be
+        # a hole wearing a get's clothes.
+        assert "allow list: if false;" in body
+        assert "allow create, update: if ownsPositionDoc(docId) && validReadingPosition();" in body
+        assert "allow delete: if ownsPositionDoc(docId);" in body
+
+
+def test_the_rules_refuse_a_locator_that_lost_its_kind() -> None:
+    """⚠️ `pos.kind` travels WITH `pos.value`, atomically, or not at all.
+
+    A CFI interpreted as a page number is a silent jump to the wrong place. The
+    validator requires the pair, so a document whose locator has lost its type
+    is refused at the store rather than stored and misread later.
+    """
+    rules = read(RULES)
+    validator = rules[rules.index("function validReadingPosition()"):]
+    validator = validator[: validator.index("}")]
+    assert "request.resource.data.pos.kind in ['page', 'cfi']" in validator
+    assert "request.resource.data.uid == request.auth.uid" in validator
+    assert "request.resource.data.format in ['pdf', 'epub']" in validator
+    assert "request.resource.data.updatedAt is number" in validator
+
+
 def test_the_shelf_takes_its_manifest_token_from_identity_too() -> None:
     """The other half of the same fix, pinned where the shelf lives.
 

@@ -80,6 +80,28 @@
  * than throwing, so "not signed in" is a state this page WORDS instead of an
  * error it mistakes for an outage. ⚠️ If you see `user.getIdToken` reappear
  * here, it is this bug coming back; `tests/test_reader_page.py` fails on it.
+ *
+ * ## 6. SAVE YOUR SPOT — viewer phase 3, 2026-08-17
+ *
+ * Owner: *"for reading ebooks we also need to have it save your spot. this
+ * will be so important for pwa."* The store, the key, the two-tier cache and
+ * the reason a position is NOT keyed on the anchor all live in
+ * `site/reading-position.js`; read its header before touching any of this.
+ * What THIS file owns is the three joins:
+ *
+ *   1. The first paint NEVER waits for the network. The per-device
+ *      localStorage row is read synchronously and the book opens THERE.
+ *      Firestore's answer arrives afterwards and is reconciled — and when it
+ *      is newer AND somewhere else, it is OFFERED ("Jump / Stay"), never
+ *      applied under the reader's fingers.
+ *   2. A book that FAILED TO OPEN records nothing. The keeper is armed only
+ *      after a first successful render, so a broken file, a lapsed token or a
+ *      refused range can never overwrite a good position with page 1.
+ *   3. A STALE LOCATOR falls back to the start, never to a broken page. A PDF
+ *      page number is clamped to the document; a CFI is handed to foliate
+ *      AFTER `init()` has already put a readable page on screen, so a locator
+ *      that no longer resolves leaves the reader at the text start with a
+ *      console warning rather than an unopened book.
  */
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
@@ -87,6 +109,20 @@ import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase
 import { FIREBASE_CONFIG } from './fb-env.js';
 import { mountAccountModal } from './account-modal.js';
 import { getLiveUser, getIdToken, signInWithGoogle, handleRedirectResult } from './identity.js';
+// ⚠️ ONE implementation of "which title identifies this ebook across the
+// estate", imported rather than re-derived. The shelf's content notes already
+// answer it, and its header explains why keying on the epub's own title fails
+// silently in both directions.
+import { warningTitleFor } from './ebook-notes.js';
+import {
+  createPositionKeeper,
+  describeDevice,
+  describePosition,
+  loadLocal,
+  loadRemote,
+  newerOf,
+  samePlace,
+} from './reading-position.js';
 
 /** The gated manifest — the same URL, and the same gate, the shelf uses. */
 const MANIFEST_URL = 'https://audiobook-api.heygabi.ai/api/ebooks/manifest';
@@ -128,9 +164,9 @@ const FILE_URL = (anchor) =>
  *     because the section is a blob: iframe inside a CLOSED shadow root. See
  *     site/_headers.
  *
- * STILL OPEN, and it belongs to phase 3: nothing here stores a reading
- * position. The renderer is settled now precisely so that when phase 3 does,
- * its persisted key is produced by the renderer that will still be here.
+ * ✅ CLOSED at viewer phase 3, 2026-08-17: the position IS stored now, and the
+ * CFI it stores is produced by this renderer — which is exactly why phase 2
+ * settled the renderer first. See `site/reading-position.js`.
  */
 const EPUB_SEAM =
   'This reader cannot open that format — only EPUB and PDF. This book is on the shelf but not readable here.';
@@ -158,6 +194,11 @@ const bookEl = el('rd-book');
 const pagerPdfEl = el('rd-pager-pdf');
 const pagerEpubEl = el('rd-pager-epub');
 const locEl = el('rd-loc');
+// The "you were somewhere else" offer — see offerJump(). Ships hidden.
+const resumeEl = el('rd-resume');
+const resumeWhyEl = el('rd-resume-why');
+const resumeJumpEl = el('rd-resume-jump');
+const resumeStayEl = el('rd-resume-stay');
 
 /**
  * Show a closed/failed state. ⚠️ Every one says what happened, what it needs
@@ -269,7 +310,108 @@ const state = {
   lastScale: null,
   /** Guards against two renders racing after fast page turns. */
   renderSeq: 0,
+  /** The live session's uid, once boot() has one. Never from the mirror. */
+  uid: null,
+  /**
+   * The reading-position keeper, once a book has actually rendered.
+   * ⚠️ NULL UNTIL THEN, and that is the guard: nothing records a position for
+   * a book that failed to open.
+   */
+  keeper: null,
 };
+
+/* ── save your spot ─────────────────────────────────────────────────────── */
+
+/**
+ * Offer the remote position rather than taking it. See reading-position.js §4:
+ * a reader relocated without being asked is the single most common complaint
+ * about every cross-device reader ever shipped, and this page has TWO stages
+ * that could be yanked out from under someone mid-sentence.
+ *
+ * ⚠️ Non-blocking and dismissible. It appears above the book, it never covers
+ * the text, and ignoring it entirely is a valid answer — "Stay" is the same
+ * outcome as never touching it, said out loud so the bar can be dismissed.
+ */
+function offerJump(row, jump) {
+  if (!resumeEl || !row) return;
+  const where = describePosition(row);
+  const device = (row.device || '').trim();
+  resumeWhyEl.textContent = device
+    ? `You were at ${where} on ${device}.`
+    : `You were at ${where} on another device.`;
+  resumeEl.hidden = false;
+  const close = () => { resumeEl.hidden = true; };
+  resumeJumpEl.onclick = () => { close(); void Promise.resolve(jump()).catch(() => {}); };
+  resumeStayEl.onclick = close;
+}
+
+/**
+ * Start tracking, and restore.
+ *
+ * The order here is the whole design and it is easy to get subtly wrong:
+ *
+ *   1. the LOCAL row is read synchronously and handed back to the caller,
+ *      which opens the book there — no await, no network, no spinner;
+ *   2. the keeper is created but NOT armed (the caller arms it once a page is
+ *      genuinely on screen), so the restore itself records nothing and cannot
+ *      make the local row look newer than the remote one it is about to be
+ *      compared against;
+ *   3. Firestore is asked in the background. If its answer is newer and
+ *      elsewhere, it is offered; if there was no local row at all there is
+ *      nothing to conflict with, so it is simply applied.
+ *
+ * ⚠️ Every failure path answers "no saved position" rather than an error. A
+ * signed-out or storage-less visitor never reaches this page's shelf, but the
+ * code must not throw if identity is absent — a bookmark that cannot be read
+ * must never be the reason a BOOK does not open.
+ *
+ * @param {{book: object, anchor: string, format: string,
+ *          apply: (row: object) => any}} cfg
+ * @returns {{local: object|null}}
+ */
+function beginPositionTracking(cfg) {
+  const uid = state.uid;
+  // ⚠️ Not the anchor. reading-position.js §1 — and not a second copy of the
+  // title join either: warningTitleFor() is the estate's one answer.
+  const ident = warningTitleFor(cfg.book);
+  const bookId = ident.bookId;
+  if (!uid || !bookId) return { local: null };
+
+  const local = loadLocal(bookId);
+  state.keeper = createPositionKeeper({
+    db,
+    uid,
+    bookId,
+    anchor: cfg.anchor,
+    format: cfg.format,
+    title: ident.title,
+    device: describeDevice(typeof navigator !== 'undefined' ? navigator.userAgent : ''),
+  });
+
+  loadRemote(db, uid, bookId).then((remote) => {
+    if (!remote) return;
+    if (newerOf(local, remote) !== remote) return;   // ours is at least as new
+    if (samePlace(local, remote)) return;            // the same place, silently
+    if (!local) return void Promise.resolve(cfg.apply(remote)).catch(() => {});
+    offerJump(remote, () => cfg.apply(remote));
+  }).catch(() => { /* no answer is "no saved position" */ });
+
+  return { local };
+}
+
+/**
+ * Flush on the way out.
+ *
+ * ⚠️ `pagehide` and `visibilitychange`, NOT `beforeunload`. A mobile browser
+ * routinely kills a backgrounded tab without ever firing an unload event —
+ * which is precisely the life a PWA reader lives, and precisely the case the
+ * owner asked for this feature for. Both are fire-and-forget: nothing here may
+ * delay a page going away.
+ */
+window.addEventListener('pagehide', () => { void state.keeper?.flush(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') void state.keeper?.flush();
+});
 
 /**
  * Render one page onto the one canvas.
@@ -292,6 +434,17 @@ async function drawPage(n) {
     try { state.renderTask.cancel(); } catch { /* already finished */ }
     state.renderTask = null;
   }
+
+  // Where we are, remembered. Local immediately, Firestore on a debounce, and
+  // NOTHING at all until the keeper is armed (i.e. until a page has genuinely
+  // rendered once) — see beginPositionTracking.
+  state.keeper?.record(
+    { kind: 'page', value: state.page },
+    {
+      progress: state.doc.numPages ? state.page / state.doc.numPages : null,
+      label: `p. ${state.page} of ${state.doc.numPages}`,
+    },
+  );
 
   const page = await state.doc.getPage(state.page);
   if (seq !== state.renderSeq) return; // a newer turn won
@@ -391,12 +544,12 @@ async function openBook(anchor) {
   // ⚠️ THE FORMAT SWITCH. Two renderers, one gate, one manifest, one anchor.
   // A third format lands here as an honest sentence, never a spinner.
   const format = String(book.format || '').toLowerCase();
-  if (format === 'pdf') return openPdf(anchor);
-  if (format === 'epub') return openEpub(anchor);
+  if (format === 'pdf') return openPdf(anchor, book);
+  if (format === 'epub') return openEpub(anchor, book);
   closed('This reader cannot open that format', EPUB_SEAM);
 }
 
-async function openPdf(anchor) {
+async function openPdf(anchor, book) {
   gateEl.hidden = true;
   shellEl.hidden = false;
   state.mode = 'pdf';
@@ -491,12 +644,41 @@ async function openPdf(anchor) {
 
   pageTotalEl.textContent = String(state.doc.numPages);
   pageNowEl.max = String(state.doc.numPages);
+
+  // Save your spot. ⚠️ The local row is read SYNCHRONOUSLY and used for the
+  // very first draw — no await on a network, no "restoring…" state, no second
+  // render. The remote reconcile runs in the background inside here.
+  const { local } = beginPositionTracking({
+    book, anchor, format: 'pdf',
+    apply: (row) => drawPage(pageFrom(row, state.doc.numPages)),
+  });
+
   try {
-    await drawPage(1);
+    await drawPage(pageFrom(local, state.doc.numPages));
   } catch (e) {
     console.warn('[reader] first page failed to render:', e);
     closed('This book would not open', 'The first page could not be drawn. Tell Mitch which book it was.');
+    return;
   }
+  // ⚠️ ARMED ONLY NOW. Everything above could still have ended in a closed
+  // state, and a book that would not open must not record a position.
+  state.keeper?.arm();
+}
+
+/**
+ * The page a stored row means, clamped to this document.
+ *
+ * ⚠️ THE STALE-LOCATOR CASE, and it is not hypothetical: a book can be
+ * re-uploaded shorter, or the row can predate a re-export. `drawPage` clamps
+ * too, but doing it HERE is what makes "page 900 of a 300-page file" resolve
+ * to the last page instead of quietly relying on a clamp somewhere else. A row
+ * that is not a usable page number at all answers 1 — the start of the book,
+ * never a broken render.
+ */
+function pageFrom(row, numPages) {
+  const n = row && row.pos && row.pos.kind === 'page' ? Number(row.pos.value) : NaN;
+  if (!Number.isFinite(n) || n < 1) return 1;
+  return Math.min(Math.floor(n), Math.max(1, numPages || 1));
 }
 
 /* ── foliate-js, over byte ranges ───────────────────────────────────────── */
@@ -537,7 +719,28 @@ function describeLocation(detail) {
   return [label, pct].filter(Boolean).join(' · ') || '';
 }
 
-async function openEpub(anchor) {
+/**
+ * Go to a stored EPUB locator, or stay where the book already is.
+ *
+ * ⚠️ THE STALE-LOCATOR CASE, and why this is a SECOND navigation rather than
+ * `view.init({ lastLocation })`. foliate's `init()` resolves the location and
+ * then `await`s `renderer.goTo()` OUTSIDE any try — so a CFI that no longer
+ * resolves (the book was re-exported, a section is gone) REJECTS init, and the
+ * reader answers "this book would not open" for a book that opens perfectly.
+ * `view.goTo()` catches its own failures and logs them, so the worst case here
+ * is that the reader stays at the text start `init()` already rendered. A dead
+ * bookmark must cost a bookmark, never a book.
+ */
+async function goToStoredLocation(view, row) {
+  if (!view || !row || !row.pos || row.pos.kind !== 'cfi' || !row.pos.value) return;
+  try {
+    await view.goTo(String(row.pos.value));
+  } catch (e) {
+    console.warn('[reader] the stored location no longer resolves; staying at the start:', e);
+  }
+}
+
+async function openEpub(anchor, book) {
   gateEl.hidden = true;
   shellEl.hidden = false;
   // The PDF furniture steps aside; the EPUB furniture steps up.
@@ -628,6 +831,22 @@ async function openEpub(anchor) {
   state.view = view;
   view.addEventListener('relocate', (ev) => {
     locEl.textContent = describeLocation(ev.detail);
+    // ⚠️ THE LOCATOR IS THE CFI, not the fraction. Both are on this event, and
+    // the fraction is the tempting one — it is a number, it survives anything,
+    // and it is WRONG as a bookmark: it is a position in the BOOK'S BYTES, so
+    // a different reflow (a phone, a bigger type size) lands somewhere else on
+    // the page, and any re-export moves it. A CFI names a place in the
+    // document's own structure, which is what "where I was" means. The
+    // fraction rides along as `progress` — for a percentage label and a future
+    // progress bar, never for navigation.
+    const d = ev.detail || {};
+    if (d.cfi) {
+      state.keeper?.record(
+        { kind: 'cfi', value: d.cfi },
+        { progress: typeof d.fraction === 'number' ? d.fraction : null,
+          label: describeLocation(d) },
+      );
+    }
   });
   bookEl.append(view);
 
@@ -660,12 +879,28 @@ async function openEpub(anchor) {
     // `showTextStart` skips the cover and front matter and opens where the
     // text does — which is what "Read" means. A book with no such landmark
     // falls back to its first section.
+    //
+    // ⚠️ ALWAYS `showTextStart`, even when a position is stored — see
+    // goToStoredLocation for why the bookmark is a SECOND navigation and not
+    // `init({ lastLocation })`. This one is inside the try because a book
+    // whose text start will not render is genuinely a book that would not open.
     await view.init({ showTextStart: true });
   } catch (e) {
     console.warn('[reader] foliate could not render the book:', e);
     closed('This book would not open', 'The first page could not be drawn. Tell Mitch which book it was.');
     return;
   }
+
+  // Save your spot. The book is already readable on screen at this point, so
+  // the jump to the stored location cannot cost anybody a render.
+  const { local } = beginPositionTracking({
+    book, anchor, format: 'epub',
+    apply: (row) => goToStoredLocation(state.view, row),
+  });
+  await goToStoredLocation(view, local);
+  // ⚠️ ARMED ONLY NOW, so neither `init()`'s relocate nor the restore's own
+  // writes a position for a book that might still have failed to open.
+  state.keeper?.arm();
   busy(false);
 }
 
@@ -733,10 +968,13 @@ window.addEventListener('resize', () => {
 /* ── boot ───────────────────────────────────────────────────────────────── */
 
 let app = null;
+/** The Firestore handle the reading-position store writes through. */
+let db = null;
 
 try {
   app = initializeApp(FIREBASE_CONFIG);
-  mountAccountModal(getFirestore(app), app, el('identity-bar'));
+  db = getFirestore(app);
+  mountAccountModal(db, app, el('identity-bar'));
 } catch (e) {
   console.warn('[reader] identity failed to initialise:', e);
   closed(
@@ -780,6 +1018,14 @@ async function boot() {
     );
     return;
   }
+
+  // ⚠️ The uid comes from the LIVE session's snapshot, never from the
+  // localStorage mirror: the mirror is devtools-editable and would let anybody
+  // address anybody's position document. firestore.rules refuses that anyway
+  // (the doc id must start with request.auth.uid), so the mirror would fail as
+  // a PERMISSION_DENIED rather than as a leak — but a page should not send a
+  // write it knows will be refused.
+  state.uid = user.uid;
 
   if (!anchor) {
     closed(
