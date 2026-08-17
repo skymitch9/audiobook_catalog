@@ -1141,6 +1141,23 @@ def test_every_published_pdf_resolves_a_cover_or_is_named():
     )
 
 
+def test_the_two_needs_human_cover_constants_have_not_drifted():
+    """⚠️ The key is spelled in two modules, and a drift would be SILENT.
+
+    `app.tools.audit_site` deliberately does not import the builder — it audits
+    only git-tracked files so it can run in CI without the audio library, and
+    importing the builder drags in `app.config` (which wants ROOT_DIR). The
+    cost of that independence is a second copy of the key, and the cost of a
+    typo in it would be a promote gate that reads a key nobody writes: it would
+    see a manifest with no list, warn "pre-auto-cover ref", and wave every
+    unnamed coverless PDF straight through. This test is what makes the copy
+    safe.
+    """
+    from app.tools.audit_site import EBOOK_NEEDS_HUMAN_COVER_KEY
+
+    assert EBOOK_NEEDS_HUMAN_COVER_KEY == bem.NEEDS_HUMAN_COVER_KEY
+
+
 def test_the_pdf_coverage_guard_actually_fires(tmp_path, monkeypatch):
     """A guard that cannot fail is false confidence — so prove this one fails.
 
