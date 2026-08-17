@@ -15,4 +15,10 @@ rem watcher". Log: output_files\fs_watcher.log (watcher decisions only;
 rem the pipeline still logs to pipeline_8h.log).
 cd /d "C:\Users\nbasl\OneDrive\Documents\vs-code-repos\bookbuddy\audiobook_catalog"
 set PYTHONIOENCODING=utf-8
-python -m app.tools.fs_watcher >> output_files\fs_watcher.log 2>&1
+rem ABSOLUTE interpreter, never bare "python": under Task Scheduler the
+rem bare name resolved to the WindowsApps Store stub and the first tick
+rem HUNG invisibly forever - every later tick was then refused with
+rem 0x800710E0 ("instance already running"), which read as a conditions
+rem problem and was not one. Found 2026-08-16, the day it was registered.
+rem The venv also guarantees mutagen for settle-validation.
+"C:\Users\nbasl\OneDrive\Documents\vs-code-repos\bookbuddy\audiobook_catalog\.venv\Scripts\python.exe" -m app.tools.fs_watcher >> output_files\fs_watcher.log 2>&1
