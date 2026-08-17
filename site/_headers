@@ -117,21 +117,43 @@
 #   child-src    blob:, for viewer phase 2 — an EPUB renderer draws into an
 #                iframe it creates. Present now so the EPUB build does not
 #                have to touch this file and re-verify it.
+#   style-src /
+#   font-src     ⚠️ blob: ADDED at viewer phase 2 (2026-08-17), and the phase-1
+#                note above ("the EPUB build does not have to touch this file")
+#                was WRONG by exactly these two directives. foliate-js rewrites
+#                an EPUB's own stylesheets and embedded fonts to blob: URLs, and
+#                `'self'` DOES NOT COVER blob: — measured, not reasoned, by
+#                serving both policy strings to a real book:
+#                  style-src 'self'        -> the linked sheet yields ZERO rules
+#                                             and body font is Times New Roman
+#                  style-src 'self' blob:  -> 84 rules, body font Palatino
+#                A blocked font-src blob: was caught the same way (an explicit
+#                `securitypolicyviolation: font-src <- blob`).
+#                ⚠️ THE FAILURE IS SILENT AND LOOKS LIKE A BAD BOOK, not like a
+#                blocked request: the reader opens, paginates and turns pages
+#                perfectly, in the browser's default serif, with every typeface
+#                and drop-cap the publisher chose thrown away. And ⚠️ the page's
+#                own `securitypolicyviolation` listener NEVER HEARS IT — the
+#                section is a blob: iframe inside a CLOSED shadow root, so the
+#                violation fires on that document, not on this one.
+#                ⚠️ `link.sheet` being non-null is NOT proof the CSS applied. A
+#                blocked stylesheet still gets a CSSStyleSheet object; it just
+#                has no rules in it. Count `sheet.cssRules.length`.
 #   base-uri /
 #   form-action /
 #   frame-ancestors  'none' everywhere: this page submits nothing, has no base
 #                tag, and must never be framed by anything.
 /read
-  Content-Security-Policy: default-src 'none'; script-src 'self' https://www.gstatic.com https://apis.google.com; connect-src 'self' https://audiobook-api.heygabi.ai https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://www.googleapis.com; img-src 'self' data: blob: https://covers.heygabi.ai; style-src 'self' 'unsafe-inline'; font-src 'self' data:; worker-src 'self' blob:; frame-src 'self' blob: https://audiobook-catalog.firebaseapp.com; child-src 'self' blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'none'; script-src 'self' https://www.gstatic.com https://apis.google.com; connect-src 'self' https://audiobook-api.heygabi.ai https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://www.googleapis.com; img-src 'self' data: blob: https://covers.heygabi.ai; style-src 'self' 'unsafe-inline' blob:; font-src 'self' data: blob:; worker-src 'self' blob:; frame-src 'self' blob: https://audiobook-catalog.firebaseapp.com; child-src 'self' blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
 
 /read/
-  Content-Security-Policy: default-src 'none'; script-src 'self' https://www.gstatic.com https://apis.google.com; connect-src 'self' https://audiobook-api.heygabi.ai https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://www.googleapis.com; img-src 'self' data: blob: https://covers.heygabi.ai; style-src 'self' 'unsafe-inline'; font-src 'self' data:; worker-src 'self' blob:; frame-src 'self' blob: https://audiobook-catalog.firebaseapp.com; child-src 'self' blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'none'; script-src 'self' https://www.gstatic.com https://apis.google.com; connect-src 'self' https://audiobook-api.heygabi.ai https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://www.googleapis.com; img-src 'self' data: blob: https://covers.heygabi.ai; style-src 'self' 'unsafe-inline' blob:; font-src 'self' data: blob:; worker-src 'self' blob:; frame-src 'self' blob: https://audiobook-catalog.firebaseapp.com; child-src 'self' blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
 
 /dev/read
-  Content-Security-Policy: default-src 'none'; script-src 'self' https://www.gstatic.com https://apis.google.com; connect-src 'self' https://audiobook-api.heygabi.ai https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://www.googleapis.com; img-src 'self' data: blob: https://covers.heygabi.ai; style-src 'self' 'unsafe-inline'; font-src 'self' data:; worker-src 'self' blob:; frame-src 'self' blob: https://audiobook-catalog.firebaseapp.com; child-src 'self' blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'none'; script-src 'self' https://www.gstatic.com https://apis.google.com; connect-src 'self' https://audiobook-api.heygabi.ai https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://www.googleapis.com; img-src 'self' data: blob: https://covers.heygabi.ai; style-src 'self' 'unsafe-inline' blob:; font-src 'self' data: blob:; worker-src 'self' blob:; frame-src 'self' blob: https://audiobook-catalog.firebaseapp.com; child-src 'self' blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
 
 /dev/read/
-  Content-Security-Policy: default-src 'none'; script-src 'self' https://www.gstatic.com https://apis.google.com; connect-src 'self' https://audiobook-api.heygabi.ai https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://www.googleapis.com; img-src 'self' data: blob: https://covers.heygabi.ai; style-src 'self' 'unsafe-inline'; font-src 'self' data:; worker-src 'self' blob:; frame-src 'self' blob: https://audiobook-catalog.firebaseapp.com; child-src 'self' blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'none'; script-src 'self' https://www.gstatic.com https://apis.google.com; connect-src 'self' https://audiobook-api.heygabi.ai https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://www.googleapis.com; img-src 'self' data: blob: https://covers.heygabi.ai; style-src 'self' 'unsafe-inline' blob:; font-src 'self' data: blob:; worker-src 'self' blob:; frame-src 'self' blob: https://audiobook-catalog.firebaseapp.com; child-src 'self' blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
 
 # The vendored pdf.js is version-pinned by PATH (site/static/pdfjs/) and its
 # bytes never change in place, so the /* no-cache default above is pure cost
@@ -143,4 +165,22 @@
   Cache-Control: public, max-age=604800
 
 /dev/static/pdfjs/*
+  Cache-Control: public, max-age=604800
+
+# The same bargain for viewer phase 2's two vendored drops — foliate-js (10
+# modules) and zip.js (44), pinned by COMMIT and by version rather than by path.
+# Without this the /* no-cache default costs ~50 conditional requests on every
+# load of a page whose renderer bytes never change in place.
+# ⚠️ NOT `immutable`, for exactly the pdf.js reason above.
+# ⚠️ BOTH LANES, again: `/dev/` is a path, not a host.
+/static/foliate/*
+  Cache-Control: public, max-age=604800
+
+/dev/static/foliate/*
+  Cache-Control: public, max-age=604800
+
+/static/zipjs/*
+  Cache-Control: public, max-age=604800
+
+/dev/static/zipjs/*
   Cache-Control: public, max-age=604800

@@ -49,9 +49,17 @@
   gating the reader on it would lock every ordinary member out of the books
   they were granted.
 
-  PDFs ONLY, for now, and it SAYS SO. An EPUB anchor gets an honest sentence
-  rather than a spinner that never ends. See reader.js's EPUB_SEAM comment for
-  what viewer phase 2 replaces.
+  BOTH FORMATS, since viewer phase 2 (2026-08-17). A PDF renders onto ONE
+  canvas (#rd-stage); an EPUB is paginated by foliate-js into #rd-book. The bar
+  is shared and re-labels itself, because a reader does not care which renderer
+  is underneath — but the two pagers are separate elements, because "page 7 of
+  392" and "Chapter 3 · 12%" are different facts and a reflowable book has no
+  page 7.
+
+  ⚠️ THE EPUB IS READ OVER BYTE RANGES, and the shell has to allow for it: the
+  393 MiB White Sand Omnibus opens in 18 range requests totalling 664 KB
+  (measured 2026-08-17). Nothing in this page may hand the renderer a whole
+  file — see site/epub-loader.js's header for the trap.
 
   theme.js is kept, and only theme.js: the shared account modal exposes an
   Appearance section that drives window.estateTheme, and without the script
@@ -154,11 +162,25 @@ h1 .tail{color:var(--accent)}
 #rd-stage{position:relative;background:var(--stage);border:1px solid var(--rule);
   border-radius:12px;padding:14px;min-height:60vh;display:flex;
   align-items:flex-start;justify-content:center;overflow:auto}
+/* ⚠️ `display:flex` beats the `hidden` attribute's UA `display:none`, so the
+   PDF stage needs this or it stays on screen underneath an open EPUB. */
+#rd-stage[hidden]{display:none}
 /* ⚠️ The canvas is painted white by reader.js before every render. A PDF page
    is transparent where it has no content, and an unpainted canvas is BLACK in
    a dark-mode browser — which reads as "the book failed to load". */
 #rd-canvas{max-width:100%;height:auto;box-shadow:0 2px 14px rgba(0,0,0,.28);
   background:#fff;border-radius:2px}
+/* The EPUB stage. foliate-js paginates into a shadow DOM inside <foliate-view>,
+   which needs a DEFINITE height to lay columns out against — a percentage of an
+   auto-height parent collapses to nothing and the book renders blank. */
+#rd-book{background:var(--card);border:1px solid var(--rule);border-radius:12px;
+  height:min(78vh,940px);overflow:hidden}
+#rd-book[hidden]{display:none}
+#rd-book foliate-view{display:block;width:100%;height:100%}
+#rd-loc{font-family:var(--sans);color:var(--ink-faint);white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;max-width:26ch}
+.rd-pager[hidden]{display:none}
+
 #rd-busy{position:absolute;inset:0;display:flex;align-items:center;
   justify-content:center;font-family:var(--sans);font-size:.9rem;
   color:var(--ink-faint);background:color-mix(in srgb,var(--stage) 72%,transparent);
@@ -203,12 +225,19 @@ h1 .tail{color:var(--accent)}
     <div class="rd-bar">
       <a class="rd-back" href="ebooks">&#x2190; Shelf</a>
       <span id="rd-title"></span>
+      <!-- Shared by both renderers, and re-labelled by reader.js: on a PDF
+           these zoom the page, on an EPUB they size the type. -->
       <button type="button" id="rd-zoom-out" aria-label="Zoom out">&#x2212;</button>
       <button type="button" id="rd-zoom-in" aria-label="Zoom in">+</button>
-      <div class="rd-pager">
+      <div class="rd-pager" id="rd-pager">
         <button type="button" id="rd-prev" aria-label="Previous page">&#x2190;</button>
-        <input id="rd-page-now" type="number" min="1" step="1" value="1" aria-label="Page number" />
-        <span>/ <span id="rd-page-total">?</span></span>
+        <!-- ⚠️ PDF ONLY. A reflowable EPUB has no stable page number to type
+             into, so this is hidden rather than shown-and-lying. -->
+        <span class="rd-pager" id="rd-pager-pdf">
+          <input id="rd-page-now" type="number" min="1" step="1" value="1" aria-label="Page number" />
+          <span>/ <span id="rd-page-total">?</span></span>
+        </span>
+        <span class="rd-pager" id="rd-pager-epub" hidden><span id="rd-loc"></span></span>
         <button type="button" id="rd-next" aria-label="Next page">&#x2192;</button>
       </div>
     </div>
@@ -217,6 +246,10 @@ h1 .tail{color:var(--accent)}
       <canvas id="rd-canvas" width="1" height="1"></canvas>
       <div id="rd-busy" hidden>Fetching the page…</div>
     </div>
+
+    <!-- The EPUB stage. Empty until reader.js mounts <foliate-view> into it,
+         so a PDF reader never pays for the EPUB stack. -->
+    <div id="rd-book" hidden></div>
   </div>
 
   <div class="rd-footer">

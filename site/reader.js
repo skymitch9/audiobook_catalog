@@ -46,13 +46,19 @@
  * is. A 181 MiB image-heavy RPG handbook is fine; forty attached canvases are
  * not. Any future continuous-scroll mode must window the page list.
  *
- * ## Not here yet, deliberately — the EPUB seam
+ * ## The EPUB half — viewer phase 2, 2026-08-17
  *
- * ⚠️ An EPUB anchor gets an honest, worded refusal, never a spinner and never
- * a dead page. The EPUB half is a SEPARATE build (viewer phase 2) and the seam
- * it plugs into is `openBook()`'s format switch plus `EPUB_SEAM` below — see
- * that constant's comment for exactly what phase 2 replaces and what it must
- * NOT re-derive.
+ * `openBook()` now has two arms. The EPUB one is foliate-js, vendored and
+ * pinned, reading the SAME gated byte stream **over HTTP ranges**: the 393 MiB
+ * White Sand Omnibus opens in 18 requests totalling 664,477 B — 0.16% of the
+ * file — at 16.6 MB of peak heap. The renderer choice and the reason it is not
+ * epub.js are in `EPUB_SEAM` below; the trap that undoes all of it is in
+ * `site/epub-loader.js`'s header and it is one function call wide.
+ *
+ * ⚠️ A fourth thing that will bite whoever edits this next: **the EPUB path
+ * re-asks for its token on every range**, where pdf.js captures headers once.
+ * Do not "harmonise" them by capturing the EPUB one — that would re-introduce
+ * the hour-long session expiry, not remove a difference.
  */
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
@@ -68,38 +74,45 @@ const FILE_URL = (anchor) =>
   `https://audiobook-api.heygabi.ai/api/ebook/${encodeURIComponent(anchor)}/file`;
 
 /**
- * ⚠️ THE EPUB SEAM — read this before building viewer phase 2.
+ * ⚠️ THE EPUB SEAM — CLOSED at viewer phase 2, 2026-08-17. Kept, because what
+ * it warned about is now what the code does, and the reasons still bite.
  *
- * Everything the EPUB reader needs is already here and already gated: the
- * sign-in flow, the manifest lookup, the anchor contract, the error mapping in
- * `describeFetchFailure()`, and a byte stream that honours `Range` for BOTH
- * formats (measured: foliate-js + a zip.js `HttpRangeReader` opened the 393 MiB
- * White Sand Omnibus in 15 range requests totalling 76.9 KiB).
+ * The seam was one branch in `openBook()`'s format switch. It now dispatches to
+ * `openEpub()` beside `openPdf()`, and everything else in this file — sign-in,
+ * the manifest lookup, the anchor contract, `describeFetchFailure()` — was
+ * already format-agnostic and did not change.
  *
- * So phase 2 replaces exactly ONE branch — this one — and touches nothing else:
+ * WHAT SHIPPED, against what the seam asked for:
  *
- *   - vendor foliate-js + @zip.js/zip.js into `site/static/` beside pdf.js,
- *     pinned, with their licences (see VENDORED.md's shape);
- *   - ⚠️ inject a RANGE-READING loader. foliate's own `view.js` builds
- *     `new ZipReader(new BlobReader(file))` over a whole in-memory Blob, so
- *     using it unmodified brings back the whole-file fetch and undoes the win;
- *   - ⚠️ foliate-js, NOT epub.js. Measured on the same file: epub.js fetched
- *     412,436,591 B into 1,207 MB of JS heap; foliate + ranges did it in
- *     78,741 B and 10.4 MB. And decide it BEFORE any reading position is
- *     stored: a stored CFI is a persisted key produced by a specific renderer,
- *     so swapping later is a migration, not an edit;
- *   - the 32 MiB size gate and its "this book is too large" refusal card that
- *     the design once called for are NOT needed and should not be built;
- *   - `blob:` must be in `/read`'s `img-src` and `frame-src` — an EPUB reader
- *     materialises extracted images as blob URLs, and omitting it produces a
- *     reader that paginates perfectly and shows no pictures.
+ *   - ✅ foliate-js, NOT epub.js, vendored at commit
+ *     `78914aef4466eb960965702401634c2cb348e9b1` with @zip.js/zip.js 2.7.45
+ *     (site/static/foliate/VENDORED.md, site/static/zipjs/VENDORED.md).
+ *     Measured on the 393 MiB White Sand Omnibus: epub.js fetched
+ *     412,436,591 B into 1,207 MB of JS heap; this reader opens the same book
+ *     in 18 range requests totalling 664,477 B at 16.6 MB of peak heap.
+ *   - ✅ the range-reading loader is injected DELIBERATELY, in
+ *     `site/epub-loader.js`. ⚠️ foliate's own `view.js` `makeBook()` builds
+ *     `new ZipReader(new BlobReader(file))` over a whole in-memory Blob; this
+ *     reader never calls it, and foliate's `vendor/zip.js` is deliberately NOT
+ *     vendored so that path cannot even resolve. Read that file's header before
+ *     touching any of it.
+ *   - ✅ no 32 MiB size gate and no "too large" refusal card. All three
+ *     oversized books open; the gate would have been dead code.
+ *   - ⚠️ `blob:` in `img-src`/`frame-src` was already there and was NOT enough.
+ *     `style-src` and `font-src` needed it too, and the phase-1 note saying
+ *     this file's CSP would not have to change was wrong by those two
+ *     directives. Measured both ways: without them a book paginates perfectly
+ *     in the browser's default serif with all of its own typography discarded,
+ *     and the page's own `securitypolicyviolation` listener never hears it,
+ *     because the section is a blob: iframe inside a CLOSED shadow root. See
+ *     site/_headers.
  *
- * The Read button on the shelf's EPUB cards is deliberately absent until then
- * (app/web/templates/ebooks.html), so nobody is offered a door that opens onto
- * this message.
+ * STILL OPEN, and it belongs to phase 3: nothing here stores a reading
+ * position. The renderer is settled now precisely so that when phase 3 does,
+ * its persisted key is produced by the renderer that will still be here.
  */
 const EPUB_SEAM =
-  'EPUB reading is not switched on in this reader yet — only PDFs are, for now. The EPUB half is next; until then this book is on the shelf but not readable here.';
+  'This reader cannot open that format — only EPUB and PDF. This book is on the shelf but not readable here.';
 
 /* ── page furniture ─────────────────────────────────────────────────────── */
 
@@ -120,6 +133,10 @@ const nextEl = el('rd-next');
 const zoomInEl = el('rd-zoom-in');
 const zoomOutEl = el('rd-zoom-out');
 const busyEl = el('rd-busy');
+const bookEl = el('rd-book');
+const pagerPdfEl = el('rd-pager-pdf');
+const pagerEpubEl = el('rd-pager-epub');
+const locEl = el('rd-loc');
 
 /**
  * Show a closed/failed state. ⚠️ Every one says what happened, what it needs
@@ -216,6 +233,12 @@ async function loadPdfJs() {
 /* ── the reader ─────────────────────────────────────────────────────────── */
 
 const state = {
+  /** 'pdf' | 'epub' | null — which renderer owns the shared toolbar. */
+  mode: null,
+  /** foliate's <foliate-view>, once an EPUB is open. */
+  view: null,
+  /** EPUB type size, as a multiplier on the book's own. */
+  fontScale: 1,
   doc: null,
   page: 1,
   /** null = fit the stage's width; a number is an explicit user zoom. */
@@ -340,19 +363,18 @@ async function openBook(user, anchor) {
   document.title = `${book.title} — Read`;
   titleEl.textContent = book.title + (book.author ? ` · ${book.author}` : '');
 
+  // ⚠️ THE FORMAT SWITCH. Two renderers, one gate, one manifest, one anchor.
+  // A third format lands here as an honest sentence, never a spinner.
   const format = String(book.format || '').toLowerCase();
-  if (format !== 'pdf') {
-    // The EPUB seam. An honest refusal, never a spinner that never ends.
-    closed(format === 'epub' ? 'Not yet, for EPUBs' : 'This reader cannot open that format', EPUB_SEAM);
-    return;
-  }
-
-  await openPdf(user, anchor);
+  if (format === 'pdf') return openPdf(user, anchor);
+  if (format === 'epub') return openEpub(user, anchor);
+  closed('This reader cannot open that format', EPUB_SEAM);
 }
 
 async function openPdf(user, anchor) {
   gateEl.hidden = true;
   shellEl.hidden = false;
+  state.mode = 'pdf';
   busy(true);
 
   let lib;
@@ -454,19 +476,214 @@ async function openPdf(user, anchor) {
   }
 }
 
+/* ── foliate-js, over byte ranges ───────────────────────────────────────── */
+
+/**
+ * The book's own CSS, gently overruled — and only where the shelf has an
+ * opinion. ⚠️ NOT a full restyle: an EPUB's typography is the publisher's work
+ * and this reader is not a better designer than they were. What it does set is
+ * the page's PAPER and INK, so a book does not open as a white rectangle inside
+ * a dark-mode shelf, and a comfortable measure.
+ *
+ * `line-height` and `font-family` are deliberately LEFT ALONE. Both were tried
+ * and both look wrong on books that chose otherwise — a drop-cap layout in
+ * Georgia is somebody else's book.
+ */
+function epubStyles(scale) {
+  const cs = getComputedStyle(document.documentElement);
+  const paper = cs.getPropertyValue('--card').trim() || '#fdfaf2';
+  const ink = cs.getPropertyValue('--ink').trim() || '#2c2418';
+  const accent = cs.getPropertyValue('--accent').trim() || '#9d4a1c';
+  return `
+    @namespace epub "http://www.idpf.org/2007/ops";
+    html, body { color: ${ink}; background: ${paper}; }
+    /* The type size control. A multiplier, so the book's own relative sizes —
+       its headings, its small caps — keep their proportions. */
+    html { font-size: ${(scale * 100).toFixed(1)}%; }
+    a, a:visited { color: ${accent}; }
+    /* Images must not be taller than the column or they paginate into an
+       empty page of their own. */
+    img, svg { max-width: 100%; max-height: 100vh; height: auto; }
+  `;
+}
+
+/** "Chapter Three · 12%" — what an EPUB has instead of "page 7 of 392". */
+function describeLocation(detail) {
+  const pct = typeof detail?.fraction === 'number' ? `${Math.round(detail.fraction * 100)}%` : '';
+  const label = (detail?.tocItem?.label || '').trim();
+  return [label, pct].filter(Boolean).join(' · ') || '';
+}
+
+async function openEpub(user, anchor) {
+  gateEl.hidden = true;
+  shellEl.hidden = false;
+  // The PDF furniture steps aside; the EPUB furniture steps up.
+  stageEl.hidden = true;
+  bookEl.hidden = false;
+  pagerPdfEl.hidden = true;
+  pagerEpubEl.hidden = false;
+  zoomInEl.setAttribute('aria-label', 'Larger type');
+  zoomOutEl.setAttribute('aria-label', 'Smaller type');
+  state.mode = 'epub';
+  busy(true);
+
+  let loader;
+  try {
+    loader = await import('./epub-loader.js');
+    await loader.loadFoliateView();
+  } catch (e) {
+    console.warn('[reader] foliate-js failed to load:', e);
+    closed(
+      'The reader did not load',
+      'The EPUB reader’s own code failed to load. That is a loading problem on our side, not a decision about you — try a refresh, and if it keeps happening tell Mitch.',
+    );
+    return;
+  }
+
+  // ⚠️ A FRESH TOKEN AT OPEN, for the same reason the PDF path takes one: the
+  // first thing that happens next is a network request, and starting with a
+  // 59-minute-old token buys a minute of reading. Unlike pdf.js, the ranges
+  // after this one re-ask (see below), so this is a floor rather than a ceiling.
+  try {
+    await user.getIdToken(true);
+  } catch {
+    closed('Your sign-in has lapsed', 'Sign in again to carry on reading.', { signIn: true });
+    return;
+  }
+
+  let opened;
+  try {
+    opened = await loader.openEpubOverRanges({
+      url: FILE_URL(anchor),
+      // ⚠️ PER REQUEST, not captured once. `getIdToken()` (unforced) returns the
+      // SDK's cached token and refreshes it transparently near expiry, so a
+      // reading session longer than an hour keeps working — the gap phase 1b
+      // records as unhandled for pdf.js, which can only take headers once.
+      getAuthHeader: async () => `Bearer ${await user.getIdToken()}`,
+    });
+  } catch (e) {
+    if (e && e.name === 'HttpStatusError') {
+      const d = describeFetchFailure(e.status, e.detail);
+      closed(d.title, d.why, { signIn: d.signIn });
+      return;
+    }
+    if (e && e.name === 'RangeUnsupportedError') {
+      // ⚠️ Not a mystery and not a permission problem: the shelf answered a
+      // byte-range request with the whole file, and the reader refused to
+      // download it. Naming it is what stops the next person "fixing" it by
+      // removing the refusal.
+      console.warn('[reader] the byte stream did not honour Range:', e);
+      closed(
+        'This book would not open',
+        'The shelf sent this book as one whole file instead of in pieces, and it is far too large to read that way. That is a problem on our side, not with your account — tell Mitch which book it was.',
+      );
+      return;
+    }
+    if (e && e.name === 'ObjectChangedError') {
+      closed('This book changed while you were reading', e.message + ' Refresh to open it again.');
+      return;
+    }
+    if (e instanceof TypeError) {
+      const d = describeFetchFailure(0);
+      closed(d.title, d.why);
+      return;
+    }
+    console.warn('[reader] foliate could not open the book:', e);
+    closed(
+      'This book would not open',
+      'The file is on the shelf but the reader could not make sense of it. That is a problem with the file, not with your account — tell Mitch which book it was.',
+    );
+    return;
+  }
+
+  console.info(
+    `[reader] epub opened over ${opened.stats.requests} range requests, ${opened.stats.bytes} B`,
+  );
+
+  const view = document.createElement('foliate-view');
+  state.view = view;
+  view.addEventListener('relocate', (ev) => {
+    locEl.textContent = describeLocation(ev.detail);
+  });
+  bookEl.append(view);
+
+  try {
+    await view.open(opened.book);
+    // ⚠️ TWO RENDERERS BEHIND ONE `view`, and they do not share an API.
+    // `View.open()` picks `<foliate-paginator>` for a reflowable book and
+    // `<foliate-fxl>` for a `pre-paginated` one — and **`foliate-fxl` has no
+    // `setStyles` and no `margin`/`gap`/`max-inline-size` attributes at all**.
+    // Calling them anyway throws, and the reader answers "this book would not
+    // open" for a book that opens perfectly. Found by opening the White Sand
+    // Omnibus, which IS fixed-layout — i.e. by the acceptance test, not by
+    // reading the source. Typography is meaningless for a fixed-layout book:
+    // its pages are images with the type baked in.
+    if (!view.isFixedLayout) {
+      // Tuned minimally to the shelf. `max-column-count` is left at foliate's
+      // own default of 2 and it is right: a wide window gets a spread, a phone
+      // gets one column, and neither needs a setting.
+      view.renderer.setAttribute('flow', 'paginated');
+      view.renderer.setAttribute('margin', '36px');
+      view.renderer.setAttribute('gap', '6%');
+      view.renderer.setAttribute('max-inline-size', '38rem');
+      view.renderer.setStyles(epubStyles(state.fontScale));
+    } else {
+      // The type-size buttons would be lying on a fixed-layout book. Hide them
+      // rather than leave two controls that do nothing (ROLES.md §1e).
+      zoomInEl.hidden = true;
+      zoomOutEl.hidden = true;
+    }
+    // `showTextStart` skips the cover and front matter and opens where the
+    // text does — which is what "Read" means. A book with no such landmark
+    // falls back to its first section.
+    await view.init({ showTextStart: true });
+  } catch (e) {
+    console.warn('[reader] foliate could not render the book:', e);
+    closed('This book would not open', 'The first page could not be drawn. Tell Mitch which book it was.');
+    return;
+  }
+  busy(false);
+}
+
+/**
+ * Type size, reflowable EPUB only. Re-applied through foliate so it
+ * re-paginates. ⚠️ `setStyles?.()` is not defensive noise — `<foliate-fxl>`
+ * genuinely does not have it (see openEpub).
+ */
+function setEpubScale(next) {
+  if (state.view?.isFixedLayout) return;
+  state.fontScale = Math.min(2.5, Math.max(0.6, next));
+  state.view?.renderer?.setStyles?.(epubStyles(state.fontScale));
+}
+
 /* ── controls ───────────────────────────────────────────────────────────── */
 
-prevEl.addEventListener('click', () => void drawPage(state.page - 1).catch(() => {}));
-nextEl.addEventListener('click', () => void drawPage(state.page + 1).catch(() => {}));
+/**
+ * ⚠️ ONE toolbar, TWO renderers, and every handler asks which. A PDF turns a
+ * page by drawing a canvas; an EPUB turns one by asking foliate, which may
+ * cross a section boundary and fetch more ranges. Wiring either half straight
+ * to the other's function is the mistake this indirection exists to prevent.
+ */
+const goPrev = () => (state.mode === 'epub'
+  ? void state.view?.prev().catch(() => {})
+  : void drawPage(state.page - 1).catch(() => {}));
+const goNext = () => (state.mode === 'epub'
+  ? void state.view?.next().catch(() => {})
+  : void drawPage(state.page + 1).catch(() => {}));
+
+prevEl.addEventListener('click', goPrev);
+nextEl.addEventListener('click', goNext);
 pageNowEl.addEventListener('change', () => {
   const n = Number(pageNowEl.value);
   if (Number.isFinite(n)) void drawPage(n).catch(() => {});
 });
 zoomInEl.addEventListener('click', () => {
+  if (state.mode === 'epub') return setEpubScale(state.fontScale * 1.15);
   state.scale = Math.min(4, (state.scale ?? state.lastScale ?? 1) * 1.25);
   void drawPage(state.page).catch(() => {});
 });
 zoomOutEl.addEventListener('click', () => {
+  if (state.mode === 'epub') return setEpubScale(state.fontScale / 1.15);
   state.scale = Math.max(0.25, (state.scale ?? state.lastScale ?? 1) / 1.25);
   void drawPage(state.page).catch(() => {});
 });
@@ -474,13 +691,16 @@ zoomOutEl.addEventListener('click', () => {
 document.addEventListener('keydown', (ev) => {
   if (shellEl.hidden) return;
   if (ev.target && /^(INPUT|TEXTAREA|SELECT)$/.test(ev.target.tagName || '')) return;
-  if (ev.key === 'ArrowRight' || ev.key === 'PageDown') void drawPage(state.page + 1).catch(() => {});
-  if (ev.key === 'ArrowLeft' || ev.key === 'PageUp') void drawPage(state.page - 1).catch(() => {});
+  if (ev.key === 'ArrowRight' || ev.key === 'PageDown') goNext();
+  if (ev.key === 'ArrowLeft' || ev.key === 'PageUp') goPrev();
 });
 
 // Re-fit on resize, but only while the user has not chosen a zoom of their own.
+// ⚠️ EPUB is exempt: foliate re-paginates itself on a ResizeObserver, and a
+// second re-layout on top of its own fights it and loses the reader's place.
 let resizeTimer = null;
 window.addEventListener('resize', () => {
+  if (state.mode === 'epub') return;
   if (state.scale !== null || !state.doc) return;
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(() => void drawPage(state.page).catch(() => {}), 150);

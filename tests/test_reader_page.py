@@ -343,3 +343,277 @@ def test_the_epub_seam_is_documented_for_the_next_agent() -> None:
     assert "EPUB SEAM" in js
     assert "foliate" in js, "the measured renderer recommendation must survive to phase 2"
     assert "epub.js" in js, "and so must the reason it is NOT epub.js"
+
+
+# ==========================================================================
+# VIEWER PHASE 2 — the EPUB half (2026-08-17)
+#
+# Same reasoning as everything above: every join here is a CONVENTION, not an
+# import. A vendored library reached by path, a loader injected by hand into a
+# library whose normal entry point does the opposite, a CSP applied by a path
+# in _headers, and a git-tracking question that has already bitten this repo
+# once. ⚠️ And the thing being defended is a NUMBER — 18 requests and 664 KB to
+# open a 393 MiB book instead of one request and 412 MB. Nothing LOOKS
+# different when that regresses.
+#
+# ⚠️ Stated plainly again: nothing here proves an EPUB renders. That was done
+# by opening real books in a browser against a counting server (figures in
+# catalog-platform/docs/info/ebook-viewer-phase1.md §9), and it has still never
+# been done through the live gate by a signed-in person.
+# ==========================================================================
+
+FOLIATE = REPO / "site" / "static" / "foliate"
+ZIPJS = REPO / "site" / "static" / "zipjs"
+EPUB_LOADER = REPO / "site" / "epub-loader.js"
+EPUB_RANGE = REPO / "site" / "epub-range.js"
+
+#: The pinned foliate-js commit. Bumping it means bumping this line AND
+#: re-running the range measurement — see site/static/foliate/VENDORED.md.
+FOLIATE_COMMIT = "78914aef4466eb960965702401634c2cb348e9b1"
+#: The pinned @zip.js/zip.js version — the one the 2026-08-17 probe measured.
+ZIPJS_VERSION = "2.7.45"
+
+
+def test_foliate_and_zipjs_are_vendored_whole_with_their_licences() -> None:
+    """⚠️ No CDN at runtime — the CSP names none, so a CDN import is blocked."""
+    for name in (
+        "view.js", "epub.js", "epubcfi.js", "paginator.js", "fixed-layout.js",
+        "progress.js", "overlayer.js", "text-walker.js", "search.js",
+    ):
+        assert (FOLIATE / name).is_file(), f"foliate-js {name} is missing"
+    assert (FOLIATE / "LICENSE").is_file(), "MIT requires the licence to travel"
+    assert (ZIPJS / "zip-no-worker-inflate.js").is_file()
+    assert (ZIPJS / "core" / "io.js").is_file()
+    assert (ZIPJS / "LICENSE").is_file(), "BSD-3-Clause requires the licence to travel"
+
+
+def test_foliates_own_whole_file_loader_is_NOT_vendored() -> None:
+    """⚠️ THE MECHANICAL GUARD, and the sharpest edge in viewer phase 2.
+
+    foliate's `view.js` `makeBook()` builds `new ZipReader(new BlobReader(file))`
+    over a whole in-memory Blob — 412,436,591 bytes for the White Sand Omnibus,
+    pulled through a gated Worker before a word renders. The reader must never
+    call it, and a comment saying so is only advice.
+
+    Omitting `vendor/zip.js` makes it MECHANICAL: `makeZipLoader`'s
+    `await import('./vendor/zip.js')` cannot resolve, so the whole-file path
+    physically cannot run. Vendoring the file back is then a deliberate act with
+    a reason attached, which is the bar it should have to clear.
+    """
+    assert not (FOLIATE / "vendor").exists(), (
+        "foliate's vendor/ must NOT be vendored — it is what makes the "
+        "whole-file BlobReader path work. See site/static/foliate/VENDORED.md."
+    )
+
+
+def test_the_epub_stack_is_TRACKED_IN_GIT_not_merely_on_disk() -> None:
+    """⚠️ THE FAILURE THAT HAS NOW HAPPENED TWICE IN THIS REPO.
+
+    At phase 1b the Python `build/` rule in .gitignore silently dropped both
+    pdf.js renderer files from `git add site/static/pdfjs`. At phase 2 the
+    Python `lib/` rule matched ALL 44 files of zip.js's `lib/` tree, which is
+    why the vendored copy has that directory level removed (VENDORED.md records
+    it).
+
+    The lesson is phrased about GIT rather than about a path because it is not
+    about `build/` or `lib/`: for a vendored dependency, "present in my working
+    tree" and "will reach the deployment" are different facts, and only the
+    second one matters.
+    """
+    required = [
+        "site/epub-loader.js",
+        "site/epub-range.js",
+        "site/static/foliate/view.js",
+        "site/static/foliate/epub.js",
+        "site/static/foliate/paginator.js",
+        "site/static/foliate/fixed-layout.js",
+        "site/static/foliate/LICENSE",
+        "site/static/zipjs/zip-no-worker-inflate.js",
+        "site/static/zipjs/core/io.js",
+        "site/static/zipjs/core/zip-reader.js",
+        "site/static/zipjs/core/streams/codecs/inflate.js",
+        "site/static/zipjs/LICENSE",
+    ]
+    out = subprocess.run(
+        ["git", "ls-files", "--", *required],
+        cwd=REPO, capture_output=True, text=True, check=False,
+    )
+    tracked = set(out.stdout.split())
+    for path in required:
+        assert path in tracked, (
+            f"{path} is NOT tracked by git - it exists on disk but would never "
+            f"reach the deployment. Check .gitignore (the Python `build/` and "
+            f"`lib/` rules have each done this once already)."
+        )
+        assert (REPO / path).stat().st_size > 0, f"{path} is empty"
+
+    # And the whole zip.js core tree, not just the files named above: a
+    # partially-tracked ES module graph fails at the first missing import.
+    out = subprocess.run(
+        ["git", "ls-files", "--", "site/static/zipjs"],
+        cwd=REPO, capture_output=True, text=True, check=False,
+    )
+    assert len(out.stdout.split()) >= 40, "zip.js's module tree is not fully tracked"
+
+
+def test_the_pinned_versions_are_stated_in_exactly_one_place_each_and_agree() -> None:
+    """A pin nobody can read is not a pin.
+
+    ⚠️ foliate-js is pinned to a COMMIT, not to `@main`. The 2026-08-17 probe
+    measured `@main` and said so in its own not-measured list; this is that
+    tech-debt item closed.
+    """
+    doc = read(FOLIATE / "VENDORED.md")
+    assert FOLIATE_COMMIT in doc
+    assert "MIT" in doc
+    assert "@main" in doc, "the reason it is a commit and not @main must survive"
+
+    zdoc = read(ZIPJS / "VENDORED.md")
+    assert f"**{ZIPJS_VERSION}**" in zdoc
+    assert "BSD-3-Clause" in zdoc
+    # ⚠️ The `lib/` deviation must stay written down, or the next update quietly
+    # re-creates the directory and loses the whole library from git again.
+    assert "lib/" in zdoc
+
+
+def test_the_reader_never_routes_through_foliates_whole_file_path() -> None:
+    """⚠️ THE ONE-FUNCTION-CALL REGRESSION.
+
+    `makeBook`, `makeZipLoader` and `BlobReader` are the three names of the
+    whole-file path. None may appear in executable code in any of these files —
+    the comments explain them at length, which is why comments are stripped
+    first.
+    """
+    for path in (READER_JS, EPUB_LOADER, EPUB_RANGE):
+        src = strip_comments(read(path))
+        for forbidden in ("makeBook", "makeZipLoader", "BlobReader"):
+            assert forbidden not in src, (
+                f"{path.name} reaches for foliate's whole-file loader "
+                f"({forbidden}); that undoes viewer phase 2 entirely"
+            )
+
+
+def test_the_loader_is_range_only_and_treats_a_200_as_a_failure() -> None:
+    """⚠️ The endpoint IGNORES a Range it cannot parse and answers 200 with the
+    WHOLE FILE (phase 1a contract). So the failure mode of a bad range is not an
+    error - it is a 393 MiB download. The transport must refuse a 200 rather
+    than read it; the counting tests in site/__tests__/epub-range.test.js prove
+    it does.
+    """
+    src = strip_comments(read(EPUB_RANGE))
+    assert "RangeUnsupportedError" in src
+    assert "res.status === 200" in src, "the whole-file answer must be detected"
+    assert "res.body?.cancel()" in src, "and the body cancelled, never read"
+    assert "rangeHeaderFor(" in src
+    assert "method: 'GET'" in src
+
+
+def test_the_epub_path_attaches_the_bearer_per_request() -> None:
+    """⚠️ NOT a captured token, and NOT a URL parameter.
+
+    pdf.js can only take `httpHeaders` once, at getDocument, which is why phase
+    1b lists mid-session token expiry as unhandled. The EPUB transport calls a
+    getter per range, so the Firebase SDK's own refresh keeps a long read alive.
+    "Harmonising" the two by capturing the EPUB token would re-introduce the
+    expiry, not remove a difference.
+    """
+    js = read(READER_JS)
+    assert "getAuthHeader: async () =>" in js
+    assert "await user.getIdToken()" in js
+    src = strip_comments(read(EPUB_RANGE))
+    assert "await authOf()" in src, "the token getter must be awaited per request"
+    assert "token=" not in src and "?auth=" not in src
+
+
+def test_there_is_no_size_gate_on_epubs() -> None:
+    """⚠️ Deliberately NOT built (viewer design's 32 MiB gate).
+
+    All three oversized books open over ranges — the 393 MiB omnibus in 18
+    requests totalling 664 KB. A refusal card for them would refuse books that
+    work, and it is worth NOT building rather than building and removing.
+    """
+    shelf = strip_comments(read(SHELF))
+    block = shelf[shelf.index("var read ="): shelf.index("cardInfoEl.innerHTML =")]
+    assert "size_bytes" not in block, "the Read button must not gate on file size"
+    assert "'pdf'" in block and "'epub'" in block, "both formats get the button"
+    assert "can_download" not in block, (
+        "reading is vis_ebooks, never the `download` capability (viewer design 6.x)"
+    )
+
+
+def test_the_reader_page_has_a_stage_for_each_renderer() -> None:
+    """Two renderers, one shell. A PDF paints a canvas; an EPUB is paginated
+    into #rd-book by <foliate-view>, which needs a definite height.
+    """
+    html = read(TEMPLATE)
+    assert 'id="rd-book"' in html
+    assert 'id="rd-pager-epub"' in html and 'id="rd-pager-pdf"' in html
+    # ⚠️ `display:flex` beats the `hidden` attribute's UA `display:none`, so the
+    # PDF stage needs an explicit rule or it stays on screen under an open EPUB.
+    assert "#rd-stage[hidden]{display:none}" in html
+    # Still no inline script: the CSP has not loosened.
+    for tag in re.findall(r"<script\b[^>]*>", strip_comments(html)):
+        assert " src=" in tag, f"inline script in read.html would be CSP-blocked: {tag}"
+
+
+def test_the_reader_handles_both_of_foliates_renderers() -> None:
+    """⚠️ CAUGHT BY THE ACCEPTANCE TEST, NOT BY READING THE SOURCE.
+
+    `View.open()` picks `<foliate-paginator>` for a reflowable book and
+    `<foliate-fxl>` for a `pre-paginated` one, and **foliate-fxl has no
+    `setStyles` and none of the paginator's layout attributes**. Calling them
+    anyway throws, and the reader answers "this book would not open" for a book
+    that opens perfectly. The White Sand Omnibus — the acceptance-test book — is
+    fixed-layout, which is how this was found.
+    """
+    js = strip_comments(read(READER_JS))
+    assert "isFixedLayout" in js, (
+        "reader.js must branch on view.isFixedLayout before calling setStyles"
+    )
+
+
+@pytest.mark.parametrize("path", ["/read", "/read/", "/dev/read", "/dev/read/"])
+def test_the_csp_allows_blob_stylesheets_and_fonts(path: str) -> None:
+    """⚠️ CAUGHT BY MEASUREMENT, AND IT WOULD HAVE SHIPPED SILENTLY.
+
+    foliate rewrites an EPUB's own stylesheets and embedded fonts to `blob:`
+    URLs, and `'self'` DOES NOT COVER `blob:`. Phase 1 put blob: in `img-src`
+    and `frame-src` "so the EPUB build does not have to touch this file"; that
+    was wrong by exactly these two directives.
+
+    Measured both ways on a real book, 2026-08-17:
+        style-src 'self'        -> the linked sheet yields ZERO rules,
+                                   body font falls back to Times New Roman
+        style-src 'self' blob:  -> 84 rules, body font Palatino
+    A `font-src <- blob` violation was caught the same way.
+
+    ⚠️ The failure looks like a badly-made book, not like a blocked request,
+    and the page's own securitypolicyviolation listener NEVER HEARS IT: the
+    section is a blob: iframe inside a CLOSED shadow root.
+    """
+    headers = read(HEADERS)
+    block = re.search(rf"^{re.escape(path)}\n(?:  .+\n)+", headers, flags=re.MULTILINE)
+    assert block
+    csp = block.group(0)
+    style_src = re.search(r"style-src ([^;]+)", csp).group(1)
+    font_src = re.search(r"font-src ([^;]+)", csp).group(1)
+    assert "blob:" in style_src, "an EPUB's own CSS is a blob: URL, and 'self' does not cover it"
+    assert "blob:" in font_src, "an EPUB's embedded fonts are blob: URLs"
+    # The phase-1 pair must survive too.
+    assert "img-src 'self' data: blob:" in csp
+    assert "frame-src 'self' blob:" in csp
+
+
+def test_the_vendored_epub_stack_is_long_cached_in_both_lanes() -> None:
+    """~50 small ES modules whose bytes never change in place. Without a rule
+    the /* no-cache default costs a conditional request for each, every load.
+    ⚠️ Both lanes: `/dev/` is a path, not a host.
+    """
+    headers = read(HEADERS)
+    for rule in ("/static/foliate/*", "/dev/static/foliate/*",
+                 "/static/zipjs/*", "/dev/static/zipjs/*"):
+        block = re.search(rf"^{re.escape(rule)}\n(?:  .+\n)+", headers, flags=re.MULTILINE)
+        assert block, f"no _headers cache rule for {rule}"
+        assert "max-age=604800" in block.group(0)
+        # ⚠️ NOT immutable: the path does not change when the pin does.
+        assert "immutable" not in block.group(0)

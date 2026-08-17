@@ -47,7 +47,7 @@
   without the ebook grant. None of them renders a single book.
 
   NO DOWNLOADS FROM HERE, still — and since 2026-08-17 there IS a Read button
-  on PDF cards, which is not the same thing. It is a LINK to /read, a separate
+  on every card, which is not the same thing. It is a LINK to /read, a separate
   page that does its own sign-in and its own gated range requests; no file is
   reachable from this page. `can_download` rides the gated answer (the LADDER's
   `download`, admin+) for a future download affordance and is deliberately NOT
@@ -55,9 +55,13 @@
   opened this shelf, and gating Read on `download` would show every member a
   shelf none of them could read.
 
-  ⚠️ EPUB cards get no Read button on purpose (viewer phase 2 adds it), because
-  the reader answers an honest "not yet" for that format and a button that
-  opens onto a refusal is a dead affordance.
+  BOTH FORMATS carry the button since viewer phase 2 (2026-08-17). EPUB cards
+  previously carried a NOTE instead, because the reader answered an honest "not
+  yet" for that format and a button onto a refusal is a dead affordance. The
+  reader opens both now, so the note is gone. ⚠️ And there is deliberately no
+  size gate on the three oversized EPUBs: they are read over HTTP byte ranges
+  like every other book (the 393 MiB omnibus opens in 18 requests totalling
+  664 KB), so a refusal card for them would refuse books that work.
 
   PDFs ARE HIDDEN BY DEFAULT (owner, 2026-08-17). They are game handbooks and
   household documents rather than books, and they are the one format with
@@ -423,8 +427,10 @@ h1 .tail{color:var(--accent)}
   .eb-card-info{width:100%}
 }
 
-/* The READ action on a reading card (viewer phase 1b, 2026-08-17). PDFs only
-   for now — see the openCard() comment for why an EPUB card has no button. */
+/* The READ action on a reading card (viewer phase 1b, 2026-08-17; both formats
+   since phase 2). ⚠️ `.eb-read-note` below is the EPUB "not yet" line phase 2
+   removed — kept because the same shape is the right one for any future
+   card-level explanation, and deleting a two-line rule to re-add it is churn. */
 .eb-read{display:inline-block;margin-top:14px;padding:9px 18px;border-radius:9px;
   background:var(--accent);color:var(--card);font-family:var(--sans);
   font-weight:600;font-size:.9em;text-decoration:none}
@@ -826,11 +832,16 @@ h1 .tail{color:var(--accent)}
     // does its own sign-in and its own gated request, and the FILE is not
     // reachable from this page at all.
     //
-    // ⚠️ PDFs ONLY, and the absence on EPUB cards is deliberate rather than
-    // unfinished: the reader opens PDFs today and answers an honest "not yet"
-    // for EPUB (viewer phase 2). Offering a button that opens onto that
-    // sentence would be a dead affordance, which is exactly what ROLES.md §1e
-    // forbids — better no control than one that refuses.
+    // ⚠️ BOTH FORMATS since viewer phase 2 (2026-08-17). Until then EPUB cards
+    // carried a note instead of a button, because the reader answered an
+    // honest "not yet" and a button onto a refusal is a dead affordance
+    // (ROLES.md §1e). The reader now opens both, so the note is gone and the
+    // button is on every card — INCLUDING the three oversized books, which
+    // open over byte ranges like any other (the 393 MiB omnibus in 18 requests
+    // totalling 664 KB). ⚠️ There is deliberately NO size gate: it would be
+    // dead code, and a refusal card for books that open fine is worse than
+    // none. The ONE book that legitimately refuses is the omnibus, until its
+    // file reaches R2 — and the Worker's own `file_absent` sentence says so.
     //
     // ⚠️ AND IT IS NOT A PERMISSION CONTROL. `can_download` is NOT consulted
     // here and must not be: reading is the estate's `vis_ebooks` grant, which
@@ -843,11 +854,10 @@ h1 .tail{color:var(--accent)}
     // and `ebooks.heygabi.ai/` -> `ebooks.heygabi.ai/read`. Extensionless and
     // with no trailing slash — both forms break, for two different reasons the
     // read.html header spells out.
-    var read = String(b.format || '').toLowerCase() === 'pdf' && b.anchor
+    var fmt = String(b.format || '').toLowerCase();
+    var read = (fmt === 'pdf' || fmt === 'epub') && b.anchor
       ? '<a class="eb-read" href="read?b=' + encodeURIComponent(b.anchor) + '">Read &#x2192;</a>'
-      : (String(b.format || '').toLowerCase() === 'epub'
-          ? '<span class="eb-read-note">Reading EPUBs in the browser is not switched on yet — PDFs are.</span>'
-          : '');
+      : '';
     cardInfoEl.innerHTML =
       '<h2 id="eb-card-title">' + esc(b.title) + '</h2>' +
       (b.author ? '<div class="eb-card-author">' + esc(b.author) + '</div>' : '') +
