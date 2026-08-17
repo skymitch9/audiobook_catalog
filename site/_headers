@@ -89,11 +89,23 @@
 #                ⚠️ NO 'unsafe-eval' either — pdf.js is given
 #                `isEvalSupported: false` so it never asks. Turning the flag
 #                off beats widening the header.
-#   connect-src  the gated Worker (the manifest AND every range request) plus
-#                Google's token endpoints. ⚠️ If this is wrong the fetch dies
-#                as an OPAQUE network error, indistinguishable from the Worker
-#                being down — the exact misdiagnosis the estate already ate
-#                once when a CSP silently blocked a subdomain.
+#   connect-src  the gated Worker (the manifest AND every range request), plus
+#                Google's token endpoints, plus ⚠️ 'self'. If this is wrong the
+#                fetch dies as an OPAQUE network error, indistinguishable from
+#                the Worker being down — the exact misdiagnosis the estate
+#                already ate once when a CSP silently blocked a subdomain.
+#                ⚠️ 'self' IS NOT PADDING, and it was MISSING until it was
+#                caught by exercising this exact policy string in a browser
+#                (2026-08-17). `default-src 'none'` blocks same-origin fetches
+#                too, and pdf.js fetches its cMaps and standard fonts with
+#                fetch() — so without 'self' a CJK page renders as BOXES and a
+#                page using a non-embedded base-14 font renders with NO TEXT.
+#                Both look like a corrupt book rather than a blocked request,
+#                and neither would have appeared on the /dev/ lane, because the
+#                root _headers comes from the PROD branch (deploy.yml copies
+#                prod-src/site/. to the _site root; Cloudflare ignores nested
+#                ones) — so production would have been this policy's FIRST
+#                exercise.
 #   worker-src   pdf.js runs its parser on a real Worker thread, self-hosted.
 #                blob: is kept because pdf.js falls back to a blob worker when
 #                a direct module worker is refused.
@@ -110,16 +122,16 @@
 #   frame-ancestors  'none' everywhere: this page submits nothing, has no base
 #                tag, and must never be framed by anything.
 /read
-  Content-Security-Policy: default-src 'none'; script-src 'self' https://www.gstatic.com https://apis.google.com; connect-src https://audiobook-api.heygabi.ai https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://www.googleapis.com; img-src 'self' data: blob: https://covers.heygabi.ai; style-src 'self' 'unsafe-inline'; font-src 'self' data:; worker-src 'self' blob:; frame-src 'self' blob: https://audiobook-catalog.firebaseapp.com; child-src 'self' blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'none'; script-src 'self' https://www.gstatic.com https://apis.google.com; connect-src 'self' https://audiobook-api.heygabi.ai https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://www.googleapis.com; img-src 'self' data: blob: https://covers.heygabi.ai; style-src 'self' 'unsafe-inline'; font-src 'self' data:; worker-src 'self' blob:; frame-src 'self' blob: https://audiobook-catalog.firebaseapp.com; child-src 'self' blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
 
 /read/
-  Content-Security-Policy: default-src 'none'; script-src 'self' https://www.gstatic.com https://apis.google.com; connect-src https://audiobook-api.heygabi.ai https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://www.googleapis.com; img-src 'self' data: blob: https://covers.heygabi.ai; style-src 'self' 'unsafe-inline'; font-src 'self' data:; worker-src 'self' blob:; frame-src 'self' blob: https://audiobook-catalog.firebaseapp.com; child-src 'self' blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'none'; script-src 'self' https://www.gstatic.com https://apis.google.com; connect-src 'self' https://audiobook-api.heygabi.ai https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://www.googleapis.com; img-src 'self' data: blob: https://covers.heygabi.ai; style-src 'self' 'unsafe-inline'; font-src 'self' data:; worker-src 'self' blob:; frame-src 'self' blob: https://audiobook-catalog.firebaseapp.com; child-src 'self' blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
 
 /dev/read
-  Content-Security-Policy: default-src 'none'; script-src 'self' https://www.gstatic.com https://apis.google.com; connect-src https://audiobook-api.heygabi.ai https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://www.googleapis.com; img-src 'self' data: blob: https://covers.heygabi.ai; style-src 'self' 'unsafe-inline'; font-src 'self' data:; worker-src 'self' blob:; frame-src 'self' blob: https://audiobook-catalog.firebaseapp.com; child-src 'self' blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'none'; script-src 'self' https://www.gstatic.com https://apis.google.com; connect-src 'self' https://audiobook-api.heygabi.ai https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://www.googleapis.com; img-src 'self' data: blob: https://covers.heygabi.ai; style-src 'self' 'unsafe-inline'; font-src 'self' data:; worker-src 'self' blob:; frame-src 'self' blob: https://audiobook-catalog.firebaseapp.com; child-src 'self' blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
 
 /dev/read/
-  Content-Security-Policy: default-src 'none'; script-src 'self' https://www.gstatic.com https://apis.google.com; connect-src https://audiobook-api.heygabi.ai https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://www.googleapis.com; img-src 'self' data: blob: https://covers.heygabi.ai; style-src 'self' 'unsafe-inline'; font-src 'self' data:; worker-src 'self' blob:; frame-src 'self' blob: https://audiobook-catalog.firebaseapp.com; child-src 'self' blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'none'; script-src 'self' https://www.gstatic.com https://apis.google.com; connect-src 'self' https://audiobook-api.heygabi.ai https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://www.googleapis.com; img-src 'self' data: blob: https://covers.heygabi.ai; style-src 'self' 'unsafe-inline'; font-src 'self' data:; worker-src 'self' blob:; frame-src 'self' blob: https://audiobook-catalog.firebaseapp.com; child-src 'self' blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
 
 # The vendored pdf.js is version-pinned by PATH (site/static/pdfjs/) and its
 # bytes never change in place, so the /* no-cache default above is pure cost

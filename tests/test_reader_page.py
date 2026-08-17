@@ -164,6 +164,23 @@ def test_the_csp_names_the_worker_and_forbids_inline_and_eval() -> None:
     assert policy
     csp = policy.group(1)
     assert "connect-src" in csp and "https://audiobook-api.heygabi.ai" in csp
+    # ⚠️ 'self' IS NOT PADDING. `default-src 'none'` blocks SAME-ORIGIN fetches
+    # too, and pdf.js fetches its cMaps and standard fonts with fetch(). Without
+    # this, a CJK page renders as BOXES and a page using a non-embedded base-14
+    # font renders with NO TEXT — both of which look like a corrupt book rather
+    # than a blocked request.
+    #
+    # It was genuinely MISSING, and was caught by serving this exact policy
+    # string in a browser and watching `securitypolicyviolation`:
+    #     connect-src <- .../__probe.pdf
+    # No test and no local render could have found it, because the /dev/ lane
+    # ships NO CSP at all: deploy.yml copies prod-src/site/. to the _site root
+    # and Cloudflare ignores nested _headers, so the root policy comes from the
+    # PROD branch. Production would have been this policy's first exercise.
+    connect_src = re.search(r"connect-src ([^;]+)", csp).group(1)
+    assert "'self'" in connect_src, (
+        "connect-src needs 'self' or pdf.js cannot fetch its cMaps/standard fonts"
+    )
     assert "https://securetoken.googleapis.com" in csp, "token refresh must not be blocked"
     script_src = re.search(r"script-src ([^;]+)", csp).group(1)
     assert "'unsafe-inline'" not in script_src
