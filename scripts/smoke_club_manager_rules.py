@@ -16,7 +16,16 @@ token with the service account and exchange it — see signup() below.
 
 Run:  python scripts/smoke_club_manager_rules.py   (from the repo root)
 Written 2026-08-17 for the CLUB MANAGER package; re-run it after any change
-to the club clauses in firestore.rules.
+to the club clauses in firestore.rules. Extended the same day for the
+MANAGECLUB SPLIT (the read-lifecycle arms + the site-moderator override).
+
+⚠️ WINDOWS: keep every `print()` string inside cp1252 — plain ASCII is
+safest. This console encodes stdout as cp1252, and a `⚠️` or other
+non-cp1252 character in a PRINT raises UnicodeEncodeError mid-run, which
+here means the script dies AFTER creating scratch data and BEFORE the
+cleanup block, leaving a club, a read, a seeded site_roles doc and two
+synthetic auth users behind. It cost exactly that once (2026-08-17). Emoji
+in comments and docstrings are fine; only printed text is affected.
 """
 import json
 import re
@@ -97,9 +106,29 @@ tok_b, uid_b = signup('b')
 print(f'synthetic users: A={uid_a} B={uid_b}\n')
 
 club_path = f'{COL}/{CLUB}'
-# Clean slate.
+
+# The service account (bypasses rules) — needed for site_roles, which no
+# browser may ever write. Opened HERE rather than at the point of use so the
+# clean slate below can reach it.
+import firebase_admin                                        # noqa: E402
+from firebase_admin import credentials, firestore            # noqa: E402
+
+_app = firebase_admin.initialize_app(
+    credentials.Certificate('scripts/firebase_service_account.json'))
+_fs = firestore.client()
+
+# ⚠️ CLEAN SLATE, AND WHY IT INCLUDES site_roles (2026-08-17, learned the
+# hard way). A crashed run leaves scratch state behind, and a leftover
+# site_roles doc is the one piece that silently INVERTS the next run instead
+# of failing it: B starts as a site moderator, so B passes the roster gate,
+# claims the club, becomes a bound manager, and every "B is refused" assertion
+# below returns 200. Sixteen assertions failed and NONE of them meant what
+# they said. Deleting it first costs one call and makes the run idempotent.
 call('DELETE', doc_url(f'{club_path}/settings/discord'), token=tok_a)
+call('DELETE', doc_url(f'{club_path}/reads/r1'), token=tok_a)
 call('DELETE', doc_url(club_path), token=tok_a)
+for _uid in (uid_a, uid_b):
+    _fs.collection('site_roles').document(_uid).delete()
 
 st, _ = call('PATCH', doc_url(club_path), {'fields': {
     'name': {'stringValue': 'Club Manager Smoke'},
@@ -255,13 +284,13 @@ st, _ = finish_patch(None)
 check('anonymous cannot finish the read', st, 403)
 
 st, _ = finish_patch(tok_a)
-check('A, the bound manager, FINISHES their own club’s read', st, 200)
+check("A, the bound manager, FINISHES their own club's read", st, 200)
 
 seed_read()
 st, _ = reveal_patch(tok_b)
 check('B cannot REVEAL the ratings', st, 403)
 st, _ = reveal_patch(tok_a)
-check('A reveals the ratings on their own club’s read', st, 200)
+check("A reveals the ratings on their own club's read", st, 200)
 
 seed_read()
 st, _ = call('DELETE', doc_url(read_path), token=tok_b)
@@ -274,12 +303,6 @@ seed_read()
 st, _ = slot_patch(tok_b)
 check('pre-check: B holds nothing on this club yet', st, 403)
 
-import firebase_admin                                        # noqa: E402
-from firebase_admin import credentials, firestore            # noqa: E402
-
-_app = firebase_admin.initialize_app(
-    credentials.Certificate('scripts/firebase_service_account.json'))
-_fs = firestore.client()
 _fs.collection('site_roles').document(uid_b).set({
     'role': 'moderator', 'seededBy': 'smoke_club_manager_rules.py',
 })
@@ -296,13 +319,20 @@ seed_read()
 st, _ = call('DELETE', doc_url(read_path), token=tok_b)
 check('a site MODERATOR removes a read on a club they do NOT manage', st, 200)
 
-print('\n-- ⚠️ the DESTRUCTIVE half did NOT move (option B’s other line) --')
+print('\n-- the DESTRUCTIVE half did NOT move (option B other line) --')
 seed_read()
 st, _ = slot_patch(tok_b)
-check('a site moderator is STILL refused the read’s slot (structural)', st, 403)
+check("a site moderator is STILL refused the read's slot (structural)", st, 403)
 
+# ⚠️ 'open', NOT 'application' — the club is ALREADY on 'application' by now
+# (A set it in the structural section above), and rules gate on
+# diff().affectedKeys(), so re-writing the same value is not a change at all
+# and sails through at 200 without ever reaching the gate. Written the wrong
+# way round first, and the resulting green meant nothing. Same trap the
+# no-op roster re-write above documents; it bites any assertion that expects
+# a REFUSAL, because a vacuous write looks exactly like a permitted one.
 st, _ = call('PATCH', doc_url(club_path, ['joinMode']),
-             {'fields': {'joinMode': {'stringValue': 'application'}}}, token=tok_b)
+             {'fields': {'joinMode': {'stringValue': 'open'}}}, token=tok_b)
 check('a site moderator is STILL refused joinMode (structural)', st, 403)
 
 st, _ = call('DELETE', doc_url(club_path), token=tok_b)
