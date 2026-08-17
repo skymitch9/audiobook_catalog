@@ -563,6 +563,12 @@ def main(argv: Optional[List[str]] = None) -> int:
             print(f"      oversize: {k} ({local[k]['size'] / 1e6:.0f} MB)")
 
     if args.report_orphans:
+        if args.only:
+            # ⚠️ Every book outside the filter would look like an orphan.
+            # Refusing beats printing 167 false positives that read as data.
+            print("  [SKIP] --report-orphans is meaningless with --only (everything "
+                  "outside the filter would look orphaned). Re-run without --only.")
+            return 0
         orphans = orphan_keys(local, load_record())
         print(f"  orphans in record with no local file (kept): {len(orphans)}")
         for o in orphans[:50]:
