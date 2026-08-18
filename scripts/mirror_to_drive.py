@@ -217,9 +217,48 @@ def local_tree(mirror_dir: Path) -> List[Tuple[str, str, Path]]:
     return out
 
 
+# ⚠️ NOT AN R2 BUCKET, AND DELIBERATELY OUTSIDE EVERY GIT REPOSITORY.
+# Whisper transcripts of the household's own audiobooks. Owner, 2026-08-18:
+# *"back up all this training data to Google Drive GABI back ups… this is data
+# that could lead to piracy if it were to get out"*. They live at
+# `C:\Users\nbasl\estate-training-data` precisely so that no command run inside
+# `audiobook_catalog` (a PUBLIC repo) can commit them — the path IS the guard,
+# where a .gitignore entry would only be a promise.
+#
+# They ride this mirror rather than getting their own script because the Drive
+# OAuth token, the retry logic and the md5 comparison already live here, and a
+# second uploader would be a second thing to keep correct.
+DEFAULT_TRAINING_DIR = Path(
+    os.getenv("ESTATE_TRAINING_ROOT", r"C:\Users\nbasl\estate-training-data"))
+
+# Which subfolders of the training root are worth carrying off this machine.
+# ⚠️ `packs` is NOT here: those objects also live in the `ebooks-gated` bucket
+# and are reproducible from the transcripts in seconds. `whisper-venv` is not
+# here either — it is 2.3 GB of reinstallable wheels.
+TRAINING_SUBDIRS = ("transcripts", "receipts")
+
+
+def training_tree(training_dir: Path) -> List[Tuple[str, str, Path]]:
+    """Training data as (kind, store, path), shaped like `local_tree`'s output."""
+    out: List[Tuple[str, str, Path]] = []
+    if not training_dir.is_dir():
+        return out
+    for name in TRAINING_SUBDIRS:
+        sub = training_dir / name
+        if not sub.is_dir():
+            continue
+        for f in sorted(p for p in sub.rglob("*") if p.is_file()):
+            out.append(("training-data", name, f))
+    return out
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--mirror-dir", default=os.getenv("ESTATE_MIRROR_DIR", str(DEFAULT_MIRROR_DIR)))
+    ap.add_argument("--training-dir", default=str(DEFAULT_TRAINING_DIR),
+                    help="local training-data root (transcripts, receipts)")
+    ap.add_argument("--no-training-data", action="store_true",
+                    help="mirror only the R2 backup generations")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args(argv if argv is not None else sys.argv[1:])
 
@@ -238,6 +277,20 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(f"  [ERROR] {mirror_dir} holds no <kind>/<store>/<file> objects. "
               "Treating an empty source as a failure, not as 'nothing to do'.")
         return 2
+
+    if not args.no_training_data:
+        training_dir = Path(args.training_dir)
+        extra = training_tree(training_dir)
+        # ⚠️ Absent training data is NOT an error. This machine may legitimately
+        # have none yet (nothing transcribed), and failing the whole backup
+        # mirror over that would stop the database dumps reaching Drive — a much
+        # worse outcome than a missing transcript. Say so, then carry on.
+        if extra:
+            print(f"+ {len(extra)} training-data file(s) from {training_dir}")
+            files = files + extra
+        else:
+            print(f"  [note] no training data under {training_dir} "
+                  f"({'/'.join(TRAINING_SUBDIRS)}); mirroring backups only.")
     total_bytes = sum(f.stat().st_size for _, _, f in files)
     print(f"{len(files)} local object(s), {total_bytes} bytes, across "
           f"{len({(k, s) for k, s, _ in files})} store(s).")
