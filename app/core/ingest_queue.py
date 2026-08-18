@@ -93,6 +93,14 @@ class QueueItem:
     twin_of: Optional[str] = None  # the EPUB path answering for an audiobook
     added_at: Optional[str] = None
     note: Optional[str] = None
+    # ⚠️ The audiobook's runtime in seconds, and the ONLY honest source for it.
+    # The deadline gate (ingest_control section 5) divides this by a measured
+    # realtime factor to decide whether a book can finish before the next
+    # boundary. It comes from the catalog's `duration_hhmm`, never from
+    # chapters.json - that file knows only where the LAST CHAPTER STARTS, which
+    # is minutes short of the runtime on every book, and a short duration is an
+    # optimistic estimate, which is the one direction that gate must not lean.
+    duration_sec: Optional[float] = None
 
     def to_dict(self) -> dict:
         return {k: v for k, v in asdict(self).items() if v is not None}
@@ -193,6 +201,25 @@ def load_additions_log() -> Dict[str, str]:
         # make an old book look new.
         out.setdefault(bid, str(when))
     return out
+
+
+_DURATION_RE = re.compile(r"^(\d+):(\d{2})(?::(\d{2}))?$")
+
+
+def parse_duration_hhmm(value: Optional[str]) -> Optional[float]:
+    """`"10:07"` -> 36420.0 seconds. `"1:02:03"` is accepted too.
+
+    ⚠️ Returns None for anything else, and None means UNKNOWN - never zero. A
+    zero-second book would look instantaneous to the deadline gate and start at
+    07:44. MEASURED 2026-08-18: all 1,079 catalog rows parse, so None is a
+    contingency rather than a path anything relies on.
+    """
+    match = _DURATION_RE.match(str(value or "").strip())
+    if not match:
+        return None
+    hours, minutes, seconds = match.group(1), match.group(2), match.group(3) or "0"
+    total = int(hours) * 3600 + int(minutes) * 60 + int(seconds)
+    return float(total) if total > 0 else None
 
 
 def count_reviews_by_book_id(timeout: float = 30.0) -> Dict[str, int]:
@@ -364,18 +391,20 @@ def build_queue(state: Optional[dict] = None, review_counts: Optional[Dict[str, 
             continue
         twin = twins.get(normalise_title(title)) or twins.get(strip_series_boilerplate(title))
         count = review_counts.get(bid, 0)
+        duration = parse_duration_hhmm(row.get("duration_hhmm"))
         if twin:
             items.append(QueueItem(bid, title, TIER_TWIN, "epub",
                                    str(root / twin["path"]),
                                    twin_of=twin.get("path"),
                                    review_count=count,
-                                   note="twin-satisfied: EPUB text answers for the audiobook"))
+                                   note="twin-satisfied: EPUB text answers for the audiobook",
+                                   duration_sec=duration))
             continue
         items.append(QueueItem(
             bid, title,
             TIER_REVIEWED_AUDIO if count > 0 else TIER_REST_AUDIO,
             "transcript", None, review_count=count, needs_gpu=True,
-            added_at=added.get(bid),
+            added_at=added.get(bid), duration_sec=duration,
         ))
 
     return sorted(demote_contested_twins(items), key=_sort_key)
@@ -408,6 +437,9 @@ def demote_contested_twins(items: List[QueueItem]) -> List[QueueItem]:
                 TIER_REVIEWED_AUDIO if item.review_count > 0 else TIER_REST_AUDIO,
                 "transcript", None, review_count=item.review_count, needs_gpu=True,
                 added_at=item.added_at,
+                # ⚠️ carried, not dropped: a demoted twin becomes a GPU book and
+                # the deadline gate cannot estimate one whose runtime is missing.
+                duration_sec=item.duration_sec,
                 note=f"twin refused: {item.twin_of!r} was claimed by "
                      f"{claims[item.twin_of]} audiobooks",
             ))

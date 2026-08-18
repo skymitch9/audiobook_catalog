@@ -5,6 +5,8 @@ Grouped by the thing that would break if the test were deleted:
   * chunker boundaries     - a persisted-key contract (every stored `ord`)
   * window math            - the owner's 12am-8am Phoenix promise, no DST
   * GPU-guard parsing      - the "don't start above 50%" clause, fail-safe
+  * CPU-guard parsing      - the same fail-safe on the processor (2026-08-18)
+  * the deadline gate      - "by 630 the ingestion is done" (2026-08-18)
   * control contract       - the dashboard pause the owner asked for
   * priority ordering      - "start with books that have reviews"
   * pack shape             - ingester_version, and the sha over content only
@@ -37,9 +39,30 @@ from app.core.ingest_queue import (
 
 PHX = ic.PHOENIX
 
+# ⚠️ Captured at import, BEFORE the autouse fixture below stubs it out. The
+# tests that exercise the reader itself need the real function; every other
+# test needs it stubbed, and there is no third option.
+_real_recent_realtime_factors = ic.recent_realtime_factors
+
 
 def phx(hour, minute=0, day=18):
     return datetime(2026, 8, day, hour, minute, tzinfo=PHX)
+
+
+@pytest.fixture(autouse=True)
+def _deterministic_machine(monkeypatch):
+    """⚠️ NO TEST IN THIS FILE MAY READ THE REAL MACHINE.
+
+    Two of the five gates measure the box they run on, and both were added
+    2026-08-18. Without this fixture every `decide_start` test would shell out
+    to `typeperf` (1.2 s each, and absent on the POSIX CI runner, where an
+    unreadable CPU correctly means BUSY and would fail every start test for the
+    right reason at the wrong time) and would read whatever transcripts happen
+    to be on this developer's disk. Both are stubbed to a quiet, known machine;
+    tests that care about a busy or unreadable one override these.
+    """
+    monkeypatch.setattr(ic, "cpu_utilisation", lambda *a, **k: 5.0)
+    monkeypatch.setattr(ic, "recent_realtime_factors", lambda *a, **k: [50.0])
 
 
 def book(*chapters):
@@ -221,6 +244,325 @@ class TestGpuGuard:
         readings = iter([10, 12])
         monkeypatch.setattr(ic, "gpu_utilisation", lambda *a, **k: next(readings))
         assert ic.gpu_sustained_free(polls=2, sleep=lambda _s: None) is True
+
+
+# -------------------------------------------------------------- CPU guard ---
+
+class TestCpuGuardParsing:
+    """The readers. ⚠️ psutil is NOT installed on the interpreter the nightly
+    task uses (measured 2026-08-18), so these two parsers are the guard."""
+
+    TYPEPERF = ('\n'
+                '"(PDH-CSV 4.0)","\\\\SKYFI-ELIZA\\Processor(_Total)\\% Processor Time"\n'
+                '"08/18/2026 14:15:28.791","11.466608"\n'
+                'Exiting, please wait...\n'
+                'The command completed successfully.\n')
+
+    def test_parses_a_real_typeperf_sample(self):
+        assert ic.parse_typeperf_cpu(self.TYPEPERF) == pytest.approx(11.4666, abs=1e-3)
+
+    def test_the_header_row_is_not_a_reading(self):
+        """Its last field is the counter's NAME. If that ever parsed as a
+        number the guard would read a machine that does not exist."""
+        header_only = ('"(PDH-CSV 4.0)","\\\\HOST\\Processor(_Total)\\% Processor Time"\n')
+        assert ic.parse_typeperf_cpu(header_only) is None
+
+    def test_takes_the_max_across_samples(self):
+        raw = ('"(PDH-CSV 4.0)","\\\\H\\Processor(_Total)\\% Processor Time"\n'
+               '"08/18/2026 14:15:28.791","9.0"\n'
+               '"08/18/2026 14:15:29.791","91.5"\n')
+        assert ic.parse_typeperf_cpu(raw) == 91.5
+
+    @pytest.mark.parametrize("raw", ["", "Error: the counter is not valid.\n",
+                                     '"(PDH-CSV 4.0)"\n', '"a","not-a-number"\n'])
+    def test_unparseable_is_none_not_zero(self, raw):
+        """⚠️ The fail-safe, same as the GPU parser's. None must never read as
+        'the processor is idle, go ahead'."""
+        assert ic.parse_typeperf_cpu(raw) is None
+
+    def test_non_finite_counters_are_refused(self):
+        assert ic.parse_typeperf_cpu('"a","nan"\n') is None
+        assert ic.parse_typeperf_cpu('"a","inf"\n') is None
+        assert ic.parse_typeperf_cpu('"a","-3"\n') is None
+
+    def test_parses_wmic_and_takes_the_max_socket(self):
+        assert ic.parse_wmic_cpu("\nLoadPercentage=57\n\n") == 57.0
+        assert ic.parse_wmic_cpu("LoadPercentage=3\nLoadPercentage=88\n") == 88.0
+
+    def test_wmic_without_the_field_is_none(self):
+        assert ic.parse_wmic_cpu("Invalid GET Expression.") is None
+
+
+class TestCpuGuard:
+    def test_one_free_poll_is_enough_to_allow(self, monkeypatch):
+        """The night's common case must be cheap: 138 EPUB starts cannot each
+        pay 30 seconds to be told the machine is idle."""
+        slept = []
+        monkeypatch.setattr(ic, "cpu_utilisation", lambda *a, **k: 4.0)
+        reading = ic.cpu_guard(sleep=slept.append)
+        assert reading.busy is False and reading.polls == 1 and slept == []
+
+    def test_a_refusal_needs_two_busy_polls(self, monkeypatch):
+        readings = iter([99.0, 98.0])
+        monkeypatch.setattr(ic, "cpu_utilisation", lambda *a, **k: next(readings))
+        reading = ic.cpu_guard(sleep=lambda _s: None)
+        assert reading.busy is True and reading.polls == 2
+        assert reading.waited_s == ic.CPU_POLL_SECONDS
+
+    def test_our_own_finished_burst_does_not_block_the_next_book(self, monkeypatch):
+        """⚠️ THE SUBTLETY THE GPU GUARD DOES NOT HAVE. This gate is asked its
+        question the instant after the ingester packed, gzipped and uploaded the
+        previous book. A single sample there measures OUR OWN exhaust; a second
+        poll 30 s later does not, because that burst is over in seconds."""
+        readings = iter([96.0, 8.0])
+        monkeypatch.setattr(ic, "cpu_utilisation", lambda *a, **k: next(readings))
+        reading = ic.cpu_guard(sleep=lambda _s: None)
+        assert reading.busy is False and reading.pct == 8.0
+
+    @pytest.mark.parametrize("pct,busy", [(0, False), (74, False), (75, False),
+                                          (76, True), (100, True)])
+    def test_the_threshold_is_seventy_five(self, monkeypatch, pct, busy):
+        monkeypatch.setattr(ic, "cpu_utilisation", lambda *a, **k: float(pct))
+        assert ic.cpu_guard(sleep=lambda _s: None).busy is busy
+
+    def test_unreadable_counts_as_busy(self, monkeypatch):
+        """⚠️ A machine with no typeperf, no wmic and no psutil must refuse to
+        start, not assume an idle processor."""
+        monkeypatch.setattr(ic, "cpu_utilisation", lambda *a, **k: None)
+        reading = ic.cpu_guard(sleep=lambda _s: None)
+        assert reading.busy is True and reading.pct is None
+        assert "unreadable" in ic.cpu_busy_words(reading)
+        assert "BUSY" in ic.cpu_busy_words(reading)
+
+    def test_a_busy_cpu_blocks_a_start_with_words(self, monkeypatch):
+        monkeypatch.setattr(ic, "gpu_utilisation", lambda *a, **k: 2)
+        monkeypatch.setattr(ic, "cpu_utilisation", lambda *a, **k: 93.0)
+        decision = ic.decide_start(ic.ControlState(), now=phx(2), needs_gpu=True,
+                                   sleep=lambda _s: None, audio_seconds=3600)
+        assert decision.may_start is False
+        assert "93%" in decision.reason and decision.cpu_pct == 93.0
+
+    def test_epub_work_is_gpu_exempt_but_not_cpu_exempt(self, monkeypatch):
+        """The conversion phase is not the only CPU-heavy thing here - parsing
+        138 EPUBs is the processor's work too, and it competes with a person."""
+        monkeypatch.setattr(ic, "cpu_utilisation", lambda *a, **k: 91.0)
+        decision = ic.decide_start(ic.ControlState(), now=phx(2), needs_gpu=False,
+                                   sleep=lambda _s: None)
+        assert decision.may_start is False and "91%" in decision.reason
+
+    def test_the_gpu_is_polled_before_the_cpu(self, monkeypatch):
+        """Order is cost: nvidia-smi is one fast subprocess, the CPU guard can
+        sleep 30 s. A refusal the GPU can make must not pay for the CPU's."""
+        monkeypatch.setattr(ic, "gpu_utilisation", lambda *a, **k: 99)
+
+        def explode(*a, **k):
+            raise AssertionError("the CPU must not be polled after the GPU refused")
+
+        monkeypatch.setattr(ic, "cpu_utilisation", explode)
+        assert ic.decide_start(ic.ControlState(), now=phx(2), needs_gpu=True,
+                               audio_seconds=3600).may_start is False
+
+
+# --------------------------------------------------------------- deadline ---
+
+class TestRealtimeFactor:
+    """⚠️ Every number here leans one way: OVER-ESTIMATE the book. An
+    over-estimate costs a start that would have fitted; an under-estimate runs
+    the GPU through the hour the owner reserved."""
+
+    def test_the_statistic_is_the_worst_recent_book_not_the_mean(self):
+        """A night that started at 85x and is now doing 32x is a 32x machine.
+        A mean would say 58x and start a book on a number that stopped being
+        true an hour ago."""
+        factor, words = ic.realtime_factor([85.0, 80.0, 32.0])
+        assert factor == pytest.approx(32.0 / ic.RT_SAFETY_DIVISOR)
+        assert "32.0x" in words
+
+    def test_a_clean_stretch_cannot_buy_optimism_past_the_ceiling(self):
+        factor, _ = ic.realtime_factor([85.4, 85.3, 84.8])
+        assert factor == ic.RT_CEILING
+
+    def test_one_catastrophic_outlier_cannot_stall_the_queue_forever(self):
+        factor, _ = ic.realtime_factor([2.0])
+        assert factor == ic.RT_FLOOR
+
+    def test_no_receipts_yet_is_pessimistic_but_usable(self):
+        factor, words = ic.realtime_factor([])
+        assert factor == ic.RT_DEFAULT and "no completed transcripts" in words
+
+    def test_the_safety_margin_always_makes_the_book_slower(self):
+        for measured in (31.8, 45.7, 55.3, 59.8):
+            factor, _ = ic.realtime_factor([measured])
+            assert factor < measured
+
+    def test_factors_are_read_from_the_transcript_head_newest_run_first(self, tmp_path):
+        """⚠️ `meta` is a transcript's FIRST key and the file is ~13 MB, so this
+        reads 4 KB. It also orders by the RECORDED run_utc, not by mtime - mtime
+        only chooses which files to open."""
+        for stem, run, factor in (("old", "2026-08-18T10:00:00Z", 80.0),
+                                  ("new", "2026-08-18T20:00:00Z", 31.8)):
+            payload = json.dumps({"meta": {"run_utc": run, "realtime_factor": factor},
+                                  "segments": [{"x": 1}] * 5000})
+            (tmp_path / f"{stem}.json").write_text(payload, encoding="utf-8")
+        assert _real_recent_realtime_factors(limit=1, directory=tmp_path) == [31.8]
+        assert _real_recent_realtime_factors(directory=tmp_path) == [31.8, 80.0]
+
+    def test_a_corrupt_or_empty_transcript_dir_is_no_samples_not_a_crash(self, tmp_path):
+        (tmp_path / "torn.json").write_text("{not json at all", encoding="utf-8")
+        assert _real_recent_realtime_factors(directory=tmp_path) == []
+        assert _real_recent_realtime_factors(directory=tmp_path / "nope") == []
+
+
+class TestDeadlineGate:
+    """Owner, 2026-08-18: *"if 630 hits and its about to start a new book, dont,
+    if 630 hits and its almost done with a book finish, if it'll finish before 7
+    finish"*. The soft line stops new starts; the estimate decides whether a
+    start may spend the buffer between the soft line and the hard stop."""
+
+    EVENING = ic.ControlState(pause_windows=[
+        {"from": "2026-08-18T19:00:00-07:00", "until": "2026-08-19T00:00:00-07:00",
+         "reason": "owner: evening reserved"}])
+
+    def test_a_book_that_fits_before_the_pause_window_starts(self):
+        # 18:00, a 6 h book at 38x + 8 min = ~17 min -> ~18:17, before 19:00.
+        estimate = ic.estimate_against_deadline(
+            self.EVENING, phx(18), audio_seconds=6 * 3600, factors=[50.0])
+        assert estimate.fits is True and "OK" in estimate.words
+
+    def test_a_book_that_would_run_past_the_window_is_refused_with_words(self):
+        estimate = ic.estimate_against_deadline(
+            self.EVENING, phx(18, 30), audio_seconds=30 * 3600, factors=[50.0])
+        assert estimate.fits is False
+        assert "would finish" in estimate.words and "19:00" in estimate.words
+        assert "holding" in estimate.words
+
+    def test_the_boundary_is_the_window_close_not_the_no_new_starts_line(self):
+        """⚠️ 07:45 stops new starts; 08:00 is what a finish is measured
+        against. Conflating them would throw away the tolerance the owner
+        explicitly told us to spend."""
+        boundary, label = ic.next_boundary(ic.ControlState(), phx(6))
+        assert boundary == phx(8) and "window close" in label
+
+    def test_outside_the_window_with_no_pause_ahead_there_is_no_boundary(self):
+        boundary, label = ic.next_boundary(ic.ControlState(), phx(14))
+        assert boundary is None and "no boundary" in label
+
+    def test_the_nearest_boundary_wins(self):
+        state = ic.ControlState(pause_windows=[
+            {"from": "2026-08-18T06:00:00-07:00", "until": "2026-08-18T07:00:00-07:00"}])
+        boundary, _ = ic.next_boundary(state, phx(5))
+        assert boundary == phx(6), "a 06:00 pause beats the 08:00 window close"
+
+    def test_paused_until_is_not_a_boundary(self):
+        """⚠️ It is when a pause ENDS. Treating it as a deadline would refuse
+        every start for a reason that has already expired."""
+        state = ic.ControlState(paused_until="2026-08-18T03:00:00-07:00")
+        boundary, _ = ic.next_boundary(state, phx(4))
+        assert boundary == phx(8)
+
+    @pytest.mark.parametrize("hour,minute,fits", [
+        (2, 0, True), (6, 0, True), (7, 0, True), (7, 33, True),
+        (7, 34, False), (7, 44, False),
+    ])
+    def test_the_boundary_closes_in_as_the_window_ends(self, hour, minute, fits):
+        """A 12.1 h book (the shelf's measured median) at the stubbed 38.5x plus
+        8 minutes of overhead is 26.9 minutes: it still fits at 07:33 and lands
+        past 08:00 from 07:34 on."""
+        estimate = ic.estimate_against_deadline(
+            ic.ControlState(), phx(hour, minute),
+            audio_seconds=12.1 * 3600, factors=[50.0])
+        assert estimate.fits is fits
+
+    def test_an_unknown_runtime_is_assumed_long_not_zero(self):
+        """⚠️ A book with no duration must not look instantaneous and start at
+        07:44. All 1,079 catalog rows parse today, so this is the contingency."""
+        estimate = ic.estimate_against_deadline(
+            ic.ControlState(), phx(7, 30), audio_seconds=None, factors=[50.0])
+        assert estimate.fits is False and "unknown" in estimate.words
+
+        early = ic.estimate_against_deadline(
+            ic.ControlState(), phx(1), audio_seconds=None, factors=[50.0])
+        assert early.fits is True, "an unknown runtime must not stall the whole night"
+
+    @pytest.mark.parametrize("bad", [0, -1, None])
+    def test_a_zero_or_negative_runtime_is_treated_as_unknown(self, bad):
+        estimate = ic.estimate_against_deadline(
+            ic.ControlState(), phx(7, 30), audio_seconds=bad, factors=[50.0])
+        assert estimate.fits is False
+
+    def test_overhead_is_counted_on_top_of_transcription(self):
+        estimate = ic.estimate_against_deadline(
+            ic.ControlState(), phx(2), audio_seconds=3600, factors=[50.0])
+        assert estimate.est_seconds == pytest.approx(
+            3600 / estimate.factor + ic.OVERHEAD_SECONDS)
+
+    def test_the_deadline_refuses_before_any_subprocess_runs(self, monkeypatch):
+        """It is pure arithmetic, so it must not cost an nvidia-smi."""
+        def explode(*a, **k):
+            raise AssertionError("no machine poll may happen after a deadline refusal")
+
+        monkeypatch.setattr(ic, "gpu_utilisation", explode)
+        monkeypatch.setattr(ic, "cpu_utilisation", explode)
+        decision = ic.decide_start(ic.ControlState(), now=phx(7, 40), needs_gpu=True,
+                                   audio_seconds=20 * 3600, factors=[50.0])
+        assert decision.may_start is False and "holding" in decision.reason
+
+    def test_cpu_only_work_is_not_deadline_gated(self, monkeypatch):
+        """EPUB extraction is seconds. Estimating it would refuse a job that
+        cannot possibly overrun."""
+        monkeypatch.setattr(ic, "cpu_utilisation", lambda *a, **k: 5.0)
+        decision = ic.decide_start(ic.ControlState(), now=phx(7, 44), needs_gpu=False,
+                                   sleep=lambda _s: None)
+        assert decision.may_start is True
+
+    def test_a_guard_wait_that_outlives_the_boundary_gives_up(self, monkeypatch):
+        """⚠️ THE HOLE THE RE-CHECK CLOSES. Two GPU polls two minutes apart plus
+        a CPU confirm is 4.5 minutes; a start cleared at 07:29 must not begin at
+        07:33 once the estimate no longer fits."""
+        monkeypatch.setattr(ic, "gpu_utilisation", lambda *a, **k: 3)
+        readings = iter([99.0, 9.0])
+        monkeypatch.setattr(ic, "cpu_utilisation", lambda *a, **k: next(readings))
+        state = ic.ControlState(pause_windows=[
+            {"from": "2026-08-18T02:30:00-07:00", "until": "2026-08-18T03:00:00-07:00"}])
+        # The boundary is 1,800 s away. Size the book so the estimate is exactly
+        # 1,790 s: it fits at 02:00 by ten seconds, and does not once the CPU
+        # guard has spent 30 s confirming its first reading was our own burst.
+        factor = 50.0 / ic.RT_SAFETY_DIVISOR
+        decision = ic.decide_start(state, now=phx(2, 0, day=18), needs_gpu=True,
+                                   audio_seconds=(1790 - ic.OVERHEAD_SECONDS) * factor,
+                                   sleep=lambda _s: None, factors=[50.0])
+        assert decision.may_start is False
+        assert "guard waiting" in decision.reason
+
+    def test_an_allowed_start_says_when_it_expects_to_finish(self, monkeypatch):
+        monkeypatch.setattr(ic, "gpu_utilisation", lambda *a, **k: 3)
+        decision = ic.decide_start(ic.ControlState(), now=phx(2), needs_gpu=True,
+                                   audio_seconds=6 * 3600, factors=[50.0],
+                                   sleep=lambda _s: None)
+        assert decision.may_start is True
+        assert "would finish" in decision.reason and decision.est_finish is not None
+        assert decision.boundary == phx(8)
+
+
+class TestDurationSource:
+    def test_hhmm_parses_to_seconds(self):
+        from app.core.ingest_queue import parse_duration_hhmm
+
+        assert parse_duration_hhmm("10:07") == 36420.0
+        assert parse_duration_hhmm("1:02:03") == 3723.0
+
+    @pytest.mark.parametrize("bad", [None, "", "  ", "unknown", "10", "10:7", "abc:def"])
+    def test_an_unparseable_runtime_is_none_not_zero(self, bad):
+        """⚠️ None means UNKNOWN and the deadline gate assumes a long book.
+        Zero would mean instantaneous, and would start at 07:44."""
+        from app.core.ingest_queue import parse_duration_hhmm
+
+        assert parse_duration_hhmm(bad) is None
+
+    def test_zero_runtime_is_unknown_too(self):
+        from app.core.ingest_queue import parse_duration_hhmm
+
+        assert parse_duration_hhmm("0:00") is None
 
 
 # ---------------------------------------------------------------- control ---

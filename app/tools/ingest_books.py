@@ -25,10 +25,10 @@ USAGE
     python -m app.tools.ingest_books --dry-run ...     # build, never upload
     python -m app.tools.ingest_books --limit N
 
-⚠️ `--now` BYPASSES THE WINDOW AND NOTHING ELSE. The pause control and the GPU
-guard still apply, because those protect the owner's machine and the owner's
-evening; the window only protects his daytime. A hand-run at build time is
-exactly what it is for.
+⚠️ `--now` BYPASSES THE WINDOW AND NOTHING ELSE. The pause control, the GPU
+guard, the CPU guard and the deadline all still apply, because those protect the
+owner's machine and the owner's evening; the window only protects his daytime. A
+hand-run at build time is exactly what it is for.
 
 Exit 0 = the run finished (including "nothing to do" and "correctly refused").
 Exit 1 = something failed in a way that needs eyes.
@@ -375,14 +375,16 @@ def run(args) -> int:
 
         if not args.now:
             decision = decide_start(control, needs_gpu=will_transcribe,
-                                    allow_opportunistic=args.opportunistic)
+                                    allow_opportunistic=args.opportunistic,
+                                    audio_seconds=item.duration_sec)
             if not decision.may_start:
                 log(f"STOP before {item.title!r}: {decision.reason}")
                 break
             batch = decision.batch_size
         else:
             # --now skips the window; the pause and the guard still bind.
-            blocked = None if args.ignore_control else _control_or_guard(control, will_transcribe)
+            blocked = (None if args.ignore_control else
+                       _control_or_guard(control, will_transcribe, item.duration_sec))
             if blocked:
                 log(f"STOP before {item.title!r}: {blocked}")
                 break
@@ -417,19 +419,39 @@ def run(args) -> int:
     return 0
 
 
-def _control_or_guard(control: ControlState, needs_gpu: bool) -> Optional[str]:
-    """The gates that still bind under `--now` (which waives only the window)."""
-    from app.core.ingest_control import GPU_BUSY_PCT, control_blocks_start, control_defers_check
+def _control_or_guard(control: ControlState, needs_gpu: bool,
+                      audio_seconds: Optional[float] = None) -> Optional[str]:
+    """The gates that still bind under `--now` (which waives only the window).
+
+    ⚠️ FOUR OF THE FIVE STILL BIND, and the two added 2026-08-18 are among them.
+    `--now` waives the WINDOW, because the window protects the owner's daytime
+    and a hand-run is a deliberate daytime act. It does not waive the machine
+    guards (they protect the PC he is sitting at) and it does not waive the
+    DEADLINE, because outside the window the deadline is the dashboard's next
+    pause window - i.e. the owner's evening, which is exactly what `--now` must
+    not walk into.
+    """
+    from app.core.ingest_control import (
+        GPU_BUSY_PCT, control_blocks_start, control_defers_check, cpu_busy_words,
+        cpu_guard, deadline_blocks_start,
+    )
 
     blocked = control_defers_check(control) or control_blocks_start(control)
     if blocked:
         return blocked
     if not needs_gpu:
-        return None
+        cpu = cpu_guard()
+        return cpu_busy_words(cpu) if cpu.busy else None
+    over = deadline_blocks_start(control, audio_seconds=audio_seconds)
+    if over:
+        return over
     util = gpu_utilisation()
     if util is None:
         return "GPU utilisation unreadable - treating as busy"
-    return f"GPU at {util}% (> {GPU_BUSY_PCT}%)" if util > GPU_BUSY_PCT else None
+    if util > GPU_BUSY_PCT:
+        return f"GPU at {util}% (> {GPU_BUSY_PCT}%)"
+    cpu = cpu_guard()
+    return cpu_busy_words(cpu) if cpu.busy else None
 
 
 def _write_receipt(state: dict, done: int, failed: int, dry_run: bool) -> None:
@@ -466,10 +488,23 @@ def publish_index(state: dict, dry_run: bool = False) -> None:
 
 
 def status(args) -> int:
+    from app.core.ingest_control import (
+        CPU_BUSY_PCT, GPU_BUSY_PCT, cpu_utilisation, estimate_against_deadline,
+        next_boundary, realtime_factor, recent_realtime_factors,
+    )
+
     control = read_control()
     now = phoenix_now()
     util = gpu_utilisation()
+    cpu = cpu_utilisation()
     state = load_state()
+    boundary, boundary_label = next_boundary(control, now)
+    factors = recent_realtime_factors()
+    factor, factor_words = realtime_factor(factors)
+    # A median-length book (12.1 h, measured over the 1,079 catalog rows) as the
+    # worked example, so `--status` shows the gate's arithmetic rather than just
+    # its constants.
+    example = estimate_against_deadline(control, now, 12.1 * 3600, factors)
     print(json.dumps({
         "phoenix_now": now.isoformat(),
         "machine_tz_is_phoenix": machine_tz_is_phoenix(),
@@ -477,6 +512,18 @@ def status(args) -> int:
         "may_start_new_book": may_start_new_book(now),
         "batch_size_now": batch_size_for(now),
         "gpu_pct": util,
+        "gpu_busy_above": GPU_BUSY_PCT,
+        # ⚠️ null means UNREADABLE, which the guard treats as BUSY - never idle.
+        "cpu_pct": cpu,
+        "cpu_busy_above": CPU_BUSY_PCT,
+        "deadline": {
+            "next_boundary": boundary.isoformat() if boundary else None,
+            "next_boundary_is": boundary_label,
+            "realtime_factor_used": round(factor, 1),
+            "realtime_factor_basis": factor_words,
+            "recent_measured_factors": [round(f, 1) for f in factors],
+            "example_12h_book": example.words,
+        },
         "control": {
             "paused": control.paused, "paused_until": control.paused_until,
             "dont_check_until": control.dont_check_until,
