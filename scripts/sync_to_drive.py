@@ -1173,6 +1173,12 @@ def _run_pipeline_body(
             # exactly how the corpus would go stale while every dashboard read
             # green — see _publish_docs_snapshot()'s own header.
             _publish_docs_snapshot()
+            # STEP 10 — the off-Cloudflare backup mirror, on the IDLE path for
+            # the plainest reason of all four: the backup workflow runs DAILY
+            # whether or not this library gained a book, so a mirror that only
+            # refreshed on busy cycles would track the estate's backups exactly
+            # as often as the owner buys audiobooks. See its own header.
+            _mirror_estate_backups()
         print("=" * 60)
         # The common case: an idle scheduled run. Report it as a real success
         # so the panel shows "checked, nothing new" rather than a stale run.
@@ -1448,6 +1454,14 @@ def _run_pipeline_body(
         # nothing depends on it. Idempotent by content, so on a cycle where no
         # doc changed it walks ~119 files and skips the upload.
         _publish_docs_snapshot()
+
+        # STEP 10 — the off-Cloudflare backup mirror. Last of all, and the
+        # longest-running step: nothing in this cycle is a precondition for it
+        # and nothing depends on it, so a slow mirror delays nothing.
+        # Idempotent by size+checksum — a cycle where the backup workflow has
+        # not run since the last mirror skips all 12 objects and costs one
+        # workflow-log read.
+        _mirror_estate_backups()
 
     # Fulfill any flagged books (site's "Request AI check" button or
     # cw_requests.txt) — full chain including Claude. Runs on EVERY non-dry
@@ -2108,6 +2122,109 @@ def _publish_docs_snapshot(label: str = "[STEP 9] Publishing the estate docs sna
                   "Every answer carries its publish date, so the staleness is visible.")
     except Exception as e:  # noqa: BLE001 — own failure domain, by design
         print(f"  [WARN] Docs snapshot publish failed: {e}")
+
+
+# ---------------------------------------------------------------------------
+# STEP 10 — the off-Cloudflare backup mirror.
+#
+# Closes the restore drill's owner step #7 (catalog-platform
+# docs/access/RECOVERY.md §9.7): everything the estate protects AND everything
+# protecting it lived in one Cloudflare account. Owner decision 2026-08-18,
+# verbatim: "Do a and b, don't store in GABI tho store in a new folder called
+# GABI_backup on drive" — both a local PC mirror and a Drive mirror, the Drive
+# copy in a NEW top-level folder outside the book tree.
+#
+# TWO HALVES, TWO REPOS, EACH WHERE ITS CREDENTIALS ALREADY ARE:
+#   1. catalog-platform/scripts/mirror-estate-backups.mjs — `estate-backups`
+#      R2 -> C:\Users\nbasl\OneDrive\Documents\estate-backups-mirror\. Node,
+#      because it speaks the R2 key grammar its sibling backup scripts define;
+#      invoked by ABSOLUTE PATH as a subprocess (the drive_role_parity.py
+#      precedent) because it is a different repo and a different runtime.
+#      OneDrive syncing that folder is the second cloud, for free.
+#   2. scripts/mirror_to_drive.py — that folder -> Google Drive /GABI_backup.
+#      Imported and called, the publish_ebooks_manifest.py / STEP 9 precedent,
+#      because the Drive OAuth token lives in THIS repo's scripts/token.json.
+#
+# ⚠️ WHY IT RUNS ON BOTH PATHS. Identical to STEP 9's argument and stronger:
+# backups have NOTHING to do with whether a book was bought. The backup
+# workflow runs daily at 09:12 UTC regardless, so a mirror wired only to the
+# busy path would go stale on exactly the quiet days — and a disaster-recovery
+# copy that silently stops tracking is worse than none, because the dashboard
+# still says a mirror exists.
+#
+# ⚠️ SOFT, LIKE STEPS 5.5-5.9 AND 9: a failure is one WARN and the PREVIOUSLY
+# mirrored generation keeps standing. That is the right direction — the mirror
+# is a second copy of something that still exists in R2, so a failed mirror
+# cycle costs freshness, never data. The next cycle retries. It must never be
+# able to fail the pipeline: the estate's book sync going red because a
+# cover tarball did not copy would be a self-inflicted outage.
+#
+# ⚠️ NOTHING HERE IS COMMITTED, and that is deliberate — the same note STEP 5.9
+# and STEP 9 each make about themselves. Every output lands OUTSIDE every repo
+# (the mirror root is under OneDrive\Documents\, not under vs-code-repos\), so
+# this step adds NO entry to _auto_commit_and_push's _ALLOWLIST. There is
+# nothing to stage, which is the point: ~515 MiB of database dumps and cover
+# tarballs must never approach a public repo.
+#
+# ⚠️ RETENTION IS "FOLLOW THE BUCKET", NOT "KEEP FOREVER". Both halves keep the
+# newest N generations — N read out of backup.yml's own --keep argument so it
+# cannot drift — and delete older ones. A copy meant to outlive the bucket's
+# retention must be taken by hand and put somewhere neither script manages.
+# ---------------------------------------------------------------------------
+
+MIRROR_TIMEOUT_S = 1800  # ~515 MiB over a home connection; the first run took ~5 min
+MIRROR_SCRIPT = PROJECT_ROOT.parent.parent / "catalog-platform" / "scripts" / "mirror-estate-backups.mjs"
+
+
+def _mirror_estate_backups(label: str = "[STEP 10] Mirroring the estate backups off Cloudflare") -> None:
+    """Refresh the local + Google Drive copies of `estate-backups`.
+
+    Never raises. Each half is its own failure domain: the Drive upload is
+    still attempted when the R2 pull fails, because a previously-pulled
+    generation that has not yet reached Drive should still get there.
+    """
+    import subprocess
+
+    print(f"\n{label}...")
+
+    # --- half 1: estate-backups R2 -> the local OneDrive-synced mirror -------
+    if not MIRROR_SCRIPT.exists():
+        # A named skip, never silence. The usual cause is a machine that does
+        # not have the sibling repo checked out beside this one.
+        print(f"  [INFO] R2 mirror SKIPPED: no script at {MIRROR_SCRIPT} "
+              "(catalog-platform must be checked out beside audiobook_catalog).")
+    else:
+        try:
+            proc = subprocess.run(
+                ["node", str(MIRROR_SCRIPT)],
+                cwd=str(MIRROR_SCRIPT.parent.parent),
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
+                timeout=MIRROR_TIMEOUT_S,
+            )
+            for line in (proc.stdout or "").splitlines():
+                if line.startswith(("stores mirrored", "objects ", "mirror holds", "  [WARN]", "⚠️")):
+                    print(f"  | {line.strip()}")
+            if proc.returncode != 0:
+                tail = (proc.stderr or proc.stdout or "").strip().splitlines()
+                print(f"  [WARN] R2 mirror incomplete (exit {proc.returncode}): "
+                      f"{tail[-1] if tail else 'no output'}")
+                print("  [WARN] The previously mirrored generation still stands; next cycle retries.")
+        except subprocess.TimeoutExpired:
+            print(f"  [WARN] R2 mirror TIMED OUT after {MIRROR_TIMEOUT_S}s and was killed. "
+                  "A killed fetch leaves a partial file, which the next run re-downloads "
+                  "(the manifest records the expected size).")
+        except Exception as e:  # noqa: BLE001 — own failure domain, by design
+            print(f"  [WARN] R2 mirror could not be started: {e}")
+
+    # --- half 2: the local mirror -> Google Drive /GABI_backup ---------------
+    try:
+        from scripts.mirror_to_drive import main as mirror_to_drive_main
+        rc = mirror_to_drive_main([])
+        if rc != 0:
+            print(f"  [WARN] Drive mirror incomplete (rc={rc}) — the previous Drive copy "
+                  "still stands. Next cycle retries.")
+    except Exception as e:  # noqa: BLE001 — own failure domain, by design
+        print(f"  [WARN] Drive mirror failed: {e}")
 
 
 def _run_drive_parity(label: str = "[STEP 8] Drive ⇄ role parity (report + auto-apply role→Drive)") -> None:
