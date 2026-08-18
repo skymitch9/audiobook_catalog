@@ -136,6 +136,52 @@
  * bypasses them stops saving the reader's spot, silently, which is exactly the
  * failure §7.6 of `docs/info/reader-page.md` was written after.
  *
+ * ## ⚠️ 8. THE P1 THAT REWROTE THE FAILURE PATHS — 2026-08-18
+ *
+ * **Symptom.** iPhone Safari, PROD `/read`, signed in, an ordinary reflowable
+ * EPUB. The whole chrome rendered — masthead, resolved title, the Page control,
+ * both arrows, the footer — and the book area was an EMPTY BORDERED BOX. No
+ * error anywhere on the page. Desktop Chrome rendered the same book perfectly,
+ * which is why every review before it passed.
+ *
+ * **Cause.** `frame-ancestors 'none'` in `site/_headers`. A `blob:` document
+ * inherits its creator's CSP, and WebKit then enforces `frame-ancestors` on it
+ * — so the reader was refused permission to frame the `blob:` iframe FOLIATE
+ * ITSELF creates for every section. ⚠️ Chromium does not enforce it there. The
+ * fix is one word (`'self'`), it costs no security (see that file's comment),
+ * and it is a promote away from production.
+ *
+ * **⚠️ But the cause is not the lesson, and this section is not about the CSP.**
+ * The throw landed inside `paginator.js`'s iframe `load` LISTENER, so the
+ * promise this file was awaiting was neither resolved nor rejected:
+ * `await view.init()` hung forever. Every carefully-worded catch in `openEpub`
+ * was on the wrong side of it. `closed()` was never called. The reader waited,
+ * in silence, for a page that was never coming — and the owner had a screenshot
+ * of an empty rectangle and nothing whatsoever to tell us.
+ *
+ * So the reader now has three things it did not have, and they ship whether or
+ * not any particular bug is found:
+ *
+ *   1. **`window.onerror` + `unhandledrejection`** (`wireGlobalFailureReporting`,
+ *      installed FIRST). The only mechanism that could have caught the above,
+ *      because no try/catch of ours was ever on that stack.
+ *   2. **`fault()`** — a worded panel in the BOOK AREA (`closed()`'s gate card
+ *      cannot go there), carrying the error's own message and first stack frame
+ *      in selectable monospace. ⚠️ Shown, not hidden in a console: iOS has no
+ *      console to open, and the whole point is a sentence somebody can read
+ *      aloud down a phone.
+ *   3. **`armWatchdog()`** — because the failure produced no error in the chain
+ *      at all. A book that neither opens nor fails inside `OPEN_DEADLINE_MS`
+ *      IS a failure, and it reports the last step reached (`step()`), which is
+ *      the most useful single fact in any account of a hang.
+ *
+ * ⚠️ And `fault()` NEVER blanks a book that is already rendering (`state.
+ * rendered`). A stray error must not cost somebody the page they are reading.
+ *
+ * The same P1 also moved `#rd-busy` out of `#rd-stage`, which `openEpub()`
+ * HIDES — so the entire EPUB open had been running with no spinner, and a slow
+ * open was pixel-identical to a dead one. See `#rd-view` in `read.html`.
+ *
  * **The dev curtain** (*"i need a way in the estate to manage dev access for
  * ebook … make devops always able to see dev envs"*). ⚠️ A CURTAIN, NOT A LOCK
  * — see `site/dev-lane.js`, which owns every decision. It runs on the `/dev/`
@@ -250,6 +296,12 @@ const resumeEl = el('rd-resume');
 const resumeWhyEl = el('rd-resume-why');
 const resumeJumpEl = el('rd-resume-jump');
 const resumeStayEl = el('rd-resume-stay');
+// The fault panel — see fault() and §8. Ships hidden.
+const faultEl = el('rd-fault');
+const faultTitleEl = el('rd-fault-title');
+const faultWhyEl = el('rd-fault-why');
+const faultDetailEl = el('rd-fault-detail');
+const faultRetryEl = el('rd-fault-retry');
 
 /**
  * Show a closed/failed state. ⚠️ Every one says what happened, what it needs
@@ -259,6 +311,10 @@ const resumeStayEl = el('rd-resume-stay');
  * should still be one click from the shelf.
  */
 function closed(title, why, opts = {}) {
+  // ⚠️ A worded refusal disarms the watchdog and clears any fault panel. Two
+  // explanations of the same failure, one of them a timeout, is worse than one.
+  clearWatchdog();
+  clearFault();
   gateTitleEl.textContent = title;
   gateWhyEl.textContent = why;
   gateBtnEl.hidden = !opts.signIn;
@@ -274,6 +330,215 @@ function closed(title, why, opts = {}) {
 
 function busy(on) {
   busyEl.hidden = !on;
+}
+
+/* ── §8. THE READER MUST NEVER FAIL SILENTLY ────────────────────────────── */
+
+/**
+ * ⚠️ WHY THIS EXISTS, AND WHY IT SHIPS EVEN WHEN NOTHING IS BROKEN.
+ *
+ * 2026-08-18, the P1 that wrote this section. iPhone Safari, PROD `/read`,
+ * signed in, an ordinary reflowable EPUB. The page rendered its ENTIRE chrome —
+ * masthead, resolved title, the Page control, both arrows, the footer — and an
+ * EMPTY BORDERED BOX where the book goes. No error anywhere. Desktop Chrome
+ * rendered the same book perfectly.
+ *
+ * The cause was `frame-ancestors 'none'` in `site/_headers` (its comment there
+ * has the whole measurement): WebKit inherits this page's CSP into the `blob:`
+ * iframe foliate makes for each section and then enforces `frame-ancestors` on
+ * it, so the reader was refused permission to frame its own blob. Chromium does
+ * not do this, which is why every desktop review passed.
+ *
+ * ⚠️ BUT THE CSP IS NOT THE LESSON. THIS IS: the throw happened inside
+ * `paginator.js`'s iframe `load` LISTENER —
+ *
+ *     new Promise(resolve => { iframe.addEventListener('load', () => {
+ *         const doc = this.document          // null: opaque sandboxed frame
+ *         afterLoad?.(doc)                   // TypeError, thrown IN a listener
+ *         ... resolve()                      // never reached
+ *     }); iframe.src = src })
+ *
+ * — so the promise `openEpub()` was awaiting was **never resolved AND never
+ * rejected**. `await view.init()` hung forever. Not one of this file's careful
+ * catch blocks could ever have run; `closed()` was never called; the reader sat
+ * waiting for a page that was not coming. The owner had a screenshot of an
+ * empty rectangle and nothing else to tell us, and a ten-minute fix cost a day.
+ *
+ * So this section adds the three things that turn that shape into a sentence:
+ *
+ *   1. `window.onerror` + `unhandledrejection` — a throw that escapes every
+ *      promise chain still reaches the page. This is the ONLY thing that would
+ *      have caught the bug above.
+ *   2. `fault()` — a worded panel IN THE BOOK AREA, carrying the error's own
+ *      message and its first stack frame in selectable monospace. ⚠️ The
+ *      technical line is shown ON PURPOSE, not hidden behind a console: on iOS
+ *      there is no console to open, and "something went wrong" from another
+ *      room is worth nothing. It exists to be read aloud down a phone.
+ *   3. `armWatchdog()` — because the failure above produced NO error inside the
+ *      promise chain at all. A book that neither opens nor fails within
+ *      `OPEN_DEADLINE_MS` is itself a failure, and it names the last step the
+ *      reader reached (`state.step`), which is the single most useful fact in
+ *      any report of it.
+ *
+ * ⚠️ AND IT NEVER DESTROYS A WORKING READ. Once a page has genuinely rendered
+ * (`state.rendered`), a later window error shows the panel WITHOUT hiding the
+ * book — the same rule the position keeper follows. A stray error from an
+ * unrelated script must not blank a book somebody is reading.
+ */
+
+/** How long a book may take to open before silence is itself the failure. */
+const OPEN_DEADLINE_MS = 25000;
+
+/**
+ * The error's own words, trimmed to something a person can read out.
+ *
+ * ⚠️ Message AND the first stack frame, and no more. The message alone is
+ * frequently useless ("null is not an object"); the frame is what names the
+ * file and line, which is what turns a report into a fix. A whole stack is
+ * unreadable on a phone and the tail of it is never the interesting part.
+ */
+function describeError(err) {
+  if (err == null) return '';
+  if (typeof err === 'string') return err;
+  const name = err.name && err.name !== 'Error' ? `${err.name}: ` : '';
+  const msg = err.message || String(err);
+  const frame = String(err.stack || '')
+    .split('\n')
+    .map((s) => s.trim())
+    .find((s) => s && !s.includes(msg) && /[(@]|^at /.test(s));
+  return frame ? `${name}${msg}\n${frame}` : `${name}${msg}`;
+}
+
+/**
+ * Show a failure IN THE BOOK AREA, in words, with the technical line.
+ *
+ * `closed()` is for a door that never opened — a gate card, before the shell.
+ * This is for a reader that IS on screen and cannot show a book, which
+ * `closed()` cannot express: it hides the shell, and hiding a shell the reader
+ * is already looking at reads as the page breaking a second time.
+ *
+ * @param {string} title  what failed, as a heading
+ * @param {string} why    what to do about it, in a sentence
+ * @param {*} [err]       the error itself; its words go in the detail block
+ * @param {{keepBook?: boolean, firstWins?: boolean}} [opts] `keepBook` leaves a
+ *        rendered book on screen — used for anything that happens AFTER a
+ *        successful render, where blanking the page would be the worse failure.
+ *        ⚠️ `firstWins` keeps a panel that is already up, and the global
+ *        reporter sets it: one blocked frame produced THREE errors in a row
+ *        (`doc.head`, then a security error, then `doc.documentElement`), and
+ *        the LAST one is the least informative — it is a knock-on of the first.
+ *        Whoever reads the line down a phone should get the earliest failure,
+ *        not the final splash.
+ */
+function fault(title, why, err, opts = {}) {
+  if (!faultEl) return;
+  if (opts.firstWins && !faultEl.hidden) {
+    console.warn('[reader] a later failure, not shown (the first one is up):', err ?? '');
+    return;
+  }
+  clearWatchdog();
+  busy(false);
+  faultTitleEl.textContent = title;
+  faultWhyEl.textContent = why;
+  const detail = describeError(err);
+  faultDetailEl.textContent = detail;
+  faultDetailEl.hidden = !detail;
+  faultEl.hidden = false;
+  if (!opts.keepBook) {
+    stageEl.hidden = true;
+    bookEl.hidden = true;
+  }
+  // The console still gets it, for anyone who has one.
+  console.warn(`[reader] ${title}`, err ?? '');
+}
+
+/** Clear the panel — a retry, or a second book, starts from a clean page. */
+function clearFault() {
+  if (faultEl) faultEl.hidden = true;
+}
+
+/* ── the watchdog ───────────────────────────────────────────────────────── */
+
+/**
+ * ⚠️ THE ONE THAT CATCHES A HANG, which is the shape no catch block can see.
+ * Armed when a book starts opening, disarmed by the first successful render or
+ * by any worded failure. If it fires, the reader says so and names the last
+ * step it reached — see `step()`.
+ */
+let watchdogTimer = null;
+function armWatchdog() {
+  clearWatchdog();
+  watchdogTimer = setTimeout(() => {
+    watchdogTimer = null;
+    fault(
+      'This book has not opened',
+      'The reader started opening it and then stopped, without succeeding and '
+      + 'without failing. That is a problem on our side, not a decision about '
+      + 'your account — try again, and if it keeps happening send Mitch the '
+      + 'line below and the book’s name.',
+      // ⚠️ A STRING, not an Error. A synthesised Error's stack points at this
+      // timer, which is the one place in the codebase guaranteed NOT to be
+      // where the trouble is — pure noise in the line somebody reads out.
+      `the reader got as far as: ${state.step || 'starting up'}`,
+    );
+  }, OPEN_DEADLINE_MS);
+}
+function clearWatchdog() {
+  if (watchdogTimer) clearTimeout(watchdogTimer);
+  watchdogTimer = null;
+}
+
+/**
+ * Record where the reader has got to, in the words a person would use.
+ *
+ * ⚠️ This is not logging for its own sake. It is the payload of the watchdog
+ * message, and it is the difference between "the book did not open" and "the
+ * reader got as far as drawing the first page" — one of which is a mystery and
+ * one of which is a bug report.
+ */
+function step(what) {
+  state.step = what;
+  console.info(`[reader] ${what}`);
+}
+
+/**
+ * ⚠️ THE BACKSTOP THAT WOULD HAVE CAUGHT THE 2026-08-18 P1, and the reason it
+ * listens at the WINDOW rather than wrapping more code in try/catch: the throw
+ * that broke the reader happened inside a third-party iframe `load` listener,
+ * where no try/catch of ours is on the stack. A window-level listener is the
+ * only place it surfaces.
+ *
+ * Both events, deliberately: `error` for a synchronous throw that escapes, and
+ * `unhandledrejection` for a promise nobody caught (this file has several
+ * fire-and-forget chains, and `boot()` itself is one).
+ */
+function wireGlobalFailureReporting() {
+  const report = (err, kind) => {
+    // A book already on screen is never blanked by a later error.
+    const keepBook = state.rendered;
+    fault(
+      keepBook ? 'Something went wrong while reading' : 'The reader hit a problem',
+      keepBook
+        ? 'The book is still on screen and you can carry on. If it starts '
+          + 'misbehaving, reload the page — and send Mitch the line below.'
+        : 'The reader could not finish opening this book. That is a fault on '
+          + 'our side, not a decision about your account — try again, and if it '
+          + 'keeps happening send Mitch the line below and the book’s name.',
+      err,
+      { keepBook, firstWins: true },
+    );
+    console.warn(`[reader] unhandled ${kind}:`, err);
+  };
+  window.addEventListener('error', (ev) => {
+    // ⚠️ A failed <img>/<script> load also fires `error` at the window, with no
+    // `error` property. Those are resource problems, not page faults, and
+    // blanking the reader for a missing cover would be its own bug.
+    if (!ev || (!ev.error && !ev.message)) return;
+    report(ev.error || new Error(ev.message), 'error');
+  });
+  window.addEventListener('unhandledrejection', (ev) => {
+    report(ev?.reason ?? new Error('a promise was rejected with no reason'), 'rejection');
+  });
 }
 
 /* ── the anchor ─────────────────────────────────────────────────────────── */
@@ -367,6 +632,19 @@ const state = {
   renderSeq: 0,
   /** The live session's uid, once boot() has one. Never from the mirror. */
   uid: null,
+  /**
+   * The last thing the reader started doing, in a person's words. ⚠️ This is
+   * the watchdog's payload — see step() — and it is what makes a hang report
+   * "the reader got as far as drawing the first page" rather than nothing.
+   */
+  step: null,
+  /**
+   * TRUE only once a page has genuinely been drawn. ⚠️ The same guard the
+   * keeper uses, for the same reason in the other direction: before it, a
+   * failure REPLACES the book area; after it, a failure must never blank a
+   * book somebody is already reading.
+   */
+  rendered: false,
   /**
    * The reading-position keeper, once a book has actually rendered.
    * ⚠️ NULL UNTIL THEN, and that is the guard: nothing records a position for
@@ -552,6 +830,7 @@ async function openBook(anchor) {
   // 1. What is this anchor? Asked of the GATED manifest, which is also the
   //    gate: an unauthorised reader never learns a book exists.
   let res;
+  step('asking the shelf which book this link names');
   const token = await getIdToken(app);
   if (!token) {
     closed('Your sign-in has lapsed', 'Sign in again to open this book.', { signIn: true });
@@ -601,11 +880,17 @@ async function openBook(anchor) {
 async function openPdf(anchor, book) {
   gateEl.hidden = true;
   shellEl.hidden = false;
+  clearFault();
   state.mode = 'pdf';
   busy(true);
+  // ⚠️ From here the shell is on screen, so silence is a visible empty stage.
+  // The watchdog is what makes silence say something. Disarmed by the first
+  // successful draw below, or by any worded refusal (closed() clears it).
+  armWatchdog();
 
   let lib;
   try {
+    step('loading the PDF reader');
     lib = await loadPdfJs();
   } catch (e) {
     console.warn('[reader] pdf.js failed to load:', e);
@@ -673,6 +958,7 @@ async function openPdf(anchor, book) {
   });
 
   try {
+    step('opening the file on the shelf');
     state.doc = await task.promise;
   } catch (e) {
     // pdf.js wraps HTTP failures: UnexpectedResponseException carries `status`,
@@ -703,12 +989,26 @@ async function openPdf(anchor, book) {
   });
 
   try {
+    step('drawing the first page');
     await drawPage(pageFrom(local, state.doc.numPages));
   } catch (e) {
-    console.warn('[reader] first page failed to render:', e);
-    closed('This book would not open', 'The first page could not be drawn. Tell Mitch which book it was.');
+    // ⚠️ `fault`, not `closed`: the shell is already on screen and the reader
+    // is looking at it. And it carries the error's OWN WORDS — "the first page
+    // could not be drawn" alone told us nothing the last time this fired.
+    fault(
+      'The first page would not draw',
+      'The file opened but the reader could not paint a page from it. That is '
+      + 'a problem with the file or the renderer, not with your account — send '
+      + 'Mitch the line below and the book’s name.',
+      e,
+    );
     return;
   }
+  // ⚠️ RENDERED. The watchdog stands down, and from here a later failure shows
+  // its panel WITHOUT blanking the book.
+  state.rendered = true;
+  clearWatchdog();
+  step('reading');
   // Swipe, and the mode's honest line — both AFTER the first successful
   // render, for the same reason the keeper is armed there: a book that never
   // opened has no pages to turn and no colours to explain.
@@ -848,6 +1148,7 @@ function recordEpubPosition(detail) {
 async function openEpub(anchor, book) {
   gateEl.hidden = true;
   shellEl.hidden = false;
+  clearFault();
   // The PDF furniture steps aside; the EPUB furniture steps up.
   stageEl.hidden = true;
   bookEl.hidden = false;
@@ -857,9 +1158,16 @@ async function openEpub(anchor, book) {
   zoomOutEl.setAttribute('aria-label', 'Smaller type');
   state.mode = 'epub';
   busy(true);
+  // ⚠️ THE LINE THE 2026-08-18 P1 WAS ABOUT. Every await below can hang rather
+  // than throw — foliate's own `View.load()` resolves only from inside an
+  // iframe `load` listener, so a blocked frame settles nothing at all and no
+  // catch in this function is ever reached. The watchdog is the only thing that
+  // turns that into words. See §8.
+  armWatchdog();
 
   let loader;
   try {
+    step('loading the EPUB reader');
     loader = await import('./epub-loader.js');
     await loader.loadFoliateView();
   } catch (e) {
@@ -882,6 +1190,7 @@ async function openEpub(anchor, book) {
 
   let opened;
   try {
+    step('reading the book’s index from the shelf');
     opened = await loader.openEpubOverRanges({
       url: FILE_URL(anchor),
       // ⚠️ PER REQUEST, not captured once. `getIdToken()` (unforced) returns the
@@ -915,15 +1224,28 @@ async function openEpub(anchor, book) {
       closed('This book changed while you were reading', e.message + ' Refresh to open it again.');
       return;
     }
-    if (e instanceof TypeError) {
+    // ⚠️ NARROWED 2026-08-18, and the narrowing is the point. This branch used
+    // to be a bare `e instanceof TypeError` mapped to "The shelf did not
+    // answer" — an OUTAGE sentence. A failed `fetch()` IS a TypeError, so the
+    // intent was right; but so is EVERY code fault in the loader, in zip.js and
+    // in foliate's parser (`Object.groupBy is not a function` on a Safari older
+    // than 17.4, to name a real one). Those are not outages, and telling
+    // somebody the server is down when the renderer is broken sends them to
+    // wait for a recovery that will never come — the exact mislabelling
+    // ROLES.md §1e forbids, in the other direction. A network TypeError says
+    // "Failed to fetch" (Chromium) or "Load failed" / "cancelled" (WebKit);
+    // anything else gets its own words in the fault panel.
+    if (e instanceof TypeError && /fetch|network|load failed|cancel/i.test(e.message || '')) {
       const d = describeFetchFailure(0);
       closed(d.title, d.why);
       return;
     }
-    console.warn('[reader] foliate could not open the book:', e);
-    closed(
+    fault(
       'This book would not open',
-      'The file is on the shelf but the reader could not make sense of it. That is a problem with the file, not with your account — tell Mitch which book it was.',
+      'The file is on the shelf but the reader could not make sense of it. '
+      + 'That is a problem with the file or the reader, not with your account — '
+      + 'send Mitch the line below and the book’s name.',
+      e,
     );
     return;
   }
@@ -989,12 +1311,27 @@ async function openEpub(anchor, book) {
     // goToStoredLocation for why the bookmark is a SECOND navigation and not
     // `init({ lastLocation })`. This one is inside the try because a book
     // whose text start will not render is genuinely a book that would not open.
+    step('drawing the first page');
     await view.init({ showTextStart: true });
   } catch (e) {
-    console.warn('[reader] foliate could not render the book:', e);
-    closed('This book would not open', 'The first page could not be drawn. Tell Mitch which book it was.');
+    // ⚠️ `fault`, not `closed`, AND it carries the error. This is the exact
+    // catch that did NOT run in the 2026-08-18 P1 — the failure hung instead of
+    // throwing — but when it does run, "the first page could not be drawn" on
+    // its own is the sentence that told us nothing. The words go in the panel.
+    fault(
+      'This book would not open',
+      'The reader loaded the file but could not paint a page from it. That is a '
+      + 'problem with the file or the renderer, not with your account — send '
+      + 'Mitch the line below and the book’s name.',
+      e,
+    );
     return;
   }
+  // ⚠️ RENDERED — foliate has a page on screen. The watchdog stands down, and
+  // any later failure shows its panel WITHOUT blanking the book.
+  state.rendered = true;
+  clearWatchdog();
+  step('reading');
 
   // Save your spot. The book is already readable on screen at this point, so
   // the jump to the stored location cannot cost anybody a render.
@@ -1214,6 +1551,17 @@ window.addEventListener('resize', () => {
 let app = null;
 /** The Firestore handle the reading-position store writes through. */
 let db = null;
+
+// ⚠️ FIRST, BEFORE ANYTHING ELSE CAN THROW. §8's backstop is worth nothing if
+// it is installed after the failure it exists to report.
+wireGlobalFailureReporting();
+
+// "Try again" is a reload, deliberately: every piece of state this page holds —
+// a half-built foliate view, a cancelled render task, a zip reader over a stale
+// ETag — is easier to throw away than to unwind, and a retry that quietly
+// reuses broken state is how a reader gets a SECOND mystery on top of the
+// first. The address bar already carries `?b=`, so the same book comes back.
+faultRetryEl?.addEventListener('click', () => window.location.reload());
 
 try {
   app = initializeApp(FIREBASE_CONFIG);

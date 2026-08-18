@@ -94,6 +94,21 @@
   one thing this page contributes is `touch-action` on the two stages, which is
   what lets a browser scroll vertically while the gesture is still being judged.
 
+  ⚠️ THE FAULT PANEL, 2026-08-18 — #rd-fault, and the reason it exists is the
+  P1 it was written after. On PROD, on an iPhone, this page rendered its ENTIRE
+  chrome — masthead, resolved title, Page control, arrows, footer — and an
+  EMPTY BORDERED BOX where the book goes, with no error anywhere. The cause was
+  `frame-ancestors 'none'` in site/_headers refusing foliate's own blob: iframe
+  on WebKit (and only on WebKit); the throw landed inside an iframe `load`
+  listener, so the promise reader.js awaited never settled and no catch on this
+  page could ever have run. THE LESSON IS NOT THE CSP, it is that a reader with
+  no way to say what happened turns a ten-minute bug into a mystery: the owner
+  had a screenshot of an empty rectangle and nothing else. #rd-fault is the
+  answer — every failure now renders a heading, a plain instruction, and the
+  error's OWN WORDS in a selectable monospace block, so a phone in another room
+  can read us a sentence. reader.js owns when it appears, including a watchdog
+  for the case above, where nothing fails and nothing succeeds.
+
   ⚠️ NO LINK BACK TO THE AUDIOBOOK SITE, since 2026-08-17 (owner: "ebooks has a
   link to audiobooks on the reader page. remove that we dont need to go back to
   audiobnook page"). Same decision as the removed 📖 Ebooks button on the
@@ -334,11 +349,53 @@ html[data-read-mode="ink"] #rd-canvas{filter:invert(1) hue-rotate(180deg)}
 #rd-resume-jump{background:var(--accent);color:var(--card);border-color:var(--accent)}
 #rd-resume-jump:hover{background:var(--accent-deep)}
 
+/* ⚠️ THE BUSY LAYER LIVES ON THE WRAPPER, NOT INSIDE THE PDF STAGE, and that
+   moved on 2026-08-18. It used to be a child of #rd-stage — which openEpub()
+   HIDES — so an EPUB that was still opening, or one that had hung, showed no
+   spinner at all: an empty bordered box, identical to a failure. Half the
+   iPhone P1's "no error shown anywhere" was this. #rd-view is the positioned
+   wrapper both stages share, so one overlay serves both renderers. */
+#rd-view{position:relative}
 #rd-busy{position:absolute;inset:0;display:flex;align-items:center;
   justify-content:center;font-family:var(--sans);font-size:.9rem;
   color:var(--ink-faint);background:color-mix(in srgb,var(--stage) 72%,transparent);
   border-radius:12px}
 #rd-busy[hidden]{display:none}
+
+/* ═════════════════ THE FAULT PANEL — 2026-08-18 ═════════════════
+   ⚠️ THE READER MUST NEVER FAIL SILENTLY AGAIN. This panel is what a failure
+   looks like when it happens INSIDE the book area — after the shell is already
+   on screen, where closed()'s gate card cannot reach because the gate is a
+   different part of the page.
+
+   It exists because of the P1 that produced it: on every WebKit browser, the
+   prod CSP's `frame-ancestors 'none'` was refusing foliate's own blob: iframe
+   (see site/_headers), the throw happened inside an iframe `load` listener, and
+   the promise reader.js was awaiting NEVER SETTLED. No rejection, no catch, no
+   closed() — a bordered empty box and a person with nothing to tell us.
+
+   So it takes three inputs, all of them worded (ROLES.md §1e):
+     1. a heading naming what failed;
+     2. a plain sentence saying what to do about it;
+     3. ⚠️ THE TECHNICAL LINE, in a monospace block, deliberately SELECTABLE
+        and deliberately visible. It is the error's own message plus its first
+        stack frame, and its whole job is to be a sentence the owner can read
+        aloud down a phone. A "something went wrong" with the detail hidden in
+        a console nobody can open on iOS is the failure this replaces.
+   `display:block` beats the hidden attribute's UA rule, the same trap
+   #rd-stage and #rd-resume each needed. */
+#rd-fault{padding:22px 20px;background:var(--card);border:1px solid var(--rule);
+  border-left:3px solid var(--caution);border-radius:12px}
+#rd-fault[hidden]{display:none}
+#rd-fault h2{margin:0 0 8px;font-family:var(--serif);font-size:1.2rem;font-weight:600}
+#rd-fault p{margin:0 0 14px;color:var(--ink-faint);line-height:1.55;font-size:.95rem;
+  font-family:var(--sans)}
+#rd-fault-detail{display:block;margin:0 0 16px;padding:10px 12px;background:var(--paper);
+  border:1px solid var(--rule);border-radius:8px;font-family:var(--mono);
+  font-size:.78rem;line-height:1.5;color:var(--ink);white-space:pre-wrap;
+  word-break:break-word;-webkit-user-select:text;user-select:text}
+#rd-fault-detail[hidden]{display:none}
+#rd-fault-acts{display:flex;gap:8px;flex-wrap:wrap}
 
 .rd-footer{margin-top:18px;padding-top:12px;border-top:3px double var(--rule);
   color:var(--ink-faint);font-size:.82em;line-height:1.55}
@@ -430,14 +487,39 @@ html[data-read-mode="ink"] #rd-canvas{filter:invert(1) hue-rotate(180deg)}
       <button type="button" id="rd-resume-stay">Stay here</button>
     </div>
 
-    <div id="rd-stage">
-      <canvas id="rd-canvas" width="1" height="1"></canvas>
+    <!-- ⚠️ THE WRAPPER IS LOAD-BEARING, added 2026-08-18. #rd-busy is
+         `position:absolute; inset:0` and used to sit INSIDE #rd-stage — which
+         openEpub() hides. So the whole EPUB open ran with no spinner: an empty
+         bordered box that looked exactly like the failure it was sometimes
+         hiding. One positioned wrapper, one overlay, both renderers. -->
+    <div id="rd-view">
+      <div id="rd-stage">
+        <canvas id="rd-canvas" width="1" height="1"></canvas>
+      </div>
+
+      <!-- The EPUB stage. Empty until reader.js mounts <foliate-view> into it,
+           so a PDF reader never pays for the EPUB stack. -->
+      <div id="rd-book" hidden></div>
+
+      <!-- ⚠️ THE FAULT PANEL. Ships hidden; reader.js fills and reveals it from
+           window.onerror, from unhandledrejection, from every catch around
+           opening or rendering a book, AND from the watchdog that fires when a
+           book neither opens nor fails. #rd-fault-detail carries the error's
+           own words so the owner has a SENTENCE to read down a phone instead
+           of an empty box to describe. See the CSS block above for the P1 that
+           made this non-negotiable. -->
+      <div id="rd-fault" hidden>
+        <h2 id="rd-fault-title"></h2>
+        <p id="rd-fault-why"></p>
+        <code id="rd-fault-detail" hidden></code>
+        <div id="rd-fault-acts">
+          <button type="button" class="rd-act" id="rd-fault-retry">Try again</button>
+          <a class="rd-act quiet" id="rd-fault-back" href="ebooks">Back to the shelf</a>
+        </div>
+      </div>
+
       <div id="rd-busy" hidden>Fetching the page…</div>
     </div>
-
-    <!-- The EPUB stage. Empty until reader.js mounts <foliate-view> into it,
-         so a PDF reader never pays for the EPUB stack. -->
-    <div id="rd-book" hidden></div>
   </div>
 
   <!-- ⚠️ THE AUDIOBOOK LINK IS GONE, on the owner's word (2026-08-17): "ebooks

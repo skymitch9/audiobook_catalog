@@ -154,19 +154,77 @@
 #                has no rules in it. Count `sheet.cssRules.length`.
 #   base-uri /
 #   form-action /
-#   frame-ancestors  'none' everywhere: this page submits nothing, has no base
-#                tag, and must never be framed by anything.
+#   frame-ancestors  ⚠️ 'self', AND IT WAS 'none' UNTIL 2026-08-18, WHEN 'none'
+#                TURNED OUT TO BE THE P1 BLANK-READER BUG ON EVERY WEBKIT
+#                BROWSER. This is the single most surprising line in the file,
+#                so it gets the full story.
+#
+#                THE SYMPTOM. iPhone Safari, PROD /read, signed in, a perfectly
+#                ordinary reflowable EPUB: the whole page chrome renders —
+#                masthead, resolved title, the Page control, the arrows, the
+#                footer — and the book area is an EMPTY BORDERED BOX. No error
+#                anywhere, no gate card, nothing in the UI at all. Desktop
+#                Chrome renders the same book flawlessly.
+#
+#                WHY. foliate-js paints each section into an iframe whose `src`
+#                is a `blob:` URL it makes itself (site/static/foliate/
+#                paginator.js, `View.load()`). A blob: document INHERITS the
+#                creating document's CSP — including this `frame-ancestors`.
+#                WebKit then enforces it on that child, and 'none' means "no
+#                page may frame me", so the reader's own page is refused the
+#                right to frame its own blob:
+#                  Refused to load blob:... because it does not appear in the
+#                  frame-ancestors directive of the Content Security Policy.
+#                ⚠️ CHROMIUM DOES NOT DO THIS. Same policy string, same book,
+#                same commit: Chromium renders, WebKit does not. That is why
+#                every desktop review passed and the first phone killed it.
+#
+#                ⚠️ AND WHY IT IS SILENT rather than an error, which is the
+#                half that cost the time. `View.load()` is
+#                `new Promise(resolve => { iframe.addEventListener('load', ...);
+#                iframe.src = src })` — the promise resolves ONLY from inside
+#                that listener. The blocked frame still fires `load`, but as an
+#                opaque sandboxed document, so `iframe.contentDocument` is null
+#                and `afterLoad(doc)` throws `TypeError: null is not an object
+#                (evaluating 'doc.head')` INSIDE THE LISTENER. The throw escapes
+#                to window.onerror; the promise is never resolved and never
+#                rejected. `view.init()` hangs forever. reader.js's catch never
+#                runs, `closed()` is never called, and the reader waits for a
+#                page that is never coming. (site/reader.js now has a watchdog
+#                and a window-level error panel precisely for that shape.)
+#
+#                MEASURED 2026-08-18, one variable at a time, Playwright WebKit
+#                (iPhone 13 profile) against this exact policy string and the
+#                real book "All The Skills - 5":
+#                  frame-ancestors 'none'   -> blank box, view.init() never
+#                                              settles, 45s timeout
+#                  frame-ancestors 'self'   -> renders, relocate at 3%
+#                  no frame-ancestors line  -> renders, relocate at 3%
+#                Everything else in the policy was held constant and is fine.
+#
+#                ⚠️ 'self' IS NOT A WEAKENING WORTH WORRYING ABOUT, and 'none'
+#                must not be "restored for safety". The threat frame-ancestors
+#                answers is CLICKJACKING BY ANOTHER SITE, and 'self' refuses
+#                every other origin exactly as 'none' did. All 'self' adds is
+#                the reader framing its own same-origin blob:, which is the
+#                renderer doing its job. `frame-ancestors 'none'` here does not
+#                buy one unit of security; it buys a book that will not open in
+#                Safari, on an iPad, and in Chrome and Firefox on iOS (all of
+#                which are WebKit).
+#
+#                This page still submits nothing and has no base tag, so
+#                form-action/base-uri stay 'none'.
 /read
-  Content-Security-Policy: default-src 'none'; script-src 'self' https://www.gstatic.com https://apis.google.com; connect-src 'self' https://audiobook-api.heygabi.ai https://auth.heygabi.ai https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://www.googleapis.com; img-src 'self' data: blob: https://covers.heygabi.ai; style-src 'self' 'unsafe-inline' blob:; font-src 'self' data: blob:; worker-src 'self' blob:; frame-src 'self' blob: https://audiobook-catalog.firebaseapp.com; child-src 'self' blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'none'; script-src 'self' https://www.gstatic.com https://apis.google.com; connect-src 'self' https://audiobook-api.heygabi.ai https://auth.heygabi.ai https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://www.googleapis.com; img-src 'self' data: blob: https://covers.heygabi.ai; style-src 'self' 'unsafe-inline' blob:; font-src 'self' data: blob:; worker-src 'self' blob:; frame-src 'self' blob: https://audiobook-catalog.firebaseapp.com; child-src 'self' blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'
 
 /read/
-  Content-Security-Policy: default-src 'none'; script-src 'self' https://www.gstatic.com https://apis.google.com; connect-src 'self' https://audiobook-api.heygabi.ai https://auth.heygabi.ai https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://www.googleapis.com; img-src 'self' data: blob: https://covers.heygabi.ai; style-src 'self' 'unsafe-inline' blob:; font-src 'self' data: blob:; worker-src 'self' blob:; frame-src 'self' blob: https://audiobook-catalog.firebaseapp.com; child-src 'self' blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'none'; script-src 'self' https://www.gstatic.com https://apis.google.com; connect-src 'self' https://audiobook-api.heygabi.ai https://auth.heygabi.ai https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://www.googleapis.com; img-src 'self' data: blob: https://covers.heygabi.ai; style-src 'self' 'unsafe-inline' blob:; font-src 'self' data: blob:; worker-src 'self' blob:; frame-src 'self' blob: https://audiobook-catalog.firebaseapp.com; child-src 'self' blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'
 
 /dev/read
-  Content-Security-Policy: default-src 'none'; script-src 'self' https://www.gstatic.com https://apis.google.com; connect-src 'self' https://audiobook-api.heygabi.ai https://auth.heygabi.ai https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://www.googleapis.com; img-src 'self' data: blob: https://covers.heygabi.ai; style-src 'self' 'unsafe-inline' blob:; font-src 'self' data: blob:; worker-src 'self' blob:; frame-src 'self' blob: https://audiobook-catalog.firebaseapp.com; child-src 'self' blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'none'; script-src 'self' https://www.gstatic.com https://apis.google.com; connect-src 'self' https://audiobook-api.heygabi.ai https://auth.heygabi.ai https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://www.googleapis.com; img-src 'self' data: blob: https://covers.heygabi.ai; style-src 'self' 'unsafe-inline' blob:; font-src 'self' data: blob:; worker-src 'self' blob:; frame-src 'self' blob: https://audiobook-catalog.firebaseapp.com; child-src 'self' blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'
 
 /dev/read/
-  Content-Security-Policy: default-src 'none'; script-src 'self' https://www.gstatic.com https://apis.google.com; connect-src 'self' https://audiobook-api.heygabi.ai https://auth.heygabi.ai https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://www.googleapis.com; img-src 'self' data: blob: https://covers.heygabi.ai; style-src 'self' 'unsafe-inline' blob:; font-src 'self' data: blob:; worker-src 'self' blob:; frame-src 'self' blob: https://audiobook-catalog.firebaseapp.com; child-src 'self' blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'none'; script-src 'self' https://www.gstatic.com https://apis.google.com; connect-src 'self' https://audiobook-api.heygabi.ai https://auth.heygabi.ai https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://www.googleapis.com; img-src 'self' data: blob: https://covers.heygabi.ai; style-src 'self' 'unsafe-inline' blob:; font-src 'self' data: blob:; worker-src 'self' blob:; frame-src 'self' blob: https://audiobook-catalog.firebaseapp.com; child-src 'self' blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'
 
 # The vendored pdf.js is version-pinned by PATH (site/static/pdfjs/) and its
 # bytes never change in place, so the /* no-cache default above is pure cost

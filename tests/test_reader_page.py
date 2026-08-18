@@ -1301,3 +1301,196 @@ def test_the_readers_CSP_allows_the_estate_call_the_curtain_makes() -> None:
         assert "https://auth.heygabi.ai" in connect_src, (
             f"{path} would block the dev curtain's estate call"
         )
+
+
+# ==========================================================================
+# THE 2026-08-18 P1 — THE BLANK READER ON EVERY WEBKIT BROWSER
+#
+# ⚠️ READ THIS BLOCK BEFORE CHANGING ANYTHING BELOW IT.
+#
+# SYMPTOM. iPhone Safari, PROD /read, signed in, an ordinary reflowable EPUB
+# ("All The Skills - 5"). The page rendered its ENTIRE chrome — masthead,
+# resolved title, the Page control, both arrows, the footer — and the book area
+# was an EMPTY BORDERED BOX. No error anywhere on the page. Desktop Chrome
+# rendered the same book, same commit, flawlessly.
+#
+# CAUSE. `frame-ancestors 'none'`. A `blob:` document inherits its creator's
+# CSP, and WebKit then enforces `frame-ancestors` on it — refusing the reader
+# permission to frame the blob: iframe FOLIATE ITSELF makes for every section.
+# Chromium does not enforce it there, which is why every desktop review passed.
+#
+# MEASURED 2026-08-18 with Playwright WebKit (iPhone 13 profile) against the
+# real book and the real policy string, one variable at a time:
+#     frame-ancestors 'none'  -> blank box, view.init() never settles (45s)
+#     frame-ancestors 'self'  -> renders, relocate at "Recap (Chapter Zero) 3%"
+#     no frame-ancestors line -> renders
+# The same policy in Chromium renders in every case.
+#
+# ⚠️ AND THE SECOND HALF, WHICH COST MORE THAN THE FIRST. The throw landed
+# inside paginator.js's iframe `load` LISTENER, so the promise reader.js was
+# awaiting was NEITHER RESOLVED NOR REJECTED. `await view.init()` hung forever;
+# every carefully-worded catch in openEpub() was on the wrong side of it;
+# closed() never ran. The reader could not say what had happened because, from
+# its own point of view, nothing had. That is what the fault panel, the
+# window-level handlers and the watchdog below exist to make impossible.
+# ==========================================================================
+
+
+@pytest.mark.parametrize("path", ["/read", "/read/", "/dev/read", "/dev/read/"])
+def test_frame_ancestors_is_self_and_never_none(path: str) -> None:
+    """⚠️ THE P1 ITSELF, pinned so it cannot be "tightened" back.
+
+    `'none'` looks like the safer value and is the reason no EPUB opened in any
+    WebKit browser — Safari, every iPad, and Chrome and Firefox on iOS, all of
+    which are WebKit. `'self'` refuses every OTHER origin exactly as `'none'`
+    did, so the clickjacking protection is unchanged; all it additionally
+    permits is the reader framing its own same-origin blob:, which IS the
+    renderer doing its job.
+
+    If this goes red because somebody restored `'none'`: they have re-broken
+    the reader on every Apple device. site/_headers carries the measurement.
+    """
+    headers = read(HEADERS)
+    block = re.search(rf"^{re.escape(path)}\n(?:  .+\n)+", headers, flags=re.MULTILINE)
+    assert block
+    csp = re.search(r"Content-Security-Policy: (.+)", block.group(0)).group(1)
+    ancestors = re.search(r"frame-ancestors ([^;]+)", csp)
+    assert ancestors, f"{path} lost its frame-ancestors directive entirely"
+    value = ancestors.group(1).strip()
+    assert value == "'self'", (
+        f"{path} has frame-ancestors {value!r}. 'none' is the 2026-08-18 P1: "
+        f"WebKit inherits this policy into foliate's own blob: iframe and "
+        f"refuses it, and the reader then hangs with no error at all."
+    )
+    # The rest of the policy must not have been loosened to compensate.
+    assert "'unsafe-inline'" not in re.search(r"script-src ([^;]+)", csp).group(1)
+
+
+def test_the_reader_has_a_fault_panel_in_the_book_area() -> None:
+    """⚠️ THE READER MUST NEVER FAIL SILENTLY AGAIN.
+
+    `closed()` draws a gate card, and a gate card cannot reach a shell that is
+    already on screen — which is exactly where the P1 happened. #rd-fault is
+    the failure state for the BOOK AREA: a heading, a plain instruction, and
+    the error's own words.
+    """
+    html = read(TEMPLATE)
+    assert '<div id="rd-fault" hidden>' in html
+    for ident in ("rd-fault-title", "rd-fault-why", "rd-fault-detail",
+                  "rd-fault-retry", "rd-fault-back"):
+        assert f'id="{ident}"' in html, f"the fault panel lost #{ident}"
+    # ⚠️ Same trap as #rd-stage and #rd-resume: an explicit rule is needed, or
+    # the `hidden` attribute loses to the display rule and the panel is always on.
+    assert "#rd-fault[hidden]{display:none}" in html
+    # And still no inline script — the CSP has not loosened for this either.
+    for tag in re.findall(r"<script\b[^>]*>", strip_comments(html)):
+        assert " src=" in tag, f"inline script in read.html would be CSP-blocked: {tag}"
+
+
+def test_the_fault_panel_shows_the_error_and_a_way_out() -> None:
+    """⚠️ THE TECHNICAL LINE IS SHOWN, NOT HIDDEN, and that is deliberate.
+
+    iOS has no console to open. "Something went wrong" from another room is
+    worth nothing; `TypeError: null is not an object (evaluating 'doc.head')`
+    plus a file and a line is a bug report. The block is selectable so it can
+    be copied, and monospace so it can be read out.
+
+    And every failure keeps a way out — never a dead page (ROLES.md §1e).
+    """
+    html = read(TEMPLATE)
+    assert "#rd-fault-detail" in html
+    assert "user-select:text" in html, "the technical line must be selectable"
+    assert "white-space:pre-wrap" in html, "message and stack frame are two lines"
+    assert 'id="rd-fault-back" href="ebooks"' in html
+    js = strip_comments(read(READER_JS))
+    assert "window.location.reload()" in js, "the retry must exist and be a reload"
+
+
+def test_the_reader_reports_failures_that_escape_every_catch() -> None:
+    """⚠️ THE ONLY MECHANISM THAT WOULD HAVE CAUGHT THE P1.
+
+    The throw was inside a third-party iframe `load` listener. No try/catch in
+    this repo was on that stack, and the promise being awaited never settled —
+    so neither a catch block nor a rejection handler could ever have seen it. A
+    window-level listener is the only place it surfaces.
+
+    BOTH events, and the ORDER matters: `wireGlobalFailureReporting()` runs
+    before Firebase or anything else in the boot block can throw. A backstop
+    installed after the failure it exists to report is not a backstop.
+    """
+    js = strip_comments(read(READER_JS))
+    assert "window.addEventListener('error'" in js
+    assert "window.addEventListener('unhandledrejection'" in js
+    assert "function wireGlobalFailureReporting()" in js
+    body = js[js.index("let app = null;"):]
+    assert body.index("wireGlobalFailureReporting()") < body.index("initializeApp(FIREBASE_CONFIG)"), (
+        "the global failure backstop must be installed before anything can throw"
+    )
+
+
+def test_a_book_that_neither_opens_nor_fails_is_still_a_failure() -> None:
+    """⚠️ THE WATCHDOG, and the P1 is exactly why it cannot be dropped.
+
+    That failure produced NO error inside the promise chain — `view.init()` was
+    neither resolved nor rejected. Silence past a deadline IS the failure, and
+    the message names the last step the reader reached, which is the single
+    most useful fact in any account of a hang ("the reader got as far as
+    reading the book's index from the shelf").
+    """
+    js = strip_comments(read(READER_JS))
+    assert "OPEN_DEADLINE_MS" in js
+    assert "function armWatchdog()" in js and "function clearWatchdog()" in js
+    # Armed on BOTH open paths — a hung PDF is the same silence as a hung EPUB.
+    assert js.count("armWatchdog();") >= 2, "both openPdf and openEpub must arm it"
+    # And disarmed by a real render and by every worded refusal, or the reader
+    # contradicts itself: a book on screen beneath a "this did not open" panel.
+    assert js.count("clearWatchdog();") >= 3
+    assert "state.rendered = true;" in js
+    assert "the reader got as far as" in js
+
+
+def test_a_failure_never_blanks_a_book_that_is_already_rendering() -> None:
+    """A stray error must not cost somebody the page they are reading.
+
+    Before a first render a fault REPLACES the book area — there is nothing to
+    lose, and an empty box is the thing being fixed. After one, the panel
+    appears and the book stays. The same guard, in both directions, as the
+    position keeper's `arm()`.
+    """
+    js = strip_comments(read(READER_JS))
+    assert "const keepBook = state.rendered;" in js
+    assert "if (!opts.keepBook) {" in js
+
+
+def test_the_busy_layer_is_not_trapped_inside_the_hidden_pdf_stage() -> None:
+    """⚠️ HALF OF "NO ERROR SHOWN ANYWHERE" WAS THIS.
+
+    `#rd-busy` is `position:absolute; inset:0` and used to be a child of
+    `#rd-stage` — which `openEpub()` HIDES. So the entire EPUB open ran with no
+    spinner at all, and a slow open was pixel-identical to a dead one. It now
+    lives on `#rd-view`, the positioned wrapper both stages share.
+    """
+    html = read(TEMPLATE)
+    assert 'id="rd-view"' in html
+    assert "#rd-view{position:relative}" in html
+    stage = html[html.index('<div id="rd-stage">'):html.index('<div id="rd-book"')]
+    assert 'id="rd-busy"' not in stage, (
+        "#rd-busy is inside #rd-stage again — openEpub() hides that, so an EPUB "
+        "opens with no spinner and a hang looks exactly like a blank render"
+    )
+
+
+def test_a_code_fault_is_not_reported_as_an_outage() -> None:
+    """⚠️ THE MISLABELLING, IN THE OTHER DIRECTION (ROLES.md §1e).
+
+    `openEpub`'s catch mapped every `TypeError` to "The shelf did not answer" —
+    an OUTAGE sentence. A failed fetch IS a TypeError, so the intent was right;
+    but so is every code fault in the loader, in zip.js and in foliate's parser
+    (`Object.groupBy is not a function` on a Safari older than 17.4 is a real
+    one — foliate/epub.js uses it). Telling somebody the server is down when
+    the renderer is broken sends them to wait for a recovery never coming.
+    """
+    js = strip_comments(read(READER_JS))
+    assert "e instanceof TypeError && /fetch|network|load failed|cancel/i.test" in js, (
+        "a bare `instanceof TypeError` reports every code fault as an outage"
+    )
