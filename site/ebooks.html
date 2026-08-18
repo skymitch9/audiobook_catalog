@@ -388,8 +388,14 @@ h1 .tail{color:var(--accent)}
   color:var(--accent);text-decoration:none;border-bottom:1px solid var(--rule);
   /* Breathing room before the Read link that follows it on the card (owner,
      2026-08-17: "the also on audio -> is super close to the Read -> lets give
-     them a bit of space to breathe"). */
-  margin-right:22px;
+     them a bit of space to breathe").
+     ⚠️ SECOND PASS 2026-08-18, same ask repeated: 22px still read as crowded.
+     `.eb-read` is a FILLED pill (9px 18px of padding), and a filled shape
+     optically begins at its background edge, so the gap beside it needs to be
+     wider than it would be beside another plain link. The margin lives on the
+     LINK, never on the button: cards with no audiobook twin draw `.eb-read`
+     alone, where a left margin would shove it off the card's left edge. */
+  margin-right:34px;
 }
 .eb-audio-link:hover{color:var(--accent-deep);border-bottom-color:var(--accent)}
 
