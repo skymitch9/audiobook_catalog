@@ -529,9 +529,17 @@ html[data-read-mode="ink"] #rd-canvas{filter:invert(1) hue-rotate(180deg)}
        homepage. The way out of the reader is the SHELF, and nothing else. Do
        not add it back "for convenience"; tests/test_site_pages.py fails on it. -->
   <div class="rd-footer">
+    <!-- ⚠️ TRIMMED 2026-08-18 (owner: "Only keep what's mandatory and keep all
+         the text short and useful"). "One book at a time, streamed straight
+         from the household library" went: it describes the implementation, and
+         the reader is looking at one book with the shelf link right there.
+         ⚠️ "Nothing is downloaded to this device" STAYED and is not a
+         candidate — it is a disclosure about what this page does with
+         somebody's device and their household's files, which is exactly the
+         class the trim rule protects. The mechanism's home of record is
+         docs/info/reader-page.md. -->
     <div>
-      One book at a time, streamed straight from the household library — nothing
-      is downloaded to this device. Back to the <a href="ebooks">shelf</a>.
+      Nothing is downloaded to this device. Back to the <a href="ebooks">shelf</a>.
     </div>
   </div>
 </div>
