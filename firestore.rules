@@ -549,6 +549,51 @@ service cloud.firestore {
              && request.resource.data.requestedBy is string;
     }
 
+    // ---- Audiobook ingest queue (audio-player phase 0b, 2026-08-17) ----
+    //
+    // ⚠️ ONE DOCUMENT PER BOOK, and the doc id IS the dedupe. Owner: "my book
+    // club reads a lot of the same books so 3 of us might request the same
+    // book … add a duplicate clause." docId == bookId == the estate's
+    // book_id_from_title fold, so a second press is an UPDATE that unions one
+    // uid onto `requesters`, never a second row and never a second 600 MB
+    // upload. See app/tools/fulfill_audio_requests.py for the whole contract.
+    //
+    // ⚠️ The doc id is the BOOK ID, not the file anchor, on purpose: the site
+    // knows a book's title, never its path on the library machine, so it
+    // cannot compute an anchor. The anchor is derived at upload time.
+    function validAudioRequest() {
+      return request.resource.data.bookTitle is string
+             && request.resource.data.bookTitle.size() > 0
+             && request.resource.data.bookTitle.size() <= 300
+             && request.resource.data.bookId is string
+             && request.resource.data.bookId.size() > 0
+             && request.resource.data.requestedBy is string
+             && request.resource.data.requesters is list
+             && request.resource.data.requesters.size() <= 200;
+    }
+
+    // A request may only be made BY the person making it, and a later
+    // requester may only ADD THEMSELVES to an existing pile.
+    function audioRequestIsSelf() {
+      return request.auth != null
+             && request.resource.data.requesters.hasAll([request.auth.uid]);
+    }
+
+    // ⚠️ The book a request names cannot be swapped after the fact: the
+    // fulfiller uploads whatever `bookTitle` says, so an editable title on a
+    // doc other people have already joined would let one requester redirect
+    // everyone else's request at a different 600 MB file.
+    function audioRequestBookStable() {
+      return request.resource.data.bookId == resource.data.bookId
+             && request.resource.data.bookTitle == resource.data.bookTitle;
+    }
+
+    // Adding yourself is allowed; removing or rewriting the existing pile is
+    // not. `hasAll` in this direction means the new list is a SUPERSET.
+    function audioRequestOnlyAdds() {
+      return request.resource.data.requesters.hasAll(resource.data.requesters);
+    }
+
     function validUserWarning() {
       return request.resource.data.label is string
              && request.resource.data.label.size() > 0
@@ -693,6 +738,32 @@ service cloud.firestore {
     match /cw_requests/{docId} {
       allow read: if true;
       allow write: if validCwRequest();
+      allow delete: if true;
+    }
+
+    // The audiobook ingest queue. Mirrors cw_requests' seam exactly, because
+    // it is the same seam: a browser enqueues, and the LOCAL pipeline (the
+    // only machine holding 630 GB of audio) fulfils.
+    //
+    // ⚠️ `allow read: if true` is deliberate and, like cw_requests' open
+    // delete, LOAD-BEARING. app/tools/fulfill_audio_requests.py LISTS this
+    // collection over the REST API authenticated by the *public web API key*,
+    // not a service account, so it is gated by these rules like any browser;
+    // refusing list would strand every request with no error anywhere. What a
+    // reader learns is a book title (already public in site/catalog.csv and
+    // site/chapters.json, which stay public by owner decision) plus opaque
+    // uids. ⚠️ If per-person privacy is ever wanted here, `requesters` must
+    // move to a subcollection — narrowing this rule alone breaks the
+    // fulfiller.
+    //
+    // ⚠️ `allow delete: if true` for the same reason it is open on
+    // cw_requests: _clear_request() removes a fulfilled request with the
+    // public key. Closing it makes every requested book re-upload every run.
+    match /audio_requests/{docId} {
+      allow read: if true;
+      allow create: if validAudioRequest() && audioRequestIsSelf();
+      allow update: if validAudioRequest() && audioRequestIsSelf()
+                    && audioRequestBookStable() && audioRequestOnlyAdds();
       allow delete: if true;
     }
 
@@ -918,6 +989,16 @@ service cloud.firestore {
     match /cw_requests_dev/{docId} {
       allow read: if true;
       allow write: if validCwRequest();
+      allow delete: if true;
+    }
+
+    // Mirrors /audio_requests — see every note there. The fulfiller reads
+    // BOTH lanes in one pass, so a request made on /dev/ is still fulfilled.
+    match /audio_requests_dev/{docId} {
+      allow read: if true;
+      allow create: if validAudioRequest() && audioRequestIsSelf();
+      allow update: if validAudioRequest() && audioRequestIsSelf()
+                    && audioRequestBookStable() && audioRequestOnlyAdds();
       allow delete: if true;
     }
 

@@ -67,6 +67,15 @@ scripts/.ebooks_published.json
 # bucket, never from this record. site/covers_manifest.json stays negated
 # because it is a list of sha256 hashes, not a list of books.
 # (tests/test_upload_ebooks_r2.py fails if a negation is added.)
+# ⚠️ site/audio_manifest.json IS DELIBERATELY NOT NEGATED, third of its kind.
+# The record of which AUDIOBOOK files are in the private `estate-audio` bucket
+# (audio-player phase 0b, scripts/upload_audio_r2.py), keyed on FILE PATHS —
+# the same "list of the household's books by name" surface as the two above,
+# and 630 GB of it. `*.json` already ignores it; this comment exists so nobody
+# adds a negation. ⚠️ Note the asymmetry that IS correct: site/chapters.json
+# stays PUBLIC and negated by owner decision 2026-08-17 ("fine as is") —
+# chapter TITLES are published, audio BYTES and the paths to them are not.
+# (tests/test_upload_audio_r2.py fails if a negation is added.)
 !site/covers_manifest.json
 !vitest.config.js
 !firebase.json

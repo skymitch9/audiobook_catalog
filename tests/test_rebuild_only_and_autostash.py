@@ -152,6 +152,16 @@ def test_auto_commit_git_add_allowlist_unchanged(monkeypatch):
     # make `git add` exit 1, the same noise site/covers/ used to make. If a
     # future session re-adds it, this assertion is the tripwire.
     assert "site/ebooks.json" not in add_calls[0]
+    # ⚠️ site/audio_manifest.json is DELIBERATELY absent too (audio-player
+    # phase 0b, STEP 5.9). Same reason, larger surface: it is the record of
+    # which audiobook FILES are in the private estate-audio bucket, keyed on
+    # file paths — a list of the household's books by name, 630 GB of them.
+    # It is gitignored, so naming it here would make `git add` exit 1.
+    # ⚠️ site/chapters.json IS here and stays here — chapter TITLES are public
+    # by owner decision 2026-08-17 ("fine as is"), and the phase-0a start_sec
+    # backfill ships through this very line. The asymmetry is on purpose.
+    assert "site/audio_manifest.json" not in add_calls[0]
+    assert "site/chapters.json" in add_calls[0]
 
 
 def test_auto_commit_still_warns_and_attempts_push_on_genuine_rebase_conflict(monkeypatch, capsys):

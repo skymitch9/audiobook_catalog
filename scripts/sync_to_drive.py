@@ -1376,6 +1376,37 @@ def _run_pipeline_body(
         print("\n[STEP 5] Skipped catalog rebuild (dry-run)")
 
     # -----------------------------------------------------------------------
+    # STEP 5.9 — fulfil the ON-DEMAND audiobook ingest queue.
+    #
+    # ⚠️ NOT gated on uploaded_count, and that is the point. A request is made
+    # on the SITE by a person who wants to listen to a book this library has
+    # held for two years; it has nothing to do with whether anything new
+    # arrived on Drive this run. Gating it on new arrivals would leave a
+    # requested book sitting in the queue for however long nobody buys
+    # anything — the same class of bug the 2026-08-15 STEP 6 gate was.
+    #
+    # Soft, exactly like steps 5.5-5.8: a Firestore listing failure, an
+    # unresolvable title or a dead uplink WARNs and the run continues. The
+    # request is kept (never cleared on failure), so the next run retries it.
+    #
+    # ⚠️ NOTHING HERE IS COMMITTED, deliberately: the only output is
+    # site/audio_manifest.json, which is GITIGNORED because it lists the
+    # household's books by filename (see .gitignore, and site/ebooks.json's
+    # story above it). So this step adds NO entry to _auto_commit_and_push's
+    # _ALLOWLIST — that omission is a decision, not an oversight.
+    # -----------------------------------------------------------------------
+    if not dry_run:
+        print("\n[STEP 5.9] Fulfilling audiobook ingest requests...")
+        try:
+            from app.tools.fulfill_audio_requests import fulfill_requests
+            stats = fulfill_requests(commit=True)
+            if stats.get("unresolved"):
+                print(f"  [WARN] {stats['unresolved']} request(s) name a book this "
+                      "library cannot resolve — kept for review.")
+        except Exception as e:
+            print(f"  [WARN] Audio request fulfilment failed: {e}")
+
+    # -----------------------------------------------------------------------
     # Step 6: Auto-commit & push
     #
     # ⚠️ NOT gated on uploaded_count — that was the morning-of-2026-08-15 bug.
@@ -1462,6 +1493,14 @@ def _run_pipeline_body(
 #   STEP 5.8 (gated ebook manifest)  INCLUDE — the manifest on disk is the
 #            one readers ever see (site/ebooks.json is gitignored), so a
 #            rebuild that does not publish it ships nothing to the shelf.
+#   STEP 5.9 (audio ingest queue)   EXCLUDE — --rebuild-only is "republish
+#            this tag fix", and fulfilling the queue is neither a rebuild nor
+#            a publish: it pushes hundreds of MB up a household uplink per
+#            requested book. Nothing is lost by waiting — the request is
+#            keyed on the book and stays pending until the next scheduled
+#            run (3x/day) picks it up. ⚠️ If that ever feels too slow, the
+#            fix is a dedicated `--fulfill-audio` entry point, NOT quietly
+#            making a tag fix upload 600 MB.
 #   STEP 6   (commit+push)          INCLUDE — required so the tag fix
 #            actually ships instead of sitting rebuilt-but-uncommitted, same
 #            failure mode this flag exists to close.
@@ -2157,6 +2196,11 @@ def _auto_commit_and_push() -> None:
         # a "catalog refresh". Staging an allowlist is only half the rule;
         # the commit must be scoped too, or it inherits whatever anyone else
         # left in the shared index.
+        #
+        # ⚠️ site/audio_manifest.json is DELIBERATELY not here (STEP 5.9,
+        # 2026-08-17). It is gitignored — it lists the household's books by
+        # filename — so naming it would make `git add` exit 1, and committing
+        # it would publish 630 GB worth of paths from a PUBLIC repo.
         _ALLOWLIST = [
             "site/catalog.csv", "site/index.html",
             "site/covers_manifest.json", "site/covers-base.js",
