@@ -188,7 +188,13 @@ html[data-theme="cyberpunk"] .um-name{letter-spacing:1px}
     <span class="cb-icon">📚</span>
     <span class="cb-text">
       <span class="cb-title">Book Clubs <span id="cb-new-badge" style="display:none"></span></span>
-      <span class="cb-sub" id="clubs-banner-sub">Read together, chapter by chapter — spoiler-safe discussions, votes, and quotes</span>
+      <!-- COPY TRIM 2026-08-18. Cut "Read together, chapter by chapter —",
+           which restated the banner title above it. What is left is now the
+           exact tail of the live string this element is REPLACED with once the
+           club count loads (see clubs-banner-sub below, "N clubs reading right
+           now — …"), so the pre-load fallback and the loaded line read as one
+           sentence rather than two different pitches. -->
+      <span class="cb-sub" id="clubs-banner-sub">Spoiler-safe chapter discussions, votes, and quotes</span>
     </span>
     <span class="cb-arrow">→</span>
   </a>

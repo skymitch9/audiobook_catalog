@@ -464,7 +464,13 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
   <div style="background:var(--bg-2);border:1px solid var(--neon-yellow);max-width:480px;width:100%;max-height:90vh;overflow-y:auto;padding:20px;position:relative;box-sizing:border-box">
     <button id="sched-close" style="position:absolute;top:8px;right:10px;background:none;border:none;color:var(--muted);font-size:1.4em;line-height:1;cursor:pointer">×</button>
     <h2 style="margin:0 0 4px;color:var(--neon-yellow);text-transform:var(--et-title-case);letter-spacing:var(--et-title-spacing);font-size:1.1em">Reading Schedule</h2>
-    <p style="color:var(--muted);font-size:.85em;margin:0 0 12px">Target dates per section — members see on-track / behind chips against them. Blank = no due date.</p>
+    <!-- COPY TRIM 2026-08-18 (owner: "Only keep what's mandatory and keep all
+         the text short and useful"). Cut: "members see on-track / behind chips
+         against them" — that is the feature's downstream effect, visible on
+         the read page as the chips themselves, not something the host must
+         know to fill this form in. KEPT: "Blank = no due date", which names a
+         behaviour of an EMPTY field that nothing else on the page states. -->
+    <p style="color:var(--muted);font-size:.85em;margin:0 0 12px">Target dates per section. Blank = no due date.</p>
     <div class="sched-tools">
       <div class="st-field"><label for="sched-spread-start">Start</label><input type="date" id="sched-spread-start"></div>
       <div class="st-field"><label for="sched-spread-end">Finish by</label><input type="date" id="sched-spread-end"></div>
@@ -483,6 +489,13 @@ html[data-theme="cyberpunk"] .comment.linked{background:rgba(5,217,232,.07)}
   <div style="background:var(--bg-2);border:1px solid var(--neon-yellow);max-width:480px;width:100%;max-height:90vh;overflow-y:auto;padding:20px;position:relative;box-sizing:border-box">
     <button id="poll-close" style="position:absolute;top:8px;right:10px;background:none;border:none;color:var(--muted);font-size:1.4em;line-height:1;cursor:pointer">×</button>
     <h2 style="margin:0 0 4px;color:var(--neon-yellow);text-transform:var(--et-title-case);letter-spacing:var(--et-title-spacing);font-size:1.1em">New Poll</h2>
+    <!-- ⚠️ NOT TRIMMED in the 2026-08-18 copy sweep, deliberately. This is the
+         SPOILER GATE for the Section field directly below it: it tells the
+         author who will and will not see what they are about to post, which
+         they must know BEFORE choosing a section. "(question and results
+         both)" is the honest half — a reader would otherwise assume only the
+         results are held back. A gate statement is never a candidate for a
+         tooltip either; touch devices never show one. -->
     <p style="color:var(--muted);font-size:.85em;margin:0 0 12px">Tagged to a section — hidden (question and results both) from members who haven't reached it yet.</p>
     <label for="poll-section" style="display:block;font-size:.8em;color:var(--muted);text-transform:var(--et-title-case);letter-spacing:.5px;margin-bottom:4px">Section</label>
     <select id="poll-section" style="width:100%;padding:7px 9px;background:var(--bg);color:var(--text);border:1px solid var(--border);font-family:inherit;margin-bottom:12px;box-sizing:border-box"></select>
