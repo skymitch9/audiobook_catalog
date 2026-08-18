@@ -425,6 +425,27 @@ def build_alias_map(book: ExtractedBook, min_count: int = 3) -> dict:
     """
     counts: dict = {}
     for chapter in book.chapters:
-        for token in re.findall(r"\b[A-Z][a-z]{2,}\b", chapter.text):
+        # ⚠️ Only tokens NOT at a sentence start count. English capitalises the
+        # first word of every sentence, so a naive scan returns `The` 1,419
+        # times and buries the actual names - measured on Primal Hunter 2, where
+        # `The`, `His`, `But` and `And` all outranked `Viper`. Requiring a
+        # preceding word that is not sentence-final is what separates a proper
+        # noun from a capitalised article.
+        for match in re.finditer(r"(?<![.!?\"\n]\s)(?<!^)\b([A-Z][a-z]{2,})\b",
+                                 chapter.text, re.MULTILINE):
+            token = match.group(1)
+            if token.lower() in _ALIAS_STOPWORDS:
+                continue
             counts[token] = counts.get(token, 0) + 1
     return {k: v for k, v in sorted(counts.items(), key=lambda kv: -kv[1]) if v >= min_count}
+
+
+# Capitalised words that are grammar, not names. Kept short and literal: this is
+# a denoiser for a CANDIDATE list, not a linguistic model.
+_ALIAS_STOPWORDS = {
+    "the", "and", "but", "his", "her", "its", "their", "they", "this", "that",
+    "then", "there", "these", "those", "she", "him", "you", "your", "not",
+    "for", "with", "was", "were", "had", "has", "have", "did", "does", "what",
+    "when", "where", "who", "why", "how", "all", "one", "two", "even", "just",
+    "still", "after", "before", "however", "instead", "though", "while",
+}

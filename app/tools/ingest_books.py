@@ -110,6 +110,47 @@ class _Lock:
 # packing one book
 # --------------------------------------------------------------------------
 
+_SOURCE_M4B_RE = __import__("re").compile(r'"source_m4b"\s*:\s*"((?:[^"\\]|\\.)*)"')
+_transcript_index: Optional[dict] = None
+
+
+def _transcript_source(path: Path) -> str:
+    """The m4b a transcript came from, read from the file's HEAD.
+
+    ⚠️ A transcript is ~13 MB of word timings and `meta` is its first key, so
+    reading 8 KB answers this in microseconds where `json.load` costs ~1.5 s.
+    That matters: an earlier version parsed every transcript once per queue item,
+    which is 1,200 x 9 full parses on a 1,229-item queue - the run appeared to
+    hang. Falls back to a full parse if the head does not contain the field.
+    """
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as fh:
+            head = fh.read(8192)
+    except OSError:
+        return ""
+    m = _SOURCE_M4B_RE.search(head)
+    if m:
+        return m.group(1).encode().decode("unicode_escape")
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            return json.load(fh).get("meta", {}).get("source_m4b", "") or ""
+    except Exception:
+        return ""
+
+
+def _build_transcript_index() -> dict:
+    index: dict = {}
+    if not TRANSCRIPTS_DIR.exists():
+        return index
+    for path in sorted(TRANSCRIPTS_DIR.glob("*.json")):
+        src = _transcript_source(path)
+        stem = Path(src).stem if src else path.stem
+        key = normalise_title(stem)
+        if key:
+            index.setdefault(key, path)
+    return index
+
+
 def _transcript_for(title: str) -> Optional[Path]:
     """Find a transcript on disk for this title, by normalised title.
 
@@ -118,21 +159,15 @@ def _transcript_for(title: str) -> Optional[Path]:
     because a colon cannot appear in a Windows filename. An exact join silently
     loses that book and every other title with punctuation the filesystem
     refuses.
+
+    The index is built once per process. A transcript written DURING a run (by
+    this run's own transcription step) is picked up because `transcribe()`
+    invalidates the cache on success.
     """
-    if not TRANSCRIPTS_DIR.exists():
-        return None
-    want = normalise_title(title)
-    for path in sorted(TRANSCRIPTS_DIR.glob("*.json")):
-        try:
-            with open(path, "r", encoding="utf-8") as fh:
-                meta = json.load(fh).get("meta", {})
-        except Exception:
-            continue
-        src = meta.get("source_m4b") or ""
-        stem = Path(src).stem if src else path.stem
-        if normalise_title(stem) == want:
-            return path
-    return None
+    global _transcript_index
+    if _transcript_index is None:
+        _transcript_index = _build_transcript_index()
+    return _transcript_index.get(normalise_title(title))
 
 
 def extract_for(item: QueueItem, chapters: dict) -> book_text.ExtractedBook:
@@ -207,10 +242,13 @@ def transcribe(item: QueueItem, batch_size: int) -> bool:
     cmd = [sys.executable, str(script), "--title", item.title,
            "--batch-size", str(batch_size)]
     log(f"  transcribing {item.title!r} (batch {batch_size})")
-    proc = subprocess.run(cmd, capture_output=True, text=True)
+    proc = subprocess.run(cmd, capture_output=True, text=True,
+                          encoding="utf-8", errors="replace")
     if proc.returncode != 0:
         log(f"  transcription FAILED rc={proc.returncode}: {(proc.stderr or '')[-600:]}")
         return False
+    global _transcript_index
+    _transcript_index = None   # a new transcript exists; rebuild on next lookup
     return True
 
 
@@ -250,8 +288,13 @@ def run(args) -> int:
             save_state(state)
             continue
 
+        # A transcript that already exists on disk makes this a CPU job, so it
+        # must not be gated on the graphics card. Getting this wrong would make a
+        # pack-only pass wait for a GPU it never touches.
+        will_transcribe = item.needs_gpu and not args.no_transcribe and not _transcript_for(item.title)
+
         if not args.now:
-            decision = decide_start(control, needs_gpu=item.needs_gpu,
+            decision = decide_start(control, needs_gpu=will_transcribe,
                                     allow_opportunistic=args.opportunistic)
             if not decision.may_start:
                 log(f"STOP before {item.title!r}: {decision.reason}")
@@ -259,7 +302,7 @@ def run(args) -> int:
             batch = decision.batch_size
         else:
             # --now skips the window; the pause and the guard still bind.
-            blocked = None if args.ignore_control else _control_or_guard(control, item)
+            blocked = None if args.ignore_control else _control_or_guard(control, will_transcribe)
             if blocked:
                 log(f"STOP before {item.title!r}: {blocked}")
                 break
@@ -267,6 +310,12 @@ def run(args) -> int:
 
         try:
             if item.needs_gpu and not _transcript_for(item.title):
+                if args.no_transcribe:
+                    # Pack-only pass: everything whose text already exists gets
+                    # packed, and nothing spends a GPU-minute. This is how a
+                    # finished transcript set is turned into packs outside the
+                    # window, and it is cheap enough to run any time.
+                    continue
                 if not transcribe(item, batch):
                     mark(state, item.book_id, STATUS_FAILED, reason="transcription failed")
                     failed += 1
@@ -286,12 +335,19 @@ def run(args) -> int:
     return 0
 
 
-def _control_or_guard(control: ControlState, item: QueueItem) -> Optional[str]:
+def _control_or_guard(control: ControlState, needs_gpu: bool) -> Optional[str]:
+    """The gates that still bind under `--now` (which waives only the window)."""
     from app.core.ingest_control import GPU_BUSY_PCT, control_blocks_start, control_defers_check
 
-    return (control_defers_check(control) or control_blocks_start(control)
-            or (f"GPU busy" if item.needs_gpu and (gpu_utilisation() or 101) > GPU_BUSY_PCT
-                else None))
+    blocked = control_defers_check(control) or control_blocks_start(control)
+    if blocked:
+        return blocked
+    if not needs_gpu:
+        return None
+    util = gpu_utilisation()
+    if util is None:
+        return "GPU utilisation unreadable - treating as busy"
+    return f"GPU at {util}% (> {GPU_BUSY_PCT}%)" if util > GPU_BUSY_PCT else None
 
 
 def _write_receipt(state: dict, done: int, failed: int, dry_run: bool) -> None:
@@ -366,6 +422,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     p.add_argument("--opportunistic", action="store_true",
                    help="allow idle-time starts outside the window")
     p.add_argument("--no-reviews", action="store_true", help="skip the review-count read")
+    p.add_argument("--no-transcribe", action="store_true",
+                   help="pack only what already has text; never start the GPU")
     p.add_argument("--ignore-control", action="store_true",
                    help="⚠️ ignore the dashboard pause (break-glass only)")
     p.add_argument("--publish-index", action="store_true")

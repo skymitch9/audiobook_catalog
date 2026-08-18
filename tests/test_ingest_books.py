@@ -480,6 +480,51 @@ class TestPackShape:
         assert stats["chunks"] == len(chunks)
 
 
+class TestAliasMap:
+    def test_sentence_initial_capitals_are_not_names(self):
+        """⚠️ Measured on a real transcript: a naive scan returned `The` 1,419
+        times and buried `Viper` at 224. English capitalises every sentence, so
+        without this the candidate list is grammar, not characters."""
+        from app.core.book_text import build_alias_map
+
+        text = ("The hunter moved. The viper watched. But Jake saw Jake and "
+                "Jake again. And then the Jake matter settled.")
+        aliases = build_alias_map(
+            ExtractedBook("b", "B", "transcript",
+                          [ExtractedChapter(0, "One", text)]),
+            min_count=2)
+        assert "The" not in aliases and "But" not in aliases and "And" not in aliases
+        assert aliases.get("Jake", 0) >= 2
+
+    def test_counts_are_returned_sorted_desc(self):
+        from app.core.book_text import build_alias_map
+
+        text = "a Alpha b Alpha c Alpha d Bravo e Bravo f Charlie"
+        aliases = build_alias_map(
+            ExtractedBook("b", "B", "transcript",
+                          [ExtractedChapter(0, "One", text)]), min_count=2)
+        assert list(aliases) == ["Alpha", "Bravo"]
+
+
+class TestTranscriptIndex:
+    def test_source_is_read_from_the_file_head(self, tmp_path):
+        """⚠️ A transcript is ~13 MB and `meta` is its first key. An earlier
+        version json.load()ed every one per queue item — 1,200 × 9 full parses,
+        which looked exactly like a hang."""
+        from app.tools.ingest_books import _transcript_source
+
+        path = tmp_path / "t.json"
+        payload = ('{"meta": {"source_m4b": "C:\\\\books\\\\A Book.m4b"}, '
+                   '"segments": [' + ",".join(['{"x":1}'] * 20000) + "]}")
+        path.write_text(payload, encoding="utf-8")
+        assert _transcript_source(path).endswith("A Book.m4b")
+
+    def test_missing_file_returns_empty_not_an_exception(self, tmp_path):
+        from app.tools.ingest_books import _transcript_source
+
+        assert _transcript_source(tmp_path / "nope.json") == ""
+
+
 class TestCustody:
     def test_training_data_lives_outside_every_repo(self):
         """⚠️ THE MECHANICAL GUARD. Transcripts are derived full text of books
