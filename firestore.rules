@@ -572,26 +572,44 @@ service cloud.firestore {
              && request.resource.data.requesters.size() <= 200;
     }
 
-    // A request may only be made BY the person making it, and a later
-    // requester may only ADD THEMSELVES to an existing pile.
-    function audioRequestIsSelf() {
+    // A NEW pile is opened by exactly one person: themselves.
+    //
+    // ⚠️ EXACT LIST EQUALITY, not `hasAll([uid])`. The live smoke test
+    // (scripts/smoke_audio_request_rules.py, 2026-08-17) caught the weaker
+    // form letting A open a pile that already contained "somebody-else" —
+    // enrolling a person who never asked, and, worse, poisoning the pile so
+    // the real second requester's legitimate join was then REFUSED (their
+    // list did not contain the stranger). Written here as the incident that
+    // produced the rule, because "requesters must contain you" reads correct
+    // and is not.
+    function audioRequestIsNewPile() {
       return request.auth != null
-             && request.resource.data.requesters.hasAll([request.auth.uid]);
+             && request.resource.data.requestedBy == request.auth.uid
+             && request.resource.data.requesters == [request.auth.uid];
     }
 
+    // A later requester JOINS the pile: they may add THEMSELVES and change
+    // nothing else.
+    //
     // ⚠️ The book a request names cannot be swapped after the fact: the
     // fulfiller uploads whatever `bookTitle` says, so an editable title on a
     // doc other people have already joined would let one requester redirect
     // everyone else's request at a different 600 MB file.
-    function audioRequestBookStable() {
-      return request.resource.data.bookId == resource.data.bookId
-             && request.resource.data.bookTitle == resource.data.bookTitle;
-    }
-
-    // Adding yourself is allowed; removing or rewriting the existing pile is
-    // not. `hasAll` in this direction means the new list is a SUPERSET.
-    function audioRequestOnlyAdds() {
-      return request.resource.data.requesters.hasAll(resource.data.requesters);
+    //
+    // ⚠️ The two list clauses are a pair and neither is redundant.
+    // `hasAll(old)` forbids REMOVING an existing requester; `hasOnly(old +
+    // me)` forbids ADDING anyone but yourself. Only one of them and the
+    // other abuse walks straight through. Re-pressing when you are already
+    // in the pile leaves the list unchanged, which both clauses accept — the
+    // request stays idempotent.
+    function audioRequestJoinsPile() {
+      return request.auth != null
+             && request.resource.data.requestedBy == resource.data.requestedBy
+             && request.resource.data.bookId == resource.data.bookId
+             && request.resource.data.bookTitle == resource.data.bookTitle
+             && request.resource.data.requesters.hasAll(resource.data.requesters)
+             && request.resource.data.requesters.hasOnly(
+                  resource.data.requesters.concat([request.auth.uid]));
     }
 
     function validUserWarning() {
@@ -761,9 +779,8 @@ service cloud.firestore {
     // public key. Closing it makes every requested book re-upload every run.
     match /audio_requests/{docId} {
       allow read: if true;
-      allow create: if validAudioRequest() && audioRequestIsSelf();
-      allow update: if validAudioRequest() && audioRequestIsSelf()
-                    && audioRequestBookStable() && audioRequestOnlyAdds();
+      allow create: if validAudioRequest() && audioRequestIsNewPile();
+      allow update: if validAudioRequest() && audioRequestJoinsPile();
       allow delete: if true;
     }
 
@@ -996,9 +1013,8 @@ service cloud.firestore {
     // BOTH lanes in one pass, so a request made on /dev/ is still fulfilled.
     match /audio_requests_dev/{docId} {
       allow read: if true;
-      allow create: if validAudioRequest() && audioRequestIsSelf();
-      allow update: if validAudioRequest() && audioRequestIsSelf()
-                    && audioRequestBookStable() && audioRequestOnlyAdds();
+      allow create: if validAudioRequest() && audioRequestIsNewPile();
+      allow update: if validAudioRequest() && audioRequestJoinsPile();
       allow delete: if true;
     }
 
