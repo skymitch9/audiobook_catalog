@@ -1370,6 +1370,20 @@ def _run_pipeline_body(
         except Exception as e:
             print(f"  [WARN] Cover upload failed: {e}")
 
+        # STEP 5.75 - the ebook FILES to the private estate-ebooks bucket, BEFORE
+        # 5.8 publishes the manifest that names them. Reversing the order gives a
+        # reader a Read button that 404s. A failure is a WARN, not a stop: the
+        # missing file is named in the log and retried next run, and every other
+        # book still works. See docs/info/ebooks-r2-ingest.md.
+        print("\n[STEP 5.75] Uploading ebook files to R2...")
+        try:
+            from scripts.upload_ebooks_r2 import main as upload_ebooks_main
+            rc = upload_ebooks_main(["--commit"])
+            if rc != 0:
+                print("  [WARN] Some ebook files failed to upload - they will retry next run.")
+        except Exception as e:
+            print(f"  [WARN] Ebook file upload failed: {e}")
+
         # STEP 5.8 - the ebook manifest to its PRIVATE bucket. Since
         # 2026-08-17 site/ebooks.json is gitignored and out of the public
         # deployment (owner directive: "I don't want people scraping my
@@ -1517,6 +1531,9 @@ def _run_pipeline_body(
 #            covers_manifest.json, independent of the manifest/new-book
 #            concept; a tag fix can include a corrected cover, so this must
 #            run for the fix to actually publish.
+#   STEP 5.75 (ebook files -> R2)   INCLUDE — idempotent size+sha256 diff
+#            against the bucket manifest; a rebuild can carry a book whose
+#            bytes never landed, and this is what retries them.
 #   STEP 5.8 (gated ebook manifest)  INCLUDE — the manifest on disk is the
 #            one readers ever see (site/ebooks.json is gitignored), so a
 #            rebuild that does not publish it ships nothing to the shelf.
@@ -1663,6 +1680,20 @@ def _run_rebuild_only_body(trigger: str = "manual") -> None:
             print("  [WARN] Some covers failed to upload — they will retry next run.")
     except Exception as e:
         print(f"  [WARN] Cover upload failed: {e}")
+
+    # STEP 5.75 - the ebook FILES to the private estate-ebooks bucket, BEFORE
+    # 5.8 publishes the manifest that names them. Reversing the order gives a
+    # reader a Read button that 404s. A failure is a WARN, not a stop: the
+    # missing file is named in the log and retried next run, and every other
+    # book still works. See docs/info/ebooks-r2-ingest.md.
+    print("\n[REBUILD-ONLY] Uploading ebook files to R2 (STEP 5.75)...")
+    try:
+        from scripts.upload_ebooks_r2 import main as upload_ebooks_main
+        rc = upload_ebooks_main(["--commit"])
+        if rc != 0:
+            print("  [WARN] Some ebook files failed to upload - they will retry next run.")
+    except Exception as e:
+        print(f"  [WARN] Ebook file upload failed: {e}")
 
     # STEP 5.8 - the ebook manifest to its PRIVATE bucket. Since 2026-08-17
     # site/ebooks.json is gitignored and out of the public deployment (owner
