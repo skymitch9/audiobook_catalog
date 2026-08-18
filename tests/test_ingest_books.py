@@ -569,3 +569,150 @@ class TestCustody:
         for path in (TRAINING_ROOT, TRANSCRIPTS_DIR, PACKS_DIR):
             assert repo not in path.resolve().parents
             assert path.resolve() != repo
+
+
+# --------------------------------------------------------------------------
+# the served index carries titles (the empty-title bug, 2026-08-18)
+# --------------------------------------------------------------------------
+
+class TestPackTitles:
+    """`publish_index()` serves whatever `ingest_state.json` holds, and the
+    state never recorded a title - so all 182 rows of the published index
+    reached the serving layer with no `title` key at all.
+
+    Two halves, and both are tested here: `pack_one()` now records the title at
+    pack time (going forward), and `scripts/backfill_pack_titles.py` reads it
+    out of the packs for rows written before that (the one-time migration)."""
+
+    def _pack(self, tmp_path, book_id, title):
+        payload = {"book_id": book_id, "title": title, "source": "epub"}
+        path = tmp_path / f"{book_id}.json.gz"
+        with gzip.open(path, "wt", encoding="utf-8") as fh:
+            json.dump(payload, fh)
+        return path
+
+    def test_title_comes_from_the_pack(self, tmp_path):
+        from scripts.backfill_pack_titles import title_from_pack
+
+        self._pack(tmp_path, "a-killer-s-mind", "A Killer's Mind")
+        assert title_from_pack("a-killer-s-mind", tmp_path) == "A Killer's Mind"
+
+    def test_a_missing_pack_is_none_not_a_deslugged_guess(self, tmp_path):
+        """⚠️ De-slugging cannot restore an apostrophe, a colon or a capital
+        inside a word. A missing title is visibly missing; a wrong one is not."""
+        from scripts.backfill_pack_titles import title_from_pack
+
+        assert title_from_pack("never-packed", tmp_path) is None
+
+    @pytest.mark.parametrize("title", [None, "", "   ", 42, ["a"]])
+    def test_a_blank_or_non_string_title_is_refused(self, tmp_path, title):
+        from scripts.backfill_pack_titles import title_from_pack
+
+        path = tmp_path / "b.json.gz"
+        with gzip.open(path, "wt", encoding="utf-8") as fh:
+            json.dump({"book_id": "b", "title": title}, fh)
+        assert title_from_pack("b", tmp_path) is None
+
+    def test_a_corrupt_pack_never_raises(self, tmp_path):
+        from scripts.backfill_pack_titles import title_from_pack
+
+        (tmp_path / "torn.json.gz").write_bytes(b"not a gzip at all")
+        assert title_from_pack("torn", tmp_path) is None
+
+    def test_backfill_fills_only_what_is_missing_and_is_idempotent(self, tmp_path):
+        from scripts.backfill_pack_titles import backfill
+
+        self._pack(tmp_path, "one", "Book One")
+        self._pack(tmp_path, "two", "Book Two")
+        state = {"books": {
+            "one": {"status": "done"},
+            "two": {"status": "done", "title": "Hand-corrected Title"},
+            "three": {"status": "needs-ocr"},          # no pack: never packed
+        }}
+
+        report = backfill(state, tmp_path)
+        assert state["books"]["one"]["title"] == "Book One"
+        assert state["books"]["two"]["title"] == "Hand-corrected Title", \
+            "an existing title must never be overwritten from disk"
+        assert "title" not in state["books"]["three"]
+        assert [b for b, _ in report["filled"]] == ["one"]
+        assert report["unresolved"] == ["three"]
+
+        again = backfill(state, tmp_path)
+        assert again["filled"] == [], "re-running must be a no-op"
+
+    def test_a_done_pack_records_its_title_the_same_way_the_pack_spells_it(self):
+        """The state's title and the pack's title must be ONE string, or a
+        backfilled row and a freshly packed row disagree about the same book."""
+        book = ExtractedBook(
+            book_id="wintersteel", title="Wintersteel", source="epub",
+            chapters=[ExtractedChapter(index=0, title="c0", text="hello there")],
+        )
+        chunks, refs = chunk_book(book)
+        pack = build_pack(book, chunks, refs)
+        assert pack["title"] == book.title
+
+
+# --------------------------------------------------------------------------
+# the queue summary the status board reads
+# --------------------------------------------------------------------------
+
+class TestQueueSummary:
+    """The lanes /status/processing shows. `build_queue()` stays the only place
+    that DECIDES a tier; this only counts what it returned."""
+
+    def _item(self, tier, needs_gpu=False, bid="b"):
+        return QueueItem(bid, "T", tier, "epub", needs_gpu=needs_gpu)
+
+    def test_counts_every_lane_including_the_empty_ones(self):
+        from app.core.ingest_queue_summary import build_queue_summary
+
+        summary = build_queue_summary([
+            self._item(TIER_REVIEWED_AUDIO, needs_gpu=True),
+            self._item(TIER_REVIEWED_AUDIO, needs_gpu=True),
+            self._item(TIER_REST_AUDIO, needs_gpu=True),
+            self._item(TIER_NEEDS_OCR),
+        ])
+        assert summary["lanes"]["audiobook-with-review"] == 2
+        assert summary["lanes"]["audiobook"] == 1
+        assert summary["lanes"]["deferred-pdf"] == 1
+        # ⚠️ Present-and-zero, not absent. Absent means "unknown" to the reader.
+        assert summary["lanes"]["epub"] == 0
+        assert summary["lanes"]["twin"] == 0
+
+    def test_the_cross_check_the_reader_relies_on_holds(self):
+        """processing-board.mjs shows the split ONLY when reviewed + rest equals
+        the GPU bucket. If that ever stops holding, the page silently stops
+        splitting - so it is pinned here, in the repo that produces both."""
+        from app.core.ingest_queue_summary import build_queue_summary
+
+        summary = build_queue_summary([
+            self._item(TIER_REVIEWED_AUDIO, needs_gpu=True),
+            self._item(TIER_REST_AUDIO, needs_gpu=True),
+            self._item(TIER_REST_AUDIO, needs_gpu=True),
+            self._item(TIER_EPUB),
+            self._item(TIER_NEEDS_OCR),
+        ])
+        lanes = summary["lanes"]
+        assert lanes["audiobook-with-review"] + lanes["audiobook"] == summary["gpu"] == 3
+        assert summary["cpu"] == 2
+        assert summary["total"] == 5
+
+    def test_an_unknown_tier_becomes_its_own_lane_rather_than_vanishing(self):
+        from app.core.ingest_queue_summary import build_queue_summary
+
+        summary = build_queue_summary([self._item(99)])
+        assert summary["lanes"]["tier-99"] == 1
+        assert summary["total"] == 1
+
+    def test_writing_is_atomic_and_never_raises(self, tmp_path):
+        """⚠️ A reporting artefact must never be able to stop an ingest run."""
+        from app.core.ingest_queue_summary import build_queue_summary, write_queue_summary
+
+        path = tmp_path / "queue_summary.json"
+        write_queue_summary(build_queue_summary([self._item(TIER_EPUB)]), path)
+        assert json.loads(path.read_text(encoding="utf-8"))["lanes"]["epub"] == 1
+        assert not list(tmp_path.glob("*.tmp")), "no temp file may be left behind"
+
+        # An unwritable destination costs the page its split and the run nothing.
+        write_queue_summary({"x": 1}, tmp_path / "no" / "such" / "\0bad")

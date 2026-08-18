@@ -59,6 +59,7 @@ from app.core.ingest_queue import (
     STATE_PATH, TIER_NEEDS_OCR, TRANSCRIPTS_DIR, QueueItem, build_queue,
     count_reviews_by_book_id, load_chapters, load_state, mark, save_state,
 )
+from app.core.ingest_queue_summary import build_queue_summary, write_queue_summary
 from app.core.review_join import normalise_title
 
 
@@ -200,8 +201,11 @@ def pack_one(item: QueueItem, chapters: dict, state: dict,
     book = extract_for(item, chapters)
     if not book.chapters:
         log(f"  SKIP {item.title!r}: extracted no text")
+        # Titles on the non-done rows too: publish_index() serves EVERY row of
+        # the state, not just the packed ones, and `item.title` is a measured
+        # title off the catalog — not a de-slugged book_id.
         mark(state, item.book_id, STATUS_FAILED, reason="no text extracted",
-             source=item.source)
+             title=item.title, source=item.source)
         return None
 
     chunks, refs = chunk_book(book)
@@ -210,7 +214,8 @@ def pack_one(item: QueueItem, chapters: dict, state: dict,
         pack = build_pack(book, chunks, refs, extra=extra)
     except PackRefused as exc:
         log(f"  REFUSED {item.title!r}: {exc}")
-        mark(state, item.book_id, STATUS_FAILED, reason=str(exc), source=item.source)
+        mark(state, item.book_id, STATUS_FAILED, reason=str(exc),
+             title=item.title, source=item.source)
         return None
 
     gz = write_pack_gz(pack, PACKS_DIR)
@@ -224,7 +229,14 @@ def pack_one(item: QueueItem, chapters: dict, state: dict,
         return stats
 
     key = upload_pack(gz, item.book_id)
+    # ⚠️ `title` IS PART OF THE RECORD, and leaving it out is not free.
+    # publish_index() serves this entry verbatim, so a state row with no title
+    # becomes an index row with no title — which is how all 182 rows reached the
+    # serving layer nameless (found 2026-08-18). It is `book.title`, not
+    # `item.title`, ON PURPOSE: that is the exact string build_pack() writes into
+    # the pack, so this row and its pack spell the book one way rather than two.
     mark(state, item.book_id, STATUS_DONE, source=book.source,
+         title=book.title,
          chunks=stats["chunks"], chapters=stats["chapters"],
          text_bytes=stats["text_bytes"], gz_bytes=stats["gz_bytes"],
          key=key, ingester_version=INGESTER_VERSION,
@@ -286,6 +298,15 @@ def run(args) -> int:
         f"({sum(1 for i in queue if not i.needs_gpu)} CPU, "
         f"{sum(1 for i in queue if i.needs_gpu)} GPU)")
 
+    # The same work list, counted per tier, for /status/processing — which drew
+    # the whole audio shelf as one lane because the reviewed-vs-rest split lived
+    # only inside build_queue(). Written HERE, immediately after the log line, so
+    # the file and that line describe the SAME queue: processing-board.mjs
+    # cross-checks `audiobook-with-review + audiobook` against the GPU bucket it
+    # parses out of the log, and shows the split only when the two agree.
+    # ⚠️ Never raises — a status artefact must not be able to stop an ingest run.
+    write_queue_summary(build_queue_summary(queue, ingester_version=INGESTER_VERSION))
+
     done = failed = 0
     for item in queue:
         if item.tier == TIER_NEEDS_OCR:
@@ -293,6 +314,7 @@ def run(args) -> int:
             # this row is what stops the shelf looking as though the book is
             # simply missing.
             mark(state, item.book_id, STATUS_NEEDS_OCR, source="pdf-ocr",
+                 title=item.title,
                  reason=item.note or "image-scan PDF", blocker="OCR processor not built")
             save_state(state)
             continue
@@ -335,7 +357,8 @@ def run(args) -> int:
                     # window, and it is cheap enough to run any time.
                     continue
                 if not transcribe(item, batch):
-                    mark(state, item.book_id, STATUS_FAILED, reason="transcription failed")
+                    mark(state, item.book_id, STATUS_FAILED, title=item.title,
+                         reason="transcription failed")
                     failed += 1
                     save_state(state)
                     continue
@@ -344,7 +367,8 @@ def run(args) -> int:
             failed += 0 if stats else 1
         except Exception as exc:  # one bad book never ends the night
             log(f"  ERROR {item.title!r}: {type(exc).__name__}: {exc}")
-            mark(state, item.book_id, STATUS_FAILED, reason=f"{type(exc).__name__}: {exc}"[:300])
+            mark(state, item.book_id, STATUS_FAILED, title=item.title,
+                 reason=f"{type(exc).__name__}: {exc}"[:300])
             failed += 1
         save_state(state)
 
