@@ -46,10 +46,11 @@ MEASURED 2026-08-18 (`--status` re-measures; this is the seed's starting point).
 prints **decimal GB** (10^9, what Cloudflare bills in), Windows Explorer and
 PowerShell's ``/1GB`` print **GiB** (2^30).
 
-    included   1,260 files   684.98 GB  =  637.93 GiB
+    archived   1,245 files   684.55 GB  =  637.53 GiB   (inside author folders)
     of which   1,073 .m4b    675.9 GB   (largest single file 4.11 GB)
-               138 .epub, 30 .pdf, 7 .zip, 6 .mp4, 2 .exe, 2 .bak, 1 .kfx-zip, 1 .lnk
-    excluded   117 files      69.3 GB   (zzzz_Books_to_be_Converted)
+               126 .epub, 30 .pdf, 7 .zip, 6 .mp4, 2 .bak, 1 .lnk
+    unsorted      15 files     0.43 GB   loose in the root — SKIPPED, see below
+    excluded     117 files    69.3 GB    zzzz_Books_to_be_Converted
 
 At R2's $0.015 per GB-month that is **~$10.3/month** to hold, and R2 charges no
 egress, so a full restore costs nothing but time.
@@ -64,9 +65,36 @@ THE KEY SCHEME — ⚠️ CHANGING IT IS A MIGRATION, NOT AN EDIT
 
 No hashing, no re-encoding, no case folding. A human staring at the Cloudflare
 dashboard during a restore needs to read an author and a title, and a restore
-run with rclone needs the tree to come back in the shape it left. The 15 files
-that sit at the library root with no author folder key as ``archive/<file>``.
+run with rclone needs the tree to come back in the shape it left.
 `tests/test_archive_audio_r2.py` pins this with golden fixtures.
+
+⚠️ **Every key therefore has at least two segments after the prefix**, because
+only files inside an author folder are archived at all — see below.
+
+⚠️ AUTHOR FOLDERS ONLY — ROOT-LEVEL FILES ARE NOT ARCHIVED
+-----------------------------------------------------------
+Owner, 2026-08-18, on seeing the first build: *"it only pulls new books from the
+author folders right? i dont want it to pull books not sorted yet."*
+
+So the rule is **depth >= 1**: a file is archived only if it lives inside a
+subdirectory of the library root. A file sitting loose in ``books\\`` is
+**skipped**, and counted in the run report and in ``--status`` as
+**"unsorted, not archived"** — visibly, never silently.
+
+This is not a curation exception to the mirror-everything rule; it is what the
+owner means by his library. OpenAudible drops new purchases straight into
+``books\\<Author>\\``, so the sorted lane is sorted **by construction** and the
+ongoing sync is unaffected. The root is the unsorted staging area, and today it
+holds exactly what that implies: 15 loose files — two Windows installers
+(``epubor_ultimate.exe``, ``KindleForPC-installer…exe``), a ``.kfx-zip``, and a
+dozen DRM-stripped epub duplicates/samples (``WADW - Ava Cuvay_1.epub``,
+``…_2.epub``, ``…_3.epub`` and friends). None of that is library content.
+
+⚠️ **Files already uploaded from the root are NOT deleted.** The first seed ran
+before this rule existed and may have put some of those 15 up. Under the new
+rule they are no longer scanned, so they surface as ORPHANS in ``--status``
+(recorded, no local counterpart) — reported, kept, and left for the owner to
+decide. This script never deletes, and that does not change for a rule change.
 
 WHY boto3 MULTIPART AND NOT wrangler
 ------------------------------------
@@ -236,6 +264,26 @@ def is_excluded(rel_path: str) -> bool:
     return any(p.casefold() in EXCLUDED_DIR_NAMES for p in parts[:-1])
 
 
+def is_unsorted(rel_path: str) -> bool:
+    """True for a file sitting loose in the library root — depth 0, no author
+    folder. Those are NOT archived.
+
+    Owner, 2026-08-18: *"it only pulls new books from the author folders right?
+    i dont want it to pull books not sorted yet."* The root is the unsorted
+    staging area; ``books\\<Author>\\`` is the library. OpenAudible files new
+    purchases into an author folder, so the ongoing sync loses nothing by this.
+
+    ⚠️ A skipped file is COUNTED AND NAMED in the run report and in
+    ``--status``, never silently dropped. "The archive skipped it" and "the
+    archive never saw it" must not look the same from the outside — that
+    ambiguity is exactly what a disaster-recovery tool cannot afford.
+    """
+    try:
+        return "/" not in normalise_rel(rel_path)
+    except ValueError:
+        return False
+
+
 def archive_key(rel_path: str) -> str:
     """The R2 object key for one library-relative path.
 
@@ -341,12 +389,18 @@ def human_eta(seconds: float) -> str:
 # the local scan
 # ---------------------------------------------------------------------------
 def iter_library(root: Path) -> Iterator[Tuple[str, os.stat_result]]:
-    """Every file under ``root`` that is not excluded, as ``(rel, stat)``.
+    """Every file under ``root`` that is not in an excluded directory, as
+    ``(rel, stat)`` — INCLUDING the unsorted root-level ones.
 
-    ⚠️ EVERY file — not just ``app.config.EXTS``. This is a mirror of the disk,
-    so the epubs, pdfs, zips, the two installer exes and the stray .lnk all go
-    up. Curating an archive is how you discover, on the day you need it, that
-    the one thing you skipped mattered.
+    ⚠️ EVERY file type — not just ``app.config.EXTS``. Inside an author folder
+    this is a mirror of the disk, so the epubs, pdfs, zips and the stray .lnk
+    all go up. Curating an archive is how you discover, on the day you need it,
+    that the one thing you skipped mattered.
+
+    ⚠️ Root-level files are YIELDED here and separated by `scan_local`, not
+    dropped in the walk. They have to be counted and named to be reported as
+    "unsorted, not archived", and a filter that makes them invisible to the
+    walker cannot report what it never saw.
     """
     root = Path(root)
     for dirpath, dirnames, filenames in os.walk(root):
@@ -369,11 +423,15 @@ def iter_library(root: Path) -> Iterator[Tuple[str, os.stat_result]]:
             yield rel, st
 
 
-def scan_local(root: Path) -> Dict[str, dict]:
-    out: Dict[str, dict] = {}
+def scan_local(root: Path) -> Tuple[Dict[str, dict], Dict[str, dict]]:
+    """``(archivable, unsorted)`` — files in author folders, and the root-level
+    strays that are skipped but still reported. See `is_unsorted`."""
+    archivable: Dict[str, dict] = {}
+    unsorted: Dict[str, dict] = {}
     for rel, st in iter_library(root):
-        out[rel] = {"size": st.st_size, "mtime_ns": st.st_mtime_ns, "src": Path(root) / rel}
-    return out
+        meta = {"size": st.st_size, "mtime_ns": st.st_mtime_ns, "src": Path(root) / rel}
+        (unsorted if is_unsorted(rel) else archivable)[rel] = meta
+    return archivable, unsorted
 
 
 # ---------------------------------------------------------------------------
@@ -668,7 +726,7 @@ def upload_one(client, rel: str, src: Path, size: int) -> Tuple[bool, str]:
 # ---------------------------------------------------------------------------
 def print_status() -> int:
     files, failures = load_manifest()
-    local = scan_local(ROOT_DIR)
+    local, unsorted = scan_local(ROOT_DIR)
     done = {k: v for k, v in files.items() if k in local}
     remaining = [k for k in local if k not in files]
     total_bytes = sum(v["size"] for v in local.values())
@@ -679,14 +737,31 @@ def print_status() -> int:
     print(f"Bucket     : {BUCKET}  (prefix {ARCHIVE_PREFIX!r} — NEVER evictable)")
     print(f"Library    : {ROOT_DIR}")
     print(f"Manifest   : {MANIFEST_PATH}")
-    print(f"On disk    : {len(local)} files, {total_bytes / 1e9:.2f} GB")
+    print(f"On disk    : {len(local)} files, {total_bytes / 1e9:.2f} GB (in author folders)")
     pct = (done_bytes / total_bytes * 100) if total_bytes else 0.0
     print(f"Archived   : {len(done)} files, {done_bytes / 1e9:.2f} GB  ({pct:.1f}% by bytes)")
     print(f"Remaining  : {len(remaining)} files, {remaining_bytes / 1e9:.2f} GB")
+    if unsorted:
+        # ⚠️ Named, not just counted. "Not sorted yet" is a state the owner
+        # fixes by filing the book into an author folder, and he cannot file
+        # what he cannot see.
+        unsorted_bytes = sum(v["size"] for v in unsorted.values())
+        print(f"Unsorted   : {len(unsorted)} file(s), {unsorted_bytes / 1e9:.2f} GB loose in the "
+              f"library root — NOT archived (owner's rule: author folders only)")
+        for u in sorted(unsorted)[:20]:
+            print(f"    unsorted: {u} ({unsorted[u]['size'] / 1e6:.0f} MB)")
+        if len(unsorted) > 20:
+            print(f"    ... and {len(unsorted) - 20} more")
     if orphans:
-        print(f"Orphans    : {len(orphans)} archived file(s) no longer on disk (objects KEPT)")
-        for o in orphans[:10]:
-            print(f"    {o}")
+        print(f"Orphans    : {len(orphans)} archived file(s) with no local counterpart "
+              f"(objects KEPT — this script never deletes)")
+        for o in orphans[:20]:
+            # ⚠️ A root-level orphan is almost certainly one of the strays the
+            # first seed uploaded before the author-folders-only rule existed —
+            # not a book that vanished off the disk. Different cause, different
+            # decision, so say which it is.
+            why = " (root-level stray from the pre-rule seed)" if is_unsorted(o) else ""
+            print(f"    orphan: {o}{why}")
 
     rate = observed_rate_bps(files)
     if rate and remaining_bytes:
@@ -746,7 +821,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(f"Aborted {n} orphaned multipart upload(s) under {ARCHIVE_PREFIX!r}.")
         return 0
 
-    local = scan_local(ROOT_DIR)
+    local, unsorted = scan_local(ROOT_DIR)
     # ⚠️ The library total is measured BEFORE --only narrows the run, so the
     # "% of the library" line at the end means the same thing in a spot check as
     # it does in a full run. It said "100.0% of the library" after a one-file
@@ -762,7 +837,15 @@ def main(argv: Optional[List[str]] = None) -> int:
     print(f"Library  : {ROOT_DIR}")
     print(f"Bucket   : {BUCKET}  prefix {ARCHIVE_PREFIX!r}")
     print(f"On disk  : {len(local)} files, {total_bytes / 1e9:.2f} GB "
-          f"(zzzz_Books_to_be_Converted excluded)")
+          f"(author folders only; zzzz_Books_to_be_Converted excluded)")
+    if unsorted:
+        unsorted_bytes = sum(v["size"] for v in unsorted.values())
+        print(f"Unsorted : {len(unsorted)} file(s), {unsorted_bytes / 1e9:.2f} GB loose in the "
+              f"library root — NOT archived (owner's rule: author folders only)")
+        for u in sorted(unsorted)[:20]:
+            print(f"    unsorted: {u} ({unsorted[u]['size'] / 1e6:.0f} MB)")
+        if len(unsorted) > 20:
+            print(f"    ... and {len(unsorted) - 20} more")
     print(f"Recorded : {len(files)} files, "
           f"{sum(int(v.get('size') or 0) for v in files.values()) / 1e9:.2f} GB")
 

@@ -90,21 +90,97 @@ def test_walk_prunes_the_staging_pile(tmp_path):
     (staging / "part01.m4a").write_bytes(b"y" * 10)
     (staging / "nested").mkdir()
     (staging / "nested" / "part02.m4a").write_bytes(b"z" * 10)
-    (tmp_path / "loose_at_root.epub").write_bytes(b"w" * 10)
 
-    found = ar.scan_local(tmp_path)
-    assert set(found) == {"Brandon Sanderson/Skyward.m4b", "loose_at_root.epub"}
+    found, unsorted = ar.scan_local(tmp_path)
+    assert set(found) == {"Brandon Sanderson/Skyward.m4b"}
+    assert unsorted == {}
 
 
 def test_scan_archives_every_extension(tmp_path):
-    """⚠️ Not just app.config.EXTS. This is a mirror, not a catalogue: the exes,
-    the .bak files and the .lnk go up too. 'We lose this data we lose it all'
-    is an instruction to copy, not to judge."""
-    for name in ("book.m4b", "installer.exe", "notes.pdf", "cover.jpg", "link.lnk", "old.epub.bak"):
-        (tmp_path / name).write_bytes(b"x")
-    assert set(ar.scan_local(tmp_path)) == {
-        "book.m4b", "installer.exe", "notes.pdf", "cover.jpg", "link.lnk", "old.epub.bak",
+    """⚠️ Not just app.config.EXTS. Inside an author folder this is a mirror,
+    not a catalogue: the .bak files and the .lnk go up too. 'We lose this data
+    we lose it all' is an instruction to copy, not to judge."""
+    author = tmp_path / "Some Author"
+    author.mkdir()
+    for name in ("book.m4b", "notes.pdf", "cover.jpg", "link.lnk", "old.epub.bak"):
+        (author / name).write_bytes(b"x")
+    found, unsorted = ar.scan_local(tmp_path)
+    assert set(found) == {
+        "Some Author/book.m4b", "Some Author/notes.pdf", "Some Author/cover.jpg",
+        "Some Author/link.lnk", "Some Author/old.epub.bak",
     }
+    assert unsorted == {}
+
+
+# ---------------------------------------------------------------------------
+# 1b. AUTHOR FOLDERS ONLY — root-level strays are skipped, and SAID SO
+# ---------------------------------------------------------------------------
+# Owner, 2026-08-18, on seeing the first build: "it only pulls new books from
+# the author folders right? i dont want it to pull books not sorted yet."
+UNSORTED = [
+    "epubor_ultimate.exe",
+    "KindleForPC-installer-2.9.71006.exe",
+    "B000Q9F2YE_EBSP.azw.kfx-zip",
+    "WADW - Ava Cuvay_1.epub",
+    "My First Secret - Sci-FiPNR origin story - K. Rose - K. Rose.epub",
+]
+
+SORTED = [
+    "Brandon Sanderson/Skyward.m4b",
+    "Ryuto/Ryuto - Shortcut.lnk",
+    "Selkie Myth/BtDEM 15 Rise from the Ashes - Selkie Myth - 20250515.epub.bak",
+    # Depth 2 is still sorted — an author folder with a series subfolder.
+    "Brandon Sanderson/Stormlight/The Way of Kings.m4b",
+]
+
+
+@pytest.mark.parametrize("rel", UNSORTED)
+def test_root_level_strays_are_not_archived(rel):
+    assert ar.is_unsorted(rel) is True
+
+
+@pytest.mark.parametrize("rel", SORTED)
+def test_files_in_author_folders_are_archived(rel):
+    assert ar.is_unsorted(rel) is False
+
+
+def test_unsorted_is_depth_not_filetype():
+    """⚠️ The rule is WHERE the file sits, not what it is. The same .m4b is
+    archived in an author folder and skipped at the root — which is exactly the
+    owner's distinction ('not sorted yet'), and not a judgement about formats."""
+    assert ar.is_unsorted("Loose Book.m4b") is True
+    assert ar.is_unsorted("Some Author/Loose Book.m4b") is False
+    # Backslashes fold first, so a Windows path is judged on its real depth.
+    assert ar.is_unsorted("Some Author\\Loose Book.m4b") is False
+
+
+def test_scan_separates_unsorted_from_archivable(tmp_path):
+    """The root-level files must be RETURNED, not dropped in the walk — they
+    have to be counted and named in the report, and a filter that hides them
+    from the walker cannot report what it never saw."""
+    author = tmp_path / "Brandon Sanderson"
+    author.mkdir()
+    (author / "Skyward.m4b").write_bytes(b"x" * 100)
+    (tmp_path / "epubor_ultimate.exe").write_bytes(b"y" * 10)
+    (tmp_path / "WADW - Ava Cuvay_1.epub").write_bytes(b"z" * 10)
+
+    found, unsorted = ar.scan_local(tmp_path)
+    assert set(found) == {"Brandon Sanderson/Skyward.m4b"}
+    assert set(unsorted) == {"epubor_ultimate.exe", "WADW - Ava Cuvay_1.epub"}
+    # Sizes carried, so the report can say how much is sitting unsorted.
+    assert unsorted["epubor_ultimate.exe"]["size"] == 10
+
+
+def test_a_new_book_dropped_into_an_author_folder_is_still_picked_up(tmp_path):
+    """The ongoing-sync lane must be untouched by the root rule: OpenAudible
+    files new purchases into books\\<Author>\\, so they are sorted by
+    construction."""
+    author = tmp_path / "New Author"
+    author.mkdir()
+    (author / "Brand New Book.m4b").write_bytes(b"x" * 50)
+    found, unsorted = ar.scan_local(tmp_path)
+    assert "New Author/Brand New Book.m4b" in found
+    assert not unsorted
 
 
 # ---------------------------------------------------------------------------
@@ -116,7 +192,11 @@ GOLDEN = [
     ("Brandon Sanderson\\Skyward.m4b", "archive/Brandon Sanderson/Skyward.m4b"),
     # A leading slash is stripped, not doubled into the prefix.
     ("/Disney Books/Doc McStuffins.m4b", "archive/Disney Books/Doc McStuffins.m4b"),
-    # The 15 files that sit at the library root with no author folder.
+    # ⚠️ `archive_key` is depth-agnostic and stays that way — it is a pure
+    # string function, and the seed already uploaded some root-level strays
+    # under exactly this key before the author-folders-only rule existed, so
+    # `--status` still has to be able to name them. What changed is that
+    # `scan_local` no longer FEEDS it a root-level path; see `is_unsorted`.
     ("epubor_ultimate.exe", "archive/epubor_ultimate.exe"),
     # Apostrophes, ampersands and non-ASCII are carried literally, unencoded —
     # boto3 signs and encodes the key itself; wrangler's URL-splicing bugs
@@ -256,9 +336,22 @@ def test_force_bypasses_every_tier():
 def test_orphans_are_reported_and_never_deleted():
     """⚠️ A file that has left the disk is the exact event this archive exists
     for. Its object is the last copy; `orphan_paths` reports, it never deletes."""
-    local = {"a.m4b": {}}
-    record = {"a.m4b": {}, "gone.m4b": {}}
-    assert ar.orphan_paths(local, record) == ["gone.m4b"]
+    local = {"Author/a.m4b": {}}
+    record = {"Author/a.m4b": {}, "Author/gone.m4b": {}}
+    assert ar.orphan_paths(local, record) == ["Author/gone.m4b"]
+
+
+def test_root_strays_uploaded_before_the_rule_surface_as_orphans():
+    """⚠️ The first seed ran before the author-folders-only rule and may have
+    put some of the 15 root-level strays up. They are NOT deleted — this script
+    never deletes — so they surface as orphans for the owner to decide on. The
+    two orphan causes are different and must stay distinguishable: 'a book left
+    the disk' vs 'a stray we no longer scan'."""
+    local = {"Author/a.m4b": {}}
+    record = {"Author/a.m4b": {}, "epubor_ultimate.exe": {}}
+    orphans = ar.orphan_paths(local, record)
+    assert orphans == ["epubor_ultimate.exe"]
+    assert ar.is_unsorted(orphans[0]) is True, "status labels this cause separately"
 
 
 def test_manifest_entry_shape():
