@@ -331,7 +331,7 @@ def read_tags_cached(path: Path, cache: dict):
     return title, author or ""
 
 
-def run_extraction(force=False, retry_missing=False, no_llm=False, limit=0,
+def run_extraction(force=False, retry_missing=False, no_llm=False, limit=0,  # noqa: C901
                    backfill_precision=True):
     """Extract chapters for books not yet in chapters.json. Safe to call from
     the sync pipeline — already-done books are skipped via the tag cache

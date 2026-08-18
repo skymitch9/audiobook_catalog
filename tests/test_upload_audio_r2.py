@@ -217,7 +217,7 @@ def test_the_mid_book_shield_beats_a_stale_stream():
     a week routinely. An in-progress POSITION keeps it, even if the last
     stream request is ancient."""
     files = {"midbook.m4b": obj(last_stream_at=NOW - 60 * DAY,
-                               last_position_at=NOW - 2 * DAY)}
+                                last_position_at=NOW - 2 * DAY)}
     candidates, _ = fr.evict_candidates(files, now=NOW)
     assert candidates == []
 
