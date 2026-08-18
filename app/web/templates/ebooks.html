@@ -386,6 +386,10 @@ h1 .tail{color:var(--accent)}
 .eb-audio-link{
   display:inline-block;margin-top:14px;font-family:var(--sans);font-size:.9em;
   color:var(--accent);text-decoration:none;border-bottom:1px solid var(--rule);
+  /* Breathing room before the Read link that follows it on the card (owner,
+     2026-08-17: "the also on audio -> is super close to the Read -> lets give
+     them a bit of space to breathe"). */
+  margin-right:22px;
 }
 .eb-audio-link:hover{color:var(--accent-deep);border-bottom-color:var(--accent)}
 

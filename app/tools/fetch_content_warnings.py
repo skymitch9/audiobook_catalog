@@ -509,6 +509,17 @@ def pending_requests():
     return out
 
 
+def _clear_request(doc_name):
+    """Best-effort Firestore request-doc cleanup — a failure is a warning,
+    never a stopper (the request simply re-enters the next run)."""
+    if not doc_name:
+        return
+    try:
+        _fs_delete(doc_name)
+    except Exception as e:
+        print(f"  [WARN] request cleanup failed: {e}")
+
+
 def fulfill_requests(use_llm=True):
     """Run the full chain (incl. the paid Claude backfill) for every flagged
     book, then clear the fulfilled requests. Books that already have
@@ -525,11 +536,7 @@ def fulfill_requests(use_llm=True):
         entry = data.get(title)
         if title in done or (entry and entry.get("warnings")):
             done.add(title)
-            if doc_name:
-                try:
-                    _fs_delete(doc_name)
-                except Exception as e:
-                    print(f"  [WARN] request cleanup failed: {e}")
+            _clear_request(doc_name)
             continue
 
         # ⚠️ THE DEDUPE, and it sits here rather than at the button on purpose.
@@ -548,11 +555,7 @@ def fulfill_requests(use_llm=True):
             done.add(title)
             print(f"[request] {title}\n  -> already answered as \"{canonical}\" "
                   f"— carried across, NOT re-looked-up")
-            if doc_name:
-                try:
-                    _fs_delete(doc_name)
-                except Exception as e:
-                    print(f"  [WARN] request cleanup failed: {e}")
+            _clear_request(doc_name)
             continue
 
         print(f"[request] {title}")
@@ -565,11 +568,7 @@ def fulfill_requests(use_llm=True):
         done.add(title)
         print(f"  -> {len(warnings)} warnings via {source}" if warnings
               else "  -> none published (recorded)")
-        if doc_name:
-            try:
-                _fs_delete(doc_name)
-            except Exception as e:
-                print(f"  [WARN] request cleanup failed: {e}")
+        _clear_request(doc_name)
     if REQUESTS_FILE.exists():
         keep = [line for line in REQUESTS_FILE.read_text(encoding="utf-8").splitlines()
                 if not line.strip() or line.strip().startswith("#")
@@ -630,11 +629,22 @@ def main():
         print(f"club books (reads + TBR): {len(books)}")
 
     data = load_json(WARNINGS_PATH, {})
+    counts = _run_checks(sorted(books), data, args)
+    print(f"\nDone. with warnings: {counts['found']}, none published: {counts['none_found']}, "
+          f"already checked: {counts['skipped']}, carried from another spelling: {counts['carried']}, "
+          f"not recorded/failed: {counts['failed']}")
+    print(f"Wrote {WARNINGS_PATH}")
+    return 0
+
+
+def _run_checks(books, data, args):
+    """The per-book check loop, extracted whole from main() (lint C901).
+    Mutates `data` in place and saves as it goes; returns the counters."""
     index = catalog_title_index()
-    found = none_found = skipped = failed = carried = 0
-    for title, author in sorted(books):
+    counts = {"found": 0, "none_found": 0, "skipped": 0, "failed": 0, "carried": 0}
+    for title, author in books:
         if title in data and not args.force:
-            skipped += 1
+            counts["skipped"] += 1
             continue
         # ⚠️ `--force` re-checks on purpose, so the bridge stands aside for it —
         # a deliberate re-check must reach the sources, not a sibling's answer.
@@ -642,13 +652,13 @@ def main():
             canonical = already_answered(title, author, data, index)
             if canonical and canonical != title:
                 carry_over(data, title, canonical)
-                carried += 1
+                counts["carried"] += 1
                 print(f"[check] {title}\n  -> carried from \"{canonical}\" (not re-looked-up)")
                 continue
         print(f"[check] {title}")
         warnings, source = check_book(title, author, use_llm=not args.no_llm)
         if warnings is None:
-            failed += 1
+            counts["failed"] += 1
             if args.no_llm:
                 print("  -> nothing on hardcover (not recorded; LLM can backfill)")
             else:
@@ -657,21 +667,16 @@ def main():
         data[title] = {"warnings": warnings, "source": source, "checked_at": int(time.time())}
         if warnings:
             print(f"  -> {len(warnings)} published warnings via {source}")
-            found += 1
+            counts["found"] += 1
         else:
             print("  -> no published warnings found (recorded)")
-            none_found += 1
+            counts["none_found"] += 1
         save_json_with_retry(data, WARNINGS_PATH)
         if args.all:
             time.sleep(1)  # Hardcover rate limit is 60 req/min; we make 2/book
-
-    if carried:
+    if counts["carried"]:
         save_json_with_retry(data, WARNINGS_PATH)
-    print(f"\nDone. with warnings: {found}, none published: {none_found}, "
-          f"already checked: {skipped}, carried from another spelling: {carried}, "
-          f"not recorded/failed: {failed}")
-    print(f"Wrote {WARNINGS_PATH}")
-    return 0
+    return counts
 
 
 if __name__ == "__main__":
