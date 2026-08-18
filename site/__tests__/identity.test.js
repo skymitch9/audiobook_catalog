@@ -48,6 +48,7 @@ let authCallback = null;
 const signOutSpy = vi.fn(async () => {});
 const signInWithPopupMock = vi.fn();
 const signInWithRedirectMock = vi.fn(async () => {});
+const signInWithCustomTokenMock = vi.fn(async () => ({ user: { uid: 'uid-inherited' } }));
 
 vi.mock('firebase/auth', () => {
   return {
@@ -55,6 +56,7 @@ vi.mock('firebase/auth', () => {
     onAuthStateChanged: (auth, cb) => { authCallback = cb; return () => {}; },
     signInWithPopup: (...args) => signInWithPopupMock(...args),
     signInWithRedirect: (...args) => signInWithRedirectMock(...args),
+    signInWithCustomToken: (...args) => signInWithCustomTokenMock(...args),
     getRedirectResult: async () => null,
     GoogleAuthProvider: class GoogleAuthProvider {},
     signOut: (...args) => signOutSpy(...args),
@@ -67,6 +69,7 @@ import {
   getEstateStatus, isEstateApproved, renderDevSiteLink,
   getLiveUser, getIdToken, getSiteRole, isSiteAdmin, isSiteModerator,
   resolveAdmin, whenAdmin, resolveSiteAccess, SITE_ME_URL,
+  publishEstateSession, inheritEstateSession, startEstateSso,
 } from '../identity.js';
 
 const fakeApp = {};
@@ -986,5 +989,243 @@ describe('Site access — /api/me is the source, site_roles the fallback', () =>
     const access = await p;
     expect(access.source).toBe('fallback');
     expect(access.role).toBe('admin');
+  });
+});
+
+// ==========================================================================
+// ESTATE SSO — adoption on audiobooks. + ebooks. (sso-design.md §8c.5)
+//
+// The owner's complaint, verbatim: "Ebooks makes me login every time why is it
+// not inheriting login from main page?" Firebase auth state is per-ORIGIN, so
+// a sign-in on the apex left this site signed out. The fix is a parent-domain
+// HttpOnly cookie traded for a Worker-minted custom token.
+//
+// ⚠️ WHAT THESE TESTS ARE FOR, and what they cannot be. The signed-in hop
+// itself needs two real origins, a real cookie and a real Google session —
+// that is the owner's attended test, scripted in docs/access/ESTATE_SSO.md.
+// What is mechanical, and therefore pinned here, is the part that would fail
+// SILENTLY: credentials:'include' in BOTH directions (without it the browser
+// drops the Set-Cookie while every status still reads 200), the legacy guard
+// that must never yank a v1 name out from under somebody, and the rule that
+// every failure path leaves the page exactly as it is today.
+// ==========================================================================
+
+describe('Estate SSO — publishing this origin sign-in', () => {
+  const SESSION_URL = 'https://auth.heygabi.ai/api/session';
+
+  function ssoUser(uid, token = 'live-id-token') {
+    return { uid, getIdToken: async () => token };
+  }
+  function stubFetch(ok = true, answer = {}) {
+    const mock = vi.fn(async () => ({ ok, json: async () => answer }));
+    vi.stubGlobal('fetch', mock);
+    return mock;
+  }
+
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it('POSTs the bearer to /api/session WITH credentials — the whole mechanism', async () => {
+    const fetchMock = stubFetch();
+    expect(await publishEstateSession(fakeApp, ssoUser('uid-pub'))).toBe(true);
+    const [url, opts] = fetchMock.mock.calls[0];
+    expect(url).toBe(SESSION_URL);
+    expect(opts.method).toBe('POST');
+    expect(opts.headers.Authorization).toBe('Bearer live-id-token');
+    // ⚠️ The silent killer: without this the Set-Cookie is dropped on the way
+    // back and the mechanism no-ops while every status code reads 200.
+    expect(opts.credentials).toBe('include');
+  });
+
+  it('publishes once per browser session per uid — a D1 row per navigation is what that avoids', async () => {
+    const fetchMock = stubFetch();
+    expect(await publishEstateSession(fakeApp, ssoUser('uid-once'))).toBe(true);
+    expect(await publishEstateSession(fakeApp, ssoUser('uid-once'))).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // A DIFFERENT account is a different session, and does publish.
+    expect(await publishEstateSession(fakeApp, ssoUser('uid-other'))).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('a REFUSED publish is not marked — the next page load retries rather than silently never', async () => {
+    const failing = stubFetch(false);
+    expect(await publishEstateSession(fakeApp, ssoUser('uid-retry'))).toBe(false);
+    vi.unstubAllGlobals();
+    const ok = stubFetch(true);
+    expect(await publishEstateSession(fakeApp, ssoUser('uid-retry'))).toBe(true);
+    expect(failing).toHaveBeenCalledTimes(1);
+    expect(ok).toHaveBeenCalledTimes(1);
+  });
+
+  it('a thrown fetch answers false rather than propagating — the estate just does not learn', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('network down'); }));
+    await expect(publishEstateSession(fakeApp, ssoUser('uid-offline'))).resolves.toBe(false);
+  });
+
+  it('never asks with no live session — a legacy or stub mirror has no token to send', async () => {
+    const fetchMock = stubFetch();
+    const p = publishEstateSession(fakeApp);
+    authCallback(null);
+    expect(await p).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('logout() drops the publish marks, so a later sign-in re-publishes', async () => {
+    const fetchMock = stubFetch();
+    await publishEstateSession(fakeApp, ssoUser('uid-back'));
+    logout();
+    await publishEstateSession(fakeApp, ssoUser('uid-back'));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('Estate SSO — inheriting a sign-in from another surface', () => {
+  const TOKEN_URL = 'https://auth.heygabi.ai/api/session/token';
+
+  afterEach(() => { vi.unstubAllGlobals(); signInWithCustomTokenMock.mockClear(); });
+
+  it('trades the cookie for a custom token and signs in locally', async () => {
+    const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({ token: 'minted' }) }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    expect(await inheritEstateSession(fakeApp)).toBe(true);
+    const [url, opts] = fetchMock.mock.calls[0];
+    expect(url).toBe(TOKEN_URL);
+    expect(opts.method).toBe('POST');
+    // ⚠️ The same silent killer in the other direction: without credentials
+    // the cookie is never SENT, and the Worker answers 401 to a signed-in
+    // person while the page reports nothing at all.
+    expect(opts.credentials).toBe('include');
+    expect(signInWithCustomTokenMock).toHaveBeenCalledTimes(1);
+    expect(signInWithCustomTokenMock.mock.calls[0][1]).toBe('minted');
+  });
+
+  it('EVERY refusal degrades to exactly today signed-out page', async () => {
+    // 401 no_session (no cookie — the ordinary case), 403 estate_revoked,
+    // 503 token_signer_unset. A visitor can do nothing about any of them, so
+    // none is ever surfaced; the page simply says "Sign in", as it does today.
+    for (const status of [401, 403, 503, 500]) {
+      vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status, json: async () => ({}) })));
+      expect(await inheritEstateSession(fakeApp)).toBe(false);
+      vi.unstubAllGlobals();
+    }
+    expect(signInWithCustomTokenMock).not.toHaveBeenCalled();
+  });
+
+  it('a 200 with no token, a thrown fetch, and a rejected exchange all answer false', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({}) })));
+    expect(await inheritEstateSession(fakeApp)).toBe(false);
+    vi.unstubAllGlobals();
+
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('offline'); }));
+    expect(await inheritEstateSession(fakeApp)).toBe(false);
+    vi.unstubAllGlobals();
+
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ token: 'bad' }) })));
+    signInWithCustomTokenMock.mockRejectedValueOnce(new Error('auth/invalid-custom-token'));
+    expect(await inheritEstateSession(fakeApp)).toBe(false);
+  });
+});
+
+describe('Estate SSO — the decision and the legacy guard (owner decision Q5)', () => {
+  // ⚠️ startEstateSso takes the user the auth mirror's listener was just
+  // handed, rather than opening its own onAuthStateChanged. That is a
+  // deliberate design choice (one subscription, and the answer is only
+  // knowable at that moment), and it is what makes these cases plain calls
+  // with no listener juggling.
+  const liveFbUser = (uid = 'uid-local') => ({ uid, getIdToken: async () => 'tok' });
+
+  afterEach(() => { vi.unstubAllGlobals(); signInWithCustomTokenMock.mockClear(); });
+
+  it('signed in HERE already → publishes, and inherits nothing', async () => {
+    const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({}) }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    expect(await startEstateSso(fakeApp, liveFbUser())).toBe(false);
+    expect(fetchMock.mock.calls[0][0]).toBe('https://auth.heygabi.ai/api/session');
+    expect(signInWithCustomTokenMock).not.toHaveBeenCalled();
+  });
+
+  it('signed out here, cookie present → inherits silently', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ token: 'minted' }) })));
+    expect(await startEstateSso(fakeApp, null)).toBe(true);
+    expect(signInWithCustomTokenMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('signed out here, NO cookie → stays signed out, exactly as today', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 401, json: async () => ({ error: 'no_session' }) })));
+    expect(await startEstateSso(fakeApp, null)).toBe(false);
+    expect(getSession()).toBeNull();
+    expect(signInWithCustomTokenMock).not.toHaveBeenCalled();
+  });
+
+  it('NEVER inherits over a LEGACY v1 mirror — the upgrade button stays the one door', async () => {
+    const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({ token: 'minted' }) }));
+    vi.stubGlobal('fetch', fetchMock);
+    setLegacyMirror('Divaelf'); // a name captured before 2026-08-14, no marker
+
+    expect(await startEstateSso(fakeApp, null)).toBe(false);
+    // Not even asked: a silent sign-in would replace the name their reviews
+    // are filed under, and say nothing about it.
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(signInWithCustomTokenMock).not.toHaveBeenCalled();
+    expect(getSession().displayName).toBe('Divaelf');
+    expect(getSession().legacy).toBe(true);
+  });
+
+  it('never inherits over the dev-lane STUB either — it is a test fixture, not a person', async () => {
+    const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({ token: 'minted' }) }));
+    vi.stubGlobal('fetch', fetchMock);
+    setLiveMirror('Automation');
+    localStorage.setItem('ab_identity_live', 'stub');
+
+    expect(await startEstateSso(fakeApp, null)).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('a live-marked mirror with no session behind it is NOT protected — that is residue', async () => {
+    // Marker '1' means the auth listener wrote it. If Firebase now says "no
+    // user", the row is stale residue, not a legacy identity, and inheriting
+    // is the right answer.
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ token: 'minted' }) })));
+    setLiveMirror('Skylar');
+    expect(await startEstateSso(fakeApp, null)).toBe(true);
+  });
+
+  it('no app → false, and nothing is asked', async () => {
+    const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({}) }));
+    vi.stubGlobal('fetch', fetchMock);
+    expect(await startEstateSso(undefined, null)).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('a thrown publish or exchange never escapes — the page is never broken by SSO', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('network down'); }));
+    await expect(startEstateSso(fakeApp, liveFbUser('uid-boom'))).resolves.toBe(false);
+    await expect(startEstateSso(fakeApp, null)).resolves.toBe(false);
+  });
+});
+
+describe('Estate SSO — sign-out clears the cookie so the sign-in stops travelling', () => {
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it('signOutGoogle DELETEs /api/session with credentials', async () => {
+    const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({}) }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await signOutGoogle(fakeApp);
+
+    expect(signOutSpy).toHaveBeenCalled();
+    const [url, opts] = fetchMock.mock.calls[0];
+    expect(url).toBe('https://auth.heygabi.ai/api/session');
+    expect(opts.method).toBe('DELETE');
+    expect(opts.credentials).toBe('include');
+    expect(getSession()).toBeNull();
+  });
+
+  it('a failed cookie-clear never breaks the local sign-out', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('offline'); }));
+    setLiveMirror('Skylar');
+    await expect(signOutGoogle(fakeApp)).resolves.toBeUndefined();
+    expect(getSession()).toBeNull();
   });
 });

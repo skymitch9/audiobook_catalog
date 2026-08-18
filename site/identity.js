@@ -30,7 +30,7 @@
 //     retired account; nobody migrates, the paths simply end.
 
 import { doc, getDoc, setDoc, getFirestore } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
-import { getAuth, signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+import { getAuth, signInWithPopup, signInWithRedirect, signInWithCustomToken, getRedirectResult, GoogleAuthProvider, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 import { col, IS_DEV_LANE } from './fb-env.js';
 
 // ==================== The mirror ====================
@@ -91,17 +91,20 @@ function mirrorUser(user, marker) {
  * Clear the mirror — the WHOLE ab_identity_* family, tagged or not, so a
  * sign-out always lands in a truly signed-out UI whatever residue any lane's
  * code left behind. Public as `logout()` for legacy sessions and tests.
- * Also drops the per-session estate-approval cache and the cached admin
- * answer: a signed-out (or revoked-and-signed-out) person must not keep a
- * cached "approved", nor a cached "admin".
+ * Also drops the per-session estate-approval cache, the cached admin answer
+ * and the estate-SSO publish markers: a signed-out (or revoked-and-signed-out)
+ * person must not keep a cached "approved", nor a cached "admin", nor a marker
+ * claiming their sign-in was already published to the estate.
  */
 export function logout() {
   sweepMirror();
   clearEstateCache();
   resetAdminCache();
+  clearPublishMarks();
 }
 
 let _mirrorAttached = false;
+let _ssoDecided = false;
 
 /**
  * Keep the mirror in sync with Firebase auth state. Attached once per page by
@@ -125,6 +128,20 @@ function attachAuthMirror(app) {
         helloEstate(user);
       } else if (localStorage.getItem(LIVE_MARKER) === '1') {
         logout();
+      }
+      // ⚠️ The estate-SSO decision rides on THIS listener's FIRST answer, and
+      // deliberately does not open a second one. Firebase publishes its
+      // restored session asynchronously, so "is this browser signed in here?"
+      // is only answerable at this exact moment — reading the pre-listener
+      // state as "signed out" is the classic bug in this mechanism. Riding the
+      // listener the mirror already needs means one subscription, one source
+      // of that answer, and no ordering to get wrong.
+      //
+      // FIRST answer only: a later fire is this listener seeing the session
+      // SSO just created (or a sign-in/sign-out), never a new question.
+      if (!_ssoDecided) {
+        _ssoDecided = true;
+        startEstateSso(app, user);
       }
     });
   } catch (e) {
@@ -358,6 +375,211 @@ export function whenAdmin(db, app, show) {
     .catch(() => { /* fail closed — show nothing */ });
 }
 
+// ==================== Estate SSO (sso-design.md §4.3, Phase 3) ====================
+//
+// THE COMPLAINT THIS ANSWERS, the owner's own words: "Ebooks makes me login
+// every time why is it not inheriting login from main page?" Firebase web auth
+// state is per-ORIGIN (its own IndexedDB per origin), so a sign-in on
+// heygabi.ai left audiobooks.heygabi.ai — and ebooks.heygabi.ai, which
+// proxies THIS page and therefore runs THIS module under that hostname —
+// signed out.
+//
+// THE MECHANISM: an HttpOnly cookie on the parent domain (`.heygabi.ai`, set
+// by auth.heygabi.ai) plus a Worker-minted Firebase custom token. Sign in
+// interactively once, anywhere on the estate; every other origin trades that
+// cookie for a short-lived custom token and calls signInWithCustomToken() to
+// create its OWN ordinary local session. Because the result is an ordinary
+// session, the auth mirror below picks it up through the listener it already
+// has and getSession() goes right with no extra work — no reload, no page
+// edits. Both origins are already on the Worker's SESSION_ORIGINS allow-list
+// (design §8c.4 measured them live).
+//
+// ⚠️ WHAT THIS IS NOT: it is NOT authority, and it does NOT make this site a
+// walled garden. No Worker anywhere trusts the cookie for authorization; every
+// consumer still verifies a real Firebase ID token and consults the estate
+// directory on the 10-minute TTL, exactly as before. All the cookie can
+// produce is a session the same person could get by tapping the Google button
+// themselves — it moves the SIGN-IN, never the authority. firestore.rules stays
+// shape-only (PLATFORM.md §4a) and this changes nothing about that.
+//
+// ⚠️ SILENT BY DEFAULT, STATUS QUO ON FAILURE. Every path below swallows its
+// errors and answers false. No cookie, a Worker outage, an unset signing key,
+// a browser that partitions the cookie away — all degrade to exactly today's
+// behaviour: the identity bar shows "Sign in" and the page works. Nothing here
+// throws, nothing blocks first paint, and nothing is awaited by a render path.
+// This site is public and SSO must never become a wall on it.
+
+const SESSION_URL = 'https://auth.heygabi.ai/api/session';
+const SESSION_TOKEN_URL = 'https://auth.heygabi.ai/api/session/token';
+
+/** Publish-once marker, per browser session per uid — see publishEstateSession.
+ * Deliberately inside the ab_identity_* family so logout()'s sweep reaches it. */
+const PUBLISH_MARK_PREFIX = 'ab_identity_estate_published_'; // + uid, sessionStorage
+
+/** Drop every publish marker, so the next sign-in re-publishes rather than
+ * believing it already had. Called from logout(), which is the one chokepoint
+ * every path that ends a mirror passes through. */
+function clearPublishMarks() {
+  try {
+    const stale = [];
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const k = sessionStorage.key(i);
+      if (k && k.indexOf(PUBLISH_MARK_PREFIX) === 0) stale.push(k);
+    }
+    stale.forEach((k) => sessionStorage.removeItem(k));
+  } catch (e) { /* storage unavailable — nothing was marked anyway */ }
+}
+
+/**
+ * Tell the estate this browser is signed in: POST our fresh Firebase ID token
+ * to the auth Worker, which verifies it and sets the parent-domain cookie.
+ * That cookie is what every OTHER estate origin later trades for a session.
+ *
+ * ⚠️ Marked once per browser session per uid, deliberately. POST /api/session
+ * creates a NEW session row every call (one per device is the intent), so
+ * calling it on every page load would spam D1 with a row per navigation. The
+ * marker is kept only on success, so a failed publish retries on the next page
+ * load rather than silently never — the same idiom helloEstate() already uses.
+ *
+ * @param {import('firebase/app').FirebaseApp} app
+ * @param {object} [user] the live Firebase User, when the caller already has
+ *   one (the popup result). Omitted, it waits for the SDK to publish one.
+ * @returns {Promise<boolean>} true when the cookie was set. Never throws.
+ */
+export async function publishEstateSession(app, user) {
+  try {
+    const u = user || (await liveUser(app).catch(() => null));
+    if (!u || !u.uid || typeof u.getIdToken !== 'function') return false;
+
+    const key = PUBLISH_MARK_PREFIX + u.uid;
+    try {
+      if (sessionStorage.getItem(key)) return false;
+    } catch (e) { /* storage unavailable — publish anyway, at worst an extra row */ }
+
+    const token = await u.getIdToken();
+    const res = await fetch(SESSION_URL, {
+      method: 'POST',
+      // ⚠️ Required in BOTH directions, and its absence is the nastiest
+      // possible failure: the browser silently drops the Set-Cookie on the way
+      // back while every status code still reads 200 (design §8c.2).
+      credentials: 'include',
+      headers: { Authorization: 'Bearer ' + token },
+    });
+    if (!res.ok) return false;
+    try { sessionStorage.setItem(key, '1'); } catch (e) { /* retry next page */ }
+    return true;
+  } catch (e) {
+    return false; // offline, CORS, storage — the estate simply does not learn
+  }
+}
+
+/**
+ * Inherit a sign-in that happened on another estate surface. Trades the
+ * parent-domain cookie for a short-lived custom token and turns it into an
+ * ordinary local Firebase session on THIS origin.
+ *
+ * Call on load ONLY when this origin has no local session of its own —
+ * startEstateSso() below makes that check and is what pages go through.
+ *
+ * Deliberately does NOT cache its failures: a negative answer goes stale the
+ * moment the person signs in on another tab, and one small bodyless fetch per
+ * signed-out page load is the price of inheritance feeling instant.
+ *
+ * @returns {Promise<boolean>} true when a session was created here. Never throws.
+ */
+export async function inheritEstateSession(app) {
+  try {
+    if (!app) return false;
+    const res = await fetch(SESSION_TOKEN_URL, { method: 'POST', credentials: 'include' });
+    // 401 no_session (no cookie — the ordinary signed-out case), 403
+    // estate_revoked, 503 token_signer_unset all land here and all mean the
+    // same thing to this page: stay signed out and say exactly what it says
+    // today. A refusal is never surfaced to anyone; there is nothing for a
+    // visitor to do about it.
+    if (!res.ok) return false;
+    const body = await res.json();
+    if (!body || typeof body.token !== 'string') return false;
+    await signInWithCustomToken(getAuth(app), body.token);
+    // The mirror needs no help: attachAuthMirror's listener fires on the new
+    // session and calls mirrorUser(), so getSession() is right on the next
+    // synchronous read. No reload — unlike the redirect path, which reloads
+    // because it lands mid-render.
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
+ * Decide, once per page load, what this browser's estate session should do.
+ * No page calls this directly: it rides the auth mirror's first answer (see
+ * attachAuthMirror), which in turn rides handleRedirectResult — this module's
+ * standing every-page-on-load rule. A new page therefore inherits SSO by
+ * obeying a rule it already had to obey, and cannot forget to. That chokepoint
+ * trick is design §8c.2, and it is why no page in this repo needed editing.
+ *
+ * Exactly one of two things happens:
+ *   - already signed in here → publish, so this sign-in can travel;
+ *   - not signed in here     → try to inherit one from the estate.
+ *
+ * ⚠️ THE LEGACY GUARD — owner decision Q5, and the reason this is not a
+ * verbatim paste of the apex's bootstrap. A legacy v1 mirror row (a name
+ * captured before 2026-08-14, with no live session behind it) must NEVER be
+ * yanked out from under somebody by a silent sign-in: inheriting would replace
+ * their name — the one their reviews are filed under — with whatever Google
+ * account the estate cookie names, and say nothing. The "Sign in" upgrade
+ * button already on the identity bar stays the ONE door out of a legacy
+ * session, because it is a door the person chooses to walk through.
+ *
+ * The dev-lane stub is skipped for the same shape of reason: it is a
+ * deliberate test fixture, and materialising a real session underneath an
+ * automated flow would replace the identity that flow is asserting on.
+ *
+ * @param {import('firebase/app').FirebaseApp} app
+ * @param {object|null} user the live Firebase User Firebase just published,
+ *   or null. NOT the getLiveUser() snapshot — publishing needs a real token.
+ * @returns {Promise<boolean>} true iff this browser ended up signed in on this
+ *   origin because of this call. Fire-and-forget; nothing renders off it.
+ */
+export async function startEstateSso(app, user) {
+  if (!app) return false;
+  try {
+    if (user && user.uid) {
+      await publishEstateSession(app, user);
+      return false; // already signed in here; nothing was inherited
+    }
+    // No live session on this origin. Is there a mirror we must not disturb?
+    const marker = (() => {
+      try { return localStorage.getItem(LIVE_MARKER); } catch (e) { return null; }
+    })();
+    const session = getSession();
+    if (session && (session.legacy || marker === 'stub')) return false;
+    return await inheritEstateSession(app);
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
+ * Stop this sign-in travelling: clear the parent-domain cookie. Called from
+ * signOutGoogle alongside the local signOut.
+ *
+ * ⚠️ Sign-out is LOCAL + COOKIE-CLEAR, an explicit owner decision (design §9
+ * Q4). An origin that has ALREADY localised a session keeps it until it ends
+ * naturally — this does not reach out and sign anyone out everywhere. Full
+ * single-sign-out would need every origin to re-check the cookie on each load,
+ * which reintroduces the "one page signs you out from under another" failure
+ * class identity v1 died of. The security-relevant lever is estate revocation,
+ * which shuts every door within minutes and is untouched by any of this.
+ */
+async function endEstateSession() {
+  try {
+    await fetch(SESSION_URL, { method: 'DELETE', credentials: 'include' });
+  } catch (e) {
+    /* the local session is already gone; a stranded cookie expires on its own */
+  }
+}
+
 // ==================== Google sign-in ====================
 
 /**
@@ -382,7 +604,9 @@ const POPUP_UNAVAILABLE = new Set([
  * still signed out, with no error to explain it.
  *
  * Also attaches the auth mirror, so simply calling this keeps the page's
- * synchronous identity view honest.
+ * synchronous identity view honest — and, since 2026-08-18, is what starts
+ * estate SSO (see startEstateSso). Both ride this one call for the same
+ * reason: it is the only thing every sign-in-offering page reliably does.
  *
  * @param {import('firebase/app').FirebaseApp} app
  */
@@ -398,6 +622,8 @@ export async function handleRedirectResult(app) {
       await ensureProfile(getFirestore(app), user.displayName || user.email, user.photoURL || '');
       // The session stays live — no signOut. Reload so every part of the
       // page (much of it rendered synchronously at load) sees the session.
+      // The estate publish happens on the reloaded page, off the auth
+      // mirror's first answer — one code path, not two.
       location.reload();
     }
   } catch (e) {
@@ -448,6 +674,12 @@ export async function signInWithGoogle(app) {
 
     mirrorUser(user);
     await ensureProfile(getFirestore(app), user.displayName || user.email, user.photoURL || '');
+    // Let this sign-in travel: publish it to the estate so the other surfaces
+    // inherit it silently. Awaited — it is one fast request, and a person who
+    // signs in here and clicks straight through to another catalog should find
+    // the cookie already set. A failure is silent: this origin is signed in
+    // either way, which is all this function promises.
+    await publishEstateSession(app, user);
 
     return { success: true, displayName: user.displayName || user.email };
   } catch (e) {
@@ -460,8 +692,10 @@ export async function signInWithGoogle(app) {
 }
 
 /**
- * Sign out: end the Firebase session and clear the mirror. Also the right
- * call for legacy sessions — the signOut of an absent session is a no-op.
+ * Sign out: end the Firebase session, clear the mirror, and clear the estate
+ * cookie so this sign-in stops travelling to the other surfaces. Also the
+ * right call for legacy sessions — the signOut of an absent session is a
+ * no-op, and so is a DELETE with no cookie to delete.
  * @param {import('firebase/app').FirebaseApp} app
  */
 export async function signOutGoogle(app) {
@@ -472,6 +706,7 @@ export async function signOutGoogle(app) {
     // Ignore signout errors
   }
   logout();
+  await endEstateSession();
 }
 
 // ==================== Estate approval (the dev-site gate) ====================
