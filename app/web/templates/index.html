@@ -1353,13 +1353,50 @@ function wireAppearance(container){
             }
           });
         } else {
-          // Reading lists — TBR only
+          // Reading lists — TBR only.
+          //
+          // ⚠️ TWO DIFFERENT QUESTIONS, and only one of them has an account to
+          // ask about (2026-08-18, "Make tbr keyed to account"):
+          //
+          //   MY list (no `forUser`) — attributed by ACCOUNT via
+          //     ownsReadingListDoc, the one implementation. A member who shares
+          //     my display name no longer appears on my list, which is the
+          //     whole point of the migration.
+          //
+          //   SOMEBODY ELSE'S list (`forUser`, reached from the community page)
+          //     — still attributed by display NAME, because that is the only
+          //     handle the link carries. ⚠️ NOT FIXED by this migration and
+          //     deliberately so: nothing listable maps a name to an account
+          //     (profiles is name-keyed; site_roles is uid-keyed but readable
+          //     only as your own doc), so there is no way to ask "whose list"
+          //     without one. It is a strictly public, read-only view of a
+          //     world-readable collection, so the residual is that two
+          //     name-sharers' PUBLIC lists read as one — never that either can
+          //     write or delete the other's. Closing it needs a listable
+          //     name->account directory, which is a separate ask.
           var rlSnap = await getDocs(collection(firestore, fbEnv.col('readingLists')));
+          var revMod2 = await import('./reviews.js');
+          var me = null;
+          if (!forUser) {
+            // ⚠️ `getApp()`, not the module block's `app`. This function lives
+            // in the page's PLAIN <script>, which cannot see the module scope —
+            // hence the dynamic imports throughout. `getLiveUser` returns null
+            // for a falsy app, so passing nothing would silently answer "no
+            // account" for everybody and quietly fall back to name matching.
+            var liveMe = null;
+            try {
+              var { getApp } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js');
+              liveMe = await identityMod.getLiveUser(getApp());
+            } catch(e) {}
+            me = { uid: liveMe ? liveMe.uid : null, displayName: targetUser };
+          }
           rlSnap.docs.forEach(function(d) {
             var data = d.data();
-            if (data.displayName && data.displayName.toLowerCase() === targetUser.toLowerCase() && data.status === 'tbr') {
-              matchTitles.add(data.bookTitle);
-            }
+            if (data.status !== 'tbr') return;
+            var mine = me
+              ? revMod2.ownsReadingListDoc(data, me)
+              : !!data.displayName && data.displayName.toLowerCase() === targetUser.toLowerCase();
+            if (mine) matchTitles.add(data.bookTitle);
           });
         }
 
@@ -1562,8 +1599,8 @@ function wireAppearance(container){
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
   import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
   import { coverUrl } from './covers-base.js';
-  import { getSession, signInWithGoogle, signOutGoogle, whenAdmin, handleRedirectResult, renderDevSiteLink, getSiteRole, resolveSiteAccess } from './identity.js';
-  import { submitReview, getReviews, renderStars, bookIdFromTitle, computeAverageRating, formatDate, deleteReview } from './reviews.js';
+  import { getSession, getLiveUser, signInWithGoogle, signOutGoogle, whenAdmin, handleRedirectResult, renderDevSiteLink, getSiteRole, resolveSiteAccess } from './identity.js';
+  import { submitReview, getReviews, renderStars, bookIdFromTitle, computeAverageRating, formatDate, deleteReview, readingListDocId, legacyReadingListDocId, ownsReadingListDoc } from './reviews.js';
   import { addUserWarning, getUserWarnings, deleteUserWarning, requestWarningCheck, getWarningRequest } from './user-warnings.js';
   import { col, FIREBASE_CONFIG } from './fb-env.js';
   import { mountEstateSearch } from './estate-search-mount.js';
@@ -2101,13 +2138,39 @@ function wireAppearance(container){
     }
 
     const { doc, getDoc, setDoc, deleteDoc, serverTimestamp, collection } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
-    const docId = `${session.displayName.toLowerCase()}_${bookId}`;
-    const listRef = doc(db, col('readingLists'), docId);
+
+    // ⚠️ ACCOUNT-KEYED since 2026-08-18 (owner: "Make tbr keyed to account").
+    // The id used to be `${session.displayName.toLowerCase()}_${bookId}`, so
+    // two members who picked the same display name shared one document per
+    // book — each saw and could delete the other's list. `getLiveUser` is the
+    // ONE accessor for the enforced identity; the localStorage mirror
+    // (getSession) has no uid on purpose and never will.
+    const live = await getLiveUser(app).catch(() => null);
+    const uid = live && live.uid ? live.uid : null;
+
+    // ⚠️ THE LEGACY READ IS A FALLBACK AND IS READ-ONLY. A signed-in person
+    // whose entry the migration could not move — or who added a book from a
+    // still-open legacy tab — must still see `✓ To Be Read` rather than a
+    // button that lies. What it must NEVER do is become the write target for
+    // somebody who has an account: that would file a new document back under
+    // the shared name key and re-open the hole one book at a time.
+    // REMOVAL CONDITION: drop this branch when a re-run of
+    // `scripts/migrate_tbr_to_uid.py --report` shows zero uid-less documents.
+    const uidRef = uid ? doc(db, col('readingLists'), readingListDocId(uid, bookId)) : null;
+    const legacyRef = doc(db, col('readingLists'),
+                          legacyReadingListDocId(session.displayName, bookId));
+
+    // Where a NEW entry goes: the account when there is one, the old key only
+    // for a session that has no account to key to (a v1 passphrase capture).
+    const writeRef = uidRef || legacyRef;
 
     let currentStatus = null;
+    let heldRef = null;   // which document actually holds the entry, if any
     try {
-      const snap = await getDoc(listRef);
-      if (snap.exists()) currentStatus = snap.data().status;
+      for (const ref of (uidRef ? [uidRef, legacyRef] : [legacyRef])) {
+        const snap = await getDoc(ref);
+        if (snap.exists()) { currentStatus = snap.data().status; heldRef = ref; break; }
+      }
     } catch(e) {}
 
     // Get cover from modal
@@ -2122,11 +2185,22 @@ function wireAppearance(container){
 
       readingListContainer.querySelector('#rl-tbr-btn').addEventListener('click', async () => {
         if (currentStatus === 'tbr') {
-          await deleteDoc(listRef);
+          // ⚠️ Delete the document that actually HOLDS the entry, which for a
+          // legacy one is not where a new write would go. Removing `writeRef`
+          // instead would be a silent no-op and leave the book on the list.
+          await deleteDoc(heldRef || writeRef);
           currentStatus = null;
+          heldRef = null;
         } else {
-          await setDoc(listRef, { displayName: session.displayName, bookId, bookTitle, bookCover: cover, status: 'tbr', addedAt: serverTimestamp() });
+          const data = { displayName: session.displayName, bookId, bookTitle, bookCover: cover, status: 'tbr', addedAt: serverTimestamp() };
+          // The `uid` field is what every collection SCAN attributes by
+          // (reviews.js ownsReadingListDoc) and what firestore.rules pins to
+          // the id. Omitted — never blank — when there is no account, because
+          // an empty string is the value the legacy branch of both is keyed on.
+          if (uid) data.uid = uid;
+          await setDoc(writeRef, data);
           currentStatus = 'tbr';
+          heldRef = writeRef;
         }
         renderBtns();
       });
@@ -2393,7 +2467,15 @@ function wireAppearance(container){
           submitBtn.disabled = true;
           statusEl.textContent = 'Submitting...';
 
-          const result = await submitReview(db, bookId, session.displayName, selectedRating, text || '');
+          // ⚠️ The uid is passed for ONE reason: clearTbrForRating has to be
+          // able to retire the ACCOUNT-keyed TBR entry, which is where every
+          // entry written since 2026-08-18 lives. Without it a rating would
+          // clear only the legacy id and leave the book sitting on the list —
+          // the exact "the button lies" failure the instant clear exists to
+          // prevent. The review document itself is unchanged and still
+          // display-name keyed.
+          const liveRater = await getLiveUser(app).catch(() => null);
+          const result = await submitReview(db, bookId, session.displayName, selectedRating, text || '', liveRater ? liveRater.uid : undefined);
           if (result.success) {
             statusEl.textContent = 'Review saved!';
             // Update table rating cell immediately

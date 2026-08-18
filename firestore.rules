@@ -63,6 +63,15 @@ rules_version = '2';
 // (the Worker demands one for every byte), so there is no legacy uid-less
 // population to strand. See ownsPositionDoc() below.
 //
+// ⚠️ A THIRD EXCEPTION, 2026-08-18 (owner: "Make tbr keyed to account"):
+// /readingLists (+ _dev) is now OWNER-ONLY FOR WRITES on account-keyed
+// documents. Unlike readingPositions this collection DID have a legacy
+// uid-less population, and the 53 documents that could not be moved keep the
+// old shape-only rules rather than being stranded — so this is the first
+// collection running BOTH models at once, told apart by the shape of the
+// document id. Reads stay world-open; three surfaces list the collection.
+// See canWriteReadingList() below, which says all of that at length.
+//
 // Audited end to end 2026-08-10; club/uid layer added 2026-08-14 against
 // every writer in site/*.js, site/*.html, app/*.py and app/tools/*.py.
 // Prod and *_dev rules must always stay in step.
@@ -100,6 +109,93 @@ service cloud.firestore {
       return request.resource.data.displayName is string
              && request.resource.data.bookId is string
              && request.resource.data.status is string;
+    }
+
+    // ---- Reading lists (TBR): ACCOUNT-keyed since 2026-08-18 ----
+    //
+    // Owner's order, verbatim: "Make tbr keyed to account".
+    //
+    // ⚠️ WHAT THIS FIXES. The id was `{displayNameLower}_{bookId}`, so two
+    // members who choose the same display name shared one document per book —
+    // each saw the other's intentions on their own list and could delete them.
+    // The header above says a shape-only rule "can never bind a display name
+    // to a person", and that is exactly right; the fix was therefore never a
+    // rule, it was a KEY CHANGE plus a migration of the documents
+    // (scripts/migrate_tbr_to_uid.py, 234 documents, 2026-08-18). These rules
+    // are what stop the old hole being re-opened by a future writer.
+    //
+    // ⚠️ ONE COLLECTION, TWO LANES, AND THE ID SAYS WHICH. 181 documents moved
+    // to `{uid}_{bookId}`. 53 could NOT: their owner is a retired v1
+    // passphrase account with no Firebase uid to key to, and inventing one for
+    // somebody's reading list was refused. So the old id must stay writable,
+    // or those 53 become unreachable to the only person entitled to them —
+    // the same "do not strand the legacy population" reasoning the file's
+    // header applies everywhere else.
+    //
+    // The two lanes get different rules and CANNOT be confused for each other:
+    //   account-keyed  id head is a 28-char uid  -> OWNER-ONLY, like a position
+    //   legacy         anything else             -> shape-only, exactly as before
+    //
+    // ⚠️ WHY `read` STAYS OPEN. It always was, and three surfaces list this
+    // whole collection (the site's own Reading-lists filter, community.html's
+    // per-person counts, and the library catalog's My TBR). The order was to
+    // key the list to an account, and that is what fixes the reported bug:
+    // attribution is now exact, so a name-sharer's entries no longer appear on
+    // your list and cannot be deleted by them. Making the collection unlistable
+    // is a different, larger change that would break all three, and it was not
+    // ordered. Stated here so nobody reads owner-only WRITES as owner-only
+    // reads.
+
+    // A Firebase uid is 28 characters of [A-Za-z0-9]. A legacy id starts with a
+    // lowercased DISPLAY NAME, which across all 14 accounts and 234 documents
+    // measured on migration day is shorter, longer, or contains a space or a
+    // bracket. ⚠️ site/reviews.js `isUidKeyedListId` is the same predicate and
+    // the two must agree — changing one alone silently re-opens the hole.
+    function tbrIdIsUidKeyed(docId) {
+      return docId.split('_')[0].size() == 28
+             && docId.split('_')[0].matches('[A-Za-z0-9]+');
+    }
+
+    // Your own account-keyed document. Same shape as ownsPositionDoc, and the
+    // `_` is load-bearing for the same reason: it is what reads the account
+    // back out of the id. Neither half can contain one (a uid is alphanumeric,
+    // a bookIdFromTitle slug is [a-z0-9-]).
+    function ownsTbrDoc(docId) {
+      return request.auth != null
+             && docId.split('_')[0] == request.auth.uid;
+    }
+
+    // ⚠️ `.get(field, default)` throughout, never `field in data` followed by a
+    // read: a missing field read directly ERRORS the whole expression rather
+    // than failing one branch, which would turn an intended allow into a deny
+    // (or worse, on a rewrite, the reverse).
+    function tbrUid() {
+      return request.resource.data.get('uid', '');
+    }
+
+    // A document may be written iff it is YOUR account-keyed one carrying YOUR
+    // uid, or it is a legacy display-name one carrying NO uid.
+    //
+    // ⚠️ The uid FIELD and the uid in the ID must be the same account, and both
+    // must be the caller. Two holes closed by that pairing: filing a document
+    // under somebody else's id (denied — the id head is not your uid), and
+    // filing one under your OWN id carrying somebody else's uid, which every
+    // reader that trusts the field would then mis-attribute. Neither is
+    // reachable without the other half.
+    function canWriteReadingList(docId) {
+      return validReadingList()
+             && ((ownsTbrDoc(docId) && tbrUid() == request.auth.uid)
+                 || (!tbrIdIsUidKeyed(docId) && tbrUid() == ''));
+    }
+
+    // ⚠️ Delete stays OPEN for legacy documents, and that is the same accepted
+    // residual risk the file header records for reviews and club content: no
+    // rule can bind a display name to a person, so there is nobody to check
+    // against. It is NOT open for account-keyed ones — those are owner-only,
+    // and that is the half the migration bought.
+    function canDeleteReadingList(docId) {
+      return ownsTbrDoc(docId)
+             || (!tbrIdIsUidKeyed(docId) && resource.data.get('uid', '') == '');
     }
 
     // ---- Reading positions (the ebook reader's "save your spot") ----
@@ -794,10 +890,13 @@ service cloud.firestore {
       allow write: if validProfile();
     }
 
+    // Account-keyed since 2026-08-18 — see canWriteReadingList above for the
+    // whole story, the legacy lane it deliberately keeps open, and why `read`
+    // is still world-open.
     match /readingLists/{docId} {
       allow read: if true;
-      allow write: if validReadingList();
-      allow delete: if true;
+      allow create, update: if canWriteReadingList(docId);
+      allow delete: if canDeleteReadingList(docId);
     }
 
     // Owner-only, both lanes. See ownsPositionDoc/validReadingPosition above.
@@ -1028,10 +1127,14 @@ service cloud.firestore {
       allow write: if validProfile();
     }
 
+    // Mirrors /readingLists — keep the two in step. ⚠️ Same note as
+    // readingPositions_dev: the DATA lane is suffixed but the RULE is the same
+    // rule. Ownership is not a lane property, and a dev-lane hole is a
+    // prod-lane hole with a nicer name.
     match /readingLists_dev/{docId} {
       allow read: if true;
-      allow write: if validReadingList();
-      allow delete: if true;
+      allow create, update: if canWriteReadingList(docId);
+      allow delete: if canDeleteReadingList(docId);
     }
 
     // Mirrors /readingPositions — keep the two in step. ⚠️ The DATA lane is

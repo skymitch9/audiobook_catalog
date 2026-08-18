@@ -91,7 +91,7 @@ vi.mock('firebase/firestore', () => {
   };
 });
 
-import { bookIdFromTitle, computeAverageRating, submitReview, getReviews, renderStars, renderReviewSection, formatDate, deleteReview, clearTbrForRating } from '../reviews.js';
+import { bookIdFromTitle, computeAverageRating, submitReview, getReviews, renderStars, renderReviewSection, formatDate, deleteReview, clearTbrForRating, readingListDocId, legacyReadingListDocId, isUidKeyedListId, ownsReadingListDoc } from '../reviews.js';
 import { col } from '../fb-env.js';
 
 const fakeDb = {};
@@ -665,5 +665,219 @@ describe('TBR instant-clear on rating', () => {
     // col() is the one lane switch (fb-env.js); asserting the key is built
     // through it is what keeps this delete on the same lane as the button.
     expect(rlKey('Jane', 'dune').startsWith(`${col('readingLists')}/`)).toBe(true);
+  });
+});
+
+// ==================== TBR keyed to the ACCOUNT (2026-08-18) ====================
+//
+// Owner's order, verbatim: "Make tbr keyed to account".
+//
+// The id was `{displayNameLower}_{bookId}`, so two members who chose the same
+// display name shared ONE document per book: each saw the other's intentions on
+// their own list and could delete them. A display name identifies nobody, and
+// firestore.rules says in its own header that no rule can bind one to a person
+// — so the fix had to be the key, and 234 live documents had to move with it
+// (scripts/migrate_tbr_to_uid.py).
+//
+// ⚠️ 53 of them could NOT move: their owner is a retired v1 passphrase account
+// with no Firebase uid to key to, and the migration refuses to guess an owner
+// for somebody's reading list. So this collection runs TWO models at once, and
+// the tests below have to pin both — the account lane AND the legacy lane that
+// keeps those 53 reachable.
+
+const uidKey = (uid, bookId) => `${col('readingLists')}/${uid}_${bookId}`;
+
+// A real Firebase uid: 28 characters of [A-Za-z0-9]. The length is load-bearing
+// (firestore.rules `tbrIdIsUidKeyed` reads it), so the fixtures use real shapes.
+const UID_A = 'tX912OtdBheUhIe4kLDsGuJwE3D2'.slice(0, 28);
+const UID_B = 'jjuEFDx0RehdFbvYDe1djZFbU5s2'.slice(0, 28);
+
+describe('readingListDocId — the account key', () => {
+  it('is `{uid}_{bookId}`, matching positionDocId exactly', () => {
+    expect(readingListDocId(UID_A, 'dune')).toBe(`${UID_A}_dune`);
+  });
+
+  it('is still the REVERSE of a review id — that much did not change', () => {
+    // tbr.md §2. The left-hand half became an account; the ORDER is untouched,
+    // and building a review-ordered id would still file a stray document.
+    expect(readingListDocId(UID_A, 'dune')).not.toBe(`dune_${UID_A}`);
+  });
+
+  it('does NOT fold case, because a uid is case-sensitive and a name was not', () => {
+    // ⚠️ The old key lowercased, because display names had to match loosely.
+    // A uid must not: `tX912…` and `tx912…` are different accounts as far as
+    // any comparison here is concerned, and folding one would build an id that
+    // matches nothing and silently loses the entry.
+    expect(readingListDocId('AbC', 'dune')).toBe('AbC_dune');
+    expect(readingListDocId('AbC', 'dune')).not.toBe(readingListDocId('abc', 'dune'));
+  });
+
+  it('never collides with a legacy id for the same book', () => {
+    // The two lanes coexist in one collection; if they could collide, the
+    // migration would overwrite the very documents it was preserving.
+    expect(readingListDocId(UID_A, 'dune')).not.toBe(legacyReadingListDocId('Skylar', 'dune'));
+  });
+});
+
+describe('legacyReadingListDocId — read-only, and NOT dead code', () => {
+  it('still builds the pre-migration id, case-folded as it always was', () => {
+    expect(legacyReadingListDocId('Jane Doe', 'dune')).toBe('jane doe_dune');
+    expect(legacyReadingListDocId('JANE DOE', 'dune')).toBe('jane doe_dune');
+  });
+
+  it('survives a missing name rather than throwing', () => {
+    expect(legacyReadingListDocId(undefined, 'dune')).toBe('_dune');
+  });
+});
+
+describe('isUidKeyedListId — the predicate firestore.rules mirrors', () => {
+  // ⚠️ If this and `tbrIdIsUidKeyed` in firestore.rules ever disagree, the hole
+  // re-opens silently: the client would write to one lane and the rules would
+  // police the other.
+  it('reads a 28-character alphanumeric head as an account', () => {
+    expect(isUidKeyedListId(`${UID_A}_dune`)).toBe(true);
+  });
+
+  it('reads every real legacy id as legacy', () => {
+    // Every display name measured in the live population, 2026-08-18.
+    for (const name of ['skylar', 'samantha hardman', 'jamie jeremiah lievertz',
+                        'divaelf', 'skylar mitchell (skymitch9)', 'remy']) {
+      expect(isUidKeyedListId(`${name}_dune`)).toBe(false);
+    }
+  });
+
+  it('rejects a head of the right length that is not alphanumeric', () => {
+    expect(isUidKeyedListId(`${'a'.repeat(27)}-_dune`)).toBe(false);
+  });
+
+  it('rejects heads of the wrong length', () => {
+    expect(isUidKeyedListId(`${'a'.repeat(27)}_dune`)).toBe(false);
+    expect(isUidKeyedListId(`${'a'.repeat(29)}_dune`)).toBe(false);
+  });
+
+  it('is total — a malformed or empty id answers false, never throws', () => {
+    expect(isUidKeyedListId('')).toBe(false);
+    expect(isUidKeyedListId(undefined)).toBe(false);
+    expect(isUidKeyedListId('nounderscore')).toBe(false);
+  });
+});
+
+describe('ownsReadingListDoc — whose list is this?', () => {
+  it('matches an account-keyed document by uid', () => {
+    expect(ownsReadingListDoc({ uid: UID_A, displayName: 'Skylar' },
+                              { uid: UID_A, displayName: 'Skylar' })).toBe(true);
+  });
+
+  it('⚠️ does NOT hand a name-sharer somebody else account-keyed entry', () => {
+    // THE BUG THE MIGRATION EXISTS TO FIX, asserted directly. Two members, one
+    // display name: before, this was the same document and this predicate did
+    // not exist. A regression here is invisible on every screen.
+    expect(ownsReadingListDoc({ uid: UID_A, displayName: 'Skylar' },
+                              { uid: UID_B, displayName: 'Skylar' })).toBe(false);
+  });
+
+  it('⚠️ never falls back to the name for a document that HAS a uid', () => {
+    // The fallback is what keeps the legacy 53 reachable. Applying it to an
+    // account-keyed document would re-open the hole while every other test
+    // still passed — so it is pinned separately from the case above.
+    expect(ownsReadingListDoc({ uid: UID_A, displayName: 'Skylar' },
+                              { uid: null, displayName: 'Skylar' })).toBe(false);
+  });
+
+  it('matches a LEGACY (uid-less) document by display name', () => {
+    expect(ownsReadingListDoc({ displayName: 'Divaelf' },
+                              { uid: UID_A, displayName: 'Divaelf' })).toBe(true);
+  });
+
+  it('folds case and whitespace on the legacy path only', () => {
+    expect(ownsReadingListDoc({ displayName: '  DIVAELF ' },
+                              { uid: null, displayName: 'divaelf' })).toBe(true);
+  });
+
+  it('a document with neither key belongs to nobody', () => {
+    expect(ownsReadingListDoc({}, { uid: UID_A, displayName: 'Skylar' })).toBe(false);
+    expect(ownsReadingListDoc({ displayName: 'Skylar' }, {})).toBe(false);
+  });
+
+  it('is total — undefined arguments answer false rather than throwing', () => {
+    expect(ownsReadingListDoc(undefined, undefined)).toBe(false);
+  });
+});
+
+describe('clearTbrForRating clears BOTH ids', () => {
+  beforeEach(() => { mockStore = {}; timestampCounter = 0; });
+
+  it('retires the ACCOUNT-keyed entry when the rater has an account', async () => {
+    mockStore[uidKey(UID_A, 'dune')] = { uid: UID_A, displayName: 'Skylar', status: 'tbr' };
+
+    const r = await clearTbrForRating(fakeDb, 'dune', 'Skylar', UID_A);
+
+    expect(r.cleared).toBe(true);
+    expect(mockStore[uidKey(UID_A, 'dune')]).toBeUndefined();
+  });
+
+  it('⚠️ also retires a LEGACY entry the migration could not move', async () => {
+    // A signed-in person may still hold an entry under the old id — the 53, or
+    // one written by a still-open legacy tab. Clearing only the account id
+    // would leave a rated book on their list, which is the exact "the button
+    // lies about a list" failure the instant clear was written to prevent.
+    mockStore[rlKey('Skylar', 'dune')] = { displayName: 'Skylar', status: 'tbr' };
+
+    const r = await clearTbrForRating(fakeDb, 'dune', 'Skylar', UID_A);
+
+    expect(r.cleared).toBe(true);
+    expect(mockStore[rlKey('Skylar', 'dune')]).toBeUndefined();
+  });
+
+  it('clears both at once when both somehow exist', async () => {
+    mockStore[uidKey(UID_A, 'dune')] = { uid: UID_A, displayName: 'Skylar', status: 'tbr' };
+    mockStore[rlKey('Skylar', 'dune')] = { displayName: 'Skylar', status: 'tbr' };
+
+    await clearTbrForRating(fakeDb, 'dune', 'Skylar', UID_A);
+
+    expect(mockStore[uidKey(UID_A, 'dune')]).toBeUndefined();
+    expect(mockStore[rlKey('Skylar', 'dune')]).toBeUndefined();
+  });
+
+  it('with NO uid it touches only the legacy id — a legacy session made no other entry', async () => {
+    mockStore[uidKey(UID_A, 'dune')] = { uid: UID_A, displayName: 'Skylar', status: 'tbr' };
+    mockStore[rlKey('Skylar', 'dune')] = { displayName: 'Skylar', status: 'tbr' };
+
+    await clearTbrForRating(fakeDb, 'dune', 'Skylar');
+
+    expect(mockStore[rlKey('Skylar', 'dune')]).toBeUndefined();
+    expect(mockStore[uidKey(UID_A, 'dune')]).toBeDefined(); // not theirs to clear
+  });
+
+  it('⚠️ never clears ANOTHER account entry for the same book', async () => {
+    mockStore[uidKey(UID_A, 'dune')] = { uid: UID_A, displayName: 'Skylar', status: 'tbr' };
+    mockStore[uidKey(UID_B, 'dune')] = { uid: UID_B, displayName: 'Skylar', status: 'tbr' };
+
+    await clearTbrForRating(fakeDb, 'dune', 'Skylar', UID_A);
+
+    expect(mockStore[uidKey(UID_A, 'dune')]).toBeUndefined();
+    expect(mockStore[uidKey(UID_B, 'dune')]).toBeDefined();
+  });
+
+  it('a refusal on one id does not stop the other delete', async () => {
+    // Both are attempted before anything is reported — otherwise a rules
+    // refusal on the first would silently leave the second entry standing.
+    mockStore[uidKey(UID_A, 'dune')] = { uid: UID_A, status: 'tbr', __denyDelete: true };
+    mockStore[rlKey('Skylar', 'dune')] = { displayName: 'Skylar', status: 'tbr' };
+
+    const r = await clearTbrForRating(fakeDb, 'dune', 'Skylar', UID_A);
+
+    expect(r.cleared).toBe(false);
+    expect(typeof r.error).toBe('string');
+    expect(mockStore[rlKey('Skylar', 'dune')]).toBeUndefined(); // still cleared
+  });
+
+  it('a rating through submitReview passes the uid through', async () => {
+    mockStore[uidKey(UID_A, 'dune')] = { uid: UID_A, displayName: 'Skylar', status: 'tbr' };
+
+    const r = await submitReview(fakeDb, 'dune', 'Skylar', 4, 'good', UID_A);
+
+    expect(r.success).toBe(true);
+    expect(mockStore[uidKey(UID_A, 'dune')]).toBeUndefined();
   });
 });
