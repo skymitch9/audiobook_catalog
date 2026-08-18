@@ -288,7 +288,26 @@ def fulfill_requests(commit: bool = False) -> dict:
 
     if not commit:
         print("\nDRY RUN (default) — nothing uploaded, nothing cleared. Re-run with --commit.")
+        return stats
+
+    # ⚠️ PUBLISH, or the upload was for nothing. The Worker resolves
+    # `anchor -> path` out of the manifest in a PRIVATE R2 bucket, not out of
+    # site/audio_manifest.json (which is gitignored and never leaves this
+    # machine). An uploaded object nobody published is 600 MB in R2 that the
+    # player answers `not_streamable` for — the worst of both, billed and
+    # unusable. Soft: publish_if_changed never raises, and its own no-op branch
+    # makes this free when nothing changed.
+    _publish_manifest()
     return stats
+
+
+def _publish_manifest() -> None:
+    """Push the record to the gated bucket. Soft — STEP 5.9 must never stop."""
+    try:
+        from scripts.publish_audio_manifest import publish_if_changed
+        publish_if_changed()
+    except Exception as exc:  # noqa: BLE001
+        print(f"  [WARN] audio manifest publish failed: {exc}")
 
 
 # ---------------------------------------------------------------------------
@@ -382,6 +401,10 @@ def run_eviction(commit: bool = False, idle_days: int = EVICT_IDLE_DAYS) -> dict
             except Exception as exc:  # noqa: BLE001
                 print(f"  [WARN] could not delete {key}: {exc}")
         up.write_record(record)
+        # An eviction that is not published leaves the player offering a play
+        # button for a book we just deleted — a 404 where a worded "request it"
+        # belongs. Same soft contract as the fulfil path.
+        _publish_manifest()
     return {"candidates": len(candidates), "kept": len(refusals)}
 
 

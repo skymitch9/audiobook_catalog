@@ -689,6 +689,18 @@ html[data-theme="cyberpunk"] #recently-added h2{ letter-spacing:1px !important; 
         <ul id="m-warnings-list" style="margin:8px 0 2px 18px; font-size:.9em; line-height:1.5;"></ul>
         <div id="m-cw-actions"></div>
       </details>
+      <!-- Listen / request-this-audiobook row — audio player PHASE 1
+           (2026-08-18). ⚠️ NO PLAYER LIVES HERE YET; phase 2 owns <audio>, the
+           chapter-relative scrub bar and the service-worker bearer seam. This
+           renders the honest three-rung ladder that sits where the player will
+           go: "not streamable yet — request it" -> "requested" -> "ready to
+           stream (player coming)".
+           Filled by renderAudioRow() below; STAYS EMPTY for anyone who is
+           signed out or does not hold the listen grant, which is the standing
+           rule's preferred shape — do not render a control someone cannot use.
+           Wiring: site/audio-request.js. Design: catalog-platform
+           docs/info/audio-player-design.md §12 decision 3. -->
+      <div id="m-audio" style="margin-top:10px;"></div>
       <!-- Reading list buttons -->
       <div id="m-reading-list" style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap;"></div>
       <!-- Reviews section -->
@@ -1604,6 +1616,7 @@ function wireAppearance(container){
   import { getSession, getLiveUser, signInWithGoogle, signOutGoogle, whenAdmin, handleRedirectResult, renderDevSiteLink, getSiteRole, resolveSiteAccess } from './identity.js';
   import { submitReview, getReviews, renderStars, bookIdFromTitle, computeAverageRating, formatDate, deleteReview, readingListDocId, ownsReadingListDoc } from './reviews.js';
   import { addUserWarning, getUserWarnings, deleteUserWarning, requestWarningCheck, getWarningRequest } from './user-warnings.js';
+  import { getAudioStatus, isStreamable, getAudioRequest, requestAudio } from './audio-request.js';
   import { col, FIREBASE_CONFIG } from './fb-env.js';
   import { mountEstateSearch } from './estate-search-mount.js';
 
@@ -2302,6 +2315,122 @@ function wireAppearance(container){
   }
   window.renderUserWarnings = renderUserWarnings;
 
+  // --- Listen / request this audiobook (audio player PHASE 1) ---
+  //
+  // ⚠️ THREE RUNGS, AND THE THIRD IS DELIBERATELY NOT A PLAYER. Phase 2 builds
+  // <audio>, the chapter-relative scrub bar, Media Session and the
+  // service-worker bearer seam; shipping a play button now would be a control
+  // that does nothing, which is the one thing the estate's refusal rule
+  // forbids outright. "Ready to stream — player coming" is the honest rung.
+  //
+  // ⚠️ NOTHING RENDERS for a signed-out visitor or for someone without the
+  // listen grant, and that is the preferred shape rather than a refusing
+  // button. The grant is the estate's `vis_ebooks` — owner decision 1,
+  // 2026-08-17: "MIRROR EBOOK if they can read an ebook they can listen to an
+  // audio." Seeing this catalogue is `vis_audiobook` and is a different
+  // question, which is exactly why an audio row can be absent on a page the
+  // person can otherwise read.
+  //
+  // ⚠️ An OUTAGE is not a refusal. A Worker that cannot be reached, or a
+  // manifest that has never been published, leaves the row EMPTY rather than
+  // claiming the book is unavailable — mislabelling an outage as a permission
+  // fact sends people asking for access they already hold.
+  const audioContainer = document.getElementById('m-audio');
+
+  function _audioBtnStyle() {
+    return 'margin:0;padding:5px 12px;background:none;border:1px solid var(--border,#555);'
+         + 'color:var(--muted,#888);cursor:pointer;font-family:inherit;font-size:.82em;';
+  }
+
+  function _audioNote(text) {
+    const p = document.createElement('div');
+    p.style.cssText = 'margin-top:6px;color:var(--muted,#888);font-size:.78em;line-height:1.4;';
+    p.textContent = text;
+    return p;
+  }
+
+  async function renderAudioRow(bookTitle) {
+    if (!audioContainer || !db || !app) return;
+    audioContainer.innerHTML = '';
+    if (!bookTitle) return;
+
+    const status = await getAudioStatus(app);
+    // The user may have opened a different book while we asked.
+    if (document.getElementById('modal-title').textContent !== bookTitle) return;
+    // Signed out, no grant, or an outage — render nothing at all. See above.
+    if (!status.ok) return;
+    audioContainer.innerHTML = '';
+
+    // Rung 3 — the file is in the bucket and every grant holder can play it,
+    // as soon as there is something to play it with.
+    if (isStreamable(status, bookTitle)) {
+      const ready = document.createElement('div');
+      ready.id = 'm-audio-ready';
+      ready.style.cssText = 'color:var(--neon-cyan,#0cc);font-size:.85em;';
+      ready.textContent = '🎧 Ready to stream — player coming';
+      audioContainer.appendChild(ready);
+      audioContainer.appendChild(_audioNote(
+        'This audiobook is uploaded and ready. The in-browser player itself is the next '
+        + 'piece of work, so there is nothing to press yet.'));
+      return;
+    }
+
+    // Rungs 1 and 2. The pile is readable by rule, so a book somebody else has
+    // already asked for shows as requested for everyone — which is the whole
+    // point of one document per book.
+    const pile = await getAudioRequest(db, bookTitle);
+    if (document.getElementById('modal-title').textContent !== bookTitle) return;
+
+    const btn = document.createElement('button');
+    btn.id = 'm-audio-request';
+    btn.style.cssText = _audioBtnStyle();
+
+    const markRequested = (count) => {
+      btn.textContent = '🎧 Requested ✓';
+      btn.disabled = true;
+      btn.style.cursor = 'default';
+      audioContainer.querySelectorAll('[data-audio-note]').forEach((n) => n.remove());
+      // ⚠️ "a few hours", never "within the hour". The pipeline that fulfils
+      // this queue runs every EIGHT HOURS (sync step 5.9). The design's first
+      // draft said "usually ready within the hour"; that is a promise the
+      // machine cannot keep, and a person who waits three hours on it
+      // concludes the button is broken.
+      const note = _audioNote(
+        'Queued. The library machine uploads requested books on its next run — that is '
+        + 'usually a few hours, because the pipeline runs every eight hours. Once it lands '
+        + 'it is streamable for everyone, permanently.'
+        + (count > 1 ? ` ${count} people have asked for this one.` : ''));
+      note.dataset.audioNote = '1';
+      audioContainer.appendChild(note);
+    };
+
+    if (pile) {
+      audioContainer.appendChild(btn);
+      markRequested((pile.requesters || []).length);
+      return;
+    }
+
+    btn.textContent = '🎧 Not streamable yet — request it';
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      const r = await requestAudio(db, app, bookTitle);
+      if (r.success) {
+        markRequested(r.requesters || 1);
+      } else {
+        // ⚠️ Never a silently dead button. A refused write says what happened
+        // and what to do about it, in words.
+        btn.disabled = false;
+        alert(r.error);
+      }
+    });
+    audioContainer.appendChild(btn);
+    audioContainer.appendChild(_audioNote(
+      'Audiobooks are uploaded on request rather than all at once — the library is 630 GB, '
+      + 'so only the books somebody actually wants get stored. Ask for this one and it '
+      + 'becomes streamable for everyone.'));
+  }
+  window.renderAudioRow = renderAudioRow;
+
   // --- Reviews in modal ---
   const reviewsContainer = document.getElementById('m-reviews');
 
@@ -2316,6 +2445,10 @@ function wireAppearance(container){
             if (title) {
               renderReviewSection(title);
               renderReadingListButtons(title);
+              // Audio phase 1. ⚠️ Fire-and-forget on purpose: the row is a
+              // gated cross-origin fetch, and a slow Worker must never hold up
+              // the reviews or the TBR buttons rendering.
+              renderAudioRow(title);
             }
           }
         }
