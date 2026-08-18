@@ -366,7 +366,7 @@ def run(args) -> int:
     # ⚠️ Never raises — a status artefact must not be able to stop an ingest run.
     write_queue_summary(build_queue_summary(queue, ingester_version=INGESTER_VERSION))
 
-    done = failed = 0
+    done = failed = skipped = 0
     for item in queue:
         if item.tier == TIER_NEEDS_OCR:
             # ⚠️ Recorded, not attempted. OCR is not built (owner, 2026-08-18);
@@ -392,22 +392,14 @@ def run(args) -> int:
         # pack-only pass wait for a GPU it never touches.
         will_transcribe = item.needs_gpu and not args.no_transcribe and not _transcript_for(item.title)
 
-        if not args.now:
-            decision = decide_start(control, needs_gpu=will_transcribe,
-                                    allow_opportunistic=args.opportunistic,
-                                    audio_seconds=item.duration_sec)
-            if not decision.may_start:
-                log(f"STOP before {item.title!r}: {decision.reason}")
+        verdict, words, batch = _gate(args, control, item, will_transcribe, skipped)
+        if verdict != "go":
+            log(f"{verdict.upper()} before {item.title!r}: {words}")
+            if verdict == "stop":
                 break
-            batch = decision.batch_size
-        else:
-            # --now skips the window; the pause and the guard still bind.
-            blocked = (None if args.ignore_control else
-                       _control_or_guard(control, will_transcribe, item.duration_sec))
-            if blocked:
-                log(f"STOP before {item.title!r}: {blocked}")
-                break
-            batch = batch_size_for()
+            skipped += 1
+            continue
+        skipped = 0   # consecutive, not cumulative: a start clears the run
 
         try:
             if item.needs_gpu and not _transcript_for(item.title):
@@ -436,6 +428,58 @@ def run(args) -> int:
     _write_receipt(state, done, failed, args.dry_run)
     log(f"run complete: {done} packed, {failed} failed")
     return 0
+
+
+MAX_ITEM_SKIPS = 25
+
+
+def _gate(args, control: ControlState, item: QueueItem, will_transcribe: bool,
+          skipped: int) -> tuple:
+    """`("go"|"skip"|"stop", words, batch_size)` for one book.
+
+    The whole gate decision for one item, in one place, so `run()` stays a loop
+    over books rather than a loop with a policy engine inside it. Two paths
+    because `--now` waives the window and nothing else - see `_control_or_guard`.
+    """
+    if not args.now:
+        decision = decide_start(control, needs_gpu=will_transcribe,
+                                allow_opportunistic=args.opportunistic,
+                                audio_seconds=item.duration_sec)
+        if decision.may_start:
+            return "go", decision.reason, decision.batch_size
+        verdict, words = _stop_or_skip(decision, skipped)
+        return verdict, words, decision.batch_size
+
+    blocked = (None if args.ignore_control else
+               _control_or_guard(control, will_transcribe, item.duration_sec))
+    return ("stop", blocked, batch_size_for()) if blocked else \
+           ("go", "--now", batch_size_for())
+
+
+def _stop_or_skip(decision: StartDecision, skipped: int) -> tuple:
+    """`("stop"|"skip", words)` for a refusal. ⚠️ NOT every refusal ends a run.
+
+    🔴 THE INCIDENT THIS ENCODES (2026-08-18, 15:30): every refusal used to be
+    global - a pause, a busy machine, the wrong hour - so `break` was right and
+    this function did not need to exist. The deadline gate broke that: "this
+    book is too long to finish by 08:00" says nothing about the 40-minute book
+    behind it, and stopping on it throws away the rest of the night. The same
+    shape had already cost an afternoon for a different reason - one pack-only
+    book at the head of the queue refused, and 1,028 GPU books behind it never
+    got looked at.
+
+    So: an ITEM-SPECIFIC refusal skips to the next book, a global one stops.
+    ⚠️ Bounded, because a skip is not free - each one costs a control re-read -
+    and near a boundary EVERY remaining book will refuse. After MAX_ITEM_SKIPS
+    consecutive skips the run stops and says so, rather than walking 1,000 books
+    to discover the obvious.
+    """
+    if not decision.item_specific:
+        return "stop", decision.reason
+    if skipped >= MAX_ITEM_SKIPS:
+        return "stop", (f"{decision.reason} - and {skipped} books in a row did "
+                        f"not fit; stopping rather than scanning the queue")
+    return "skip", f"{decision.reason}; trying the next book"
 
 
 def _control_or_guard(control: ControlState, needs_gpu: bool,

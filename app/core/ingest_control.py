@@ -785,26 +785,55 @@ class StartDecision:
     cpu_pct: Optional[float] = None
     est_finish: Optional[datetime] = None
     boundary: Optional[datetime] = None
+    # ⚠️ TRUE WHEN A DIFFERENT BOOK COULD STILL PASS THIS REFUSAL.
+    # Every refusal this module made before 2026-08-18 was GLOBAL - a pause, a
+    # busy machine, the wrong hour - so the caller correctly stopped the whole
+    # run on any of them. The deadline gate broke that assumption: "this book is
+    # too long to finish by 08:00" says nothing about the 40-minute book behind
+    # it. A caller that stops on an item-specific refusal throws away the rest of
+    # the night for one long book.
+    item_specific: bool = False
 
 
-def _decide_cpu_only(window_ok: bool, now: datetime, sleep) -> StartDecision:
-    """EPUB and text-PDF work: two of the five gates, and here is why.
+def _decide_cpu_only(window_ok: bool, now: datetime, sleep,
+                     allow_opportunistic: bool = True) -> StartDecision:
+    """EPUB, text-PDF and pack-only work: two of the five gates, and here is why.
 
     Exempt from the GPU guard - waiting for a graphics card to idle before
     parsing a zip file would be theatre. Exempt from the DEADLINE too, because
     this work is measured in seconds and "will it finish in time" has one
     answer. NOT exempt from the CPU guard: the processor is exactly what it
     competes for, and 138 EPUBs is real work on the machine a person is using.
+
+    ⚠️ AND IT HAS AN OPPORTUNISTIC PATH, WHICH IT DID NOT UNTIL 2026-08-18.
+    🔴 THE BUG THAT ADDED IT, because it will read as a harmless simplification
+    to whoever tidies this next: this branch consulted `may_start_new_book()`
+    and NEVER LOOKED AT `allow_opportunistic` AT ALL. So a daytime
+    `--opportunistic` fire refused CPU-only work with "outside the window" - and
+    since the caller treated that as a global stop, ONE pack-only book at the
+    head of the queue killed the entire run behind it. Measured live at 15:30
+    on 2026-08-18: 1,053 books queued, 1,028 of them GPU work on an idle card
+    inside the owner's authorised window, and the run packed nothing because the
+    first item happened to already have its transcript on disk.
+    Refusing this work outside the window was never defensible on its own terms
+    either: it costs no GPU and seconds of CPU, and the GPU path has borrowed
+    idle daytime since the beginning.
     """
-    if not window_ok:
-        return StartDecision(False, "outside the 00:00-07:45 Phoenix window",
-                             batch_size_for(now))
     cpu = cpu_guard(sleep=sleep)
     if cpu.busy:
         return StartDecision(False, cpu_busy_words(cpu), batch_size_for(now),
                              cpu_pct=cpu.pct)
-    return StartDecision(True, f"in window; GPU-guard exempt, CPU at {cpu.pct:.0f}%",
-                         batch_size_for(now), cpu_pct=cpu.pct)
+    if window_ok:
+        return StartDecision(True, f"in window; GPU-guard exempt, CPU at {cpu.pct:.0f}%",
+                             batch_size_for(now), cpu_pct=cpu.pct)
+    if not allow_opportunistic:
+        return StartDecision(False,
+                             "outside the 00:00-07:45 Phoenix window "
+                             "(opportunistic runs disabled)",
+                             batch_size_for(now), cpu_pct=cpu.pct)
+    return StartDecision(True,
+                         f"opportunistic: no GPU needed, CPU at {cpu.pct:.0f}%",
+                         batch_size_for(now), cpu_pct=cpu.pct, opportunistic=True)
 
 
 def _gpu_clearance(window_ok: bool, now: datetime, allow_opportunistic: bool,
@@ -877,12 +906,13 @@ def decide_start(state: ControlState, now: Optional[datetime] = None,
     window_ok = may_start_new_book(now)
 
     if not needs_gpu:
-        return _decide_cpu_only(window_ok, now, sleep)
+        return _decide_cpu_only(window_ok, now, sleep, allow_opportunistic)
 
     estimate = estimate_against_deadline(state, now, audio_seconds, factors)
     if not estimate.fits:
         return StartDecision(False, estimate.words, batch_size_for(now),
-                             est_finish=estimate.finish, boundary=estimate.boundary)
+                             est_finish=estimate.finish, boundary=estimate.boundary,
+                             item_specific=True)
 
     refusal, util, opportunistic, gpu_waited = _gpu_clearance(
         window_ok, now, allow_opportunistic, sustained_polls, sleep)

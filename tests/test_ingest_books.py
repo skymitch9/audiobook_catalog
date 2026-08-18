@@ -619,10 +619,15 @@ class TestControlContract:
 
 
 class TestDecideStart:
-    def test_cpu_work_is_guard_exempt_but_window_bound(self, monkeypatch):
+    def test_cpu_work_is_gpu_guard_exempt(self, monkeypatch):
+        """⚠️ CHANGED 2026-08-18 and the old assertion was the BUG. This used to
+        pin `now=phx(14) -> False`, i.e. CPU-only work was window-bound with no
+        opportunistic path at all. See TestOpportunisticCpuLane below for the
+        incident that cost an authorised afternoon."""
         monkeypatch.setattr(ic, "gpu_utilisation", lambda *a, **k: 99)
         assert ic.decide_start(ic.ControlState(), now=phx(2), needs_gpu=False).may_start is True
-        assert ic.decide_start(ic.ControlState(), now=phx(14), needs_gpu=False).may_start is False
+        assert ic.decide_start(ic.ControlState(), now=phx(14), needs_gpu=False,
+                               allow_opportunistic=False).may_start is False
 
     def test_in_window_busy_gpu_refuses(self, monkeypatch):
         monkeypatch.setattr(ic, "gpu_utilisation", lambda *a, **k: 80)
@@ -651,6 +656,114 @@ class TestDecideStart:
         monkeypatch.setattr(ic, "gpu_utilisation", lambda *a, **k: 0)
         decision = ic.decide_start(ic.ControlState(paused=True), now=phx(2), needs_gpu=True)
         assert decision.may_start is False
+
+
+class TestOpportunisticCpuLane:
+    """🔴 THE 15:30 REGRESSION, 2026-08-18. Measured live: a daytime
+    `--run --opportunistic` fire logged
+
+        queue: 1053 books (25 CPU, 1028 GPU)
+        STOP before 'A Court of Thorns and Roses …': outside the 00:00-07:45
+            Phoenix window
+        run complete: 0 packed, 0 failed
+
+    on an idle GPU (10%), inside the owner's authorisation to 18:30. Root cause
+    in two halves, and both are pinned below: `_decide_cpu_only` never consulted
+    `allow_opportunistic`, and the caller treated that refusal as a global stop -
+    so ONE pack-only book at the head of the queue buried 1,028 GPU books.
+
+    ⚠️ The 59 tests written that morning covered every boundary and no happy
+    path on this lane, which is exactly why it shipped."""
+
+    def test_a_pack_only_book_starts_on_a_daytime_opportunistic_fire(self, monkeypatch):
+        """The exact reproduction: a book whose transcript is already on disk is
+        CPU-only work, at 15:30, with opportunistic runs allowed."""
+        monkeypatch.setattr(ic, "cpu_utilisation", lambda *a, **k: 10.0)
+        decision = ic.decide_start(ic.ControlState(), now=phx(15, 30), needs_gpu=False,
+                                   allow_opportunistic=True, sleep=lambda _s: None)
+        assert decision.may_start is True, decision.reason
+        assert decision.opportunistic is True
+        assert "opportunistic" in decision.reason
+
+    def test_the_gpu_lane_still_starts_on_the_same_fire(self, monkeypatch):
+        """The half that never broke, pinned beside it so a future edit that
+        fixes one by breaking the other cannot pass."""
+        monkeypatch.setattr(ic, "gpu_utilisation", lambda *a, **k: 10)
+        decision = ic.decide_start(ic.ControlState(), now=phx(15, 30), needs_gpu=True,
+                                   allow_opportunistic=True, sleep=lambda _s: None,
+                                   audio_seconds=6 * 3600)
+        assert decision.may_start is True and decision.opportunistic is True
+
+    def test_opportunistic_off_still_means_window_bound(self, monkeypatch):
+        """The flag must still mean something - this is the behaviour the old
+        code applied unconditionally."""
+        monkeypatch.setattr(ic, "cpu_utilisation", lambda *a, **k: 10.0)
+        decision = ic.decide_start(ic.ControlState(), now=phx(15, 30), needs_gpu=False,
+                                   allow_opportunistic=False, sleep=lambda _s: None)
+        assert decision.may_start is False and "window" in decision.reason
+
+    def test_a_busy_cpu_still_refuses_the_opportunistic_lane(self, monkeypatch):
+        monkeypatch.setattr(ic, "cpu_utilisation", lambda *a, **k: 88.0)
+        decision = ic.decide_start(ic.ControlState(), now=phx(15, 30), needs_gpu=False,
+                                   allow_opportunistic=True, sleep=lambda _s: None)
+        assert decision.may_start is False and "88%" in decision.reason
+
+    def test_a_pause_still_beats_the_opportunistic_lane(self, monkeypatch):
+        monkeypatch.setattr(ic, "cpu_utilisation", lambda *a, **k: 5.0)
+        decision = ic.decide_start(ic.ControlState(paused=True), now=phx(15, 30),
+                                   needs_gpu=False, sleep=lambda _s: None)
+        assert decision.may_start is False and "paused" in decision.reason.lower()
+
+
+class TestStopOrSkip:
+    """⚠️ NOT EVERY REFUSAL ENDS A RUN, and until 2026-08-18 every one did.
+    Before the deadline gate that was correct - a pause or a busy machine is
+    true for every book. "This book is too long to finish by 08:00" is not."""
+
+    def test_a_deadline_refusal_is_item_specific(self):
+        decision = ic.decide_start(ic.ControlState(), now=phx(7, 40), needs_gpu=True,
+                                   audio_seconds=20 * 3600, factors=[50.0])
+        assert decision.may_start is False and decision.item_specific is True
+
+    @pytest.mark.parametrize("state,now,gpu", [
+        (ic.ControlState(paused=True), phx(2), 5),
+        (ic.ControlState(dont_check_until="2026-08-19T00:00:00-07:00"), phx(2), 5),
+        (ic.ControlState(), phx(2), 99),
+    ])
+    def test_global_refusals_stay_global(self, monkeypatch, state, now, gpu):
+        """A pause, a don't-check and a busy GPU are all true of every book;
+        skipping to the next one would poll the machine 1,000 times to be told
+        the same thing."""
+        monkeypatch.setattr(ic, "gpu_utilisation", lambda *a, **k: gpu)
+        decision = ic.decide_start(state, now=now, needs_gpu=True,
+                                   audio_seconds=3600, factors=[50.0])
+        assert decision.may_start is False and decision.item_specific is False
+
+    def test_the_run_loop_skips_an_item_specific_refusal(self):
+        from app.tools.ingest_books import _stop_or_skip
+
+        refusal = ic.StartDecision(False, "would finish ~08:07, past …", 16,
+                                   item_specific=True)
+        verdict, words = _stop_or_skip(refusal, skipped=0)
+        assert verdict == "skip" and "next book" in words
+
+    def test_the_run_loop_stops_on_a_global_refusal(self):
+        from app.tools.ingest_books import _stop_or_skip
+
+        refusal = ic.StartDecision(False, "paused by the dashboard", 16)
+        assert _stop_or_skip(refusal, skipped=0)[0] == "stop"
+
+    def test_skipping_is_bounded(self):
+        """⚠️ Near a boundary EVERY remaining book refuses, and each skip costs
+        a control re-read. Walking 1,000 books to learn the obvious is its own
+        bug."""
+        from app.tools.ingest_books import MAX_ITEM_SKIPS, _stop_or_skip
+
+        refusal = ic.StartDecision(False, "would finish ~08:07, past …", 16,
+                                   item_specific=True)
+        assert _stop_or_skip(refusal, skipped=MAX_ITEM_SKIPS - 1)[0] == "skip"
+        verdict, words = _stop_or_skip(refusal, skipped=MAX_ITEM_SKIPS)
+        assert verdict == "stop" and "in a row" in words
 
 
 # --------------------------------------------------------------- priority ---
