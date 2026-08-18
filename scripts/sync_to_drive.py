@@ -1166,6 +1166,13 @@ def _run_pipeline_body(
             # the busy path would mean "always match" held only on the cycles
             # that happened to upload something.
             _run_drive_parity()
+            # STEP 9 — the estate docs snapshot, on the IDLE path for a
+            # stronger reason still than parity's: docs have nothing to do with
+            # books, and the days nobody buys an audiobook are precisely the
+            # days the docs move most. Wiring this only to the busy path is
+            # exactly how the corpus would go stale while every dashboard read
+            # green — see _publish_docs_snapshot()'s own header.
+            _publish_docs_snapshot()
         print("=" * 60)
         # The common case: an idle scheduled run. Report it as a real success
         # so the panel shows "checked, nothing new" rather than a stale run.
@@ -1436,6 +1443,12 @@ def _run_pipeline_body(
         # precondition for it and nothing later depends on it.
         _run_drive_parity()
 
+        # STEP 9 — the estate docs snapshot (GABI docs assistant, phase 5).
+        # Genuinely last: nothing in this cycle is a precondition for it and
+        # nothing depends on it. Idempotent by content, so on a cycle where no
+        # doc changed it walks ~119 files and skips the upload.
+        _publish_docs_snapshot()
+
     # Fulfill any flagged books (site's "Request AI check" button or
     # cw_requests.txt) — full chain including Claude. Runs on EVERY non-dry
     # sync (not just when new books arrived) so the 8-hourly scheduled task
@@ -1514,6 +1527,17 @@ def _run_pipeline_body(
 #            effect of that is a surprise with a blast radius, not a
 #            convenience. It costs nothing to omit: the 8h cycle runs parity
 #            on BOTH its paths, so the longest a fix waits is one tick.
+#   STEP 9   (estate docs snapshot) EXCLUDE — and for the plainest reason in
+#            this ledger: --rebuild-only means "republish the CATALOG from
+#            what is on disk", and the docs corpus is not the catalog. It
+#            shares no input with anything this flag rebuilds and is not made
+#            stale by anything this flag fixes. Unlike STEP 8 this omission
+#            carries no risk either way (the step mutates one R2 object and
+#            nobody's access), so the tie is broken on scope rather than on
+#            blast radius. Same "costs nothing to omit" argument as parity's:
+#            the 8h cycle publishes docs on BOTH its paths, so the longest a
+#            doc edit waits is one tick — and every answer built on the
+#            snapshot carries its publish date, so even that is visible.
 #   fulfill_requests()              INCLUDE — already runs unconditionally
 #            on every non-dry run regardless of uploaded_count; excluding it
 #            here would make --rebuild-only behave differently from a normal
@@ -2027,6 +2051,63 @@ def _parity_report(state: str, detail: str) -> None:
         driveParityDetail=detail,
         driveParityAt=datetime.now().isoformat(timespec="seconds"),
     )
+
+
+# ---------------------------------------------------------------------------
+# STEP 9 — publish the estate docs snapshot (GABI docs assistant, phase 5).
+#
+# Owner decision 2026-08-18, design §9 question 2, verbatim answer "a": the
+# publisher RIDES THIS PIPELINE rather than getting a fourth Windows scheduled
+# task. Design of record: catalog-platform docs/info/gabi-docs-assistant-
+# design.md §2.2.
+#
+# ⚠️ WHY IT RUNS ON BOTH PATHS, and why that is not optional. Hanging an
+# estate-wide job off a BOOK pipeline means the docs snapshot silently stops
+# refreshing whenever this pipeline is quiet — and a quiet cycle is the COMMON
+# case: STEP 2 returns early at "Nothing to upload" long before STEP 5. Docs
+# change on days nobody buys an audiobook; in fact they change most on exactly
+# those days. So this runs on the idle path too, for the same reason STEP 7 and
+# STEP 8 do, and it is called from both places rather than being moved earlier
+# (it is genuinely last: nothing in the cycle depends on it, and it depends on
+# nothing in the cycle).
+#
+# ⚠️ SOFT, LIKE STEPS 5.5-5.8: a failure is one WARN, the previously published
+# snapshot keeps serving, and the next cycle retries. That is the right
+# direction — every answer built on the snapshot carries its publish date, so a
+# stale corpus is VISIBLE in the reply rather than silently believed.
+#
+# ⚠️ NOTHING HERE IS COMMITTED, deliberately. The outputs go to R2
+# (estate-docs-gated), and the publisher's own bookkeeping
+# (scripts/.docs_published.json) is gitignored — it lists every included doc
+# path, and many of those are this repo's LOCAL-ONLY docs, which must never
+# become tracked in a PUBLIC repo. So this step adds NO entry to
+# _auto_commit_and_push's _ALLOWLIST; that omission is a decision, not an
+# oversight, exactly as STEP 5.9's own note says of itself.
+#
+# ⚠️ THE SCANNER STAYS IN SHADOW HERE. It is the publisher's default and this
+# call passes no override: shadow logs would-refuse findings and publishes
+# anyway. Flipping to enforce is a deliberate act after measured zero false
+# refusals — never a side effect of an unattended run, where a false positive
+# would stop the corpus refreshing with nobody watching. (Measured on the first
+# real run, 2026-08-18: 5 findings, ALL false — a plain MDN link and three
+# `secret:list:friend` npm script names — both classes since tuned out, leaving
+# zero. That is one clean data point, not a week of them.)
+# ---------------------------------------------------------------------------
+def _publish_docs_snapshot(label: str = "[STEP 9] Publishing the estate docs snapshot") -> None:
+    """Publish the three-repo docs corpus to the private estate-docs-gated bucket.
+
+    Never raises. Idempotent by content — an unchanged corpus skips the upload,
+    so the common quiet cycle costs a walk of ~119 files and nothing else.
+    """
+    print(f"\n{label}...")
+    try:
+        from scripts.publish_docs_snapshot import main as publish_docs_main
+        rc = publish_docs_main([])
+        if rc != 0:
+            print("  [WARN] Docs snapshot not published — the previous one still serves. "
+                  "Every answer carries its publish date, so the staleness is visible.")
+    except Exception as e:  # noqa: BLE001 — own failure domain, by design
+        print(f"  [WARN] Docs snapshot publish failed: {e}")
 
 
 def _run_drive_parity(label: str = "[STEP 8] Drive ⇄ role parity (report + auto-apply role→Drive)") -> None:

@@ -54,6 +54,14 @@ site/ebooks.json
 # The publish receipt (which sha256 is in the bucket) — machine-local state,
 # like the covers upload's own bookkeeping.
 scripts/.ebooks_published.json
+# The docs-snapshot publisher's own bookkeeping (scripts/publish_docs_snapshot.py,
+# GABI docs assistant phase 1) and its upload scratch directory. Same reasoning as
+# the line above — machine-local state, plus a temp copy of the gzipped corpus.
+# ⚠️ The state file lists every INCLUDED doc path so the next run can print a
+# +files/-files diff; several of those paths are audiobook_catalog's own
+# LOCAL-ONLY docs, so it must never become tracked in this PUBLIC repo.
+scripts/.docs_published.json
+scripts/.docs_snapshot_tmp/
 # ⚠️ site/ebook_files_manifest.json IS DELIBERATELY NOT NEGATED EITHER, and the
 # reason is the same one as site/ebooks.json above. It is the record of which
 # ebook FILES are in the private `estate-ebooks` bucket (viewer phase 0a,
