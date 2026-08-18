@@ -296,6 +296,22 @@ button.vote-btn:hover{border-color:var(--neon-yellow);color:var(--neon-yellow)}
 .field textarea{resize:vertical;min-height:80px}
 .field-inline{display:flex;align-items:center;gap:8px}
 .field-inline input[type=checkbox]{width:18px;height:18px}
+/* Edit Club sections (2026-08-18). The owner: "for the extra options in clubs
+   we may need a new menu, it's getting pretty long." Twelve field blocks in one
+   scroll became four labelled disclosures. Deliberately the estate's EXISTING
+   disclosure idiom — details.chapters-wrap in club-read.html, marker and all —
+   rather than a new one. */
+details.edit-sec{border:1px solid var(--border);background:var(--bg);margin-bottom:12px}
+details.edit-sec > summary{
+  padding:10px 14px;cursor:pointer;color:var(--neon-cyan);font-size:.8em;
+  text-transform:var(--et-title-case);letter-spacing:.5px;list-style:none;
+  display:flex;gap:10px;align-items:center;
+}
+details.edit-sec > summary::-webkit-details-marker{display:none}
+details.edit-sec > summary::before{content:'▸';transition:transform .15s}
+details.edit-sec[open] > summary::before{transform:rotate(90deg)}
+.edit-sec-body{padding:12px 14px 0}
+.edit-sec-body .field-inline + .field-inline{margin-top:8px}
 #book-results,#suggest-results,#poll-book-results{max-height:180px;overflow-y:auto;border:1px solid var(--border);margin-top:4px}
 #book-results button,#suggest-results button,#poll-book-results button{
   display:block;width:100%;text-align:left;padding:8px 12px;background:none;border:none;
@@ -406,109 +422,169 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
   <div class="modal-panel">
     <button class="modal-close" id="edit-close">X</button>
     <h2 style="margin-top:0;color:var(--neon-yellow);text-transform:var(--et-title-case);letter-spacing:var(--et-title-spacing)">Edit Club</h2>
-    <div class="field">
-      <label for="edit-name">Club name</label>
-      <input id="edit-name" type="text" maxlength="40" />
-    </div>
-    <div class="field">
-      <label for="edit-desc">Description</label>
-      <textarea id="edit-desc" maxlength="300"></textarea>
-    </div>
-    <div class="field" id="edit-avatar-field" style="display:none">
-      <label for="edit-avatar">Club cover (shown as the club's avatar)</label>
-      <select id="edit-avatar"></select>
-    </div>
-    <div class="field field-inline">
-      <input id="edit-prompts" type="checkbox" checked />
-      <label for="edit-prompts" style="margin:0;text-transform:none">Starter questions (AI-suggested discussion prompts for hosts)</label>
-    </div>
-    <div class="field" id="edit-reads-field" style="display:none">
-      <label>Active reads — CLUB-level actions (affects every member)</label>
-      <div id="edit-reads-list"></div>
-      <div class="er-hint">Finished the book yourself? Use "I'm finished" on the book's discussion page instead — these buttons end the read for the whole club.</div>
-    </div>
-    <!-- The worded refusal for the read lifecycle, mirroring the webhook one
-         above: shown to someone whose display-name role says host/moderator
-         but whose Google account is not bound to this club's manager roster.
-         Rules would refuse the write, so we say why instead of drawing three
-         buttons that fail. (MANAGECLUB SPLIT, 2026-08-17.) -->
-    <div class="field" id="edit-reads-restricted-field" style="display:none">
-      <label>Active reads — CLUB-level actions</label>
-      <small style="color:var(--muted)">Finishing, removing and revealing ratings on this club's reads are done by the accounts bound to its manager roster, or by a site moderator — and yours isn't one of them yet, so these controls would be refused rather than saved. Secure your role from the banner at the top of the club (if the club is still unclaimed), or ask a site moderator or admin to add your account to this club's managers.</small>
-    </div>
-    <div class="field" id="edit-meeting-field" style="display:none">
-      <label for="edit-meeting-at">Next meeting</label>
-      <input id="edit-meeting-at" type="datetime-local" />
-      <textarea id="edit-meeting-notes" maxlength="500" rows="2"
-        placeholder="Meeting notes — agenda, where, what to have read"></textarea>
-      <small style="color:var(--muted)">Leave the date empty for no scheduled meeting.</small>
-    </div>
-    <div class="field" id="edit-features-field" style="display:none">
-      <label>Club features</label>
-      <div class="field-inline">
-        <input id="feat-schedule" type="checkbox" />
-        <label for="feat-schedule" style="margin:0;text-transform:none">Reading schedule — due dates on sections, on-track/behind chips</label>
+    <!-- FOUR SECTIONS (2026-08-18). Owner: "for the extra options in clubs we
+         may need a new menu, it's getting pretty long." Twelve field blocks in
+         one scroll are now Basics / Features / Discord / Managing.
+         ⚠️ PURE REGROUPING: every id, every gate and every save path is
+         byte-identical to the flat version. Two things a future editor must
+         keep true:
+           1. the save handler reads each field's OWN inline `style.display`,
+              which an ancestor <details> never touches — that is why
+              collapsing a section cannot silently drop what it contains;
+           2. the feature checkboxes now live in TWO containers
+              (#edit-features-field and #edit-discord-features-field), shown and
+              hidden together from isMod(). Every FEATURE_DEFAULTS key must
+              still appear exactly once across the two — a key that is not read
+              on save is a key updateClubDetails drops (its known-keys copy
+              rebuilds the whole map).
+         Explainers moved from label prose to `title` tooltips, except where
+         the caveat is a precondition someone must act on (the Discord bot). -->
+    <details class="edit-sec" id="edit-sec-basics" open>
+      <summary>Basics</summary>
+      <div class="edit-sec-body">
+        <div class="field">
+          <label for="edit-name">Club name</label>
+          <input id="edit-name" type="text" maxlength="40" />
+        </div>
+        <div class="field">
+          <label for="edit-desc">Description</label>
+          <textarea id="edit-desc" maxlength="300"></textarea>
+        </div>
+        <div class="field" id="edit-avatar-field" style="display:none">
+          <label for="edit-avatar" title="Which active read's cover stands in as the club's avatar.">Club cover</label>
+          <select id="edit-avatar"></select>
+        </div>
+        <div class="field" id="edit-joinmode-field" style="display:none">
+          <label for="edit-joinmode">Join mode</label>
+          <select id="edit-joinmode">
+            <option value="open">Open — anyone can join instantly</option>
+            <option value="application">By application — host approves requests</option>
+          </select>
+        </div>
+        <div class="field" id="edit-meeting-field" style="display:none">
+          <label for="edit-meeting-at">Next meeting</label>
+          <input id="edit-meeting-at" type="datetime-local" />
+          <textarea id="edit-meeting-notes" maxlength="500" rows="2"
+            placeholder="Meeting notes — agenda, where, what to have read"></textarea>
+          <small style="color:var(--muted)">Leave the date empty for no scheduled meeting.</small>
+        </div>
       </div>
-      <div class="field-inline">
-        <input id="feat-discord" type="checkbox" />
-        <label for="feat-discord" style="margin:0;text-transform:none">Discord announcements — schedule changes, due-date nudges, read start/finish posted to your webhook</label>
+    </details>
+
+    <details class="edit-sec" id="edit-sec-features">
+      <summary>Features</summary>
+      <div class="edit-sec-body">
+        <!-- ⚠️ promptsEnabled is a TOP-LEVEL club field, not a FEATURE_DEFAULTS
+             key — it sits here because it reads as a feature, and it is saved
+             unconditionally (every member may set it), unlike the map below. -->
+        <div class="field field-inline">
+          <input id="edit-prompts" type="checkbox" checked />
+          <label for="edit-prompts" style="margin:0;text-transform:none"
+            title="AI-suggested discussion prompts, offered to hosts and moderators on each section.">Starter questions</label>
+        </div>
+        <div class="field" id="edit-features-field" style="display:none">
+          <div class="field-inline">
+            <input id="feat-schedule" type="checkbox" />
+            <label for="feat-schedule" style="margin:0;text-transform:none"
+              title="Due dates on sections, plus on-track/behind chips.">Reading schedule</label>
+          </div>
+          <div class="field-inline">
+            <input id="feat-polls" type="checkbox" />
+            <label for="feat-polls" style="margin:0;text-transform:none"
+              title="Free-form club polls, optionally tagged to a spoiler-gated section.">Polls</label>
+          </div>
+          <div class="field-inline">
+            <input id="feat-blind-ratings" type="checkbox" />
+            <label for="feat-blind-ratings" style="margin:0;text-transform:none"
+              title="Members rate privately; a host or moderator reveals everyone's rating together.">Blind ratings</label>
+          </div>
+          <div class="field-inline">
+            <input id="feat-meeting-rsvp" type="checkbox" />
+            <label for="feat-meeting-rsvp" style="margin:0;text-transform:none"
+              title="Members respond Going/Maybe/Can't to the next meeting, plus a calendar (.ics) download.">Meeting RSVP</label>
+          </div>
+          <div class="field-inline">
+            <input id="feat-pace-graph" type="checkbox" />
+            <label for="feat-pace-graph" style="margin:0;text-transform:none"
+              title="A Pace tab on the read page, graphing each member's progress over time.">Pace graph</label>
+          </div>
+        </div>
       </div>
-      <div class="field-inline" id="feat-discord-polls-row" style="margin-left:26px">
-        <input id="feat-discord-polls" type="checkbox" />
-        <label for="feat-discord-polls" style="margin:0;text-transform:none">↳ Poll results — also announce when a poll closes</label>
+    </details>
+
+    <details class="edit-sec" id="edit-sec-discord">
+      <summary>Discord</summary>
+      <div class="edit-sec-body">
+        <div class="field" id="edit-webhook-field" style="display:none">
+          <label for="edit-webhook" title="The club's own channel webhook — announcements post there.">Webhook</label>
+          <input id="edit-webhook" type="text" placeholder="https://discord.com/api/webhooks/..." autocomplete="off" />
+          <small id="edit-webhook-hint" style="color:var(--muted);display:block;margin-top:4px"></small>
+          <div class="field-inline" id="edit-webhook-clear-row" style="display:none;margin-top:6px">
+            <input id="edit-webhook-clear" type="checkbox" />
+            <label for="edit-webhook-clear" style="margin:0;text-transform:none">Remove the saved webhook</label>
+          </div>
+        </div>
+        <!-- Honest-UI stand-in: shown to a club mod whose account is NOT bound
+             to this club's manager roster, instead of a control firestore.rules
+             would just refuse (ADMINISTERED_CLUB_FIELDS — see clubs.js). Since
+             2026-08-17 a BOUND manager gets the real input; this text is for the
+             person whose display-name role says host but whose Google account
+             was never secured to the club. -->
+        <div class="field" id="edit-webhook-restricted-field" style="display:none">
+          <label>Webhook</label>
+          <small style="color:var(--muted)">This club's Discord webhook is set by the accounts bound to its manager roster, and yours isn't one of them yet — so this control would be refused rather than saved. Secure your role from the banner at the top of the club (if the club is still unclaimed), or ask a site moderator or admin to add your account to this club's managers.</small>
+        </div>
+        <!-- The Discord-shaped feature keys. Same isMod() gate and the same
+             one `features` map as #edit-features-field above — see the
+             two-containers warning at the top of this modal. -->
+        <div class="field" id="edit-discord-features-field" style="display:none">
+          <div class="field-inline">
+            <input id="feat-discord" type="checkbox" />
+            <label for="feat-discord" style="margin:0;text-transform:none"
+              title="Schedule changes, due-date nudges and read start/finish, posted to the webhook above.">Announcements</label>
+          </div>
+          <div class="field-inline" id="feat-discord-polls-row" style="margin-left:26px">
+            <input id="feat-discord-polls" type="checkbox" />
+            <label for="feat-discord-polls" style="margin:0;text-transform:none"
+              title="Also announce a poll's result when it closes. Needs Announcements on.">↳ Poll results</label>
+          </div>
+          <div class="field-inline">
+            <input id="feat-discord-questions" type="checkbox" />
+            <label for="feat-discord-questions" style="margin:0;text-transform:none"
+              title="Posting a question as GABI on a read also posts it to the club's Discord channel.">GABI's questions</label>
+          </div>
+          <!-- Kept as prose, not a tooltip: both halves are preconditions
+               someone has to ACT on before switching this on, and a tooltip a
+               touch device never shows would hide them. -->
+          <small style="color:var(--muted);display:block;margin:4px 0 0 26px">Needs the estate bot in your server; only questions posted from now on appear.</small>
+        </div>
       </div>
-      <div class="field-inline">
-        <input id="feat-polls" type="checkbox" />
-        <label for="feat-polls" style="margin:0;text-transform:none">Polls — free-form club polls, optionally tagged to a spoiler-gated section</label>
+    </details>
+
+    <details class="edit-sec" id="edit-sec-managing">
+      <summary>Managing</summary>
+      <div class="edit-sec-body">
+        <div class="field" id="edit-reads-field" style="display:none">
+          <label>Active reads — CLUB-level actions (affects every member)</label>
+          <div id="edit-reads-list"></div>
+          <div class="er-hint">Finished the book yourself? Use "I'm finished" on the book's discussion page instead — these buttons end the read for the whole club.</div>
+        </div>
+        <!-- The worded refusal for the read lifecycle, mirroring the webhook one
+             above: shown to someone whose display-name role says host/moderator
+             but whose Google account is not bound to this club's manager roster.
+             Rules would refuse the write, so we say why instead of drawing three
+             buttons that fail. (MANAGECLUB SPLIT, 2026-08-17.) -->
+        <div class="field" id="edit-reads-restricted-field" style="display:none">
+          <label>Active reads — CLUB-level actions</label>
+          <small style="color:var(--muted)">Finishing, removing and revealing ratings on this club's reads are done by the accounts bound to its manager roster, or by a site moderator — and yours isn't one of them yet, so these controls would be refused rather than saved. Secure your role from the banner at the top of the club (if the club is still unclaimed), or ask a site moderator or admin to add your account to this club's managers.</small>
+        </div>
+        <!-- Read-only roster of rules-bound manager accounts (managerUids). -->
+        <div class="field" id="edit-roster-field" style="display:none">
+          <label>Secured manager accounts</label>
+          <div id="edit-roster-list" style="color:var(--muted);font-size:.85em"></div>
+        </div>
       </div>
-      <div class="field-inline">
-        <input id="feat-blind-ratings" type="checkbox" />
-        <label for="feat-blind-ratings" style="margin:0;text-transform:none">Blind ratings — members rate privately, a host/mod reveals everyone's rating together</label>
-      </div>
-      <div class="field-inline">
-        <input id="feat-meeting-rsvp" type="checkbox" />
-        <label for="feat-meeting-rsvp" style="margin:0;text-transform:none">Meeting RSVP — members respond Going/Maybe/Can't to the next meeting, plus a calendar (.ics) download</label>
-      </div>
-      <div class="field-inline">
-        <input id="feat-pace-graph" type="checkbox" />
-        <label for="feat-pace-graph" style="margin:0;text-transform:none">Pace graph — a "Pace" tab on the read page graphing each member's progress over time</label>
-      </div>
-      <div class="field-inline">
-        <input id="feat-discord-questions" type="checkbox" />
-        <label for="feat-discord-questions" style="margin:0;text-transform:none">GABI's questions in Discord — when you "Post as GABI" on a read, the question is also posted to your Discord channel. Needs the estate bot in your server; only questions posted from now on appear.</label>
-      </div>
-    </div>
-    <div class="field" id="edit-webhook-field" style="display:none">
-      <label for="edit-webhook">Discord webhook (site admin only) — club reminders post to a channel you own</label>
-      <input id="edit-webhook" type="text" placeholder="https://discord.com/api/webhooks/..." autocomplete="off" />
-      <small id="edit-webhook-hint" style="color:var(--muted);display:block;margin-top:4px"></small>
-      <div class="field-inline" id="edit-webhook-clear-row" style="display:none;margin-top:6px">
-        <input id="edit-webhook-clear" type="checkbox" />
-        <label for="edit-webhook-clear" style="margin:0;text-transform:none">Remove the saved webhook</label>
-      </div>
-    </div>
-    <!-- Honest-UI stand-in: shown to a club mod whose account is NOT bound
-         to this club's manager roster, instead of a control firestore.rules
-         would just refuse (ADMINISTERED_CLUB_FIELDS — see clubs.js). Since
-         2026-08-17 a BOUND manager gets the real input; this text is for the
-         person whose display-name role says host but whose Google account
-         was never secured to the club. -->
-    <div class="field" id="edit-webhook-restricted-field" style="display:none">
-      <label>Discord webhook</label>
-      <small style="color:var(--muted)">This club's Discord webhook is set by the accounts bound to its manager roster, and yours isn't one of them yet — so this control would be refused rather than saved. Secure your role from the banner at the top of the club (if the club is still unclaimed), or ask a site moderator or admin to add your account to this club's managers.</small>
-    </div>
-    <div class="field" id="edit-joinmode-field" style="display:none">
-      <label for="edit-joinmode">Join mode (host setting)</label>
-      <select id="edit-joinmode">
-        <option value="open">Open — anyone can join instantly</option>
-        <option value="application">By application — host approves requests</option>
-      </select>
-    </div>
-    <!-- Read-only roster of rules-bound manager accounts (managerUids). -->
-    <div class="field" id="edit-roster-field" style="display:none">
-      <label>Secured manager accounts</label>
-      <div id="edit-roster-list" style="color:var(--muted);font-size:.85em"></div>
-    </div>
+    </details>
     <div id="edit-error" class="form-error"></div>
     <button id="edit-submit" class="nav-link btn-primary" style="width:100%">Save Changes</button>
   </div>
@@ -609,7 +685,7 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
     clubFeatureEnabled, isValidDiscordWebhook, setClubDiscordWebhook, clearClubDiscordWebhook,
     isClubClaimed, isManagerUid, canManageClub, canOperateClub, canAdministerClub,
     canClaimManagerRole, claimManagerRole,
-  } from './clubs.js?v=20260818a';
+  } from './clubs.js?v=20260818b';
   import {
     getReads, startRead, removeRead, finishRead, getComments, updateReadLabel, splitByDuration, parseManualMilestones,
     loadCatalogBooks, MAX_ACTIVE_READS, groupChapters,
@@ -1711,6 +1787,28 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
   }
   document.getElementById('feat-discord').addEventListener('change', syncDiscordPollsRow);
 
+  // Are the FEATURE_DEFAULTS checkboxes editable for this viewer? They live in
+  // TWO containers since the 2026-08-18 regrouping (Features + Discord), both
+  // shown/hidden together from isMod(), and both feed ONE `features` map. The
+  // gate reads the containers rather than re-deriving the role so it stays
+  // exactly the condition that drew them.
+  function featuresEditable() {
+    return document.getElementById('edit-features-field').style.display !== 'none'
+        || document.getElementById('edit-discord-features-field').style.display !== 'none';
+  }
+
+  // A section every one of whose fields is hidden for this viewer would render
+  // as a header opening onto nothing, so hide the whole disclosure. Reads each
+  // field's own inline display — the SAME flags the save handler consults, so
+  // the two can never disagree about what is on screen.
+  function syncEditSections() {
+    editModal.querySelectorAll('details.edit-sec').forEach((sec) => {
+      const anyVisible = Array.from(sec.querySelectorAll('.field'))
+        .some((f) => f.style.display !== 'none');
+      sec.style.display = anyVisible ? 'block' : 'none';
+    });
+  }
+
   // millis -> datetime-local input value in the viewer's local time
   function toDatetimeLocal(ms) {
     const d = new Date(ms);
@@ -1765,6 +1863,7 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
     // split via clubStructuralFieldsChanged). This is the "club island":
     // stays a club-mod setting.
     document.getElementById('edit-features-field').style.display = isMod() ? 'block' : 'none';
+    document.getElementById('edit-discord-features-field').style.display = isMod() ? 'block' : 'none';
     if (isMod()) {
       document.getElementById('feat-schedule').checked = clubFeatureEnabled(club, 'readingSchedule');
       document.getElementById('feat-discord').checked = clubFeatureEnabled(club, 'discordAnnouncements');
@@ -1830,6 +1929,9 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
     } else {
       readsField.style.display = 'none';
     }
+    // LAST: every field's visibility is settled by here, so an all-hidden
+    // section can be folded away.
+    syncEditSections();
     editModal.classList.add('open');
   }
 
@@ -1883,7 +1985,12 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
       input.nextMeetingAt = Number.isFinite(parsed) ? parsed : null;
       input.nextMeetingNotes = document.getElementById('edit-meeting-notes').value;
     }
-    if (document.getElementById('edit-features-field').style.display !== 'none') {
+    // ⚠️ ONE map, read from BOTH feature containers (Features section +
+    // Discord section). updateClubDetails rebuilds `features` from its
+    // known-keys list, so a FEATURE_DEFAULTS key missing from this object is
+    // a key DROPPED on save — the regrouping moved three of them across
+    // sections and must not lose any.
+    if (featuresEditable()) {
       input.features = {
         ...(club.features || {}),
         readingSchedule: document.getElementById('feat-schedule').checked,

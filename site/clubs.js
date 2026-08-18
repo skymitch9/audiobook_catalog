@@ -135,6 +135,16 @@ export async function getMyClubs(db, displayName) {
 // readingSchedule defaults OFF: every read has milestones by construction, so
 // "on if the club uses milestones" would mean on for everyone. OFF means zero
 // UI change for existing clubs until a manager opts in.
+//
+// ⚠️ SINCE 2026-08-18 THE CHECKBOXES LIVE IN **TWO** CONTAINERS in club.html —
+// `#edit-features-field` (reading/discussion) and `#edit-discord-features-field`
+// (the Discord-shaped keys) — after the owner's "it's getting pretty long"
+// regrouping of the Edit Club modal into four <details> sections. Adding a key
+// here still means adding ONE checkbox, but pick the right section AND add the
+// read to the `input.features = {...}` object in club.html: updateClubDetails
+// below REBUILDS this map from the key list, so a key nobody reads on save is a
+// key DROPPED, not a key left alone. `site/__tests__/club-edit-sections.test.js`
+// parses that object out of the page and fails if the two ever disagree.
 export const FEATURE_DEFAULTS = {
   readingSchedule: false,   // due dates on sections + on-track/behind chips
   // Server-side pipeline (app/club_announcements.py) posts schedule changes,
