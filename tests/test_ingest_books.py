@@ -524,6 +524,27 @@ class TestTranscriptIndex:
 
         assert _transcript_source(tmp_path / "nope.json") == ""
 
+    def test_non_ascii_path_survives_the_head_read(self, tmp_path):
+        """⚠️ Regression, 2026-08-18 first daytime run: the head-read decoded
+        the captured JSON string with `.encode().decode("unicode_escape")`,
+        which mojibakes every non-ASCII character (UTF-8 bytes re-read as
+        Latin-1). `Sorcerer's Stone`'s curly apostrophe became `â€™`, the
+        normalised index key missed, and a freshly-transcribed book failed
+        its own pack with "no transcript on disk"."""
+        from app.core.review_join import normalise_title
+        from app.tools.ingest_books import _transcript_source
+
+        path = tmp_path / "t.json"
+        src = "C:\\books\\Harry Potter and the Sorcerer\u2019s Stone.m4b"
+        payload = json.dumps(
+            {"meta": {"source_m4b": src},
+             "segments": [{"x": 1}] * 20000})
+        path.write_text(payload, encoding="utf-8")
+        got = _transcript_source(path)
+        assert got == src
+        assert normalise_title(Path(got).stem) == normalise_title(
+            "Harry Potter and the Sorcerer's Stone")
+
 
 class TestCustody:
     def test_training_data_lives_outside_every_repo(self):

@@ -130,7 +130,16 @@ def _transcript_source(path: Path) -> str:
         return ""
     m = _SOURCE_M4B_RE.search(head)
     if m:
-        return m.group(1).encode().decode("unicode_escape")
+        # ⚠️ Decode the captured JSON string body AS JSON. The old
+        # `.encode().decode("unicode_escape")` round-trip mojibaked every
+        # non-ASCII character (UTF-8 bytes re-read as Latin-1): the curly
+        # apostrophe in `Sorcerer's Stone` became `â€™`, the index key
+        # missed, and a freshly-transcribed book failed its own pack with
+        # "no transcript on disk" (2026-08-18, first daytime run).
+        try:
+            return json.loads('"' + m.group(1) + '"')
+        except ValueError:
+            pass  # malformed escape in the head - fall through to full parse
     try:
         with open(path, "r", encoding="utf-8") as fh:
             return json.load(fh).get("meta", {}).get("source_m4b", "") or ""
@@ -287,6 +296,15 @@ def run(args) -> int:
                  reason=item.note or "image-scan PDF", blocker="OCR processor not built")
             save_state(state)
             continue
+
+        # ⚠️ Re-read the control document before EVERY book - that is the
+        # documented contract (info/book-ingestion.md section 1), and until
+        # 2026-08-18 it was violated: run() read it once at start, so a pause
+        # written mid-run never stopped a long opportunistic run, and the
+        # 19:00 evening window would have been ignored by any run that began
+        # before it. One small Firestore read per book start is the cost.
+        if not args.ignore_control:
+            control = read_control()
 
         # A transcript that already exists on disk makes this a CPU job, so it
         # must not be gated on the graphics card. Getting this wrong would make a
