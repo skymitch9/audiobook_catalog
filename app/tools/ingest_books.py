@@ -154,12 +154,20 @@ def _transcript_source(path: Path) -> str:
 
 
 def _build_transcript_index() -> dict:
+    from pathlib import PureWindowsPath
+
     index: dict = {}
     if not TRANSCRIPTS_DIR.exists():
         return index
     for path in sorted(TRANSCRIPTS_DIR.glob("*.json")):
         src = _transcript_source(path)
-        stem = Path(src).stem if src else path.stem
+        # ⚠️ PureWindowsPath, not Path: `source_m4b` is a STORED WINDOWS PATH
+        # whatever platform this code runs on. Plain Path() on a POSIX runner
+        # treats the backslashes as filename characters, mangles the stem, and
+        # the index key misses - which is how the 4f1b6b0 regression test went
+        # red on Linux CI while production (Windows) was fine. PureWindowsPath
+        # also accepts forward slashes, so nothing is lost.
+        stem = PureWindowsPath(src).stem if src else path.stem
         key = normalise_title(stem)
         if key:
             index.setdefault(key, path)
