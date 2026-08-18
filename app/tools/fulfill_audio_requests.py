@@ -103,6 +103,11 @@ from app.tools.club_books import fetch as fs_fetch
 from app.tools.club_books import gv
 from scripts import upload_audio_r2 as up
 
+# 🔴 Imported, never re-typed. One canonical answer to "which keys are the
+# backup" — a second copy of the string "archive/" in this file is exactly how
+# a rename of the prefix would silently disarm the eviction guard below.
+from scripts.archive_audio_r2 import ARCHIVE_PREFIX
+
 # Both lanes, exactly as fetch_content_warnings.py reads cw_requests +
 # cw_requests_dev: /dev/ and prod share one Firestore project, so a request
 # made while testing must still be fulfillable.
@@ -332,7 +337,20 @@ def evict_candidates(files: Dict[str, dict], now: Optional[float] = None,
     """Which objects may be deleted -> `(candidates, refusals)`.
 
     ⚠️ **THE GUARD IS THE POINT OF THIS FUNCTION.** An object is a candidate
-    only when there is POSITIVE evidence it is idle:
+    only when there is POSITIVE evidence it is idle — and never, under any
+    circumstance, if its key is under ``archive/``:
+
+      * 🔴 **``archive/`` IS THE BACKUP, NOT A CACHE.**
+        `scripts/archive_audio_r2.py` mirrors the entire ~685 GB library into
+        this same bucket under that prefix as the household's only off-site
+        copy (owner, 2026-08-18: *"we lose this data we lose it all and the
+        server isnt ready yet"*). Everything else in this bucket is a streaming
+        cache whose deletion costs a re-upload from disk; an `archive/` object
+        may be the LAST COPY. It is refused here unconditionally, with no flag
+        to override it. The archive manifest is a separate file
+        (`output_files/audio_archive_manifest.json`) so these keys should never
+        reach this function at all — this is the belt to that braces, because
+        the cost of being wrong is asymmetric past all reasoning.
 
       * it must carry at least one access timestamp (`last_stream_at` or
         `last_position_at`). A pair of nulls means "nothing has ever measured
@@ -354,6 +372,16 @@ def evict_candidates(files: Dict[str, dict], now: Optional[float] = None,
     refusals: List[str] = []
     for key in sorted(files):
         entry = files[key] or {}
+        # 🔴 THE ARCHIVE GUARD — first, before anything else is even considered.
+        # See the docstring: an object under this prefix is the off-site backup
+        # of the master, and deleting it can lose the only copy.
+        if str(key).startswith(ARCHIVE_PREFIX):
+            refusals.append(
+                f"{key}: under the '{ARCHIVE_PREFIX}' prefix — this is the DISASTER-RECOVERY "
+                "ARCHIVE (scripts/archive_audio_r2.py), not a streaming cache. Never evicted, "
+                "no flag overrides this."
+            )
+            continue
         if not entry.get("streamable"):
             continue
         stamps = [s for s in (_parse_stamp(entry.get("last_stream_at")),
