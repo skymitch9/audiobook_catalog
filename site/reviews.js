@@ -54,55 +54,51 @@ export function readingListDocId(uid, bookId) {
   return `${uid}_${bookId}`;
 }
 
-/**
- * The id this collection used BEFORE 2026-08-18: `{displayNameLower}_{bookId}`.
+/* ── the legacy display-name lane: REMOVED 2026-08-18 ─────────────────────
  *
- * ⚠️ READ-ONLY, AND IT IS NOT DEAD CODE. 53 of the 234 documents measured on
- * migration day could not be moved, because their owner is a retired v1
- * passphrase account (`users/…`) that has no Firebase uid at all and therefore
- * no account to key to. Guessing one for them was refused — see the migration
- * script's own refusal — so they stay here, under the old id, readable by the
- * person who wrote them and by nobody's list but their own.
+ * For one day this collection ran two id shapes at once — `{uid}_{bookId}` and
+ * the old `{displayNameLower}_{bookId}` — because 53 of 234 documents belonged
+ * to a retired v1 passphrase account with no Firebase uid to key to, and
+ * guessing an owner for somebody's reading list was refused. Three things
+ * lived here to serve them: `legacyReadingListDocId`, `isUidKeyedListId` (the
+ * lane discriminator, mirrored in firestore.rules as `tbrIdIsUidKeyed`), and a
+ * display-name branch inside `ownsReadingListDoc`.
  *
- * ⚠️ REMOVAL CONDITION, so this does not become permanent by inattention:
- * delete this function, its callers, and the `uid`-less branch of
- * `ownsReadingListDoc` once a re-run of `scripts/migrate_tbr_to_uid.py
- * --report` shows ZERO documents without a `uid` field. That is a data
- * condition, checkable in one command, not a judgement call.
- */
-export function legacyReadingListDocId(displayName, bookId) {
-  return `${(displayName || '').toLowerCase()}_${bookId}`;
-}
-
-/**
- * Is this reading-list id keyed to an ACCOUNT rather than a display name?
+ * ⚠️ THE REMOVAL CONDITION WAS A MEASUREMENT, AND IT WAS MET. The owner
+ * decided those 53 ("Reassign to Samantha but skip duplicates"),
+ * `scripts/reassign_tbr_owner.py` carried them over, and the condition the
+ * migration script prints for itself:
  *
- * ⚠️ THE SAME PREDICATE LIVES IN `firestore.rules` (`tbrIdIsUidKeyed`) and the
- * two must agree — it is what lets one collection hold both lanes and give them
- * different rules. A Firebase uid is 28 characters of `[A-Za-z0-9]`; a legacy
- * id starts with a lowercased display name, which across the whole measured
- * population is either shorter, longer, or contains a space or a bracket.
+ *     python scripts/migrate_tbr_to_uid.py --report
+ *     -> uid-less documents remaining: 0
  *
- * A display name of exactly 28 alphanumeric characters would be read as an
- * account id and locked to its owner. That fails CLOSED (a refusal, never a
- * mis-attribution), it matched nothing in the 14 accounts and 234 documents
- * measured on 2026-08-18, and the write path never produces one any more.
- */
-export function isUidKeyedListId(docId) {
-  const head = String(docId || '').split('_')[0];
-  return head.length === 28 && /^[A-Za-z0-9]+$/.test(head);
-}
+ * read **0** on 2026-08-18 across both lanes — 234 documents, 234 already
+ * account-keyed. Re-run that command before reintroducing anything here.
+ *
+ * ⚠️ AND IT IS WHY THE DISCRIMINATOR WENT TOO. `isUidKeyedListId` existed
+ * only to tell the two lanes apart. Leaving a lane discriminator behind with
+ * one lane left is an invitation to re-add the other — and the other lane's
+ * rule was, necessarily, a SIGNED-OUT write allowance, since a legacy session
+ * has no `request.auth` to check.
+ *
+ * The as-built record is `docs/info/tbr-account-migration.md`.
+ * ──────────────────────────────────────────────────────────────────────── */
 
 /**
  * Is this reading-list document MINE? The one implementation, used by every
  * surface that scans the collection (the modal button, the "Reading lists"
  * filter) rather than fetching one id.
  *
- * ⚠️ THE ORDER IS THE WHOLE POINT. An account match is exact and wins. The
- * display-name match is only ever consulted for a document that carries NO
- * `uid` — i.e. a legacy one — because applying it to an account-keyed document
- * would hand a name-sharer somebody else's list again and undo the migration
- * while every test still passed.
+ * An ACCOUNT match, and nothing else. Before 2026-08-18 this fell back to
+ * comparing display names for a document carrying no `uid`; that branch is
+ * gone with the legacy lane, and it must not come back. A name match is not an
+ * identity — reinstating it would hand a name-sharer somebody else's list
+ * again, which is the exact bug the migration was ordered to fix, and it would
+ * do so while every other test still passed.
+ *
+ * A document with no `uid` is now unowned by anybody rather than owned by
+ * whoever shares its name. That fails CLOSED: it drops off one person's list
+ * (visible, reportable) instead of appearing on a stranger's (silent).
  *
  * @param {{uid?: string, displayName?: string}} data the document's fields
  * @param {{uid?: string|null, displayName?: string|null}} me
@@ -110,10 +106,7 @@ export function isUidKeyedListId(docId) {
 export function ownsReadingListDoc(data, me) {
   const docUid = (data && data.uid) || '';
   const myUid = (me && me.uid) || '';
-  if (docUid) return !!myUid && docUid === myUid;
-  const docName = ((data && data.displayName) || '').trim().toLowerCase();
-  const myName = ((me && me.displayName) || '').trim().toLowerCase();
-  return !!docName && docName === myName;
+  return !!docUid && !!myUid && docUid === myUid;
 }
 
 /**
@@ -199,56 +192,48 @@ export async function submitReview(db, bookId, displayName, rating, text, uid) {
  * the modal's `✓ To Be Read` button performs when it is toggled off, so the
  * button falls back to `📋 Add to TBR` on its next render.
  *
- * ⚠️ IT CLEARS BOTH IDS, and that is not belt-and-braces. Since the
- * 2026-08-18 account migration a person's intention can be filed under EITHER
- * `{uid}_{bookId}` (everything written from now on, and the 181 documents the
- * migration moved) or `{displayNameLower}_{bookId}` (the 53 it could not move,
- * plus anything a still-open tab writes from a legacy session). Clearing only
- * one would leave a rated book sitting on somebody's TBR under the other,
- * which is precisely the "the button lies about a list" failure this function
- * was written to prevent.
+ * ⚠️ ONE ID SINCE 2026-08-18. This used to clear the legacy
+ * `{displayNameLower}_{bookId}` as well, because 53 documents were still filed
+ * that way. They were reassigned, the collection measured 0 uid-less, and both
+ * the legacy id and its Firestore rule were removed the same day — so a second
+ * delete would now only ever be refused. See the removal note above
+ * `ownsReadingListDoc`.
  *
  * ⚠️ The reading-list id is the REVERSE of a review's `{bookId}_{name}` — that
- * much is unchanged and still deliberate (tbr.md §2). What DID change is the
- * left-hand half: an account, not a name. See `readingListDocId`.
+ * much is unchanged and still deliberate (tbr.md §2). What changed on
+ * 2026-08-18 is the left-hand half: an account, not a name. See
+ * `readingListDocId`.
+ *
+ * ⚠️ NO uid MEANS NO CLEAR, and that is a real behaviour, not an oversight.
+ * A caller with no live session cannot own a reading-list entry any more, so
+ * there is nothing of theirs to retire. Silently deleting by name instead
+ * would reach into whoever shares that name — the exact bug the account
+ * migration was ordered to fix.
  *
  * Non-fatal by design, on both counts that matter:
  *  - it never throws, so a rating that saved is never reported as failed
  *    because a to-read entry could not be deleted;
  *  - deleting an absent document is a no-op in Firestore, so a rating EDIT,
  *    a re-submit, or a book that was never on the list all run harmlessly.
- *    That is also what makes clearing two ids cost nothing when only one
- *    exists, which is the ordinary case.
  *
- * ⚠️ A refusal on one id must not hide a success on the other, and neither
- * must it hide the OTHER delete: both are attempted before anything is
- * reported. The legacy delete is refused by rules for an account-keyed
- * document — it cannot be, since the two ids never collide — but a rules
- * refusal on either is reported in words, never as a bare code.
+ * A rules refusal is reported in words, never as a bare code.
  *
  * @param {import('firebase/firestore').Firestore} db
  * @param {string} bookId
- * @param {string} displayName
- * @param {string} [uid] the live Firebase uid; omitted by a legacy session,
- *   which then clears only the legacy id — the only entry it could have made.
+ * @param {string} displayName kept for the signature every caller already
+ *   passes; the id no longer derives from it.
+ * @param {string} [uid] the live Firebase uid. Without one there is nothing
+ *   this caller could own, and nothing is deleted.
  * @returns {Promise<{cleared: boolean, error?: string}>}
  */
 export async function clearTbrForRating(db, bookId, displayName, uid) {
-  const ids = [];
-  if (uid) ids.push(readingListDocId(uid, bookId));
-  ids.push(legacyReadingListDocId(displayName, bookId));
-
-  let error;
-  for (const docId of ids) {
-    try {
-      await deleteDoc(doc(db, col('readingLists'), docId));
-    } catch (e) {
-      // Keep the FIRST refusal — it is the account-keyed one when there are
-      // two, and that is the one that describes a real problem.
-      if (!error) error = describeActionError(e);
-    }
+  if (!uid) return { cleared: true };
+  try {
+    await deleteDoc(doc(db, col('readingLists'), readingListDocId(uid, bookId)));
+  } catch (e) {
+    return { cleared: false, error: describeActionError(e) };
   }
-  return error ? { cleared: false, error } : { cleared: true };
+  return { cleared: true };
 }
 
 /**

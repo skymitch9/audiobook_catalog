@@ -1382,7 +1382,9 @@ function wireAppearance(container){
             // in the page's PLAIN <script>, which cannot see the module scope —
             // hence the dynamic imports throughout. `getLiveUser` returns null
             // for a falsy app, so passing nothing would silently answer "no
-            // account" for everybody and quietly fall back to name matching.
+            // account" for everybody, and since 2026-08-18 that means an
+            // EMPTY list rather than a name-matched one: `ownsReadingListDoc`
+            // is account-only now, so a missing uid fails closed.
             var liveMe = null;
             try {
               var { getApp } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js');
@@ -1600,7 +1602,7 @@ function wireAppearance(container){
   import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
   import { coverUrl } from './covers-base.js';
   import { getSession, getLiveUser, signInWithGoogle, signOutGoogle, whenAdmin, handleRedirectResult, renderDevSiteLink, getSiteRole, resolveSiteAccess } from './identity.js';
-  import { submitReview, getReviews, renderStars, bookIdFromTitle, computeAverageRating, formatDate, deleteReview, readingListDocId, legacyReadingListDocId, ownsReadingListDoc } from './reviews.js';
+  import { submitReview, getReviews, renderStars, bookIdFromTitle, computeAverageRating, formatDate, deleteReview, readingListDocId, ownsReadingListDoc } from './reviews.js';
   import { addUserWarning, getUserWarnings, deleteUserWarning, requestWarningCheck, getWarningRequest } from './user-warnings.js';
   import { col, FIREBASE_CONFIG } from './fb-env.js';
   import { mountEstateSearch } from './estate-search-mount.js';
@@ -2148,29 +2150,29 @@ function wireAppearance(container){
     const live = await getLiveUser(app).catch(() => null);
     const uid = live && live.uid ? live.uid : null;
 
-    // ⚠️ THE LEGACY READ IS A FALLBACK AND IS READ-ONLY. A signed-in person
-    // whose entry the migration could not move — or who added a book from a
-    // still-open legacy tab — must still see `✓ To Be Read` rather than a
-    // button that lies. What it must NEVER do is become the write target for
-    // somebody who has an account: that would file a new document back under
-    // the shared name key and re-open the hole one book at a time.
-    // REMOVAL CONDITION: drop this branch when a re-run of
-    // `scripts/migrate_tbr_to_uid.py --report` shows zero uid-less documents.
+    // ⚠️ THE LEGACY READ-FALLBACK IS GONE — REMOVED 2026-08-18 on a
+    // MEASUREMENT, not a judgement: `scripts/migrate_tbr_to_uid.py --report`
+    // printed `uid-less documents remaining: 0` across both lanes after the
+    // owner's reassignment of the last 53. The old branch read (and, for a
+    // session with no account, WROTE) `{displayNameLower}_{bookId}`; its rule
+    // is gone from firestore.rules too, so it could now only be refused.
+    //
+    // ⚠️ NO ACCOUNT NOW MEANS NO BUTTON, deliberately. A legacy v1 session has
+    // nothing it could own, and rendering a control that Firestore will refuse
+    // is worse than not rendering it — see the ELSE below, which says so in
+    // words instead of leaving a dead button.
     const uidRef = uid ? doc(db, col('readingLists'), readingListDocId(uid, bookId)) : null;
-    const legacyRef = doc(db, col('readingLists'),
-                          legacyReadingListDocId(session.displayName, bookId));
 
-    // Where a NEW entry goes: the account when there is one, the old key only
-    // for a session that has no account to key to (a v1 passphrase capture).
-    const writeRef = uidRef || legacyRef;
+    if (!uidRef) {
+      readingListContainer.innerHTML =
+        '<span style="font-size:.72em;color:var(--muted)">Sign in with Google to keep a to-read list.</span>';
+      return;
+    }
 
     let currentStatus = null;
-    let heldRef = null;   // which document actually holds the entry, if any
     try {
-      for (const ref of (uidRef ? [uidRef, legacyRef] : [legacyRef])) {
-        const snap = await getDoc(ref);
-        if (snap.exists()) { currentStatus = snap.data().status; heldRef = ref; break; }
-      }
+      const snap = await getDoc(uidRef);
+      if (snap.exists()) currentStatus = snap.data().status;
     } catch(e) {}
 
     // Get cover from modal
@@ -2185,22 +2187,19 @@ function wireAppearance(container){
 
       readingListContainer.querySelector('#rl-tbr-btn').addEventListener('click', async () => {
         if (currentStatus === 'tbr') {
-          // ⚠️ Delete the document that actually HOLDS the entry, which for a
-          // legacy one is not where a new write would go. Removing `writeRef`
-          // instead would be a silent no-op and leave the book on the list.
-          await deleteDoc(heldRef || writeRef);
+          await deleteDoc(uidRef);
           currentStatus = null;
-          heldRef = null;
         } else {
-          const data = { displayName: session.displayName, bookId, bookTitle, bookCover: cover, status: 'tbr', addedAt: serverTimestamp() };
-          // The `uid` field is what every collection SCAN attributes by
-          // (reviews.js ownsReadingListDoc) and what firestore.rules pins to
-          // the id. Omitted — never blank — when there is no account, because
-          // an empty string is the value the legacy branch of both is keyed on.
-          if (uid) data.uid = uid;
-          await setDoc(writeRef, data);
+          // ⚠️ The `uid` FIELD and the uid in the ID must be the same account:
+          // firestore.rules requires both, and every collection SCAN
+          // (reviews.js ownsReadingListDoc) attributes by the field. Neither
+          // half is optional any more — the branch that omitted it existed
+          // only for the legacy lane, which is gone.
+          await setDoc(uidRef, {
+            uid, displayName: session.displayName, bookId, bookTitle,
+            bookCover: cover, status: 'tbr', addedAt: serverTimestamp(),
+          });
           currentStatus = 'tbr';
-          heldRef = writeRef;
         }
         renderBtns();
       });

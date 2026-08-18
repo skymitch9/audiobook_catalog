@@ -6,31 +6,37 @@ deploy, there is no dev lane for enforcement, and no unit test in any language
 can check "another signed-in account cannot overwrite your list". This drives
 the live rules the way a browser would and asserts each answer.
 
-⚠️ WHAT MAKES THIS ONE DIFFERENT from the reading-position smoke: /readingLists
-runs TWO models at once. The 2026-08-18 account migration ("Make tbr keyed to
-account") moved 181 of 234 documents to `{uid}_{bookId}`, and could not move 53
-— their owner is a retired v1 passphrase account with no Firebase uid at all.
-Those keep the old `{displayNameLower}_{bookId}` id and the old shape-only
-rules, or the only person entitled to them loses them.
+⚠️ THE LEGACY LANE IS GONE, AND THIS SCRIPT NOW PROVES THAT IT IS.
 
-So this script has to prove BOTH halves, and the second is as important as the
-first:
+For one day /readingLists ran two models at once: the 2026-08-18 account
+migration ("Make tbr keyed to account") moved 181 of 234 documents to
+`{uid}_{bookId}` and could not move 53, whose owner was a retired v1 passphrase
+account with no Firebase uid at all. Those kept the old
+`{displayNameLower}_{bookId}` id and the old shape-only rules — which, because
+a legacy session holds no `request.auth` whatsoever, necessarily included a
+SIGNED-OUT write allowance.
+
+The owner reassigned those 53, `migrate_tbr_to_uid.py --report` measured
+`uid-less documents remaining: 0`, and the lane was removed from
+firestore.rules the same day.
+
+So the legacy assertions below have been INVERTED rather than deleted, and that
+is deliberate: a deleted test proves nothing, while an inverted one proves the
+door is shut. They are the highest-value assertions in the file now, because
+the thing they guard against is an anonymous writer creating reading-list
+documents under any display name it likes.
 
     account-keyed docs  -> owner-only writes and deletes
-    legacy-keyed docs   -> still writable, exactly as before
-
-A run that proved only the first would be a green light for a change that
-silently stranded somebody's reading list.
+    name-keyed docs     -> REFUSED outright, signed in or out
 
 Scratch data only, in the DEV lane (readingLists_dev), all removed at the end
 along with the synthetic users.
 
-⚠️ THE SYNTHETIC UIDS MUST BE EXACTLY 28 CHARACTERS. The rules tell the two
-lanes apart by the SHAPE of the document id (`tbrIdIsUidKeyed`: a 28-character
-alphanumeric head is an account). The reading-position smoke uses short custom
-uids like `zzreadpos_a`, and one of those here would be read as a LEGACY id and
-sail through the shape-only branch — the script would pass while testing
-nothing. Cost an hour to notice once; hence this paragraph.
+⚠️ THE SYNTHETIC UIDS MUST BE EXACTLY 28 CHARACTERS — a real Firebase uid's
+length, so `docId.split('_')[0] == request.auth.uid` can match at all. The
+reading-position smoke uses short custom uids like `zzreadpos_a`; one of those
+here would never equal the id head and every account assertion would pass for
+the wrong reason. Cost an hour to notice once; hence this paragraph.
 
 Needs scripts/firebase_service_account.json (gitignored). Password and anonymous
 sign-up are DISABLED on this project (Google SSO only), so the only way to hold
@@ -130,7 +136,8 @@ print(f'synthetic accounts: A={uid_a} B={uid_b}\n')
 
 doc_a = f'{COL}/{uid_a}_{BOOK}'
 doc_b = f'{COL}/{uid_b}_{BOOK}'
-# The legacy lane: a lowercased display name, not an account.
+# The retired legacy shape: a lowercased display name, not an account. Kept as
+# a fixture so the closed door can be asserted closed.
 legacy = f'{COL}/zzsmokelegacy_{BOOK}'
 
 # Clean slate — a crashed earlier run must not turn a refusal into a 200.
@@ -177,24 +184,38 @@ check('an anonymous caller cannot DELETE an account entry', st, 403)
 st, _ = call('GET', f'{FS}/{doc_a}')
 check('reads stay OPEN (community counts, both catalogs\' filters)', st, 200)
 
-print('\n-- the LEGACY lane must still work (53 real documents) --')
-# ⚠️ If these fail, the 53 documents whose owner has no Firebase account are
-# stranded and the person who wrote them can never touch them again.
+print('\n-- the LEGACY lane is CLOSED (removed 2026-08-18) --')
+# ⚠️ THESE ASSERTIONS WERE INVERTED, NOT DELETED. Until 2026-08-18 each of the
+# first three expected 200, because 53 real documents could only be reached
+# that way. They were reassigned, the collection measured ZERO uid-less
+# documents, and the lane came out of firestore.rules.
+#
+# ⚠️ The first one is the important one. While that lane existed, ANY caller
+# with no account, no token and no identity could create a reading-list
+# document under any display name it chose. That is the door this asserts is
+# now shut, and a regression to 200 here is a silently open write path, not a
+# cosmetic test failure.
 st, _ = call('PATCH', f'{FS}/{legacy}', tbr_fields(name='zzsmokelegacy'))
-check('a legacy display-name entry is still writable, signed OUT', st, 200)
+check('a signed-OUT name-keyed write is REFUSED', st, 403)
 
-st, _ = call('GET', f'{FS}/{legacy}')
-check('and readable', st, 200)
+st, _ = call('PATCH', f'{FS}/{legacy}', tbr_fields(name='zzsmokelegacy'), token=tok_a)
+check('and a signed-IN one is refused too (the id is not their account)', st, 403)
 
-st, _ = call('DELETE', f'{FS}/{legacy}')
-check('and deletable (shape-only, as before)', st, 200)
+st, _ = call('DELETE', f'{FS}/{legacy}', token=tok_a)
+check('a name-keyed DELETE is refused', st, 403)
 
-# ⚠️ The one thing the legacy lane must NOT allow: smuggling a uid in. That
-# would put an account-attributed document under a name-shaped id, which every
-# scan reads by uid and no rule protects.
+# Unchanged and still true: a name-shaped id carrying a uid field is refused.
+# It always was — under the old rules by the legacy branch, now by the only
+# branch there is.
 st, _ = call('PATCH', f'{FS}/{legacy}', tbr_fields(name='zzsmokelegacy', uid=uid_a),
              token=tok_a)
-check('a legacy id carrying a uid field is REFUSED', st, 403)
+check('a name-keyed id carrying a uid field is REFUSED', st, 403)
+
+# Reads were never gated and still are not — three surfaces list this
+# collection. A 404 (nothing was ever written above) proves the read reached
+# the store rather than being refused, which a 403 would be.
+st, _ = call('GET', f'{FS}/{legacy}')
+check('reads are still ungated (404 = absent, NOT refused)', st, 404)
 
 print('\n-- the shape --')
 bad = tbr_fields(uid=uid_a)
