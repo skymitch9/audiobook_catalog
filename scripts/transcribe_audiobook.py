@@ -30,6 +30,13 @@ which is the guard itself rather than a gitignore line someone can `git add -f`
 past. Owner, 2026-08-18: *"this is data that could lead to piracy if it were to
 get out"*, and this repo is PUBLIC.
 
+⚠️ THIS SCRIPT IS THE ONE PLACE PROGRESS CAN BE OBSERVED, which is why the
+progress file is written HERE and not in `app/tools/ingest_books.py`. Both
+invocation paths pass through this file: the nightly's `transcribe()` runs it as
+a subprocess, and a hand-run chain calls it directly with `--m4b`. Putting the
+tee in the nightly would have left every hand run invisible - and hand runs are
+exactly the ones somebody is watching. See PROGRESS_PATH below.
+
 USAGE
     python scripts/transcribe_audiobook.py --title "The Primal Hunter 12 - A LitRPG Adventure"
     python scripts/transcribe_audiobook.py --m4b "C:/path/to/book.m4b" --batch-size 16
@@ -46,6 +53,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -66,6 +74,171 @@ LIBRARY_ROOT = Path(os.getenv("ROOT_DIR", r"C:\Users\nbasl\OpenAudible\books"))
 MODEL = "large-v3"
 COMPUTE_TYPE = "float16"
 MIN_SPAN_RATIO = 0.95   # the truncation gate; see the module docstring
+
+# --------------------------------------------------------------------------
+# progress
+# --------------------------------------------------------------------------
+# ⚠️ WHY THIS FILE EXISTS. https://heygabi.ai/status/processing shows the book
+# being transcribed right now, and the owner asked for a per-book PERCENTAGE.
+# Until this, there was none to give: the Whisper worker prints a real progress
+# line every 60 s, but the nightly ran it with `capture_output=True`, so those
+# lines sat unread in a pipe until the book finished. Nothing on disk counted
+# finished units mid-book, so the status pusher omitted `percent` entirely
+# rather than publish an elapsed-time guess (the page draws a bar from that
+# field and promises never to estimate one).
+#
+# ⚠️ THE PERCENTAGE IS A MEASUREMENT AND MUST STAY ONE. It is
+# `transcribed span / container duration` - the SAME ratio the truncation gate
+# above uses to decide whether a finished transcript is complete. The span comes
+# from the model's own segment timestamps; the duration from ffprobe. Neither is
+# a rate, an extrapolation, or a clock reading, and nothing here may quietly
+# become one.
+PROGRESS_PATH = WORK_DIR / "transcribe_progress.json"
+
+# ⚠️ The worker's own line, and the format is load-bearing:
+#     [whisper] 1.25h audio | 12.3min wall | 61.0x rt | 18234 words
+# `%.2fh audio` is `s.end / 3600` - the END TIMESTAMP of the last segment
+# handled, i.e. how much of the BOOK is done, not how long we have been running.
+# The "model loaded in 12.3s" line also starts with `[whisper]` and deliberately
+# does not match: model loading is not transcription progress.
+_WHISPER_PROGRESS_RE = re.compile(
+    r"^\[whisper\]\s+([0-9.]+)h audio\s*\|\s*([0-9.]+)min wall\s*\|\s*([0-9.]+)x rt\s*\|\s*(\d+) words")
+
+
+def _utc_now() -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+
+def parse_whisper_progress(line: str) -> dict | None:
+    """One worker stdout line -> its numbers, or None if it is not a progress line."""
+    match = _WHISPER_PROGRESS_RE.match(line.strip())
+    if not match:
+        return None
+    return {
+        "audio_hours_done": float(match.group(1)),
+        "wall_minutes": float(match.group(2)),
+        "realtime_factor": float(match.group(3)),
+        "words": int(match.group(4)),
+    }
+
+
+def write_progress(m4b, title: str, container_s: float, started_at: str,
+                   audio_hours_done: float, wall_minutes: float | None = None,
+                   realtime_factor: float | None = None, words: int | None = None,
+                   path: Path | None = None, now: str | None = None) -> bool:
+    """Publish one progress snapshot, atomically, and NEVER raise.
+
+    ⚠️ A STATUS WRITE MUST NOT BE ABLE TO KILL A TRANSCRIPTION. A full disk, a
+    locked file or a permissions change is a reason for the status page to go
+    quiet - the page says so honestly - and never a reason to lose twenty GPU
+    minutes. Hence the deliberately broad except and the boolean return: the
+    caller logs a warning at most.
+
+    ⚠️ Written tmp-then-`os.replace`, which is atomic on NTFS, because the
+    reader is a pusher polling every 15 minutes and a half-written file would
+    surface as "the pipeline is not pushing" rather than as an error.
+    """
+    target = PROGRESS_PATH if path is None else path
+    span_s = audio_hours_done * 3600.0
+    percent = None
+    if container_s and container_s > 0:
+        percent = round(max(0.0, min(100.0, span_s / container_s * 100.0)), 1)
+    record = {
+        "source_m4b": str(m4b),
+        "title": title,
+        "audio_seconds_done": round(span_s, 3),
+        "audio_hours_done": audio_hours_done,
+        "container_duration_s": container_s,
+        "percent": percent,
+        "started_at": started_at,
+        "updated_at": now or _utc_now(),
+    }
+    # Nice-to-haves. Absent rather than null when the line did not carry them,
+    # so a reader can never mistake "not reported" for "measured as nothing".
+    if wall_minutes is not None:
+        record["wall_minutes"] = wall_minutes
+    if realtime_factor is not None:
+        record["realtime_factor"] = realtime_factor
+    if words is not None:
+        record["words"] = words
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        tmp = target.with_name(target.name + ".tmp")
+        tmp.write_text(json.dumps(record), encoding="utf-8")
+        os.replace(tmp, target)
+        return True
+    except Exception:
+        return False
+
+
+def clear_progress(path: Path | None = None) -> None:
+    """Remove the progress file. ⚠️ A STALE ONE MUST NOT OUTLIVE ITS RUN.
+
+    Called on EVERY exit from the worker section - success, non-zero worker,
+    truncation and exception alike - because a progress file left behind claims
+    a book is being transcribed when the GPU is idle, and that is a lie the
+    status page would render as fact. The reader applies a staleness cut-off
+    too; this is the belt and that is the braces.
+    """
+    target = PROGRESS_PATH if path is None else path
+    try:
+        if target.exists():
+            target.unlink()
+    except OSError:
+        pass
+
+
+def _echo(raw: bytes) -> None:
+    """Pass one worker stdout line through, BYTE FOR BYTE.
+
+    ⚠️ BYTES, NOT TEXT, AND THAT IS THE WHOLE POINT. Before this relay existed
+    the worker inherited the parent's stdout handle and its bytes reached the
+    console or the nightly's log untouched. Decoding and re-encoding them here
+    would invent a UnicodeEncodeError on any console whose codepage is not
+    UTF-8 - a brand-new way for a twenty-minute book to die, in the name of a
+    status page. The worker's `DONE {json}` line carries a book's file path, and
+    those are not ASCII.
+    """
+    try:
+        sys.stdout.buffer.write(raw)
+        sys.stdout.buffer.flush()
+    except (AttributeError, ValueError):
+        # No binary buffer (a captured or wrapped stdout). Lossy is acceptable
+        # HERE and nowhere else: this branch only runs under test capture.
+        sys.stdout.write(raw.decode("utf-8", "replace"))
+        sys.stdout.flush()
+
+
+def run_worker(cmd, m4b, title: str, container_s: float,
+               started_at: str | None = None, popen=subprocess.Popen) -> int:
+    """Run the Whisper worker, relaying its stdout and publishing progress.
+
+    ⚠️ THE RELAY MUST NOT CHANGE WHAT ANYONE SEES. The nightly captures this
+    process's stdout into `output_files/ingest_nightly.log`; a hand-run chain
+    watches it in a console. Both keep every byte the worker wrote, in order,
+    flushed per line - the only difference is that this process now also reads
+    them on the way past.
+
+    ⚠️ STDERR IS NOT PIPED, deliberately. It stays inherited, so a traceback
+    still lands where it always did, and there is no second pipe to deadlock on
+    while this loop is blocked reading the first.
+    """
+    started_at = started_at or _utc_now()
+    clear_progress()   # a previous run killed outright cannot leave one behind
+    proc = popen(cmd, cwd=str(WORK_DIR), stdout=subprocess.PIPE)
+    try:
+        for raw in proc.stdout:
+            _echo(raw)
+            hit = parse_whisper_progress(raw.decode("utf-8", "replace"))
+            if hit:
+                write_progress(m4b=m4b, title=title, container_s=container_s,
+                               started_at=started_at, **hit)
+    finally:
+        if proc.stdout is not None:
+            proc.stdout.close()
+        proc.wait()
+    return proc.returncode
+
 
 # The worker that runs inside the Whisper venv. Written to disk next to the venv
 # rather than imported, because this repo's interpreter cannot import
@@ -247,14 +420,19 @@ def transcribe(title: str, m4b: Path, batch_size: int, dry_run: bool = False) ->
     try:
         secs = to_wav(m4b, wav)
         print(f"[transcribe] wav ready in {secs:.0f}s ({wav.stat().st_size:,} bytes)")
-        proc = subprocess.run(
+        rc = run_worker(
             [str(WHISPER_PYTHON), str(worker_path()), str(wav), str(m4b),
              str(out_json), str(out_txt), f"{duration:.3f}", str(batch_size),
              MODEL, COMPUTE_TYPE],
-            cwd=str(WORK_DIR))
-        if proc.returncode != 0:
-            raise RuntimeError(f"whisper worker rc={proc.returncode}")
+            m4b=m4b, title=title, container_s=duration)
+        if rc != 0:
+            raise RuntimeError(f"whisper worker rc={rc}")
     finally:
+        # ⚠️ BOTH cleanups belong here and not after the truncation check below.
+        # This block runs on success, on a non-zero worker, and on any exception
+        # — which is exactly the set of ways a progress file could otherwise be
+        # left behind claiming a book is transcribing while the GPU sits idle.
+        clear_progress()
         if not remove(wav):
             print(f"[transcribe] WARN: could not delete {wav}")
 
