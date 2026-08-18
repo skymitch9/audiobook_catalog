@@ -562,14 +562,15 @@ def write_control(payload: dict, collection: str = None,
 RT_SAMPLES = 5              # how many recent books define "the regime we're in"
 RT_SCAN_FILES = 40          # newest-N transcripts to open; the corpus grows
 RT_SAFETY_DIVISOR = 1.30    # assume 30% worse than the WORST of those books
-RT_CEILING = 40.0           # ⚠️ never assume better than this, however good the
-                            # recent run looked: a lucky clean stretch must not
-                            # buy optimism the boundary then has to pay for.
-                            # 40 sits below every clean measurement (75-85x) and
-                            # above the worst contended one (31.8x).
-RT_FLOOR = 10.0             # ...and never assume worse than this, so a single
-                            # catastrophic outlier cannot silently stall the
-                            # queue forever. At 10x a 12 h book estimates 80 min.
+# ⚠️ RT_CEILING: never assume better than this, however good the recent run
+# looked - a lucky clean stretch must not buy optimism the boundary then has to
+# pay for. 40 sits below every clean measurement (75-85x) and above the worst
+# contended one (31.8x).
+RT_CEILING = 40.0
+# ...and RT_FLOOR: never assume worse than this, so a single catastrophic
+# outlier cannot silently stall the queue forever. At 10x a 12 h book estimates
+# 80 minutes, which is a sane worst case rather than a permanent refusal.
+RT_FLOOR = 10.0
 RT_DEFAULT = 20.0           # no transcripts on disk yet: pessimistic but usable
 
 # Everything that is not transcription: ffmpeg m4b->WAV, model load, chunk,
@@ -786,6 +787,60 @@ class StartDecision:
     boundary: Optional[datetime] = None
 
 
+def _decide_cpu_only(window_ok: bool, now: datetime, sleep) -> StartDecision:
+    """EPUB and text-PDF work: two of the five gates, and here is why.
+
+    Exempt from the GPU guard - waiting for a graphics card to idle before
+    parsing a zip file would be theatre. Exempt from the DEADLINE too, because
+    this work is measured in seconds and "will it finish in time" has one
+    answer. NOT exempt from the CPU guard: the processor is exactly what it
+    competes for, and 138 EPUBs is real work on the machine a person is using.
+    """
+    if not window_ok:
+        return StartDecision(False, "outside the 00:00-07:45 Phoenix window",
+                             batch_size_for(now))
+    cpu = cpu_guard(sleep=sleep)
+    if cpu.busy:
+        return StartDecision(False, cpu_busy_words(cpu), batch_size_for(now),
+                             cpu_pct=cpu.pct)
+    return StartDecision(True, f"in window; GPU-guard exempt, CPU at {cpu.pct:.0f}%",
+                         batch_size_for(now), cpu_pct=cpu.pct)
+
+
+def _gpu_clearance(window_ok: bool, now: datetime, allow_opportunistic: bool,
+                   sustained_polls: int, sleep
+                   ) -> Tuple[Optional[StartDecision], Optional[int], bool, float]:
+    """The GPU half of an audio start: `(refusal | None, pct, opportunistic, waited)`.
+
+    Two different tests behind one return, and the difference is deliberate:
+    inside the window a single poll decides, because at 2am the window IS the
+    guarantee; outside it the bonus path asks for two polls two minutes apart
+    before borrowing a machine somebody may be using. Only the second sleeps,
+    and it reports how long so the caller can re-test the deadline against a
+    clock that moved.
+    """
+    if window_ok:
+        util = gpu_utilisation()
+        if util is None:
+            return (StartDecision(False, "GPU utilisation unreadable - treating as busy",
+                                  batch_size_for(now), util), util, False, 0.0)
+        if util > GPU_BUSY_PCT:
+            return (StartDecision(False, f"GPU at {util}% (> {GPU_BUSY_PCT}%); waiting",
+                                  batch_size_for(now), util), util, False, 0.0)
+        return None, util, False, 0.0
+
+    if not allow_opportunistic:
+        return (StartDecision(False, "outside the window; opportunistic runs disabled",
+                              batch_size_for(now)), None, True, 0.0)
+    if not gpu_sustained_free(polls=sustained_polls, sleep=sleep):
+        return (StartDecision(False,
+                              f"outside the window and the GPU is not sustained-free "
+                              f"({sustained_polls} polls, {GPU_POLL_SECONDS}s apart)",
+                              batch_size_for(now)), None, True, 0.0)
+    return (None, gpu_utilisation(), True,
+            max(0, sustained_polls - 1) * GPU_POLL_SECONDS)
+
+
 def decide_start(state: ControlState, now: Optional[datetime] = None,
                  needs_gpu: bool = True, allow_opportunistic: bool = True,
                  sustained_polls: int = 2, sleep=time.sleep,
@@ -821,55 +876,21 @@ def decide_start(state: ControlState, now: Optional[datetime] = None,
 
     window_ok = may_start_new_book(now)
 
-    def _cpu() -> CpuReading:
-        return cpu_guard(sleep=sleep)
-
     if not needs_gpu:
-        # EPUB and text-PDF extraction is exempt from the GPU guard - waiting
-        # for a graphics card to idle before parsing a zip file would be
-        # theatre - but NOT from the CPU guard, because it is the processor it
-        # competes for. It is exempt from the DEADLINE too: this work is
-        # measured in seconds, so "will it finish in time" has one answer.
-        if not window_ok:
-            return StartDecision(False, "outside the 00:00-07:45 Phoenix window",
-                                 batch_size_for(now))
-        cpu = _cpu()
-        if cpu.busy:
-            return StartDecision(False, cpu_busy_words(cpu), batch_size_for(now),
-                                 cpu_pct=cpu.pct)
-        return StartDecision(True,
-                             f"in window; GPU-guard exempt, CPU at {cpu.pct:.0f}%",
-                             batch_size_for(now), cpu_pct=cpu.pct)
+        return _decide_cpu_only(window_ok, now, sleep)
 
     estimate = estimate_against_deadline(state, now, audio_seconds, factors)
     if not estimate.fits:
         return StartDecision(False, estimate.words, batch_size_for(now),
                              est_finish=estimate.finish, boundary=estimate.boundary)
 
-    if window_ok:
-        util = gpu_utilisation()
-        if util is None:
-            return StartDecision(False, "GPU utilisation unreadable - treating as busy",
-                                 batch_size_for(now), util)
-        if util > GPU_BUSY_PCT:
-            return StartDecision(False, f"GPU at {util}% (> {GPU_BUSY_PCT}%); waiting",
-                                 batch_size_for(now), util)
-        opportunistic = False
-    else:
-        if not allow_opportunistic:
-            return StartDecision(False, "outside the window; opportunistic runs disabled",
-                                 batch_size_for(now))
-        # Opportunistic daytime path: the window is the guarantee, idle is bonus.
-        if not gpu_sustained_free(polls=sustained_polls, sleep=sleep):
-            return StartDecision(False,
-                                 f"outside the window and the GPU is not sustained-free "
-                                 f"({sustained_polls} polls, {GPU_POLL_SECONDS}s apart)",
-                                 batch_size_for(now))
-        waited += max(0, sustained_polls - 1) * GPU_POLL_SECONDS
-        util = gpu_utilisation()
-        opportunistic = True
+    refusal, util, opportunistic, gpu_waited = _gpu_clearance(
+        window_ok, now, allow_opportunistic, sustained_polls, sleep)
+    if refusal is not None:
+        return refusal
+    waited += gpu_waited
 
-    cpu = _cpu()
+    cpu = cpu_guard(sleep=sleep)
     waited += cpu.waited_s
     if cpu.busy:
         return StartDecision(False, cpu_busy_words(cpu), batch_size_for(now),
