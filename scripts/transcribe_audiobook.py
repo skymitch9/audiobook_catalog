@@ -145,17 +145,44 @@ def resolve_m4b(title: str) -> Path:
     ⚠️ Normalised, never exact. `The Primal Hunter 9: A LitRPG Adventure` is on
     disk as `...9- A LitRPG Adventure.m4b` because Windows forbids a colon in a
     filename; an exact match loses that book and says only "not found".
+
+    ⚠️ The queue title may carry a ` - Series, Book N` tail the filename does
+    not. OpenAudible names some files title-only: the first real nightly book,
+    `A Court of Thorns and Roses (Part 1 of 2) (Dramatized Adaptation) - A
+    Court of Thorns and Roses, Book 1`, is on disk without everything after the
+    ` - ` — while `Fourth Wing - Empyrean, Book 1` keeps its tail. So the tail
+    strip is a FALLBACK, tried only after the full title misses, one ` - `
+    segment at a time from the right. ⚠️ A stripped title that matches MORE
+    THAN ONE file is refused with words, never picked from — a bare volume tail
+    is identity, not boilerplate (the Space Knight false-twin lesson), and
+    transcribing the wrong book reports itself as success.
     """
+    files = list(LIBRARY_ROOT.rglob("*.m4b"))
     want = normalise_title(title)
-    for path in LIBRARY_ROOT.rglob("*.m4b"):
+    for path in files:
         if normalise_title(path.stem) == want:
             return path
     # Second pass: the catalog may know an author folder the title does not.
     for row in load_catalog():
         if normalise_title(row.get("title", "")) == want:
-            for path in LIBRARY_ROOT.rglob("*.m4b"):
+            for path in files:
                 if normalise_title(path.stem) == normalise_title(row.get("title", "")):
                     return path
+    # Third pass: strip ` - …` tail segments, rightmost first, unique match only.
+    stripped = title
+    while " - " in stripped:
+        stripped = stripped.rsplit(" - ", 1)[0]
+        want = normalise_title(stripped)
+        if not want:
+            break
+        hits = [p for p in files if normalise_title(p.stem) == want]
+        if len(hits) == 1:
+            return hits[0]
+        if len(hits) > 1:
+            raise FileNotFoundError(
+                f"title {title!r} stripped to {stripped!r} matches "
+                f"{len(hits)} files under {LIBRARY_ROOT} - refusing to guess: "
+                + ", ".join(p.name for p in hits))
     raise FileNotFoundError(f"no .m4b under {LIBRARY_ROOT} matches {title!r}")
 
 
