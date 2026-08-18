@@ -716,3 +716,139 @@ class TestQueueSummary:
 
         # An unwritable destination costs the page its split and the run nothing.
         write_queue_summary({"x": 1}, tmp_path / "no" / "such" / "\0bad")
+
+
+# --------------------------------------------------------------------------
+# the third copy of the transcripts (owner: "we lose this data we lose it all")
+# --------------------------------------------------------------------------
+
+class TestTranscriptBackup:
+    """Transcripts are the GPU-hours artifact and had only two copies, both on
+    this machine's blast radius. These pin the properties that make the third
+    copy trustworthy AND harmless: deterministic bytes, real idempotence, and a
+    failure that can never stop an ingest run."""
+
+    def _json(self, tmp_path, stem="b", segments=None):
+        path = tmp_path / f"{stem}.json"
+        payload = {"meta": {"source_m4b": "x.m4b"},
+                   "segments": segments if segments is not None else
+                   [{"start": 0.0, "text": " hello "}]}
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        return path
+
+    def test_render_txt_matches_the_workers_format_exactly(self):
+        """⚠️ THE RECOVERY PATH for the .txt we deliberately do not upload. The
+        format string is copied from _whisper_worker.py and must not be tidied."""
+        from app.core.ingest_transcripts import render_txt
+
+        segs = [{"start": 0.0, "text": "first"},
+                {"start": 3661.5, "text": "  second  "}]
+        assert render_txt(segs) == "[00:00:00.000] first\n[01:01:01.500] second\n"
+
+    def test_gzip_is_deterministic_so_the_digest_can_be_trusted(self, tmp_path):
+        """mtime=0, same as write_pack_gz. Without it the container changes every
+        run even when the content does not, and every backfill re-uploads."""
+        from app.core.ingest_transcripts import gzip_bytes
+
+        path = self._json(tmp_path)
+        assert gzip_bytes(path) == gzip_bytes(path)
+
+    def test_gzip_round_trips_to_the_original_bytes(self, tmp_path):
+        from app.core.ingest_transcripts import gzip_bytes
+
+        path = self._json(tmp_path)
+        assert gzip.decompress(gzip_bytes(path)) == path.read_bytes()
+
+    def test_a_matching_digest_skips_the_upload(self, tmp_path, monkeypatch):
+        import app.core.ingest_transcripts as it
+
+        calls = []
+        monkeypatch.setattr(it, "r2_put", lambda key, p: calls.append(key))
+        path = self._json(tmp_path)
+        ledger = {}
+
+        first = it.upload_transcript(path, ledger)
+        assert first["status"] == "uploaded" and len(calls) == 1
+        second = it.upload_transcript(path, ledger)
+        assert second["status"] == "skipped", "an unchanged transcript must not re-upload"
+        assert len(calls) == 1
+
+        # ...and --force overrides it, for a bucket somebody emptied.
+        third = it.upload_transcript(path, ledger, force=True)
+        assert third["status"] == "uploaded" and len(calls) == 2
+
+    def test_the_ledger_is_written_only_after_a_successful_put(self, tmp_path, monkeypatch):
+        """⚠️ It may under-claim (costing a re-upload) but must never over-claim,
+        or a lost object looks backed up forever."""
+        import app.core.ingest_transcripts as it
+
+        def boom(key, p):
+            raise RuntimeError("wrangler said no")
+
+        monkeypatch.setattr(it, "r2_put", boom)
+        ledger = {}
+        res = it.upload_transcript(self._json(tmp_path), ledger)
+        assert res["status"] == "failed"
+        assert ledger == {}, "a failed put must leave no trace claiming success"
+
+    def test_upload_never_raises(self, tmp_path, monkeypatch):
+        """A backup step that can stop an ingest run is a liability, not a
+        safety net - the books are the job."""
+        import app.core.ingest_transcripts as it
+
+        monkeypatch.setattr(it, "r2_put", lambda key, p: (_ for _ in ()).throw(OSError("disk")))
+        res = it.upload_transcript(self._json(tmp_path), {})
+        assert res["status"] == "failed" and "error" in res
+
+        missing = it.upload_transcript(tmp_path / "nope.json", {})
+        assert missing["status"] == "failed"
+
+    def test_only_transcript_json_is_ever_uploaded(self, tmp_path):
+        """⚠️ whisper-venv/ and work/ (a 2 GB intermediate WAV) are siblings of
+        the transcripts dir and are never globbed - the exclusion is structural,
+        not a list somebody has to remember."""
+        from app.core.ingest_transcripts import transcripts_on_disk
+
+        self._json(tmp_path, "keep")
+        (tmp_path / "keep.txt").write_text("derived", encoding="utf-8")
+        (tmp_path / "huge.wav").write_bytes(b"\0" * 16)
+        (tmp_path / "work").mkdir()
+        self._json(tmp_path / "work", "intermediate")
+
+        assert [p.name for p in transcripts_on_disk(tmp_path)] == ["keep.json"]
+
+    def test_the_key_lands_under_the_gated_prefix(self):
+        """Same bucket and privacy class as the packs. A transcript is the book
+        as text; a public bucket would publish it."""
+        from app.core.ingest_transcripts import transcript_key
+
+        assert transcript_key("a_book") == "transcripts/a_book.json.gz"
+
+    def test_backfill_reports_every_outcome(self, tmp_path, monkeypatch):
+        import app.core.ingest_transcripts as it
+
+        monkeypatch.setattr(it, "r2_put", lambda key, p: None)
+        self._json(tmp_path, "one")
+        self._json(tmp_path, "two")
+        ledger_path = tmp_path / "ledger.json"
+
+        out = it.backfill(tmp_path, ledger_path)
+        assert len(out["uploaded"]) == 2 and out["total"] == 2
+        again = it.backfill(tmp_path, ledger_path)
+        assert len(again["skipped"]) == 2 and again["uploaded"] == []
+
+    def test_the_ledger_is_never_uploaded_as_a_transcript(self, tmp_path, monkeypatch):
+        """⚠️ Found by the test above, not by review: with the ledger inside the
+        scanned directory the glob picked it up, uploaded it, and thereby
+        CHANGED it - so it re-uploaded itself on every run, forever."""
+        import app.core.ingest_transcripts as it
+
+        monkeypatch.setattr(it, "r2_put", lambda key, p: None)
+        self._json(tmp_path, "real")
+        ledger_path = tmp_path / "ledger.json"
+
+        it.backfill(tmp_path, ledger_path)
+        assert ledger_path.exists()
+        second = it.backfill(tmp_path, ledger_path)
+        assert second["uploaded"] == [], "the ledger must not become a transcript"
+        assert [p.name for p in it.transcripts_on_disk(tmp_path, ledger_path)] == ["real.json"]

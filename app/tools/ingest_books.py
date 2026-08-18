@@ -60,6 +60,11 @@ from app.core.ingest_queue import (
     count_reviews_by_book_id, load_chapters, load_state, mark, save_state,
 )
 from app.core.ingest_queue_summary import build_queue_summary, write_queue_summary
+from app.core.ingest_transcripts import (
+    load_ledger as load_transcript_ledger,
+    save_ledger as save_transcript_ledger,
+    upload_transcript,
+)
 from app.core.review_join import normalise_title
 
 
@@ -243,7 +248,42 @@ def pack_one(item: QueueItem, chapters: dict, state: dict,
          twin_of=item.twin_of)
     log(f"  OK {item.title}  {stats['chunks']} chunks  {stats['gz_bytes']:,}B gz "
         f"(ratio {stats['gzip_ratio']})  -> {key}")
+    _back_up_transcript(item, book)
     return stats
+
+
+def _back_up_transcript(item: QueueItem, book) -> None:
+    """Third copy of the transcript, in the same gated bucket as the packs.
+
+    ⚠️ SOFT-FAIL, ALWAYS, AND THAT IS THE WHOLE CONTRACT OF THIS FUNCTION. A
+    backup step that can stop an ingest run is a liability, not a safety net:
+    the books are the job, and losing a night of transcription to a flaky
+    upload would cost more GPU hours than the copy protects. It logs what
+    happened and returns — `upload_transcript` does not raise, and this wrapper
+    catches anything that escapes anyway.
+
+    Only transcript-sourced books have one; an EPUB pack has no transcript
+    behind it, so there is nothing to copy.
+    """
+    if getattr(book, "source", None) != "transcript":
+        return
+    try:
+        path = _transcript_for(item.title)
+        if not path:
+            log(f"  transcript-backup SKIP {item.title!r}: no transcript resolved")
+            return
+        ledger = load_transcript_ledger()
+        res = upload_transcript(path, ledger)
+        if res["status"] == "uploaded":
+            save_transcript_ledger(ledger)
+            log(f"  transcript-backup OK {path.name}  "
+                f"{res['gz_bytes']:,}B gz -> {res['key']}")
+        elif res["status"] == "skipped":
+            log(f"  transcript-backup already stored: {res['key']}")
+        else:
+            log(f"  transcript-backup FAILED {path.name}: {res.get('error')}")
+    except Exception as exc:  # never propagate — see the docstring
+        log(f"  transcript-backup FAILED for {item.title!r}: {type(exc).__name__}: {exc}")
 
 
 # --------------------------------------------------------------------------
