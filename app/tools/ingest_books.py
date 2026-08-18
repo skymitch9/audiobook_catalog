@@ -182,7 +182,26 @@ def _transcript_for(title: str) -> Optional[Path]:
     global _transcript_index
     if _transcript_index is None:
         _transcript_index = _build_transcript_index()
-    return _transcript_index.get(normalise_title(title))
+    hit = _transcript_index.get(normalise_title(title))
+    if hit:
+        return hit
+    # ⚠️ The queue title may carry a " - Series, Book N" tail the m4b filename
+    # (and therefore the index key) does not — the SAME shape resolve_m4b's
+    # third pass handles, one layer down. Found live 2026-08-18 14:14: ACOTAR
+    # Part 1 transcribed successfully (the resolver's tail-strip found the
+    # file) and then FAILED ITS OWN PACK here, because this lookup still used
+    # the full tailed title. Strip one " - " segment at a time, rightmost
+    # first; the index keys are unique per book so a hit is unambiguous.
+    stripped = title
+    while " - " in stripped:
+        stripped = stripped.rsplit(" - ", 1)[0]
+        key = normalise_title(stripped)
+        if not key:
+            break
+        hit = _transcript_index.get(key)
+        if hit:
+            return hit
+    return None
 
 
 def extract_for(item: QueueItem, chapters: dict) -> book_text.ExtractedBook:

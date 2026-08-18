@@ -867,6 +867,30 @@ class TestTranscriptIndex:
 
         assert _transcript_source(tmp_path / "nope.json") == ""
 
+    def test_lookup_strips_the_series_tail_like_the_resolver(self, tmp_path, monkeypatch):
+        """⚠️ Regression, 2026-08-18 14:14 live: ACOTAR Part 1 transcribed
+        successfully (resolve_m4b's tail-strip found the file) then FAILED ITS
+        OWN PACK - _transcript_for still used the full queue title with its
+        " - Series, Book N" tail, while the index keys on the m4b stem without
+        it. Six GPU-minutes produced no pack. The lookup now strips the tail
+        the same way the resolver does."""
+        import app.tools.ingest_books as ib
+
+        path = tmp_path / "t.json"
+        payload = json.dumps(
+            {"meta": {"source_m4b":
+                      "C:\\books\\A Court of Thorns and Roses (Part 1 of 2) (Dramatized Adaptation).m4b"},
+             "segments": []})
+        path.write_text(payload, encoding="utf-8")
+        monkeypatch.setattr(ib, "TRANSCRIPTS_DIR", tmp_path)
+        monkeypatch.setattr(ib, "_transcript_index", None)
+        got = ib._transcript_for(
+            "A Court of Thorns and Roses (Part 1 of 2) (Dramatized Adaptation)"
+            " - A Court of Thorns and Roses, Book 1")
+        assert got == path
+        monkeypatch.setattr(ib, "_transcript_index", None)
+        assert ib._transcript_for("Some Entirely Different Book - Nope, Book 9") is None
+
     def test_non_ascii_path_survives_the_head_read(self, tmp_path):
         """⚠️ Regression, 2026-08-18 first daytime run: the head-read decoded
         the captured JSON string with `.encode().decode("unicode_escape")`,
