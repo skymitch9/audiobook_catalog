@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import gzip
 import json
+import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -534,6 +535,11 @@ class TestTranscriptIndex:
         from app.core.review_join import normalise_title
         from app.tools.ingest_books import _transcript_source
 
+        # ⚠️ PureWindowsPath, not Path: the stored path IS a Windows path, and
+        # on a POSIX CI runner Path() would treat the backslashes as filename
+        # characters — the exact platform-blindness that broke CI on 2026-08-18.
+        from pathlib import PureWindowsPath
+
         path = tmp_path / "t.json"
         src = "C:\\books\\Harry Potter and the Sorcerer\u2019s Stone.m4b"
         payload = json.dumps(
@@ -542,11 +548,16 @@ class TestTranscriptIndex:
         path.write_text(payload, encoding="utf-8")
         got = _transcript_source(path)
         assert got == src
-        assert normalise_title(Path(got).stem) == normalise_title(
+        assert normalise_title(PureWindowsPath(got).stem) == normalise_title(
             "Harry Potter and the Sorcerer's Stone")
 
 
 class TestCustody:
+    @pytest.mark.skipif(
+        os.name != "nt",
+        reason="guards a Windows path on the Windows machine; on a POSIX "
+               "runner 'C:\\...' is a RELATIVE path that resolves under the "
+               "repo and fails for the wrong reason (CI, 2026-08-18)")
     def test_training_data_lives_outside_every_repo(self):
         """⚠️ THE MECHANICAL GUARD. Transcripts are derived full text of books
         the household owns and this repo is PUBLIC. A path outside every
