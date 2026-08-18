@@ -1356,11 +1356,25 @@ def _run_pipeline_body(
             except Exception as e:
                 print(f"  [WARN] Content-warning fetch failed: {e}")
 
-        # Push the new books' cover art to R2 BEFORE committing. Covers are
-        # not in git any more (see .gitignore / docs/info/covers-r2.md); the
-        # site links straight at the bucket, so an uncommitted-but-uploaded
-        # cover is fine and a committed-but-unuploaded one is a broken image.
-        # Upload first, commit second — the same ordering as the migration.
+    elif uploaded_count > 0:
+        print("\n[STEP 5] Skipped catalog rebuild (dry-run)")
+
+    # -----------------------------------------------------------------------
+    # STEPS 5.7 / 5.75 / 5.8 — publish surfaces. ⚠️ NOT gated on
+    # uploaded_count, and that is a FIX (2026-08-18), not a preference: these
+    # lived inside the `uploaded_count > 0` block above, so a run with no new
+    # Drive uploads silently skipped them — while STEP 1b happily rebuilt
+    # site/ebooks.json every run. The dashboard caught the symptom: a manifest
+    # BUILT hours ago that was never PUBLISHED (last publish a day old), i.e.
+    # readers on a stale shelf with nothing logging a failure. All three are
+    # idempotent diffs (sha256 / size+sha256 / digest), so an every-run call
+    # costs seconds when there is nothing to do. Same class as the STEP 5.9
+    # and STEP 6 gates' history — a publish step gated on an unrelated
+    # counter is a silent-staleness machine.
+    # -----------------------------------------------------------------------
+    if not dry_run:
+        # Covers are not in git (docs/info/covers-r2.md); the site links
+        # straight at the bucket. Upload first, commit second.
         print("\n[STEP 5.7] Uploading new covers to R2...")
         try:
             from scripts.upload_covers_r2 import main as upload_covers_main
@@ -1370,11 +1384,10 @@ def _run_pipeline_body(
         except Exception as e:
             print(f"  [WARN] Cover upload failed: {e}")
 
-        # STEP 5.75 - the ebook FILES to the private estate-ebooks bucket, BEFORE
-        # 5.8 publishes the manifest that names them. Reversing the order gives a
-        # reader a Read button that 404s. A failure is a WARN, not a stop: the
-        # missing file is named in the log and retried next run, and every other
-        # book still works. See docs/info/ebooks-r2-ingest.md.
+        # STEP 5.75 - the ebook FILES to the private estate-ebooks bucket,
+        # BEFORE 5.8 publishes the manifest that names them. Reversing the
+        # order gives a reader a Read button that 404s. A failure is a WARN,
+        # not a stop. See docs/info/ebooks-r2-ingest.md.
         print("\n[STEP 5.75] Uploading ebook files to R2...")
         try:
             from scripts.upload_ebooks_r2 import main as upload_ebooks_main
@@ -1384,13 +1397,11 @@ def _run_pipeline_body(
         except Exception as e:
             print(f"  [WARN] Ebook file upload failed: {e}")
 
-        # STEP 5.8 - the ebook manifest to its PRIVATE bucket. Since
-        # 2026-08-17 site/ebooks.json is gitignored and out of the public
-        # deployment (owner directive: "I don't want people scraping my
-        # books"), so this upload is the ONLY way a refreshed shelf reaches a
-        # reader. A failure is a WARN, not a stop: the previously published
-        # manifest keeps serving, so readers get a stale shelf rather than
-        # none, and the rest of the run (commit, index push) still lands.
+        # STEP 5.8 - the ebook manifest to its PRIVATE bucket. site/ebooks.json
+        # is gitignored and out of the public deployment (owner directive:
+        # "I don't want people scraping my books"), so this upload is the ONLY
+        # way a refreshed shelf reaches a reader. A failure is a WARN, not a
+        # stop: the previously published manifest keeps serving.
         print("\n[STEP 5.8] Publishing ebook manifest to the gated bucket...")
         try:
             from scripts.publish_ebooks_manifest import main as publish_ebooks_main
@@ -1399,8 +1410,6 @@ def _run_pipeline_body(
                 print("  [WARN] Ebook manifest not published - the previous one still serves.")
         except Exception as e:
             print(f"  [WARN] Ebook manifest publish failed: {e}")
-    elif uploaded_count > 0:
-        print("\n[STEP 5] Skipped catalog rebuild (dry-run)")
 
     # -----------------------------------------------------------------------
     # STEP 5.9 — fulfil the ON-DEMAND audiobook ingest queue.
