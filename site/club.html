@@ -473,6 +473,10 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
         <input id="feat-pace-graph" type="checkbox" />
         <label for="feat-pace-graph" style="margin:0;text-transform:none">Pace graph — a "Pace" tab on the read page graphing each member's progress over time</label>
       </div>
+      <div class="field-inline">
+        <input id="feat-discord-questions" type="checkbox" />
+        <label for="feat-discord-questions" style="margin:0;text-transform:none">GABI's questions in Discord — when you "Post as GABI" on a read, the question is also posted to your Discord channel. Needs the estate bot in your server; only questions posted from now on appear.</label>
+      </div>
     </div>
     <div class="field" id="edit-webhook-field" style="display:none">
       <label for="edit-webhook">Discord webhook (site admin only) — club reminders post to a channel you own</label>
@@ -605,7 +609,7 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
     clubFeatureEnabled, isValidDiscordWebhook, setClubDiscordWebhook, clearClubDiscordWebhook,
     isClubClaimed, isManagerUid, canManageClub, canOperateClub, canAdministerClub,
     canClaimManagerRole, claimManagerRole,
-  } from './clubs.js?v=20260817b';
+  } from './clubs.js?v=20260818a';
   import {
     getReads, startRead, removeRead, finishRead, getComments, updateReadLabel, splitByDuration, parseManualMilestones,
     loadCatalogBooks, MAX_ACTIVE_READS, groupChapters,
@@ -1770,6 +1774,7 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
       document.getElementById('feat-blind-ratings').checked = clubFeatureEnabled(club, 'blindRatings');
       document.getElementById('feat-meeting-rsvp').checked = clubFeatureEnabled(club, 'meetingRsvp');
       document.getElementById('feat-pace-graph').checked = clubFeatureEnabled(club, 'paceGraph');
+      document.getElementById('feat-discord-questions').checked = clubFeatureEnabled(club, 'discordQuestions');
     }
 
     // Discord webhook: since 2026-08-17 this club's OWN bound managers set
@@ -1888,6 +1893,7 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
         blindRatings: document.getElementById('feat-blind-ratings').checked,
         meetingRsvp: document.getElementById('feat-meeting-rsvp').checked,
         paceGraph: document.getElementById('feat-pace-graph').checked,
+        discordQuestions: document.getElementById('feat-discord-questions').checked,
       };
     }
     // Webhook first, so a bad URL blocks the save with a visible error

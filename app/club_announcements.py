@@ -113,10 +113,19 @@ Scheduled: wired as a soft step in app/main.py, so it runs on the existing
 Also riding that cadence (added 2026-08-17, GABI phase 3): after the
 announcement pass, `sync_poll_messages()` pokes the estate Discord Worker's
 `POST /polls/sync` so the bot's VOTABLE poll messages get posted, re-tallied
-and closed. That is the only addition this file has taken for the bot — the
-webhook announcements above are untouched and permanent. It is skipped
-silently when `POLL_SYNC_TOKEN` is unset, skipped on `--dry-run`, and can
-never fail a run; see the block above `POLL_SYNC_URL_DEFAULT`.
+and closed.
+
+Joined 2026-08-18 by `sync_question_messages()`, which pokes the same Worker's
+`POST /questions/sync` so GABI's book-club DISCUSSION QUESTIONS — the "Post as
+GABI" starter questions from the club read page, which are ordinary comments
+carrying `isBot: true` and are NOT polls — get posted into each opted-in club's
+channel.
+
+Those two pokes are the only additions this file has taken for the bot — the
+webhook announcements above are untouched and permanent. Both are skipped
+silently when `POLL_SYNC_TOKEN` is unset, skipped on `--dry-run`, and neither
+can fail a run or fail the other; see `_poke_sync` and the block above
+`POLL_SYNC_URL_DEFAULT`.
 """
 
 from __future__ import annotations
@@ -172,6 +181,11 @@ REMINDER_WINDOW_MS = 8 * 60 * 60 * 1000  # ~one pipeline cadence (app/main.py ru
 #   DISCORD_POLL_SYNC_URL  override for the endpoint (default below); useful
 #                          for pointing a local run at a `wrangler dev`.
 POLL_SYNC_URL_DEFAULT = "https://discord.heygabi.ai/polls/sync"
+# GABI's book-club discussion questions (2026-08-18). Same Worker, same shared
+# POLL_SYNC_TOKEN, same cadence — a SECOND route so a question sweep that fails
+# can never take the poll tick's tallies down with it. Override with
+# DISCORD_QUESTION_SYNC_URL, the sibling of DISCORD_POLL_SYNC_URL above.
+QUESTION_SYNC_URL_DEFAULT = "https://discord.heygabi.ai/questions/sync"
 POLL_SYNC_TIMEOUT = 60  # the Worker sweeps every opted-in club in one call
 
 COLOR_BLUE = 5814783                   # matches send_discord_notification.py
@@ -895,23 +909,26 @@ def post_webhook(webhook_url: str, embeds: List[Dict[str, Any]], timeout: int = 
         raise RuntimeError(f"webhook returned HTTP {resp.status_code}: {resp.text[:200]}")
 
 
-def sync_poll_messages(lane_suffix: str = "", timeout: int = POLL_SYNC_TIMEOUT) -> Optional[Dict[str, Any]]:
+def _poke_sync(url: str, what: str, lane_suffix: str, timeout: int) -> Optional[Dict[str, Any]]:
     """
-    Poke the discord-worker's POST /polls/sync so GABI's votable poll messages
-    get posted / refreshed / closed. Returns the Worker's stats dict, or None
-    when nothing was attempted.
+    Shared body of the two Worker pokes below.
 
-    ⚠️ NEVER raises. The announcements above have already been posted by the
-    time this runs, and a sync endpoint that is down, slow, unreachable or
+    ⚠️ ONE implementation, deliberately. The poll poke and the question poke
+    differ ONLY in their URL and their log label — everything that matters (the
+    shared token, the lane payload, surfacing the Worker's own sentence instead
+    of a bare status, and never raising) is contract, and two copies of a
+    contract is one copy that will drift.
+
+    ⚠️ NEVER raises. The announcements have already been posted by the time
+    either poke runs, and a sync endpoint that is down, slow, unreachable or
     not-yet-configured must not turn a successful announcement run into a
     failed one. Every outcome is exactly one log line.
     """
     token = (os.getenv("POLL_SYNC_TOKEN") or "").strip()
     if not token:
-        print("[INFO] GABI poll-message sync skipped: POLL_SYNC_TOKEN is not set (see .env.example)")
+        print(f"[INFO] GABI {what} sync skipped: POLL_SYNC_TOKEN is not set (see .env.example)")
         return None
 
-    url = (os.getenv("DISCORD_POLL_SYNC_URL") or POLL_SYNC_URL_DEFAULT).strip()
     lane = "dev" if lane_suffix else "prod"
     try:
         import requests
@@ -930,18 +947,50 @@ def sync_poll_messages(lane_suffix: str = "", timeout: int = POLL_SYNC_TIMEOUT) 
                 detail = str((resp.json() or {}).get("message") or "")[:300]
             except Exception:
                 detail = resp.text[:200]
-            print(f"[WARN] GABI poll-message sync ({lane}) not run: HTTP {resp.status_code} — {detail}",
+            print(f"[WARN] GABI {what} sync ({lane}) not run: HTTP {resp.status_code} — {detail}",
                   file=sys.stderr)
             return None
         stats = resp.json() or {}
-        print(f"[INFO] GABI poll-message sync ({lane}): {stats}")
+        print(f"[INFO] GABI {what} sync ({lane}): {stats}")
         for note in (stats.get("notes") or [])[:10]:
             print(f"[INFO]   sync note: {note}")
         return stats
     except Exception as e:  # network, DNS, timeout, bad JSON, requests missing…
-        print(f"[WARN] GABI poll-message sync ({lane}) failed ({type(e).__name__}: {e}) — "
+        print(f"[WARN] GABI {what} sync ({lane}) failed ({type(e).__name__}: {e}) — "
               f"announcements were unaffected; it retries next run", file=sys.stderr)
         return None
+
+
+def sync_poll_messages(lane_suffix: str = "", timeout: int = POLL_SYNC_TIMEOUT) -> Optional[Dict[str, Any]]:
+    """
+    Poke the discord-worker's POST /polls/sync so GABI's votable poll messages
+    get posted / refreshed / closed. Returns the Worker's stats dict, or None
+    when nothing was attempted. Never raises — see `_poke_sync`.
+    """
+    url = (os.getenv("DISCORD_POLL_SYNC_URL") or POLL_SYNC_URL_DEFAULT).strip()
+    return _poke_sync(url, "poll-message", lane_suffix, timeout)
+
+
+def sync_question_messages(lane_suffix: str = "", timeout: int = POLL_SYNC_TIMEOUT) -> Optional[Dict[str, Any]]:
+    """
+    Poke the discord-worker's POST /questions/sync so GABI's book-club
+    DISCUSSION QUESTIONS get posted into each opted-in club's channel
+    (2026-08-18). Returns the Worker's stats dict, or None when nothing was
+    attempted. Never raises — see `_poke_sync`.
+
+    ⚠️ A DIFFERENT feature from the poll sync above, on the same cadence and
+    the same shared token. What it publishes are the "Post as GABI" starter
+    questions from the club read page — which are ordinary comments carrying
+    `isBot: true`, NOT polls — so there is nothing to vote on and nothing to
+    sync back. Per-club opt-in is `features.discordQuestions` (default OFF)
+    and the Worker reads it itself; this call carries no club data at all.
+
+    ⚠️ A SEPARATE call rather than folding the work into the poll tick, so the
+    two keep independent failure domains: a question sweep that fails must
+    never take the poll tallies down with it.
+    """
+    url = (os.getenv("DISCORD_QUESTION_SYNC_URL") or QUESTION_SYNC_URL_DEFAULT).strip()
+    return _poke_sync(url, "club-question", lane_suffix, timeout)
 
 
 # ---------------------------------------------------------------------------
@@ -1135,8 +1184,10 @@ def announce_after_build() -> Optional[Dict[str, int]]:
     stats = run(source, lane_suffix=suffix)
     print(f"[INFO] Club announcements: {stats}")
     # Additive, and deliberately last: the announcements are already posted, so
-    # nothing here can cost them (see sync_poll_messages' docstring).
+    # nothing here can cost them (see _poke_sync's docstring). Two independent
+    # pokes — neither can fail the other, and neither can fail this run.
     sync_poll_messages(lane_suffix=suffix)
+    sync_question_messages(lane_suffix=suffix)
     return stats
 
 
@@ -1168,8 +1219,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     # real channels, so it is exactly the thing --dry-run exists to withhold.
     if args.dry_run:
         print("[DRY-RUN] GABI poll-message sync not called (it would post/edit real Discord messages)")
+        print("[DRY-RUN] GABI club-question sync not called (it would post real Discord messages)")
     else:
         sync_poll_messages(lane_suffix=suffix)
+        sync_question_messages(lane_suffix=suffix)
     print(f"[INFO] {'dry run — nothing posted or saved' if args.dry_run else 'done'}: {stats}")
     return 0
 

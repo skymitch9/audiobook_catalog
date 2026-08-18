@@ -171,6 +171,26 @@ export const FEATURE_DEFAULTS = {
   // subcollection, no rules change) and the pure derivation/scaling helpers
   // club-read.html turns into hand-built SVG.
   paceGraph: false,
+  // GABI's discussion questions, posted into the club's Discord channel
+  // (2026-08-18). When a host presses "Post as GABI" on the read page, that
+  // question — an ordinary comment with `isBot: true` — is also published to
+  // the club's channel by the estate Discord bot, with a link back to where it
+  // lives on the read page.
+  //
+  // OFF by default like every other opt-in, and doubly inert while off: the
+  // Worker refuses any club that has not affirmatively set this, and a club
+  // with no channel bound posts nowhere regardless. The channel is the one the
+  // club's announcement webhook already points at (or an explicit
+  // `discordChannelId` on `clubs/{id}/settings/discord`) — the SAME binding
+  // the votable poll messages use, deliberately not a second one.
+  //
+  // ⚠️ A SEPARATE key from `discordAnnouncements`: that posts pipeline events
+  // through the club's own webhook, this posts questions through the BOT,
+  // which has to be in the club's server. A club can want either without the
+  // other. ⚠️ Switching it on is QUIET — the Worker baselines a club the
+  // first time it sees it and posts nothing that already existed, so only
+  // questions posted from that moment on appear in the channel.
+  discordQuestions: false,
 };
 
 /** Is a feature enabled for this club? Falls back to FEATURE_DEFAULTS. */

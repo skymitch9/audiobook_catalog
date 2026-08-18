@@ -363,6 +363,20 @@ describe('club feature toggles', () => {
     expect(clubFeatureEnabled({ features: { readingSchedule: true } }, 'polls')).toBe(false);
   });
 
+  it('discordQuestions defaults OFF and is independent of every other Discord toggle', () => {
+    // GABI's questions go out through the BOT (which has to be in the club's
+    // server); discordAnnouncements goes out through the club's own webhook.
+    // A club wanting one must never silently get the other.
+    expect(FEATURE_DEFAULTS.discordQuestions).toBe(false);
+    expect(clubFeatureEnabled({ name: 'Old Club' }, 'discordQuestions')).toBe(false);
+    expect(clubFeatureEnabled(
+      { features: { discordAnnouncements: true, discordPollAnnouncements: true } },
+      'discordQuestions'
+    )).toBe(false);
+    expect(clubFeatureEnabled({ features: { discordQuestions: true } }, 'discordAnnouncements')).toBe(false);
+    expect(clubFeatureEnabled({ features: { discordQuestions: true } }, 'discordQuestions')).toBe(true);
+  });
+
   it('discordPollAnnouncements defaults OFF independently of discordAnnouncements', () => {
     expect(FEATURE_DEFAULTS.discordPollAnnouncements).toBe(false);
     expect(clubFeatureEnabled({ name: 'Old Club' }, 'discordPollAnnouncements')).toBe(false);

@@ -36,6 +36,8 @@ from app.club_announcements import (
     poll_winners,
     run,
     sync_poll_messages,
+    sync_question_messages,
+    QUESTION_SYNC_URL_DEFAULT,
     tally_poll_votes,
     tally_ratings,
     tbr_leader,
@@ -989,6 +991,124 @@ class TestPollMessageSync(unittest.TestCase):
         with mock.patch.dict(os.environ, {"POLL_SYNC_TOKEN": "s3cret"}, clear=False), \
                 mock.patch("requests.post", fake_post):
             self.assertIsNone(sync_poll_messages())
+
+
+class TestQuestionMessageSync(unittest.TestCase):
+    """
+    The GABI club-QUESTION sync poke (2026-08-18) — the sibling of the poll
+    poke above. It shares `_poke_sync`, so the contract worth pinning here is
+    what makes it a DIFFERENT call: its own endpoint, its own log label, and
+    the fact that neither poke can break the other.
+    """
+
+    def _post(self, response=None, side_effect=None):
+        calls = []
+
+        def fake_post(url, **kwargs):
+            calls.append((url, kwargs))
+            if side_effect is not None:
+                raise side_effect
+            return response
+
+        return fake_post, calls
+
+    def test_unset_token_skips_entirely(self):
+        fake_post, calls = self._post()
+        with mock.patch.dict(os.environ, {"POLL_SYNC_TOKEN": ""}, clear=False), \
+                mock.patch("requests.post", fake_post):
+            self.assertIsNone(sync_question_messages())
+        self.assertEqual(calls, [])
+
+    def test_posts_lane_and_bearer_token_to_the_question_endpoint(self):
+        resp = mock.Mock(status_code=200)
+        resp.json.return_value = {"ok": True, "posted": 2, "baselined": 0, "notes": []}
+        fake_post, calls = self._post(response=resp)
+        with mock.patch.dict(os.environ, {"POLL_SYNC_TOKEN": "s3cret"}, clear=False), \
+                mock.patch.dict(os.environ, {"DISCORD_QUESTION_SYNC_URL": ""}, clear=False), \
+                mock.patch("requests.post", fake_post):
+            stats = sync_question_messages(lane_suffix="")
+        self.assertEqual(stats["posted"], 2)
+        url, kwargs = calls[0]
+        self.assertEqual(url, QUESTION_SYNC_URL_DEFAULT)
+        self.assertEqual(kwargs["json"], {"lane": "prod"})
+        # ⚠️ The SAME shared secret as the poll poke — one pipeline token, two
+        # routes. A separate secret here would be a second thing to mint, to
+        # rotate and to get out of step, for no extra containment.
+        self.assertEqual(kwargs["headers"]["Authorization"], "Bearer s3cret")
+
+    def test_it_is_a_different_endpoint_from_the_poll_sync(self):
+        # The whole point of the second route: independent failure domains.
+        # If these two URLs ever collide, a question sweep and a poll sweep are
+        # the same request and the isolation claim is false.
+        self.assertNotEqual(QUESTION_SYNC_URL_DEFAULT, POLL_SYNC_URL_DEFAULT)
+        self.assertTrue(QUESTION_SYNC_URL_DEFAULT.endswith("/questions/sync"))
+
+    def test_dev_lane_is_sent_as_dev(self):
+        resp = mock.Mock(status_code=200)
+        resp.json.return_value = {"ok": True}
+        fake_post, calls = self._post(response=resp)
+        with mock.patch.dict(os.environ, {"POLL_SYNC_TOKEN": "s3cret"}, clear=False), \
+                mock.patch("requests.post", fake_post):
+            sync_question_messages(lane_suffix="_dev")
+        self.assertEqual(calls[0][1]["json"], {"lane": "dev"})
+
+    def test_the_url_can_be_overridden_for_a_local_worker(self):
+        resp = mock.Mock(status_code=200)
+        resp.json.return_value = {"ok": True}
+        fake_post, calls = self._post(response=resp)
+        with mock.patch.dict(
+            os.environ,
+            {"POLL_SYNC_TOKEN": "s3cret",
+             "DISCORD_QUESTION_SYNC_URL": "http://127.0.0.1:8797/questions/sync"},
+            clear=False,
+        ), mock.patch("requests.post", fake_post):
+            sync_question_messages()
+        self.assertEqual(calls[0][0], "http://127.0.0.1:8797/questions/sync")
+
+    def test_a_refusal_is_reported_not_raised(self):
+        resp = mock.Mock(status_code=503)
+        resp.json.return_value = {"ok": False, "message": "not switched on yet"}
+        fake_post, _ = self._post(response=resp)
+        with mock.patch.dict(os.environ, {"POLL_SYNC_TOKEN": "s3cret"}, clear=False), \
+                mock.patch("requests.post", fake_post):
+            self.assertIsNone(sync_question_messages())
+
+    def test_a_dead_endpoint_never_raises(self):
+        fake_post, _ = self._post(side_effect=RuntimeError("connection refused"))
+        with mock.patch.dict(os.environ, {"POLL_SYNC_TOKEN": "s3cret"}, clear=False), \
+                mock.patch("requests.post", fake_post):
+            self.assertIsNone(sync_question_messages())
+
+    def test_a_dead_question_endpoint_cannot_break_the_poll_sync(self):
+        # ⚠️ THE isolation claim, exercised rather than asserted. The question
+        # poke blows up; the poll poke, called after it, still returns its
+        # stats. Both orderings matter, so both are run.
+        poll_resp = mock.Mock(status_code=200)
+        poll_resp.json.return_value = {"ok": True, "posted": 1}
+
+        def fake_post(url, **kwargs):
+            if url == QUESTION_SYNC_URL_DEFAULT:
+                raise RuntimeError("questions endpoint is down")
+            return poll_resp
+
+        with mock.patch.dict(os.environ, {"POLL_SYNC_TOKEN": "s3cret"}, clear=False), \
+                mock.patch("requests.post", fake_post):
+            self.assertIsNone(sync_question_messages())
+            self.assertEqual(sync_poll_messages()["posted"], 1)
+
+    def test_a_dead_poll_endpoint_cannot_break_the_question_sync(self):
+        q_resp = mock.Mock(status_code=200)
+        q_resp.json.return_value = {"ok": True, "posted": 3}
+
+        def fake_post(url, **kwargs):
+            if url == POLL_SYNC_URL_DEFAULT:
+                raise RuntimeError("polls endpoint is down")
+            return q_resp
+
+        with mock.patch.dict(os.environ, {"POLL_SYNC_TOKEN": "s3cret"}, clear=False), \
+                mock.patch("requests.post", fake_post):
+            self.assertIsNone(sync_poll_messages())
+            self.assertEqual(sync_question_messages()["posted"], 3)
 
 
 if __name__ == "__main__":
