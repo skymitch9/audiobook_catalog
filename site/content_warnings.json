@@ -7682,5 +7682,19 @@
   ],
   "source": "web",
   "checked_at": 1786867630
+ },
+ "The Primal Hunter 15: A LitRPG Adventure": {
+  "warnings": [
+   {
+    "label": "Age rating: R (recommended 18+)",
+    "source_url": "https://www.cosmoscodex.com/books/the-primal-hunter-15-a-litrpg-adventure-zogarth"
+   },
+   {
+    "label": "Violence",
+    "source_url": "https://www.cosmoscodex.com/books/the-primal-hunter-15-a-litrpg-adventure-zogarth"
+   }
+  ],
+  "source": "web",
+  "checked_at": 1787152545
  }
 }
