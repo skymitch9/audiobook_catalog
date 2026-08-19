@@ -822,6 +822,15 @@ class TestControlListHygiene:
         assert kept == ["ok", "fine"]
         assert len(rejected) == 2
 
+    def test_rejected_entries_come_back_RAW_so_ArrayRemove_can_match_them(self):
+        """🔴 THE BUG THIS ENCODES, found in the first live round trip:
+        `clear_requeue` uses ArrayRemove, which matches on the value Firestore
+        actually holds. Returning a prettified repr here matched nothing, the
+        junk entry survived every sweep, and the reader warned about it again on
+        the NEXT read - once per book, a thousand times a night."""
+        _, rejected = ic.clean_id_list(["ok", 7, "  ", None], 10)
+        assert rejected == [7, "  ", None], "the stored values, not their reprs"
+
     def test_entries_are_trimmed_and_deduped_keeping_first(self):
         kept, _ = ic.clean_id_list(["  a  ", "A", "b", "a"], 10)
         assert kept == ["a", "b"]
@@ -923,6 +932,28 @@ class TestConsumeRequeue:
         assert out["requeued"] == ["b1"]
         assert events == ["save", ("clear", ["b1"])], \
             "⚠️ clearing before saving loses the request if the process dies between them"
+
+    def test_the_clear_also_sweeps_the_entries_the_reader_refused(self, monkeypatch):
+        """🔴 Same live bug as above, at the consumer end. Without this the
+        document keeps a value nothing will ever act on, and every control read
+        for the rest of time warns about it."""
+        from app.tools import ingest_books as ib
+
+        cleared = []
+        monkeypatch.setattr(ib, "save_state", lambda s: None)
+        monkeypatch.setattr(ib, "clear_requeue", lambda ids: cleared.append(list(ids)))
+        control = ic.ControlState(requeue=["b1"], requeue_rejected=[7, "  "])
+        ib.consume_requeue(control, self._state())
+        assert cleared == [["b1", 7, "  "]]
+
+    def test_junk_alone_is_still_swept_even_with_nothing_to_apply(self, monkeypatch):
+        from app.tools import ingest_books as ib
+
+        cleared = []
+        monkeypatch.setattr(ib, "clear_requeue", lambda ids: cleared.append(list(ids)))
+        control = ic.ControlState(requeue=[], requeue_rejected=[7])
+        assert ib.consume_requeue(control, self._state()) == {}
+        assert cleared == [[7]]
 
     def test_the_clear_names_every_id_read_not_only_the_applied_ones(self, monkeypatch):
         """⚠️ An unknown or already-done id that is never cleared is a row that

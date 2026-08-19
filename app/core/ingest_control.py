@@ -425,6 +425,15 @@ class ControlState:
     pause_windows: List[dict] = None
     requeue: List[str] = None
     priority_front: List[str] = None
+    # ⚠️ The RAW `requeue` entries this reader refused, kept so the consumer can
+    # sweep them out of the document. MEASURED 2026-08-18 during the first live
+    # round trip: `clear_requeue` uses ArrayRemove, which deletes only the values
+    # it names, so an entry the reader dropped survived the clear and warned
+    # again on EVERY control read - and the control is read before every book,
+    # so one malformed entry becomes a thousand log lines a night. Carried as
+    # the raw values (not the cleaned ones) because ArrayRemove has to match
+    # what Firestore actually holds.
+    requeue_rejected: List[object] = None
     updated_by: Optional[str] = None
     updated_at: Optional[str] = None
     readable: bool = True
@@ -435,6 +444,8 @@ class ControlState:
             self.pause_windows = []
         if self.requeue is None:
             self.requeue = []
+        if self.requeue_rejected is None:
+            self.requeue_rejected = []
         if self.priority_front is None:
             self.priority_front = []
 
@@ -467,22 +478,26 @@ def clean_id_list(raw, limit: int) -> Tuple[List[str], List[str]]:
     if not isinstance(raw, (list, tuple)):
         return [], []
     kept: List[str] = []
-    rejected: List[str] = []
+    rejected: list = []
     seen = set()
     for entry in raw:
+        # ⚠️ The RAW value is kept, not a repr. `clear_requeue` removes these
+        # from the document with ArrayRemove, which matches on the stored value
+        # - a prettified string would match nothing and the entry would survive
+        # every sweep, warning once per book forever.
         if not isinstance(entry, str):
-            rejected.append(repr(entry)[:80])
+            rejected.append(entry)
             continue
         text = entry.strip()
         if not text or len(text) > MAX_CONTROL_ENTRY_CHARS:
-            rejected.append(text[:80] or "(empty)")
+            rejected.append(entry)
             continue
         key = text.casefold()
         if key in seen:
             continue
         seen.add(key)
         if len(kept) >= limit:
-            rejected.append(text[:80])
+            rejected.append(entry)
             continue
         kept.append(text)
     return kept, rejected
@@ -583,13 +598,15 @@ def read_control(collection: str = None) -> ControlState:
     for label, bad in (("requeue", requeue_bad), ("priority_front", priority_bad)):
         if bad:
             print(f"[ingest-control] WARN: {len(bad)} unusable {label} "
-                  f"entr{'y' if len(bad) == 1 else 'ies'} dropped: {bad[:5]}")
+                  f"entr{'y' if len(bad) == 1 else 'ies'} dropped: "
+                  f"{[repr(b)[:60] for b in bad[:5]]}")
     return ControlState(
         paused=bool(data.get("paused", False)),
         paused_until=data.get("paused_until"),
         dont_check_until=data.get("dont_check_until"),
         pause_windows=list(data.get("pause_windows") or []),
         requeue=requeue,
+        requeue_rejected=requeue_bad,
         priority_front=priority,
         updated_by=data.get("updated_by"),
         updated_at=data.get("updated_at"),

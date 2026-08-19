@@ -362,7 +362,23 @@ def consume_requeue(control: ControlState, state: dict, dry_run: bool = False) -
     with nothing recording that it was ever made.
     """
     ids = list(control.requeue or [])
-    if not ids:
+    # ⚠️ THE UNUSABLE ENTRIES ARE SWEPT WITH THE GOOD ONES, and they are the
+    # reason this line exists rather than just `ids`. MEASURED 2026-08-18 in the
+    # first live round trip: `clear_requeue` uses ArrayRemove, which deletes only
+    # the values it names, so an entry the READER dropped survived every clear
+    # and warned again on the next read - and the control is read before every
+    # book, so one malformed entry becomes a thousand log lines a night. They
+    # are raw values, matched against what Firestore actually holds.
+    rejected = list(control.requeue_rejected or [])
+    if not ids and not rejected:
+        return {}
+    if rejected and not ids:
+        # Nothing to apply, but the document still needs tidying - and saying so
+        # is what stops a future session hunting a retry that never existed.
+        log(f"  requeue: {len(rejected)} unusable entr"
+            f"{'y' if len(rejected) == 1 else 'ies'} swept out of the control document")
+        if not dry_run:
+            clear_requeue(rejected)
         return {}
     outcome = apply_requeue(state, ids)
     if outcome["requeued"]:
@@ -391,7 +407,7 @@ def consume_requeue(control: ControlState, state: dict, dry_run: bool = False) -
         log("  requeue: --dry-run, so nothing was written: the state file is "
             "unchanged and the control list is NOT cleared")
         return outcome
-    clear_requeue(ids)
+    clear_requeue(ids + rejected)
     return outcome
 
 
