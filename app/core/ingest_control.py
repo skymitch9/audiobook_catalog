@@ -392,8 +392,21 @@ class ControlState:
         paused_until     ISO8601     no new starts before this instant
         dont_check_until ISO8601     do not even EVALUATE the guard before this
         pause_windows    [{from,until}]  scheduled quiet hours, ISO8601 with tz
+        requeue          [bookId]    ⚠️ CONSUMED: failed books to put back to
+                                     pending at the next run start, then cleared
+        priority_front   [bookId|str] books/series to move to the HEAD of the
+                                     queue; NOT consumed - it is a standing
+                                     preference until the dashboard clears it
         updated_by       string      who wrote it (uid or "processor")
         updated_at       ISO8601     when
+
+    ⚠️ `requeue` and `priority_front` are the two list fields and they behave
+    DIFFERENTLY ON PURPOSE. A requeue is an EVENT - "put these back" - and an
+    event that is not consumed fires forever, so the processor removes exactly
+    the ids it acted on. A priority is a STATE - "these matter most" - and a
+    state that self-clears would silently stop mattering the moment a run
+    happened to see it. Collapsing the two behaviours either resurrects books
+    the owner already dealt with, or drops a priority he never withdrew.
 
     ⚠️ `dont_check_until` is DIFFERENT from `paused_until` and the owner asked
     for both: *"I can say don't even check to start until x time."* A pause means
@@ -410,6 +423,8 @@ class ControlState:
     paused_until: Optional[str] = None
     dont_check_until: Optional[str] = None
     pause_windows: List[dict] = None
+    requeue: List[str] = None
+    priority_front: List[str] = None
     updated_by: Optional[str] = None
     updated_at: Optional[str] = None
     readable: bool = True
@@ -418,6 +433,59 @@ class ControlState:
     def __post_init__(self):
         if self.pause_windows is None:
             self.pause_windows = []
+        if self.requeue is None:
+            self.requeue = []
+        if self.priority_front is None:
+            self.priority_front = []
+
+
+# ⚠️ Bounds on the two list fields, and they are LOW on purpose. These lists
+# are typed by a person clicking rows on a dashboard, not generated - a
+# thousand-entry `requeue` is a bug or an abuse, never an intention, and the
+# cost of honouring one is a run that spends its whole start on bookkeeping.
+# The excess is DROPPED WITH A LOG LINE rather than silently truncated.
+MAX_REQUEUE = 200
+MAX_PRIORITY_FRONT = 200
+
+# One control-list entry's sane maximum. A book id is a slug and a series name
+# is a few words; anything longer is not a name this processor can match.
+MAX_CONTROL_ENTRY_CHARS = 200
+
+
+def clean_id_list(raw, limit: int) -> Tuple[List[str], List[str]]:
+    """`(kept, rejected)` from whatever the dashboard actually wrote.
+
+    ⚠️ DEFENSIVE IN THE SAME POSTURE AS `read_control()` ITSELF: this reads a
+    document a *different repo's* Worker writes, so every assumption about its
+    shape is somebody else's promise. A non-list, a list of numbers, a `None`
+    entry, a 4 KB string - each becomes a dropped entry and a reported reason,
+    never a crash and never a silently mangled id.
+
+    Order is preserved and duplicates are dropped keeping the FIRST occurrence,
+    because for `priority_front` the order IS the instruction.
+    """
+    if not isinstance(raw, (list, tuple)):
+        return [], []
+    kept: List[str] = []
+    rejected: List[str] = []
+    seen = set()
+    for entry in raw:
+        if not isinstance(entry, str):
+            rejected.append(repr(entry)[:80])
+            continue
+        text = entry.strip()
+        if not text or len(text) > MAX_CONTROL_ENTRY_CHARS:
+            rejected.append(text[:80] or "(empty)")
+            continue
+        key = text.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        if len(kept) >= limit:
+            rejected.append(text[:80])
+            continue
+        kept.append(text)
+    return kept, rejected
 
 
 def parse_iso(value: Optional[str]) -> Optional[datetime]:
@@ -507,11 +575,22 @@ def read_control(collection: str = None) -> ControlState:
     if not snap.exists:
         return ControlState(readable=True)
     data = snap.to_dict() or {}
+    requeue, requeue_bad = clean_id_list(data.get("requeue"), MAX_REQUEUE)
+    priority, priority_bad = clean_id_list(data.get("priority_front"), MAX_PRIORITY_FRONT)
+    # ⚠️ Reported, not swallowed. A dropped entry means the dashboard and this
+    # processor disagree about a book the owner asked for by name, and the only
+    # thing worse than dropping it is dropping it quietly.
+    for label, bad in (("requeue", requeue_bad), ("priority_front", priority_bad)):
+        if bad:
+            print(f"[ingest-control] WARN: {len(bad)} unusable {label} "
+                  f"entr{'y' if len(bad) == 1 else 'ies'} dropped: {bad[:5]}")
     return ControlState(
         paused=bool(data.get("paused", False)),
         paused_until=data.get("paused_until"),
         dont_check_until=data.get("dont_check_until"),
         pause_windows=list(data.get("pause_windows") or []),
+        requeue=requeue,
+        priority_front=priority,
         updated_by=data.get("updated_by"),
         updated_at=data.get("updated_at"),
         readable=True,
@@ -529,6 +608,41 @@ def write_control(payload: dict, collection: str = None,
     body["updated_at"] = phoenix_now().isoformat()
     client.collection(collection).document(CONTROL_DOC).set(body, merge=True)
     return True
+
+
+def clear_requeue(consumed: List[str], collection: str = None) -> bool:
+    """Remove exactly the ids this run acted on from `requeue`. `True` if written.
+
+    ⚠️ ARRAY_REMOVE, NEVER `requeue: []`. The dashboard can write a new entry at
+    any instant, including between this run's read and this write. Setting the
+    field to an empty list would throw that entry away and the owner would press
+    a button that did nothing, with nothing anywhere saying why. `ArrayRemove`
+    deletes only the values named and leaves anything added since untouched.
+
+    ⚠️ A FAILURE HERE IS DELIBERATELY NOT FATAL AND NOT RETRIED. The worst case
+    is that the same ids are consumed again on the next run - which re-marks a
+    pending book pending, i.e. nothing. Compare the alternative: raising here
+    would let a Firestore blip stop a night's ingestion over bookkeeping.
+    """
+    if not consumed:
+        return False
+    collection = collection or CONTROL_COLLECTION
+    client = _firestore_client()
+    if client is None:
+        return False
+    try:
+        from firebase_admin import firestore
+
+        client.collection(collection).document(CONTROL_DOC).update(
+            {"requeue": firestore.ArrayRemove(list(consumed))}
+        )
+        return True
+    except Exception as exc:
+        # Named, because an uncleared requeue is a control that looks stuck.
+        print(f"[ingest-control] WARN: could not clear {len(consumed)} requeue "
+              f"entr{'y' if len(consumed) == 1 else 'ies'} ({type(exc).__name__}: "
+              f"{str(exc)[:120]}); they will be re-applied next run, which is a no-op")
+        return False
 
 
 # --------------------------------------------------------------------------

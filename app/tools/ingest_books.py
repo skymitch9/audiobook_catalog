@@ -47,8 +47,9 @@ from typing import List, Optional
 from app.core import book_text
 from app.core.book_chunker import chunk_book
 from app.core.ingest_control import (
-    ControlState, StartDecision, batch_size_for, decide_start, gpu_utilisation,
-    in_window, machine_tz_is_phoenix, may_start_new_book, phoenix_now, read_control,
+    ControlState, StartDecision, batch_size_for, clear_requeue, decide_start,
+    gpu_utilisation, in_window, machine_tz_is_phoenix, may_start_new_book,
+    phoenix_now, read_control,
 )
 from app.core.ingest_pack import (
     INGESTER_VERSION, PackRefused, build_index, build_pack, pack_stats,
@@ -56,8 +57,9 @@ from app.core.ingest_pack import (
 )
 from app.core.ingest_queue import (
     PACKS_DIR, RECEIPTS_DIR, STATUS_DONE, STATUS_FAILED, STATUS_NEEDS_OCR,
-    STATE_PATH, TIER_NEEDS_OCR, TRANSCRIPTS_DIR, QueueItem, build_queue,
-    count_reviews_by_book_id, load_chapters, load_state, mark, save_state,
+    STATE_PATH, TIER_NEEDS_OCR, TRANSCRIPTS_DIR, QueueItem, apply_requeue,
+    build_queue, count_reviews_by_book_id, load_chapters, load_state, mark,
+    save_state,
 )
 from app.core.ingest_queue_summary import build_queue_summary, write_queue_summary
 from app.core.ingest_transcripts import (
@@ -344,18 +346,76 @@ def transcribe(item: QueueItem, batch_size: int) -> bool:
 # the run loop
 # --------------------------------------------------------------------------
 
+def consume_requeue(control: ControlState, state: dict, dry_run: bool = False) -> dict:
+    """Apply and then CLEAR the dashboard's `requeue` list. Returns the outcome.
+
+    ⚠️ THIS RUNS ONCE PER RUN, AT THE START, AND BEFORE `build_queue()`. Before,
+    because a book only re-enters the queue by ceasing to be `failed`, and
+    `build_queue` reads the state it is handed. Once, because unlike the pause
+    (re-read before every book, deliberately) a requeue is an EVENT: re-reading
+    it mid-run would consume entries the owner added seconds ago, applying them
+    to a queue this run has already built and cannot revisit.
+
+    ⚠️ THE STATE IS SAVED BEFORE THE LIST IS CLEARED, never the other way round.
+    A crash between the two re-applies a requeue that already landed, which
+    marks a pending book pending. The opposite order loses the owner's request
+    with nothing recording that it was ever made.
+    """
+    ids = list(control.requeue or [])
+    if not ids:
+        return {}
+    outcome = apply_requeue(state, ids)
+    if outcome["requeued"]:
+        if not dry_run:
+            save_state(state)
+        log(f"requeued {len(outcome['requeued'])} book"
+            f"{'' if len(outcome['requeued']) == 1 else 's'} to pending "
+            f"(dashboard requeue): {outcome['requeued'][:5]}"
+            f"{' …' if len(outcome['requeued']) > 5 else ''}")
+    # ⚠️ Each non-applied bucket says WHY in its own words. "Nothing happened"
+    # is the one report a retry button must never give.
+    if outcome["unknown"]:
+        log(f"  requeue: {len(outcome['unknown'])} unknown book id"
+            f"{'' if len(outcome['unknown']) == 1 else 's'} dropped "
+            f"(no such book in the state file): {outcome['unknown'][:5]}")
+    if outcome["skipped_done"]:
+        log(f"  requeue: {len(outcome['skipped_done'])} already done and left alone "
+            f"- re-ingesting a finished book is not what a retry button does: "
+            f"{outcome['skipped_done'][:5]}")
+    if outcome["skipped_other"]:
+        log(f"  requeue: {len(outcome['skipped_other'])} already pending, nothing to do: "
+            f"{outcome['skipped_other'][:5]}")
+    if dry_run:
+        # A dry run must not consume the owner's request, and must say so -
+        # otherwise the button looks pressed and the list is still full.
+        log("  requeue: --dry-run, so nothing was written: the state file is "
+            "unchanged and the control list is NOT cleared")
+        return outcome
+    clear_requeue(ids)
+    return outcome
+
+
 def run(args) -> int:
     state = load_state()
     chapters = load_chapters()
     control = ControlState() if args.ignore_control else read_control()
+
+    consume_requeue(control, state, dry_run=args.dry_run)
 
     reviews = {} if args.no_reviews else count_reviews_by_book_id()
     if not reviews and not args.no_reviews:
         log("WARN: review counts unreadable - priority falls back to tier order. "
             "This is 'unknown', not 'no book has reviews'.")
 
+    if control.priority_front:
+        log(f"priority: {len(control.priority_front)} dashboard entr"
+            f"{'y' if len(control.priority_front) == 1 else 'ies'} move to the front "
+            f"of the queue: {control.priority_front[:5]}"
+            f"{' …' if len(control.priority_front) > 5 else ''}")
+
     queue = build_queue(state=state, review_counts=reviews,
-                        pdf_classifier=book_text.classify_pdf)
+                        pdf_classifier=book_text.classify_pdf,
+                        priority_front=control.priority_front)
     if args.cpu_only:
         queue = [i for i in queue if not i.needs_gpu]
     if args.limit:
@@ -599,6 +659,11 @@ def status(args) -> int:
             "paused": control.paused, "paused_until": control.paused_until,
             "dont_check_until": control.dont_check_until,
             "pause_windows": control.pause_windows,
+            # ⚠️ `requeue` is what is PENDING CONSUMPTION, not what was applied -
+            # a non-empty list here means the next run will act on it, and an
+            # empty one after a run means it already did.
+            "requeue_pending": control.requeue,
+            "priority_front": control.priority_front,
             "readable": control.readable, "error": control.error,
         },
         "state_path": str(STATE_PATH),
@@ -606,6 +671,8 @@ def status(args) -> int:
                           if b.get("status") == STATUS_DONE),
         "books_needs_ocr": sum(1 for b in state.get("books", {}).values()
                                if b.get("status") == STATUS_NEEDS_OCR),
+        "books_failed": sum(1 for b in state.get("books", {}).values()
+                            if b.get("status") == STATUS_FAILED),
     }, indent=1))
     return 0
 

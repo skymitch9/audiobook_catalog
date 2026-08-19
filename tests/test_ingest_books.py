@@ -32,9 +32,10 @@ from app.core.ingest_pack import (
     write_pack_gz,
 )
 from app.core.ingest_queue import (
-    QueueItem, TIER_EPUB, TIER_NEEDS_OCR, TIER_PDF_TEXT, TIER_REST_AUDIO,
-    TIER_REVIEWED_AUDIO, TIER_TWIN, _sort_key, build_twin_index,
-    strip_series_boilerplate,
+    QueueItem, STATUS_DONE, STATUS_FAILED, STATUS_NEEDS_OCR, STATUS_PENDING,
+    TIER_EPUB, TIER_NEEDS_OCR, TIER_PDF_TEXT, TIER_REST_AUDIO,
+    TIER_REVIEWED_AUDIO, TIER_TWIN, _sort_key, apply_requeue, build_twin_index,
+    priority_matcher, priority_sort_key, strip_series_boilerplate,
 )
 
 PHX = ic.PHOENIX
@@ -802,6 +803,207 @@ class TestPriority:
         """Owner: complicated PDFs come after every reviewed audiobook."""
         items = [item(tier=TIER_NEEDS_OCR), item(tier=TIER_REST_AUDIO)]
         assert sorted(items, key=_sort_key)[-1].tier == TIER_NEEDS_OCR
+
+
+class TestControlListHygiene:
+    """`clean_id_list` — the defensive read of two fields another repo writes.
+
+    Deleting these lets a malformed control document reach `apply_requeue` and
+    `priority_matcher`, where a non-string entry becomes a crash at the head of
+    a nightly run rather than a dropped row and a warning.
+    """
+
+    def test_a_non_list_is_empty_not_a_crash(self):
+        for raw in (None, "b1", 7, {"b1": True}):
+            assert ic.clean_id_list(raw, 10) == ([], [])
+
+    def test_non_strings_are_rejected_individually(self):
+        kept, rejected = ic.clean_id_list(["ok", 7, None, "fine"], 10)
+        assert kept == ["ok", "fine"]
+        assert len(rejected) == 2
+
+    def test_entries_are_trimmed_and_deduped_keeping_first(self):
+        kept, _ = ic.clean_id_list(["  a  ", "A", "b", "a"], 10)
+        assert kept == ["a", "b"]
+
+    def test_over_long_entries_are_dropped(self):
+        kept, rejected = ic.clean_id_list(["x" * (ic.MAX_CONTROL_ENTRY_CHARS + 1)], 10)
+        assert kept == [] and rejected
+
+    def test_the_cap_rejects_rather_than_silently_truncating(self):
+        kept, rejected = ic.clean_id_list([f"b{i}" for i in range(12)], 10)
+        assert len(kept) == 10
+        assert len(rejected) == 2, "the excess must be reported, not vanish"
+
+
+class TestRequeue:
+    """The dashboard's retry control, on the processor side.
+
+    ⚠️ The load-bearing test in this class is the `done` one. Everything else
+    here is bookkeeping; that one is what stops a stray id spending twenty GPU
+    minutes re-transcribing a book already in the knowledge base.
+    """
+
+    def _state(self, **books):
+        return {"version": 1, "books": {k: dict(v) for k, v in books.items()}}
+
+    def test_a_failed_book_goes_back_to_pending(self):
+        state = self._state(b1={"status": STATUS_FAILED, "reason": "transcription failed"})
+        out = apply_requeue(state, ["b1"])
+        assert out["requeued"] == ["b1"]
+        assert state["books"]["b1"]["status"] == STATUS_PENDING
+
+    def test_the_previous_failure_reason_is_kept_not_erased(self):
+        state = self._state(b1={"status": STATUS_FAILED, "reason": "CUDA out of memory"})
+        apply_requeue(state, ["b1"])
+        entry = state["books"]["b1"]
+        assert entry["previous_reason"] == "CUDA out of memory"
+        assert entry["previous_status"] == STATUS_FAILED
+
+    def test_a_done_book_is_never_requeued(self):
+        """⚠️ The safety property. A retry button must not be able to re-spend
+        the GPU on a book that already succeeded."""
+        state = self._state(b1={"status": STATUS_DONE})
+        out = apply_requeue(state, ["b1"])
+        assert out["requeued"] == [] and out["skipped_done"] == ["b1"]
+        assert state["books"]["b1"]["status"] == STATUS_DONE
+
+    def test_a_needs_ocr_book_may_be_requeued(self):
+        """OCR is not built, so this changes nothing today - but the owner
+        deciding to retry a deferred PDF is a legitimate instruction, and the
+        gate that stops it is the missing processor, not this list."""
+        state = self._state(b1={"status": STATUS_NEEDS_OCR, "blocker": "OCR processor not built"})
+        out = apply_requeue(state, ["b1"])
+        assert out["requeued"] == ["b1"]
+        assert state["books"]["b1"]["previous_reason"] == "OCR processor not built"
+
+    def test_an_unknown_id_is_dropped_and_reported_not_invented(self):
+        """⚠️ It must NOT create a state entry. A typo'd id that materialised as
+        a real pending book would put a phantom in the queue forever."""
+        state = self._state(b1={"status": STATUS_FAILED})
+        out = apply_requeue(state, ["nope"])
+        assert out["unknown"] == ["nope"]
+        assert "nope" not in state["books"]
+
+    def test_an_already_pending_book_is_a_no_op_that_says_so(self):
+        state = self._state(b1={"status": STATUS_PENDING})
+        out = apply_requeue(state, ["b1"])
+        assert out["requeued"] == [] and out["skipped_other"] == ["b1"]
+
+    def test_mixed_input_lands_in_four_separate_buckets(self):
+        state = self._state(f={"status": STATUS_FAILED}, d={"status": STATUS_DONE},
+                            p={"status": STATUS_PENDING})
+        out = apply_requeue(state, ["f", "d", "p", "ghost", "  "])
+        assert out == {"requeued": ["f"], "unknown": ["ghost"],
+                       "skipped_done": ["d"], "skipped_other": ["p"]}
+
+    def test_an_empty_list_touches_nothing(self):
+        state = self._state(b1={"status": STATUS_FAILED})
+        assert apply_requeue(state, [])["requeued"] == []
+        assert state["books"]["b1"]["status"] == STATUS_FAILED
+
+
+class TestConsumeRequeue:
+    """The orchestration: apply, save, THEN clear — and never on a dry run."""
+
+    def _control(self, ids):
+        return ic.ControlState(requeue=list(ids))
+
+    def _state(self):
+        return {"version": 1, "books": {"b1": {"status": STATUS_FAILED, "reason": "boom"}}}
+
+    def test_a_real_run_applies_saves_and_clears_in_that_order(self, monkeypatch, tmp_path):
+        from app.tools import ingest_books as ib
+
+        events = []
+        monkeypatch.setattr(ib, "save_state", lambda s: events.append("save"))
+        monkeypatch.setattr(ib, "clear_requeue", lambda ids: events.append(("clear", list(ids))))
+        state = self._state()
+        out = ib.consume_requeue(self._control(["b1"]), state)
+        assert out["requeued"] == ["b1"]
+        assert events == ["save", ("clear", ["b1"])], \
+            "⚠️ clearing before saving loses the request if the process dies between them"
+
+    def test_the_clear_names_every_id_read_not_only_the_applied_ones(self, monkeypatch):
+        """⚠️ An unknown or already-done id that is never cleared is a row that
+        re-fires every 30 minutes forever."""
+        from app.tools import ingest_books as ib
+
+        cleared = []
+        monkeypatch.setattr(ib, "save_state", lambda s: None)
+        monkeypatch.setattr(ib, "clear_requeue", lambda ids: cleared.append(list(ids)))
+        ib.consume_requeue(self._control(["b1", "ghost"]), self._state())
+        assert cleared == [["b1", "ghost"]]
+
+    def test_a_dry_run_writes_nothing_and_consumes_nothing(self, monkeypatch):
+        from app.tools import ingest_books as ib
+
+        touched = []
+        monkeypatch.setattr(ib, "save_state", lambda s: touched.append("save"))
+        monkeypatch.setattr(ib, "clear_requeue", lambda ids: touched.append("clear"))
+        ib.consume_requeue(self._control(["b1"]), self._state(), dry_run=True)
+        assert touched == []
+
+    def test_an_empty_control_never_touches_firestore(self, monkeypatch):
+        from app.tools import ingest_books as ib
+
+        monkeypatch.setattr(ib, "clear_requeue",
+                            lambda ids: pytest.fail("cleared an empty requeue"))
+        assert ib.consume_requeue(self._control([]), self._state()) == {}
+
+
+class TestPriorityFront:
+    """`priority_front` — the dashboard's "front of queue" affordance."""
+
+    def test_no_priority_is_the_untouched_order(self):
+        """⚠️ A feature nobody switched on must not be able to reorder anything."""
+        assert priority_sort_key(None) is _sort_key
+        assert priority_matcher([]) is None
+        assert priority_matcher(None) is None
+
+    def test_a_named_book_jumps_the_whole_queue_not_just_its_tier(self):
+        """⚠️ ABSOLUTE HEAD. A within-tier bump would leave the owner's
+        audiobook behind all 138 EPUBs, i.e. behind the entire night."""
+        items = [item(book_id="epub", tier=TIER_EPUB, title="An EPUB"),
+                 item(book_id="wanted", tier=TIER_REST_AUDIO, title="The Wanted One")]
+        key = priority_sort_key(priority_matcher(["wanted"]))
+        assert [i.book_id for i in sorted(items, key=key)] == ["wanted", "epub"]
+
+    def test_a_series_name_matches_by_title(self):
+        items = [item(book_id="a", tier=TIER_EPUB, title="Something Else"),
+                 item(book_id="ph2", tier=TIER_REST_AUDIO, title="The Primal Hunter 2"),
+                 item(book_id="ph1", tier=TIER_REST_AUDIO, title="The Primal Hunter 1")]
+        key = priority_sort_key(priority_matcher(["primal hunter"]))
+        ordered = [i.book_id for i in sorted(items, key=key)]
+        assert ordered[:2] == ["ph1", "ph2"], "the series comes first, in its own order"
+        assert ordered[2] == "a"
+
+    def test_within_the_promoted_group_the_ordinary_key_still_decides(self):
+        items = [item(book_id="x", tier=TIER_REST_AUDIO, title="Series B"),
+                 item(book_id="y", tier=TIER_EPUB, title="Series A")]
+        key = priority_sort_key(priority_matcher(["series"]))
+        assert [i.book_id for i in sorted(items, key=key)] == ["y", "x"]
+
+    def test_a_two_character_needle_matches_exactly_and_never_as_a_substring(self):
+        """⚠️ A short fragment would promote most of the shelf, which looks
+        identical to the feature working and is the opposite of a priority."""
+        items = [item(book_id="the", tier=TIER_EPUB, title="Zzz"),
+                 item(book_id="other", tier=TIER_EPUB, title="The Book")]
+        key = priority_sort_key(priority_matcher(["the"]))
+        assert [i.book_id for i in sorted(items, key=key)] == ["the", "other"]
+
+    def test_matching_is_case_and_article_insensitive_like_the_review_join(self):
+        items = [item(book_id="a", tier=TIER_EPUB, title="Nothing"),
+                 item(book_id="b", tier=TIER_EPUB, title="The Primal Hunter")]
+        key = priority_sort_key(priority_matcher(["PRIMAL HUNTER"]))
+        assert sorted(items, key=key)[0].book_id == "b"
+
+    def test_an_unmatched_needle_changes_nothing(self):
+        items = [item(book_id="a", tier=TIER_EPUB, title="One"),
+                 item(book_id="b", tier=TIER_REST_AUDIO, title="Two")]
+        key = priority_sort_key(priority_matcher(["not-on-the-shelf"]))
+        assert [i.book_id for i in sorted(items, key=key)] \
+            == [i.book_id for i in sorted(items, key=_sort_key)]
 
 
 class TestTwinJoin:

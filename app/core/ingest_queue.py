@@ -137,6 +137,108 @@ def is_done(state: dict, book_id: str) -> bool:
 
 
 # --------------------------------------------------------------------------
+# the dashboard's two fine controls: RE-QUEUE and PRIORITY
+# --------------------------------------------------------------------------
+#
+# Owner-approved 2026-08-18. Both arrive in the SAME control document the pause
+# lives in (`ingestion_control/state`; the contract is
+# docs/info/book-ingestion.md section 1) and both are read defensively, because
+# a different repo's Worker writes that document.
+
+# Statuses a re-queue is allowed to reset. ⚠️ `done` is NOT in this set and its
+# absence is the whole safety property: a stray id in the list must never be
+# able to make the ingester spend twenty GPU-minutes re-transcribing a book that
+# is already in GABI's knowledge base. Re-doing a finished book is a deliberate
+# act that belongs behind a different, louder control than a retry button.
+REQUEUABLE_STATUSES = (STATUS_FAILED, STATUS_NEEDS_OCR)
+
+
+def apply_requeue(state: dict, book_ids) -> Dict[str, List[str]]:
+    """Put failed books back to `pending`. Returns what happened, per outcome.
+
+    `{"requeued": [...], "unknown": [...], "skipped_done": [...],
+      "skipped_other": [...]}` - four buckets rather than a count, because the
+    caller logs them with different words and they mean different things:
+
+      unknown       an id this processor has never heard of. Logged and dropped
+                    (the brief's rule) - it is almost always a stale row on a
+                    dashboard someone left open, not an error to stop for.
+      skipped_done  the book already succeeded. See REQUEUABLE_STATUSES.
+      skipped_other something is already pending or in flight; re-marking it
+                    pending would be a no-op dressed up as an action.
+
+    ⚠️ THE PREVIOUS FAILURE REASON IS KEPT, under `previous_reason`. A retry
+    that erases why the book failed the first time destroys the only evidence
+    available when it fails the same way again.
+    """
+    out = {"requeued": [], "unknown": [], "skipped_done": [], "skipped_other": []}
+    books = state.setdefault("books", {})
+    for raw in book_ids or []:
+        bid = str(raw).strip()
+        if not bid:
+            continue
+        entry = books.get(bid)
+        if not entry:
+            out["unknown"].append(bid)
+            continue
+        status = (entry or {}).get("status")
+        if status == STATUS_DONE:
+            out["skipped_done"].append(bid)
+            continue
+        if status not in REQUEUABLE_STATUSES:
+            out["skipped_other"].append(bid)
+            continue
+        previous = entry.get("reason") or entry.get("blocker")
+        mark(state, bid, STATUS_PENDING,
+             requeued_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+             previous_status=status,
+             **({"previous_reason": str(previous)[:300]} if previous else {}))
+        out["requeued"].append(bid)
+    return out
+
+
+def priority_matcher(needles) -> Optional[callable]:
+    """A `QueueItem -> bool` for the dashboard's `priority_front` list, or None.
+
+    ⚠️ TWO KINDS OF NEEDLE, AND THE ORDER OF THE TESTS IS THE SAFETY PROPERTY.
+    The owner may name a book (its exact `book_id`) or a series ("the primal
+    hunter"). An exact id match is tried FIRST and is unambiguous; only if that
+    fails is the needle treated as a series name and matched as a normalised
+    substring of the title.
+
+    ⚠️ THE SUBSTRING TEST IS DELIBERATELY NOT USED FOR IDs and is bounded below
+    at three characters. A one- or two-letter needle would match most of the
+    shelf, and a priority list that promotes everything is the same as no
+    priority list at all - except that it looks like it is working. A too-short
+    needle is therefore matched EXACTLY or not at all.
+
+    Matching is on `normalise_title()`, the same normaliser the review join and
+    the twin index use, so "The Primal Hunter" and "primal hunter" are one
+    needle and a future change to normalisation moves all three together.
+    """
+    ids = set()
+    fragments = []
+    for needle in needles or []:
+        text = str(needle).strip()
+        if not text:
+            continue
+        ids.add(text)
+        norm = normalise_title(text)
+        if len(norm) >= 3:
+            fragments.append(norm)
+    if not ids:
+        return None
+
+    def matches(item) -> bool:
+        if item.book_id in ids:
+            return True
+        title_norm = normalise_title(item.title or "")
+        return any(f in title_norm for f in fragments)
+
+    return matches
+
+
+# --------------------------------------------------------------------------
 # corpus readers
 # --------------------------------------------------------------------------
 
@@ -341,11 +443,28 @@ def build_twin_index(ebooks: List[dict]) -> Dict[str, dict]:
 # --------------------------------------------------------------------------
 
 def build_queue(state: Optional[dict] = None, review_counts: Optional[Dict[str, int]] = None,
-                pdf_classifier=None) -> List[QueueItem]:
+                pdf_classifier=None,
+                priority_front: Optional[List[str]] = None) -> List[QueueItem]:
     """The full ordered work list. Already-done books are excluded.
 
     `pdf_classifier` is injected so tests can run without PyMuPDF and without
     touching 641 MB of files; production passes `book_text.classify_pdf`.
+
+    `priority_front` is the dashboard's list of books/series to move to the head
+    (`ingestion_control/state.priority_front`).
+
+    ⚠️ IT IS AN ABSOLUTE HEAD, NOT A WITHIN-TIER BUMP, AND THAT IS THE CHOICE.
+    The two readings differ exactly when the owner names a GPU audiobook while
+    138 EPUBs are still queued in tier 1: a within-tier bump would leave his
+    book behind every one of them, i.e. behind the entire night, which is not
+    what anybody means by "front of queue". It also matches the precedent he set
+    himself - *"For now finish the primal hunter"* moved a tier-5 audiobook
+    ahead of the whole shelf, not ahead of its own tier.
+
+    ⚠️ It does NOT waive a single gate. A prioritised book still faces the
+    window, the pause, the GPU and CPU guards and the deadline; priority decides
+    what is asked first, never what is allowed. A prioritised needs-OCR PDF
+    stays blocked, because nothing can read it.
     """
     state = state if state is not None else load_state()
     review_counts = review_counts if review_counts is not None else {}
@@ -407,7 +526,8 @@ def build_queue(state: Optional[dict] = None, review_counts: Optional[Dict[str, 
             added_at=added.get(bid), duration_sec=duration,
         ))
 
-    return sorted(demote_contested_twins(items), key=_sort_key)
+    return sorted(demote_contested_twins(items),
+                  key=priority_sort_key(priority_matcher(priority_front)))
 
 
 def demote_contested_twins(items: List[QueueItem]) -> List[QueueItem]:
@@ -477,3 +597,25 @@ def _sort_key(item: QueueItem):
     if item.tier == TIER_REST_AUDIO:
         return (item.tier, 0, _added_rank(item.added_at), item.title)
     return (item.tier, 0, 0.0, item.title)
+
+
+def priority_sort_key(matches=None):
+    """`_sort_key` with the dashboard's priority as a rank AHEAD of the tier.
+
+    Returns `_sort_key` itself when nothing is prioritised, so the ordinary path
+    is byte-for-byte the order it has always been - a feature nobody has switched
+    on must not be able to change the queue.
+
+    ⚠️ WITHIN the promoted group, the ordinary key still decides. Naming three
+    books does not make their relative order arbitrary; they keep tier, review
+    count and arrival date among themselves, which is what makes promoting a
+    whole series ("the primal hunter") come out in a sensible order rather than
+    alphabetically by accident.
+    """
+    if matches is None:
+        return _sort_key
+
+    def key(item: QueueItem):
+        return (0 if matches(item) else 1,) + tuple(_sort_key(item))
+
+    return key
