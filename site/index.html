@@ -200,7 +200,7 @@ button.cover-btn:focus{ outline:2px solid var(--neon-cyan); outline-offset:2px }
 }
 
 /* Empty state */
-#ab-empty{
+#ab-empty,#ab-list-notice{
   display:none;
   border:1px dashed var(--border);
   border-radius:14px;
@@ -40701,6 +40701,15 @@ A Macmillan Audio production from Tor Books" data-library-work-id="" data-librar
 
   <div id="ab-empty">No results for "<span id="ab-empty-q"></span>". Try a different search.</div>
 
+  <!-- ⚠️ The list filters' OWN sentence, and a separate element from
+       #ab-empty on purpose: that one is worded for a SEARCH ("try a
+       different search"), which is the wrong advice for a to-read list
+       and actively misleading when the list simply could not be read.
+       Sharing one element would also mean rewriting #ab-empty's
+       innerHTML and destroying the #ab-empty-q span the search path
+       still holds a reference to. -->
+  <div id="ab-list-notice"></div>
+
   <!-- Bottom pagination -->
   <div class="controls-row pagination" style="margin-top:14px;margin-bottom:40px">
     <button id="ab-page-first-bottom" class="btn">« First</button>
@@ -40887,7 +40896,26 @@ function wireAppearance(container){
   function sortCards(container,key,numeric,asc){ var cards=Array.from(container.querySelectorAll(".ab-card")); cards.sort(function(a,b){ var v1=getCardSortKey(a,key,numeric),v2=getCardSortKey(b,key,numeric); return asc?(numeric?(v1-v2):(""+v1).localeCompare(""+v2,undefined,{numeric:true,sensitivity:"base"})):(numeric?(v2-v1):(""+v2).localeCompare(""+v1,undefined,{numeric:true,sensitivity:"base"})); }); cards.forEach(function(c){ container.appendChild(c); }); currentPage=1; renderPage(); }
 
   /* Pagination */
-  var pageSizeEl, pageNav, pageInfo, table, cardsWrap, emptyEl, emptyQEl;
+  var pageSizeEl, pageNav, pageInfo, table, cardsWrap, emptyEl, emptyQEl, listNoticeEl;
+
+  /**
+   * What to say about the reading-list / reviews filter, or null.
+   *
+   * ⚠️ THE POINT OF THIS VARIABLE. Before it existed, every way the My
+   * TBR List filter could fail to produce books looked identical on screen:
+   * a blank catalogue and nothing else. The dropdown does not put anything
+   * in the search box, so `qVal` was empty, so #ab-empty stayed HIDDEN and
+   * the page rendered a silent void. An empty list is the worst possible
+   * lie — it reads as data loss to the person looking at it.
+   */
+  var _listNotice = null;
+  function setListNotice(text){
+    _listNotice = text || null;
+    if (listNoticeEl) {
+      listNoticeEl.textContent = _listNotice || '';
+      listNoticeEl.style.display = _listNotice ? 'block' : 'none';
+    }
+  }
   var currentPage=1;
   function pageSize(){ var v=pageSizeEl?pageSizeEl.value:"100"; if(v==="All") return Infinity; var n=parseInt(v,10); return isNaN(n)?100:n; }
   function renderPage(){
@@ -40913,8 +40941,17 @@ function wireAppearance(container){
 
     var qVal=(document.getElementById("ab-search")&&document.getElementById("ab-search").value)||"";
     if(emptyEl){
-      emptyEl.style.display = (totalRows===0 && qVal.trim()) ? "block" : "none";
-      if (totalRows===0 && qVal.trim()) { emptyQEl.textContent=qVal; }
+      // ⚠️ The list notice WINS. When a reading-list filter has something
+      // to say, the generic "try a different search" must not also appear:
+      // two contradictory explanations of one blank page is worse than the
+      // blank page, and only one of them is true.
+      var showSearchEmpty = (totalRows===0 && qVal.trim() && !_listNotice);
+      emptyEl.style.display = showSearchEmpty ? "block" : "none";
+      if (showSearchEmpty) { emptyQEl.textContent=qVal; }
+    }
+    if(listNoticeEl){
+      listNoticeEl.textContent = _listNotice || "";
+      listNoticeEl.style.display = _listNotice ? "block" : "none";
     }
     drawPager(pages,totalRows);
     _writeHash(qVal,currentPage);
@@ -41317,6 +41354,7 @@ function wireAppearance(container){
     pageInfo=document.getElementById("ab-page-info");
     emptyEl=document.getElementById("ab-empty");
     emptyQEl=document.getElementById("ab-empty-q");
+    listNoticeEl=document.getElementById("ab-list-notice");
 
     if(table) makeTableSortable(table);
 
@@ -41390,6 +41428,9 @@ function wireAppearance(container){
     function clearReadingListFilter() {
       document.querySelectorAll("#ab-table tbody tr").forEach(function(r){ delete r.dataset.rlFilter; });
       document.querySelectorAll("#ab-cards .ab-card").forEach(function(c){ delete c.dataset.rlFilter; });
+      // The notice belongs to the filter; dropping the filter drops it too,
+      // or "your list is empty" would sit above an ordinary sorted catalogue.
+      setListNotice(null);
     }
 
     // Universe filter — reuses the exact same choke point as My TBR List /
@@ -41417,12 +41458,50 @@ function wireAppearance(container){
       renderPage();
     }
 
+    /**
+     * Show one person's TBR list (or reviews) as a filter over the catalogue.
+     *
+     * ⚠️ EVERY WAY THIS CAN COME BACK WITH NOTHING NOW SAYS WHICH ONE IT WAS.
+     * Reported 2026-08-19: "my TBR list is empty". It was not a failed read —
+     * measured directly in Firestore the same morning, the owner's account
+     * (uid tX912Otd…) holds 51 `readingLists` rows, of which **50 are
+     * `status: 'read'` and exactly ONE is `status: 'tbr'`**. That one row is
+     * `The Court of the Dead`, and that title is in none of the catalogue's
+     * 1,078 rows (checked against site/catalog.csv, no near match either). So
+     * the filter matched nothing, correctly — and then said nothing at all.
+     *
+     * ⚠️ AND IT SAID NOTHING BECAUSE OF WHERE IT WAS CALLED FROM. The
+     * `#list=tbr&user=…` deep link puts a label in the search box, so the
+     * generic #ab-empty state at least appeared (worded for a search, which was
+     * already wrong advice). The DROPDOWN sets no search text, so `qVal` was
+     * empty, #ab-empty stayed hidden, and the page rendered a blank catalogue
+     * with no explanation whatsoever. That is the estate's silent-failure rule
+     * broken in the worst direction: an empty list is indistinguishable from
+     * lost data, and the person cannot tell which they are looking at.
+     *
+     * Four outcomes, four sentences, kept apart because the fixes differ:
+     *
+     *   couldn't read      — an OUTAGE. Never phrased as "your list is empty".
+     *   no account         — the uid was not available; ownsReadingListDoc
+     *                        fails closed, so this WOULD render as empty.
+     *   genuinely empty    — says so, and NAMES THE ACCOUNT, because this is a
+     *                        two-account household and "whose list am I looking
+     *                        at" is the first question worth answering.
+     *   on the list, but not in this catalogue — the owner's actual case. The
+     *                        entries exist; this catalogue cannot show them.
+     *                        Naming them is the difference between "my list is
+     *                        gone" and "ah, that book isn't here".
+     */
     async function filterByReadingList(filterKey, forUser) {
       var session = null;
       try { var identityMod = await import('./identity.js'); session = identityMod.getSession(); } catch(e) {}
       var targetUser = forUser || (session ? session.displayName : null);
       var isReviews = (filterKey === '_myreviews');
       if (!targetUser) { alert(isReviews ? 'Sign in to see reviews.' : 'Sign in to see reading lists.'); return; }
+
+      var _listLabel = isReviews ? 'reviews' : 'TBR list';
+      var _whose = forUser ? (forUser + "'s") : 'this account\u2019s';
+      setListNotice(null);
 
       try {
         var { collection, getDocs } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
@@ -41484,6 +41563,22 @@ function wireAppearance(container){
               liveMe = await identityMod.getLiveUser(getApp());
             } catch(e) {}
             me = { uid: liveMe ? liveMe.uid : null, displayName: targetUser };
+            // ⚠️ NO UID IS AN ANSWER, NOT AN EMPTY LIST. ownsReadingListDoc is
+            // account-only and fails closed, so without a uid every row is
+            // rejected and the page would render a blank catalogue that looks
+            // exactly like "your list is gone". Firebase publishes a restored
+            // session asynchronously (measured on the sibling app: ~340 ms of
+            // token refresh + accounts:lookup after load), so pressing this
+            // early is a real, ordinary race — and the honest reply is to say
+            // the account could not be confirmed and to suggest a reload.
+            if (!me.uid) {
+              setListNotice(
+                'Couldn\u2019t confirm which account you\u2019re signed in as, so your '
+                + _listLabel + ' can\u2019t be shown yet. Give the page a moment and try '
+                + 'again, or reload it.');
+              renderPage();
+              return;
+            }
           }
           rlSnap.docs.forEach(function(d) {
             var data = d.data();
@@ -41510,10 +41605,47 @@ function wireAppearance(container){
           c.dataset.searchMatch = _matches(title) ? "1" : "0";
         });
 
+        // ⚠️ Said BEFORE renderPage(), because renderPage is what paints the
+        // (possibly empty) result and the notice has to arrive with it.
+        var _shownCount = document.querySelectorAll('#ab-table tbody tr[data-search-match="1"]').length;
+        var _wanted = isReviews ? matchIds.size : matchTitles.size;
+        if (_shownCount === 0) {
+          if (_wanted === 0) {
+            // ⚠️ NAMES THE ACCOUNT. This is a two-account household, and
+            // "whose list am I even looking at" is the first question worth
+            // answering when a list looks empty — it makes the ambiguity
+            // self-explaining instead of something to come and ask about.
+            setListNotice(
+              (isReviews
+                ? 'No reviews from ' + _whose + ' account yet'
+                : 'No books on ' + _whose + ' ' + _listLabel)
+              + ' \u2014 signed in as ' + targetUser + '.');
+          } else {
+            // The owner's case. The entries are real; this catalogue has no row
+            // whose title matches them, so listing the titles is the whole
+            // explanation and turns "my list vanished" into "that book is not
+            // in here".
+            var _missing = (isReviews ? [] : Array.from(matchTitles)).filter(Boolean);
+            setListNotice(
+              _whose.charAt(0).toUpperCase() + _whose.slice(1) + ' ' + _listLabel + ' has '
+              + _wanted + ' book' + (_wanted === 1 ? '' : 's') + ' on it, but '
+              + (_wanted === 1 ? 'it is not' : 'none of them are') + ' in this catalogue'
+              + (_missing.length ? ': ' + _missing.slice(0, 5).join(', ') : '') + '.');
+          }
+        }
+
         currentPage = 1;
         renderPage();
       } catch(e) {
+        // ⚠️ AN OUTAGE IS NOT AN EMPTY LIST. This used to console.warn and
+        // stop, leaving whatever was on screen under a filter that had silently
+        // failed. Say what happened, in words, and never in the vocabulary of
+        // "you have nothing" — the person's list is fine; the read was not.
         console.warn(isReviews ? '[Reviews] Filter failed:' : '[ReadingList] Filter failed:', e);
+        setListNotice(
+          'Couldn\u2019t load ' + _whose + ' ' + _listLabel + ' \u2014 the reviews database '
+          + 'did not answer. Your list is safe; this is a connection problem. Try again.');
+        renderPage();
       }
     }
 
