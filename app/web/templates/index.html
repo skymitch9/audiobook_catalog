@@ -2434,25 +2434,59 @@ function wireAppearance(container){
   // --- Reviews in modal ---
   const reviewsContainer = document.getElementById('m-reviews');
 
-  // Listen for modal open events by observing the modal class change
+  // Listen for modal open events by observing the modal class change.
+  //
+  // ⚠️ ONE RENDER PER OPEN — AND THE OBVIOUS SHAPE OF THIS CODE IS WRONG.
+  // MEASURED on live prod 2026-08-19: opening one book ran this body FOUR
+  // times, so every modal open did four of everything below — four full
+  // downloads of the `reviews` collection (886 docs, 272 KB, ~410 ms each,
+  // measured), four TBR reads, and four audio rows STACKED on top of each
+  // other. That last one is what the owner photographed: the
+  // "Not streamable yet — request it" button and its explainer, rendered four
+  // times down the modal.
+  //
+  // Two multipliers, and the fix below closes both at once:
+  //
+  //   1. `mutations.forEach(...)` ran the body ONCE PER MUTATION RECORD.
+  //      openModal() changes two attributes (`class`, then `aria-hidden`), so
+  //      one open delivers two records — and two renders.
+  //   2. openModal() itself is called TWICE for one click on a cover inside
+  //      the table: the `button.cover-btn` document listener fires, and the
+  //      `#ab-table tbody td` listener deliberately does NOT bail on a
+  //      cover-btn target, so it fires too. Four records, four renders.
+  //
+  // A MutationObserver callback is delivered ONCE per task with the whole
+  // batch, and both openModal() calls happen inside the same click task. So
+  // reading the modal's state once per CALLBACK — rather than once per record
+  // — collapses every one of those four records into a single render,
+  // whatever the caller does. That is why this is a state check and not a
+  // record loop: it is correct for N callers instead of for the two we happen
+  // to have today.
+  //
+  // The transition guard (`_modalRenderedFor`) is the other half. Without it,
+  // any later attribute change while the modal is open (a class toggle, an
+  // aria update) would re-run three Firestore reads for a book already on
+  // screen. Tracking WHICH title was rendered rather than a bare boolean keeps
+  // the case that matters: opening a different book without closing first
+  // still re-renders, because the title changed.
   const modal = document.getElementById('modal');
   if (modal && db) {
-    const observer = new MutationObserver(function(mutations) {
-      mutations.forEach(function(m) {
-        if (m.attributeName === 'class' || m.attributeName === 'aria-hidden') {
-          if (modal.classList.contains('open')) {
-            const title = document.getElementById('modal-title').textContent;
-            if (title) {
-              renderReviewSection(title);
-              renderReadingListButtons(title);
-              // Audio phase 1. ⚠️ Fire-and-forget on purpose: the row is a
-              // gated cross-origin fetch, and a slow Worker must never hold up
-              // the reviews or the TBR buttons rendering.
-              renderAudioRow(title);
-            }
-          }
-        }
-      });
+    let _modalRenderedFor = null;
+    const observer = new MutationObserver(function() {
+      if (!modal.classList.contains('open')) {
+        // Closed — arm the next open, including a re-open of the same book.
+        _modalRenderedFor = null;
+        return;
+      }
+      const title = document.getElementById('modal-title').textContent;
+      if (!title || title === _modalRenderedFor) return;
+      _modalRenderedFor = title;
+      renderReviewSection(title);
+      renderReadingListButtons(title);
+      // Audio phase 1. ⚠️ Fire-and-forget on purpose: the row is a
+      // gated cross-origin fetch, and a slow Worker must never hold up
+      // the reviews or the TBR buttons rendering.
+      renderAudioRow(title);
     });
     observer.observe(modal, { attributes: true });
   }

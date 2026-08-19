@@ -1,7 +1,7 @@
 // reviews.js — Book review system for the audiobook catalog
 // ES module, browser-native (no build step)
 
-import { doc, setDoc, getDoc, deleteDoc, serverTimestamp, collection, getDocs } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+import { doc, setDoc, getDoc, deleteDoc, serverTimestamp, collection, getDocs, query, where } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 import { col } from './fb-env.js';
 import { describeActionError } from './permission-ux.js';
 import { reportGate } from './gate-shadow.js';
@@ -293,14 +293,37 @@ export function renderStars(rating) {
  */
 export async function getReviews(db, bookId) {
   try {
-    // Fetch all reviews and filter client-side to avoid Firestore index requirements
-    const snapshot = await getDocs(collection(db, col('reviews')));
+    // ⚠️ FILTERED SERVER-SIDE, and the comment this replaced was wrong about
+    // why it could not be. It said "fetch all reviews and filter client-side to
+    // avoid Firestore index requirements" — but a SINGLE-FIELD equality filter
+    // needs no index to be created: Firestore indexes every field
+    // automatically, and only COMPOSITE queries (a filter plus an orderBy on a
+    // different field, or two filters) need a declared one. The sort below is
+    // done in JS, so this query stays single-field and works with no
+    // firestore.indexes.json at all — this repo has none, and
+    // `site/user-warnings.js` has been running the identical
+    // `where('bookId','==',…)` shape in production all along.
+    //
+    // MEASURED on live prod 2026-08-19, from the page itself, same book:
+    //
+    //   getDocs(collection(db,'reviews'))            886 docs  272,065 B  410–424 ms
+    //   getDocs(query(..., where('bookId','==',…)))    0–3 docs  ~1 KB      147 ms
+    //
+    // That download ran on EVERY book-modal open — four times per open until
+    // the double-mount above it was fixed the same day — so a person browsing
+    // ten books paid ~10 MB and ~16 s of Firestore time to read a handful of
+    // reviews. This is the owner's "community db stuff is loading slow".
+    //
+    // ⚠️ It also stops getting worse on its own. The old shape's cost is
+    // O(all reviews in the estate), so every review anybody writes about any
+    // book slowed down every modal for everyone. The new one is O(reviews for
+    // this book) and does not move as the collection grows.
+    const snapshot = await getDocs(
+      query(collection(db, col('reviews')), where('bookId', '==', bookId)),
+    );
     const reviews = [];
     snapshot.docs.forEach(d => {
-      const data = d.data();
-      if (data.bookId === bookId) {
-        reviews.push(data);
-      }
+      reviews.push(d.data());
     });
     // Sort by createdAt descending
     reviews.sort((a, b) => {
