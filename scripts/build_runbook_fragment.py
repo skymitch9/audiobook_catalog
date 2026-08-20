@@ -1,0 +1,198 @@
+"""Render a LOCAL-ONLY runbook markdown file into an estate doc fragment.
+
+The `/runbooks/<slug>/` pages on heygabi.ai are content-free shims: they sign
+the caller in, then fetch `GET /api/estate/docs/<slug>` from the auth Worker,
+which returns one `{ html }` blob out of the `estate_docs` KV namespace. That
+blob is a *fragment* — a `<style>` block plus a `<main>` — never a whole page.
+See `catalog-platform/apps/auth-worker/src/docs.ts` for why it is KV and not a
+bundled module (that repo is PUBLIC; these runbooks are exactly what the devops
+gate exists to fence).
+
+⚠️ WHY THIS SCRIPT EXISTS. The first fragments were hand-authored HTML, and
+they rotted the moment the markdown moved on: on 2026-08-20 the published page
+still read "Status: NOT YET RUN" and still told Justin to run cloudflared with
+`--network host` — an instruction that, by then, would have BROKEN the working
+tunnel. Hand-maintaining a second copy of a 700-line document is not a thing
+anyone does twice, so the copy silently became a liability. A generator makes
+the regen a single command, which is the only version of this that stays true.
+
+Usage (from the audiobook_catalog repo root):
+
+    python -m scripts.build_runbook_fragment docs/access/SHELF_SERVER.md \
+        --slug shelf-server --out docs/access/SHELF_SERVER.fragment.html
+
+Then publish it, from `catalog-platform/apps/auth-worker/`:
+
+    npx wrangler kv key put --binding estate_docs "doc:shelf-server" \
+        --path <fragment.html> --remote
+
+The style block is taken from the existing fragment when one is present, so the
+page keeps the design it was given; `--style-from` overrides the source. That
+is deliberate — this script owns the *content*, not the look.
+"""
+
+from __future__ import annotations
+
+import argparse
+import html as html_mod
+import re
+import sys
+from pathlib import Path
+
+try:
+    from markdown_it import MarkdownIt
+except ImportError:  # pragma: no cover - environment guard
+    sys.exit(
+        "markdown-it-py is required: pip install markdown-it-py\n"
+        "(it is already present in this repo's .venv as of 2026-08-20)"
+    )
+
+HEADER_COMMENT = """<!-- Estate doc fragment doc:{slug} — served by auth-worker
+     GET /api/estate/docs/{slug} to devops/approver callers only.
+     Source of truth: audiobook_catalog {source} (LOCAL ONLY).
+     ⚠️ GENERATED — do not hand-edit. Regenerate with:
+       python -m scripts.build_runbook_fragment {source} --slug {slug} --out <this file>
+     then publish with the wrangler kv command in SHELF_SERVER.md §12. -->
+"""
+
+# Fallback only — normally lifted from the fragment being replaced.
+DEFAULT_STYLE = """<style>
+  :root {
+    --bg: #faf8f4; --surface: #ffffff; --ink: #26221c; --muted: #6d675d;
+    --accent: #7a5c2e; --accent-soft: #f0e8d8; --hairline: #e3ddd1;
+    --code-bg: #f2efe8; --warn-bg: #fdf3e2; --warn-edge: #d9a03f; --owner: #8c3b2e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1a16; --surface: #24211c; --ink: #e9e4da; --muted: #a49c8e;
+      --accent: #d3b071; --accent-soft: #35301f; --hairline: #3a362e;
+      --code-bg: #2a2721; --warn-bg: #33290f; --warn-edge: #d9a03f; --owner: #e08a76;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  main { max-width: 52rem; margin: 0 auto; padding: 2.5rem 1.25rem 5rem; }
+  table { border-collapse: collapse; width: 100%; font-size: .9rem; margin: .9rem 0; }
+  .tw { overflow-x: auto; }
+  th, td { text-align: left; padding: .45rem .6rem; border-bottom: 1px solid var(--hairline); vertical-align: top; }
+  code { font-family: ui-monospace, SFMono-Regular, Consolas, Menlo, monospace;
+         font-size: .88em; background: var(--code-bg); padding: .1em .35em; border-radius: 4px; }
+  pre { background: var(--code-bg); border: 1px solid var(--hairline); border-radius: 8px;
+        padding: .9rem 1rem; overflow-x: auto; font-size: .84rem; line-height: 1.55; }
+  pre code { background: none; padding: 0; }
+</style>"""
+
+
+def extract_style(path: Path | None) -> str:
+    """Lift the <style>…</style> block out of an existing fragment."""
+    if path is None or not path.exists():
+        return DEFAULT_STYLE
+    text = path.read_text(encoding="utf-8")
+    m = re.search(r"<style>.*?</style>", text, re.S)
+    return m.group(0) if m else DEFAULT_STYLE
+
+
+def render_markdown(md_text: str) -> str:
+    md = MarkdownIt("commonmark").enable(["table", "strikethrough"])
+    return md.render(md_text)
+
+
+def number_headings(body: str) -> str:
+    """`<h2>1. Status board</h2>` -> `<h2><span class="n">1</span> Status board</h2>`.
+
+    The stylesheet colours `h2 .n` as a section number; without this the
+    numbers render as ordinary text and the page loses its spine.
+    """
+    return re.sub(
+        r"<h2>(\d+)\.\s*",
+        r'<h2><span class="n">\1</span> ',
+        body,
+    )
+
+
+def wrap_tables(body: str) -> str:
+    """Every table gets a horizontal-scroll parent.
+
+    These runbooks are read on phones. A 5-column status table with no scroll
+    container is what forces the whole page to scroll sideways.
+    """
+    return re.sub(r"<table>", '<div class="tw"><table>', body).replace(
+        "</table>", "</table></div>"
+    )
+
+
+def lift_lead_blockquote(body: str) -> str:
+    """The markdown's opening `> Audience / Status / Last verified` block is the
+    status banner, and it is the single most important thing on the page — it is
+    what tells a reader whether to trust the rest. Promote it out of a generic
+    blockquote into the callout the stylesheet already has."""
+    m = re.search(r"<blockquote>\s*(.*?)\s*</blockquote>", body, re.S)
+    if not m:
+        return body
+    inner = m.group(1)
+    inner = re.sub(r"</?p>", "", inner).strip()
+    return body[: m.start()] + f'<div class="status">{inner}</div>' + body[m.end():]
+
+
+def build(md_path: Path, slug: str, style_src: Path | None) -> str:
+    md_text = md_path.read_text(encoding="utf-8")
+
+    body = render_markdown(md_text)
+    body = lift_lead_blockquote(body)
+    body = number_headings(body)
+    body = wrap_tables(body)
+
+    # The shim supplies no chrome of its own, so the fragment carries its own
+    # breadcrumb back to the sibling page.
+    kicker = (
+        '<p class="kicker">heygabi.ai estate &middot; server migration &middot; '
+        'reference runbook &middot; step-by-step: '
+        '<a href="/runbooks/shelf-migration/">instructions manual</a></p>\n'
+    )
+
+    parts = [
+        HEADER_COMMENT.format(slug=slug, source=md_path.as_posix()),
+        extract_style(style_src),
+        "\n<main>\n",
+        kicker,
+        body,
+        "\n</main>\n",
+    ]
+    return "".join(parts)
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("markdown", type=Path, help="source markdown file")
+    ap.add_argument("--slug", required=True, help="estate_docs slug, e.g. shelf-server")
+    ap.add_argument("--out", type=Path, required=True, help="fragment path to write")
+    ap.add_argument(
+        "--style-from",
+        type=Path,
+        default=None,
+        help="fragment to lift the <style> block from (default: --out, if it exists)",
+    )
+    args = ap.parse_args(argv)
+
+    if not args.markdown.exists():
+        print(f"ERROR: no such markdown file: {args.markdown}", file=sys.stderr)
+        return 1
+
+    style_src = args.style_from or args.out
+    # Sample this BEFORE writing: --style-from defaults to --out, so once the
+    # file is written it always "exists" and the report would claim a reuse
+    # that never happened on a first run.
+    reused = style_src.exists()
+
+    out = build(args.markdown, args.slug, style_src)
+    args.out.write_text(out, encoding="utf-8")
+
+    print(f"wrote {args.out} ({len(out):,} bytes) from {args.markdown}")
+    print(f"  style block: {'reused from ' + str(style_src) if reused else 'DEFAULT (no existing fragment)'}")
+    print(f"  publish: npx wrangler kv key put --binding estate_docs \"doc:{args.slug}\" --path {args.out} --remote")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
