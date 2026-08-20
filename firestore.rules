@@ -239,9 +239,9 @@ service cloud.firestore {
       return request.resource.data.uid == request.auth.uid
              && request.resource.data.bookId is string
              && request.resource.data.bookId.size() > 0
-             && request.resource.data.format in ['pdf', 'epub']
+             && request.resource.data.format in ['pdf', 'epub', 'audio']
              && request.resource.data.pos is map
-             && request.resource.data.pos.kind in ['page', 'cfi']
+             && request.resource.data.pos.kind in ['page', 'cfi', 'audio']
              && request.resource.data.updatedAt is number;
     }
 

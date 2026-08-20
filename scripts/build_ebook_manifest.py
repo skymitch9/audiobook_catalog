@@ -521,7 +521,7 @@ def downscale_cover(data: bytes) -> bytes | None:
     return None
 
 
-def extract_epub_cover(epub_path: Path) -> tuple[bytes, str] | None:
+def extract_epub_cover(epub_path: Path) -> tuple[bytes, str] | None:  # noqa: C901
     """(image_bytes, file_extension) for the epub's cover image, or None.
 
     An epub is a zip; META-INF/container.xml names the OPF, and the OPF's

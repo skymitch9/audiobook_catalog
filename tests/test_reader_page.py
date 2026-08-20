@@ -921,9 +921,9 @@ def test_the_rules_refuse_a_locator_that_lost_its_kind() -> None:
     rules = read(RULES)
     validator = rules[rules.index("function validReadingPosition()"):]
     validator = validator[: validator.index("}")]
-    assert "request.resource.data.pos.kind in ['page', 'cfi']" in validator
+    assert "request.resource.data.pos.kind in ['page', 'cfi', 'audio']" in validator
     assert "request.resource.data.uid == request.auth.uid" in validator
-    assert "request.resource.data.format in ['pdf', 'epub']" in validator
+    assert "request.resource.data.format in ['pdf', 'epub', 'audio']" in validator
     assert "request.resource.data.updatedAt is number" in validator
 
 

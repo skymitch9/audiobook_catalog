@@ -97,6 +97,13 @@ from app.metadata import (
 )
 from app.parsers.title import parse_series_and_index_from_title
 
+# Force UTF-8 on stdout/stderr so non-Latin filenames (e.g. Japanese author
+# folders like りゅうせんひろつぐ) don't crash with UnicodeEncodeError on
+# Windows consoles using cp1252.
+import io
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+
 K_ALBUM = "\xa9alb"
 K_TRACK = "trkn"
 

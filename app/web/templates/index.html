@@ -353,6 +353,27 @@ body:not(.cards) #ab-table{display:table}
 .star-pick{ user-select:none; transition: transform .1s; }
 .star-pick:hover{ transform: scale(1.2); }
 
+/* Read badge — overlays the cover to indicate the current user has rated/read this book */
+.read-badge{
+  position:absolute; top:3px; right:3px;
+  background: var(--neon-magenta, #ff2a6d);
+  color: #fff;
+  font-size: .6em;
+  font-weight: 700;
+  padding: 2px 5px;
+  border-radius: 2px;
+  text-transform: var(--et-title-case, uppercase);
+  letter-spacing: .5px;
+  line-height: 1.2;
+  pointer-events: none;
+  z-index: 1;
+  box-shadow: 0 1px 3px rgba(0,0,0,.3);
+}
+/* Cover cell needs position context for the badge */
+td:first-child{ position:relative; }
+button.cover-btn{ position:relative; }
+.ab-card .card-cover-wrap{ position:relative; display:inline-block; }
+
 /* =============== Auth Modal =============== */
 #auth-modal{
   position:fixed; inset:0; display:none; align-items:center; justify-content:center;
@@ -2266,6 +2287,56 @@ function wireAppearance(container){
       });
 
       console.log(`[Reviews] Loaded ratings for ${Object.keys(avgByBook).length} books`);
+
+      // --- "Read" badge: mark books the current user has rated ---
+      const session = getSession();
+      if (session) {
+        const myName = session.displayName.toLowerCase();
+        const myBookIds = new Set();
+        snapshot.docs.forEach(d => {
+          const data = d.data();
+          if (data.displayName && data.displayName.toLowerCase() === myName && data.bookId && data.rating) {
+            myBookIds.add(data.bookId);
+          }
+        });
+
+        if (myBookIds.size > 0) {
+          // Add badge to table rows
+          document.querySelectorAll('#ab-table tbody tr').forEach(row => {
+            const titleCell = row.cells[1];
+            if (!titleCell) return;
+            const title = titleCell.textContent.trim();
+            const bookId = bookIdFromTitle(title);
+            if (!myBookIds.has(bookId)) return;
+            // Place badge on the cover button (positioned relative)
+            const coverBtn = row.querySelector('button.cover-btn');
+            if (coverBtn && !coverBtn.querySelector('.read-badge')) {
+              coverBtn.insertAdjacentHTML('beforeend', '<span class="read-badge">Read</span>');
+            }
+          });
+
+          // Add badge to cards
+          document.querySelectorAll('#ab-cards .ab-card').forEach(card => {
+            const title = card.getAttribute('data-title') || '';
+            const bookId = bookIdFromTitle(title);
+            if (!myBookIds.has(bookId)) return;
+            const coverImg = card.querySelector('img.cover-inline');
+            if (coverImg && !coverImg.parentElement.querySelector('.read-badge')) {
+              // Wrap cover in a positioned container if not already
+              let wrap = coverImg.closest('.card-cover-wrap');
+              if (!wrap) {
+                wrap = document.createElement('span');
+                wrap.className = 'card-cover-wrap';
+                coverImg.parentNode.insertBefore(wrap, coverImg);
+                wrap.appendChild(coverImg);
+              }
+              wrap.insertAdjacentHTML('beforeend', '<span class="read-badge">Read</span>');
+            }
+          });
+
+          console.log(`[Reviews] Marked ${myBookIds.size} books as read for ${session.displayName}`);
+        }
+      }
     } catch (e) {
       console.warn('[Reviews] Failed to load ratings:', e);
     }

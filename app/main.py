@@ -2,6 +2,14 @@
 from __future__ import annotations
 
 import sys
+import io
+
+# Force UTF-8 on stdout/stderr so emoji and non-Latin characters in print()
+# don't crash with UnicodeEncodeError on Windows consoles using cp1252.
+if sys.stdout.encoding and sys.stdout.encoding.lower().replace('-', '') != 'utf8':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+
 from datetime import datetime
 from pathlib import Path
 
