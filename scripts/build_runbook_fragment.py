@@ -135,7 +135,14 @@ def lift_lead_blockquote(body: str) -> str:
     return body[: m.start()] + f'<div class="status">{inner}</div>' + body[m.end():]
 
 
-def build(md_path: Path, slug: str, style_src: Path | None) -> str:
+DEFAULT_KICKER = (
+    "heygabi.ai estate &middot; server migration &middot; reference runbook "
+    '&middot; step-by-step: <a href="/runbooks/shelf-justin/">Justin\'s steps</a>'
+)
+
+
+def build(md_path: Path, slug: str, style_src: Path | None,
+          kicker_html: str | None = None) -> str:
     md_text = md_path.read_text(encoding="utf-8")
 
     body = render_markdown(md_text)
@@ -144,12 +151,10 @@ def build(md_path: Path, slug: str, style_src: Path | None) -> str:
     body = wrap_tables(body)
 
     # The shim supplies no chrome of its own, so the fragment carries its own
-    # breadcrumb back to the sibling page.
-    kicker = (
-        '<p class="kicker">heygabi.ai estate &middot; server migration &middot; '
-        'reference runbook &middot; step-by-step: '
-        '<a href="/runbooks/shelf-migration/">instructions manual</a></p>\n'
-    )
+    # breadcrumb. Parameterised because this generator now serves more than one
+    # page and a hard-coded pointer to a sibling is how the FIRST fragments
+    # started lying about where things live.
+    kicker = f'<p class="kicker">{kicker_html or DEFAULT_KICKER}</p>\n'
 
     parts = [
         HEADER_COMMENT.format(slug=slug, source=md_path.as_posix()),
@@ -173,6 +178,11 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="fragment to lift the <style> block from (default: --out, if it exists)",
     )
+    ap.add_argument(
+        "--kicker",
+        default=None,
+        help="HTML for the breadcrumb line above the title (default: the runbook's)",
+    )
     args = ap.parse_args(argv)
 
     if not args.markdown.exists():
@@ -185,7 +195,7 @@ def main(argv: list[str] | None = None) -> int:
     # that never happened on a first run.
     reused = style_src.exists()
 
-    out = build(args.markdown, args.slug, style_src)
+    out = build(args.markdown, args.slug, style_src, args.kicker)
     args.out.write_text(out, encoding="utf-8")
 
     print(f"wrote {args.out} ({len(out):,} bytes) from {args.markdown}")
