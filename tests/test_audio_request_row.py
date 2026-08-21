@@ -81,22 +81,25 @@ def test_the_row_renders_on_modal_open():
 
 
 # --------------------------------------------------------------------------- #
-# ⚠️ PHASE 1 SHIPS NO PLAYER
+# ⚠️ PHASE 2 IS BUILT — the player lives in audio-player.js
 # --------------------------------------------------------------------------- #
-def test_there_is_no_player_yet():
-    """Phase 2 owns <audio>. A play button now is a control that does nothing,
-    which is the one thing the estate's refusal rule forbids outright."""
-    for path in (MODULE, TEMPLATE):
-        src = strip_comments(read(path))
-        assert "<audio" not in src, f"{path.name} grew a media element — that is phase 2"
-        assert "playbackRate" not in src, f"{path.name} grew player code — that is phase 2"
+def test_the_player_module_exists():
+    """Phase 2: audio-player.js provides the renderAudioPlayer function."""
+    player_module = REPO / "site" / "audio-player.js"
+    assert player_module.exists(), "site/audio-player.js is gone; the modal's player import 404s"
 
 
-def test_the_ready_rung_is_honest_about_the_player():
-    src = read(TEMPLATE)
-    assert "Ready to stream — player coming" in src, (
-        "the third rung must say the player is not here yet, or it promises a control "
-        "that does not exist"
+def test_the_service_worker_exists():
+    """Phase 2: audio-sw.js is the auth seam service worker."""
+    sw = REPO / "site" / "audio-sw.js"
+    assert sw.exists(), "site/audio-sw.js is gone; the player cannot inject auth tokens"
+
+
+def test_the_player_is_rendered_for_streamable_books():
+    """Phase 2 replaced the 'player coming' placeholder with the actual player."""
+    src = strip_comments(read(TEMPLATE))
+    assert "renderAudioPlayer" in src, (
+        "renderAudioRow no longer calls renderAudioPlayer for streamable books"
     )
 
 

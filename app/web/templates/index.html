@@ -468,6 +468,29 @@ html[data-theme="cyberpunk"] #recently-added h2{ letter-spacing:1px !important; 
 @media (max-width: 600px){
   html[data-theme="cyberpunk"] h1{ letter-spacing:1px; }
 }
+
+/* -- Multi-select mode -- */
+.ab-card.ab-selected, #ab-table tbody tr.ab-selected {
+  outline: 2px solid var(--neon-magenta, #ff2a6d);
+  outline-offset: -2px;
+  background: color-mix(in srgb, var(--neon-magenta, #ff2a6d) 10%, var(--bg-2, #1a1a2e));
+}
+.ab-card .ab-select-check, #ab-table tbody tr .ab-select-check {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 20px;
+  height: 20px;
+  accent-color: var(--neon-magenta, #ff2a6d);
+  cursor: pointer;
+  z-index: 5;
+}
+#ab-table tbody tr .ab-select-check {
+  position: static;
+  margin-right: 6px;
+}
+.ab-card { position: relative; }
+@keyframes ab-bulk-slide { from { transform: translateY(100%); } to { transform: translateY(0); } }
 </style>
 
 <!-- Author → Drive map loaded from external JSON file -->
@@ -579,6 +602,7 @@ html[data-theme="cyberpunk"] #recently-added h2{ letter-spacing:1px !important; 
         <button id="ab-sort-asc" class="btn">Asc</button>
         <button id="ab-sort-desc" class="btn">Desc</button>
         <button id="ab-toggle-view" class="btn">Toggle View</button>
+        <button id="ab-select-toggle" class="btn">☐ Select</button>
       </div>
     </div>
 
@@ -658,6 +682,14 @@ html[data-theme="cyberpunk"] #recently-added h2{ letter-spacing:1px !important; 
     <button id="ab-page-next-bottom"  class="btn">Next ›</button>
     <button id="ab-page-last-bottom"  class="btn">Last »</button>
     <span id="ab-page-info-bottom" class="pagination-info"></span>
+  </div>
+
+  <!-- Bulk select action bar — hidden until select mode is active -->
+  <div id="ab-bulk-bar" style="display:none; position:fixed; bottom:0; left:0; right:0; z-index:200; padding:12px 20px; background:var(--surface, #1a1a2e); border-top:1px solid var(--border); box-shadow:0 -2px 12px rgba(0,0,0,.3); display:none; align-items:center; gap:12px; animation:ab-bulk-slide .2s ease-out;">
+    <span id="ab-bulk-count" style="font-weight:600;font-size:.9em;white-space:nowrap"></span>
+    <button id="ab-bulk-tbr" class="btn" style="background:var(--neon-magenta);color:#fff;border-color:var(--neon-magenta)">Add to TBR</button>
+    <span id="ab-bulk-progress" style="font-size:.85em;color:var(--muted,#888)"></span>
+    <button id="ab-bulk-cancel" class="btn" style="margin-left:auto">Cancel</button>
   </div>
 </div>
 
@@ -1245,6 +1277,7 @@ function wireAppearance(container){
     var td=e.target.closest("#ab-table tbody td");
     if(!td) return;
     if (e.target.closest("a,button") && !e.target.closest("button.cover-btn")) return;
+    if (window._abSelectMode) { var tr=td.parentElement; if(tr) _abToggleRowSelect(tr); return; }
     var tr=td.parentElement; if(!tr) return;
     var coverBtn=tr.querySelector("button.cover-btn"); if(!coverBtn) return;
     openModal(bookPayloadFromEl(coverBtn));
@@ -1255,6 +1288,7 @@ function wireAppearance(container){
     var card=e.target.closest(".ab-card");
     if(!card) return;
     if (e.target.closest("a,button")) return; // Don't trigger on interactive elements
+    if (window._abSelectMode) { _abToggleCardSelect(card); return; }
 
     openModal(bookPayloadFromEl(card));
   });
@@ -1757,6 +1791,90 @@ function wireAppearance(container){
         renderBookOfDay(randomBook);
       });
     }
+
+    // ===== Multi-select mode for bulk TBR =====
+    window._abSelectMode = false;
+    var _abSelected = new Set(); // titles
+
+    var selectToggle = document.getElementById('ab-select-toggle');
+    var bulkBar = document.getElementById('ab-bulk-bar');
+    var bulkCount = document.getElementById('ab-bulk-count');
+    var bulkTbrBtn = document.getElementById('ab-bulk-tbr');
+    var bulkCancel = document.getElementById('ab-bulk-cancel');
+    var bulkProgress = document.getElementById('ab-bulk-progress');
+
+    function _abEnterSelect() {
+      window._abSelectMode = true;
+      if (selectToggle) { selectToggle.textContent = '✓ Selecting'; selectToggle.style.background = 'var(--neon-magenta)'; selectToggle.style.color = '#fff'; }
+      _abUpdateBar();
+    }
+    function _abExitSelect() {
+      window._abSelectMode = false;
+      _abSelected.clear();
+      if (selectToggle) { selectToggle.textContent = '☐ Select'; selectToggle.style.background = ''; selectToggle.style.color = ''; }
+      document.querySelectorAll('.ab-selected').forEach(function(el) { el.classList.remove('ab-selected'); });
+      document.querySelectorAll('.ab-select-check').forEach(function(el) { el.remove(); });
+      _abUpdateBar();
+    }
+    function _abUpdateBar() {
+      var n = _abSelected.size;
+      if (bulkBar) bulkBar.style.display = n > 0 ? 'flex' : 'none';
+      if (bulkCount) bulkCount.textContent = n + ' book' + (n === 1 ? '' : 's') + ' selected';
+      if (bulkProgress) bulkProgress.textContent = '';
+    }
+
+    window._abToggleCardSelect = function(card) {
+      var title = card.getAttribute('data-title') || '';
+      if (!title) return;
+      if (_abSelected.has(title)) {
+        _abSelected.delete(title);
+        card.classList.remove('ab-selected');
+        var chk = card.querySelector('.ab-select-check');
+        if (chk) chk.remove();
+      } else {
+        _abSelected.add(title);
+        card.classList.add('ab-selected');
+        var cb = document.createElement('input');
+        cb.type = 'checkbox'; cb.checked = true; cb.className = 'ab-select-check';
+        card.appendChild(cb);
+      }
+      _abUpdateBar();
+    };
+
+    window._abToggleRowSelect = function(tr) {
+      var coverBtn = tr.querySelector('button.cover-btn');
+      var title = coverBtn ? (coverBtn.getAttribute('data-title') || '') : (tr.cells && tr.cells[1] ? tr.cells[1].textContent.trim() : '');
+      if (!title) return;
+      if (_abSelected.has(title)) {
+        _abSelected.delete(title);
+        tr.classList.remove('ab-selected');
+      } else {
+        _abSelected.add(title);
+        tr.classList.add('ab-selected');
+      }
+      _abUpdateBar();
+    };
+
+    if (selectToggle) {
+      selectToggle.addEventListener('click', function() {
+        if (window._abSelectMode) _abExitSelect();
+        else _abEnterSelect();
+      });
+    }
+    if (bulkCancel) bulkCancel.addEventListener('click', _abExitSelect);
+
+    // Bulk TBR write — fires from the module script below via a bridge.
+    // The module script sets window._abBulkTbrHandler once Firebase is ready.
+    if (bulkTbrBtn) {
+      bulkTbrBtn.addEventListener('click', function() {
+        if (typeof window._abBulkTbrHandler === 'function') {
+          window._abBulkTbrHandler(Array.from(_abSelected));
+        } else {
+          alert('Sign in with Google to use bulk TBR.');
+        }
+      });
+    }
+
   });
 })();
 </script>
@@ -1769,7 +1887,8 @@ function wireAppearance(container){
   import { getSession, getLiveUser, signInWithGoogle, signOutGoogle, whenAdmin, handleRedirectResult, renderDevSiteLink, getSiteRole, resolveSiteAccess } from './identity.js';
   import { submitReview, getReviews, renderStars, bookIdFromTitle, computeAverageRating, formatDate, deleteReview, readingListDocId, ownsReadingListDoc } from './reviews.js';
   import { addUserWarning, getUserWarnings, deleteUserWarning, requestWarningCheck, getWarningRequest } from './user-warnings.js';
-  import { getAudioStatus, isStreamable, getAudioRequest, requestAudio } from './audio-request.js';
+  import { getAudioStatus, isStreamable, getAnchorForBook, getAudioRequest, requestAudio } from './audio-request.js';
+  import { renderAudioPlayer } from './audio-player.js';
   import { col, FIREBASE_CONFIG } from './fb-env.js';
   import { mountEstateSearch } from './estate-search-mount.js';
 
@@ -2564,17 +2683,19 @@ function wireAppearance(container){
     if (!status.ok) return;
     audioContainer.innerHTML = '';
 
-    // Rung 3 — the file is in the bucket and every grant holder can play it,
-    // as soon as there is something to play it with.
+    // Rung 3 — the file is in the bucket and every grant holder can play it.
+    // Phase 2: render the actual audio player.
     if (isStreamable(status, bookTitle)) {
-      const ready = document.createElement('div');
-      ready.id = 'm-audio-ready';
-      ready.style.cssText = 'color:var(--neon-cyan,#0cc);font-size:.85em;';
-      ready.textContent = '🎧 Ready to stream — player coming';
-      audioContainer.appendChild(ready);
-      audioContainer.appendChild(_audioNote(
-        'This audiobook is uploaded and ready. The in-browser player itself is the next '
-        + 'piece of work, so there is nothing to press yet.'));
+      const anchor = getAnchorForBook(status, bookTitle);
+      if (!anchor) {
+        // Streamable but no anchor — a data gap, not a permission issue.
+        const note = document.createElement('div');
+        note.style.cssText = 'color:var(--muted);font-size:.85em;';
+        note.textContent = '🎧 Ready to stream — anchor could not be resolved. Tell Mitch.';
+        audioContainer.appendChild(note);
+        return;
+      }
+      renderAudioPlayer(audioContainer, { anchor, bookTitle, app });
       return;
     }
 
@@ -2895,6 +3016,68 @@ function wireAppearance(container){
       });
     }
   }
+
+  // ===== Bulk TBR handler (bridged from the plain-script multi-select) =====
+  // Registers itself on `window._abBulkTbrHandler` so the non-module IIFE can
+  // call it when the user presses "Add to TBR" in the bulk action bar.
+  window._abBulkTbrHandler = async function(titles) {
+    const bulkProgress = document.getElementById('ab-bulk-progress');
+    const bulkTbrBtn = document.getElementById('ab-bulk-tbr');
+    if (bulkTbrBtn) bulkTbrBtn.disabled = true;
+
+    const live = await getLiveUser(app).catch(() => null);
+    const uid = live && live.uid ? live.uid : null;
+    const session = getSession();
+
+    if (!uid || !session) {
+      alert('Sign in with Google to add books to your TBR.');
+      if (bulkTbrBtn) bulkTbrBtn.disabled = false;
+      return;
+    }
+
+    const { doc, setDoc, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
+    let done = 0;
+    let failed = 0;
+
+    for (const title of titles) {
+      if (bulkProgress) bulkProgress.textContent = `Adding ${done + 1} of ${titles.length}…`;
+      const bookId = bookIdFromTitle(title);
+      const docId = readingListDocId(uid, bookId);
+      try {
+        await setDoc(doc(db, col('readingLists'), docId), {
+          uid,
+          displayName: session.displayName,
+          bookId,
+          bookTitle: title,
+          bookCover: '',
+          status: 'tbr',
+          addedAt: serverTimestamp(),
+        }, { merge: true });
+      } catch (e) {
+        console.warn('[BulkTBR] Failed for:', title, e);
+        failed++;
+      }
+      done++;
+    }
+
+    if (bulkProgress) {
+      bulkProgress.textContent = failed > 0
+        ? `Done — ${failed} of ${titles.length} failed.`
+        : `Added ${titles.length} to your TBR!`;
+      setTimeout(() => { if (bulkProgress) bulkProgress.textContent = ''; }, 4000);
+    }
+    if (bulkTbrBtn) bulkTbrBtn.disabled = false;
+
+    // Exit select mode
+    if (typeof window._abExitSelect === 'function') window._abExitSelect();
+    else {
+      window._abSelectMode = false;
+      document.querySelectorAll('.ab-selected').forEach(el => el.classList.remove('ab-selected'));
+      document.querySelectorAll('.ab-select-check').forEach(el => el.remove());
+      const bar = document.getElementById('ab-bulk-bar');
+      if (bar) bar.style.display = 'none';
+    }
+  };
 </script>
 </body>
 </html>

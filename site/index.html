@@ -41836,7 +41836,8 @@ function wireAppearance(container){
   import { getSession, getLiveUser, signInWithGoogle, signOutGoogle, whenAdmin, handleRedirectResult, renderDevSiteLink, getSiteRole, resolveSiteAccess } from './identity.js';
   import { submitReview, getReviews, renderStars, bookIdFromTitle, computeAverageRating, formatDate, deleteReview, readingListDocId, ownsReadingListDoc } from './reviews.js';
   import { addUserWarning, getUserWarnings, deleteUserWarning, requestWarningCheck, getWarningRequest } from './user-warnings.js';
-  import { getAudioStatus, isStreamable, getAudioRequest, requestAudio } from './audio-request.js';
+  import { getAudioStatus, isStreamable, getAnchorForBook, getAudioRequest, requestAudio } from './audio-request.js';
+  import { renderAudioPlayer } from './audio-player.js';
   import { col, FIREBASE_CONFIG } from './fb-env.js';
   import { mountEstateSearch } from './estate-search-mount.js';
 
@@ -42581,17 +42582,19 @@ function wireAppearance(container){
     if (!status.ok) return;
     audioContainer.innerHTML = '';
 
-    // Rung 3 — the file is in the bucket and every grant holder can play it,
-    // as soon as there is something to play it with.
+    // Rung 3 — the file is in the bucket and every grant holder can play it.
+    // Phase 2: render the actual audio player.
     if (isStreamable(status, bookTitle)) {
-      const ready = document.createElement('div');
-      ready.id = 'm-audio-ready';
-      ready.style.cssText = 'color:var(--neon-cyan,#0cc);font-size:.85em;';
-      ready.textContent = '🎧 Ready to stream — player coming';
-      audioContainer.appendChild(ready);
-      audioContainer.appendChild(_audioNote(
-        'This audiobook is uploaded and ready. The in-browser player itself is the next '
-        + 'piece of work, so there is nothing to press yet.'));
+      const anchor = getAnchorForBook(status, bookTitle);
+      if (!anchor) {
+        // Streamable but no anchor — a data gap, not a permission issue.
+        const note = document.createElement('div');
+        note.style.cssText = 'color:var(--muted);font-size:.85em;';
+        note.textContent = '🎧 Ready to stream — anchor could not be resolved. Tell Mitch.';
+        audioContainer.appendChild(note);
+        return;
+      }
+      renderAudioPlayer(audioContainer, { anchor, bookTitle, app });
       return;
     }
 

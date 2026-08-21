@@ -107,7 +107,12 @@ export async function getAudioStatus(app) {
           const bookIds = new Set(
             (body.books || []).map((b) => b && b.bookId).filter(Boolean),
           );
-          value = { ok: true, bookIds, player: body.player || null };
+          // Phase 2: also store bookId → anchor map for the player.
+          const anchors = new Map();
+          (body.books || []).forEach((b) => {
+            if (b && b.bookId && b.anchor) anchors.set(b.bookId, b.anchor);
+          });
+          value = { ok: true, bookIds, anchors, player: body.player || null };
         } else if (res.status === 401) {
           value = { ok: false, reason: 'signed_out' };
         } else if (res.status === 403) {
@@ -139,6 +144,12 @@ export async function getAudioStatus(app) {
 /** Is this book streamable right now? Convenience over {@link getAudioStatus}. */
 export function isStreamable(status, bookTitle) {
   return !!(status && status.ok && status.bookIds.has(bookIdFromTitle(bookTitle)));
+}
+
+/** Get the anchor for a streamable book. Returns null if not found. */
+export function getAnchorForBook(status, bookTitle) {
+  if (!status || !status.ok || !status.anchors) return null;
+  return status.anchors.get(bookIdFromTitle(bookTitle)) || null;
 }
 
 /**
