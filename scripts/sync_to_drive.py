@@ -525,6 +525,7 @@ def resolve_author_to_drive_folder(
 
     # 2. Normalized match (strip all non-alphanumeric, compare base before " - ")
     import re
+
     def _normalize(s: str) -> str:
         return re.sub(r'[^a-z0-9]', '', s.lower())
 

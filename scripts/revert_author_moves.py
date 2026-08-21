@@ -17,7 +17,7 @@ call, and one objectively wrong:
   ❌ `William D. Arand → Randi Darren`, 26 files.
 
 Randi Darren and William D. Arand are pen names of one person with **separate,
-non-overlapping bibliographies**. The 17 files already in `Randi Darren\` were
+non-overlapping bibliographies**. The 17 files already in `Randi Darren\\` were
 exactly the Darren canon (Wild Wastes, Fostering Faust, Remnant, Incubus Inc.,
 System Overclocked). All 26 that moved in are Arand titles. **The pre-move split
 was correct and the move destroyed it.**

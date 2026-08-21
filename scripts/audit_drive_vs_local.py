@@ -170,7 +170,8 @@ def main():
     # Author-folder names drift over time ("E. C. Krueger" vs "E.C. Krueger",
     # series credited to a different co-author) — a file whose normalized
     # basename exists ANYWHERE on the other side is backed up, not missing.
-    _norm = lambda s: re.sub(r"[^a-z0-9]+", "", s.lower())
+    def _norm(s):
+        return re.sub(r"[^a-z0-9]+", "", s.lower())
     drive_all_names = {_norm(fi["name"]) for fl in drive_files.values() for fi in fl}
     local_all_names = {_norm(f) for fl in local_files.values() for f in fl}
 
