@@ -100,9 +100,11 @@ from app.parsers.title import parse_series_and_index_from_title
 # Force UTF-8 on stdout/stderr so non-Latin filenames (e.g. Japanese author
 # folders like りゅうせんひろつぐ) don't crash with UnicodeEncodeError on
 # Windows consoles using cp1252.
+# ⚠️ Guarded: module-level reassignment corrupts pytest's capture system.
 import io
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+if __name__ == "__main__":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
 K_ALBUM = "\xa9alb"
 K_TRACK = "trkn"
