@@ -93,6 +93,64 @@ def extract_style(path: Path | None) -> str:
     return m.group(0) if m else DEFAULT_STYLE
 
 
+INCLUDE_RE = re.compile(r"^[ \t]*<!--\s*include:\s*(\S+?)\s*-->[ \t]*$", re.M)
+
+# Narrow on purpose. A broad "looks like a secret" heuristic would false-positive
+# on the placeholder lines these scripts legitimately carry
+# (`SHELF_PARITY_TOKEN=<the value the page gave you>`). These two prefixes are
+# the estate's actual minted-key shapes, and a real one reaching a published
+# page is the failure worth refusing outright.
+SECRET_PREFIXES = ("shelfpar_", "sk-ant-")
+
+
+def expand_includes(md_text: str, base_dir: Path) -> str:
+    """`<!--include: justin/02-abs-hardlinks.sh -->` -> a fenced, labelled block.
+
+    ⚠️ WHY THIS EXISTS, and it is the same reason as the generator itself.
+    Justin cannot be handed a file — the runbook is the delivery mechanism — so
+    the script text has to appear ON the page. Pasting it into the markdown
+    would create a THIRD copy of a script that already exists twice (the file,
+    and whatever he saved on his box), and the copy nobody runs is the copy
+    that silently goes stale. The published block is therefore READ FROM THE
+    SCRIPT FILE at build time: regenerating the page cannot produce a version
+    that disagrees with what is in the repo.
+
+    The `data-filename` attribute is what the shim's doc.js hangs the Copy and
+    Download buttons off — see runbooks/shelf-justin/doc.js.
+    """
+
+    def sub(m: re.Match[str]) -> str:
+        rel = m.group(1)
+        target = (base_dir / rel).resolve()
+        # Contain it: an include is for files beside the runbook, never a walk
+        # up into the repo (or out of it) via `../../.env`.
+        try:
+            target.relative_to(base_dir.resolve())
+        except ValueError:
+            sys.exit(f"ERROR: include escapes {base_dir}: {rel}")
+        if not target.exists():
+            # Loudly, not silently. A missing script must fail the build rather
+            # than publish a page with a gap where the instructions were.
+            sys.exit(f"ERROR: include not found: {target}")
+
+        text = target.read_text(encoding="utf-8")
+        for prefix in SECRET_PREFIXES:
+            if prefix in text:
+                sys.exit(
+                    f"ERROR: {target.name} contains a value starting '{prefix}' — "
+                    "that looks like a minted key. Refusing to publish it."
+                )
+        # ``` inside the file would break out of the fence; use a longer one.
+        fence = "`" * max(3, max((len(r) for r in re.findall(r"`+", text)), default=0) + 1)
+        return (
+            f'<div class="script" data-filename="{html_mod.escape(target.name, quote=True)}">\n\n'
+            f"{fence}bash\n{text.rstrip()}\n{fence}\n\n"
+            "</div>"
+        )
+
+    return INCLUDE_RE.sub(sub, md_text)
+
+
 def render_markdown(md_text: str) -> str:
     md = MarkdownIt("commonmark").enable(["table", "strikethrough"])
     return md.render(md_text)
@@ -144,6 +202,7 @@ DEFAULT_KICKER = (
 def build(md_path: Path, slug: str, style_src: Path | None,
           kicker_html: str | None = None) -> str:
     md_text = md_path.read_text(encoding="utf-8")
+    md_text = expand_includes(md_text, md_path.parent)
 
     body = render_markdown(md_text)
     body = lift_lead_blockquote(body)
