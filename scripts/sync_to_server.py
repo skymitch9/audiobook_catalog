@@ -48,6 +48,7 @@ from __future__ import annotations
 
 import argparse
 import getpass
+import json
 import os
 import shutil
 import socket
@@ -90,12 +91,75 @@ def _env(name: str) -> str:
     return (os.getenv(name) or "").strip()
 
 
+ESTATE_CONFIG_URL = "https://heygabi.ai/api/machine/shelf-config"
+
+
+def _config_from_estate() -> dict[str, str]:
+    """Fetch the four connection values from the estate, or {} if unavailable.
+
+    ⚠️ NEVER RAISES, and never blocks the caller for long. This is a
+    convenience so Justin can type the values into a form instead of them
+    being relayed through a chat message and hand-copied into `.env` (owner
+    ask, 2026-08-22). If it is unreachable, unauthenticated, or nobody has
+    filled the form in yet, the answer is "no config" and `get_config()`
+    falls through to its existing honest "not configured" — which is the best
+    behaviour this script has and must not be traded for a guess.
+
+    ⚠️ `.env` WINS. A value set locally is a deliberate override by someone at
+    the keyboard; a value from the form is a default. Never the other way
+    round, or a stale KV record silently beats the person debugging.
+
+    Auth is `SHELF_CONFIG_TOKEN`, minted at https://heygabi.ai/status/api.
+    That token is the secret here; the four values it fetches are not (a
+    hostname, a username, a path and a port open nothing without the SSH key,
+    which never leaves this machine).
+    """
+    token = _env("SHELF_CONFIG_TOKEN")
+    if not token:
+        return {}
+    try:
+        import urllib.error
+        import urllib.request
+
+        req = urllib.request.Request(
+            ESTATE_CONFIG_URL,
+            headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+    except Exception as exc:  # noqa: BLE001 - any failure is "no config"
+        print(f"[shelf-config] estate lookup skipped: {type(exc).__name__}: {exc}")
+        return {}
+
+    if not payload.get("configured"):
+        print(f"[shelf-config] estate has no connection details yet: {payload.get('fix', '')}")
+        return {}
+    if payload.get("warning"):
+        print(f"[shelf-config] ⚠️ {payload['warning']}")
+    cfg = payload.get("config") or {}
+    return {k: str(cfg.get(k, "")) for k in ("host", "path", "user", "ssh_port")}
+
+
 def get_config() -> tuple[bool, str, str, str, int]:
     """(is_configured, host, remote_path, user, port). is_configured requires
     BOTH host and path — a half-set config is still "not configured", never
-    a guess at the missing half."""
+    a guess at the missing half.
+
+    Reads `.env` first, then falls back to the estate form (see
+    `_config_from_estate`). ⚠️ The both-not-blank rule is stated in two places
+    — here and in the Worker's /api/machine/shelf-config — and they must agree;
+    THIS one is canonical, because this is what actually refuses to run.
+    """
     host = _env("SHELF_SERVER_HOST")
     path = _env("SHELF_SERVER_PATH")
+    if not (host and path):
+        remote = _config_from_estate()
+        host = host or remote.get("host", "")
+        path = path or remote.get("path", "")
+        if remote.get("user") and not _env("SHELF_SERVER_USER"):
+            os.environ["SHELF_SERVER_USER"] = remote["user"]
+        if remote.get("ssh_port") and not _env("SHELF_SERVER_SSH_PORT"):
+            os.environ["SHELF_SERVER_SSH_PORT"] = remote["ssh_port"]
     user = _env("SHELF_SERVER_USER") or getpass.getuser()
     port_raw = _env("SHELF_SERVER_SSH_PORT")
     try:
