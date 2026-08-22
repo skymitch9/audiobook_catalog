@@ -353,6 +353,27 @@ body:not(.cards) #ab-table{display:table}
 .star-pick{ user-select:none; transition: transform .1s; }
 .star-pick:hover{ transform: scale(1.2); }
 
+/* Read badge — overlays the cover to indicate the current user has rated/read this book */
+.read-badge{
+  position:absolute; top:3px; right:3px;
+  background: var(--neon-magenta, #ff2a6d);
+  color: #fff;
+  font-size: .6em;
+  font-weight: 700;
+  padding: 2px 5px;
+  border-radius: 2px;
+  text-transform: var(--et-title-case, uppercase);
+  letter-spacing: .5px;
+  line-height: 1.2;
+  pointer-events: none;
+  z-index: 1;
+  box-shadow: 0 1px 3px rgba(0,0,0,.3);
+}
+/* Cover cell needs position context for the badge */
+td:first-child{ position:relative; }
+button.cover-btn{ position:relative; }
+.ab-card .card-cover-wrap{ position:relative; display:inline-block; }
+
 /* =============== Auth Modal =============== */
 #auth-modal{
   position:fixed; inset:0; display:none; align-items:center; justify-content:center;
@@ -447,6 +468,29 @@ html[data-theme="cyberpunk"] #recently-added h2{ letter-spacing:1px !important; 
 @media (max-width: 600px){
   html[data-theme="cyberpunk"] h1{ letter-spacing:1px; }
 }
+
+/* -- Multi-select mode -- */
+.ab-card.ab-selected, #ab-table tbody tr.ab-selected {
+  outline: 2px solid var(--neon-magenta, #ff2a6d);
+  outline-offset: -2px;
+  background: color-mix(in srgb, var(--neon-magenta, #ff2a6d) 10%, var(--bg-2, #1a1a2e));
+}
+.ab-card .ab-select-check, #ab-table tbody tr .ab-select-check {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 20px;
+  height: 20px;
+  accent-color: var(--neon-magenta, #ff2a6d);
+  cursor: pointer;
+  z-index: 5;
+}
+#ab-table tbody tr .ab-select-check {
+  position: static;
+  margin-right: 6px;
+}
+.ab-card { position: relative; }
+@keyframes ab-bulk-slide { from { transform: translateY(100%); } to { transform: translateY(0); } }
 </style>
 
 <!-- Author → Drive map loaded from external JSON file -->
@@ -529,12 +573,14 @@ html[data-theme="cyberpunk"] #recently-added h2{ letter-spacing:1px !important; 
       <h2 style="margin: 0; font-size: 1.1rem; text-transform:var(--et-title-case); letter-spacing:var(--et-title-spacing); color:var(--neon-cyan);">Recently Added</h2>
       <button id="upload-history-btn" class="btn" style="font-size: 0.8rem;">Full History</button>
     </div>
-    <div id="recently-added-content"><div class="recently-added-item" data-cover="https://covers.heygabi.ai/Zogarth/The%20Primal%20Hunter%2015.jpg" data-title="The Primal Hunter 15: A LitRPG Adventure" data-series="The Primal Hunter" data-index="15" data-author="Zogarth" data-narrator="Travis Baldree" data-year="2026" data-genre="Audiobook" data-duration="21:03" data-companions="" data-desc="" data-library-work-id="" data-library-formats="" data-universe="" data-series-gap="Volumes 1-15 owned" style="display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer"><div style="flex-shrink:0"><img src="https://covers.heygabi.ai/Zogarth/The%20Primal%20Hunter%2015.jpg" alt="Cover" style="width:48px;height:auto;border-radius:6px;" loading="lazy"></div><div style="flex:1;min-width:0"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">The Primal Hunter 15: A LitRPG Adventure</div><div style="color:var(--muted);font-size:.9em">Zogarth</div><span class="ab-chip" style="font-size:.8em">The Primal Hunter #15</span></div><div style="flex-shrink:0;color:var(--muted);font-size:.8em;font-family:var(--et-font-mono)">2026-08-19</div></div>
+    <div id="recently-added-content"><div class="recently-added-item" data-cover="https://covers.heygabi.ai/Samer%20Rabadi/Eight-%20The%20Saint%20of%20Water.jpg" data-title="Eight: The Saint of Water: Eight, Book 5" data-series="" data-index="" data-author="Samer Rabadi" data-narrator="Gary Tiedemann" data-year="2026" data-genre="Audiobook" data-duration="13:18" data-companions="" data-desc="" data-library-work-id="" data-library-formats="" data-universe="" data-series-gap="" style="display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer"><div style="flex-shrink:0"><img src="https://covers.heygabi.ai/Samer%20Rabadi/Eight-%20The%20Saint%20of%20Water.jpg" alt="Cover" style="width:48px;height:auto;border-radius:6px;" loading="lazy"></div><div style="flex:1;min-width:0"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Eight: The Saint of Water: Eight, Book 5</div><div style="color:var(--muted);font-size:.9em">Samer Rabadi</div></div><div style="flex-shrink:0;color:var(--muted);font-size:.8em;font-family:var(--et-font-mono)">2026-08-22</div></div>
+<div class="recently-added-item" data-cover="https://covers.heygabi.ai/Zogarth/The%20Primal%20Hunter%2015.jpg" data-title="The Primal Hunter 15: A LitRPG Adventure" data-series="The Primal Hunter" data-index="15" data-author="Zogarth" data-narrator="Travis Baldree" data-year="2026" data-genre="Audiobook" data-duration="21:03" data-companions="" data-desc="" data-library-work-id="" data-library-formats="" data-universe="" data-series-gap="Volumes 1-15 owned" style="display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer"><div style="flex-shrink:0"><img src="https://covers.heygabi.ai/Zogarth/The%20Primal%20Hunter%2015.jpg" alt="Cover" style="width:48px;height:auto;border-radius:6px;" loading="lazy"></div><div style="flex:1;min-width:0"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">The Primal Hunter 15: A LitRPG Adventure</div><div style="color:var(--muted);font-size:.9em">Zogarth</div><span class="ab-chip" style="font-size:.8em">The Primal Hunter #15</span></div><div style="flex-shrink:0;color:var(--muted);font-size:.8em;font-family:var(--et-font-mono)">2026-08-19</div></div>
 <div class="recently-added-item" data-cover="https://covers.heygabi.ai/Britney%20S.%20Lewis/Blood%20Moon.jpg" data-title="Blood Moon" data-series="Blood Chronicles" data-index="" data-author="Britney S. Lewis" data-narrator="Adenrele Ojo" data-year="2025" data-genre="Young Adult Fantasy" data-duration="13:14" data-companions="" data-desc="Blood Chronicles, Book 1. Narrated by Adenrele Ojo." data-library-work-id="" data-library-formats="" data-universe="" data-series-gap="" style="display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer"><div style="flex-shrink:0"><img src="https://covers.heygabi.ai/Britney%20S.%20Lewis/Blood%20Moon.jpg" alt="Cover" style="width:48px;height:auto;border-radius:6px;" loading="lazy"></div><div style="flex:1;min-width:0"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Blood Moon</div><div style="color:var(--muted);font-size:.9em">Britney S. Lewis</div><span class="ab-chip" style="font-size:.8em">Blood Chronicles</span></div><div style="flex-shrink:0;color:var(--muted);font-size:.8em;font-family:var(--et-font-mono)">2026-08-16</div></div>
 <div class="recently-added-item" data-cover="https://covers.heygabi.ai/Keri%20Lake/Eldritch.jpg" data-title="Eldritch: The Eating Woods, Book 2" data-series="The Eating Woods" data-index="2" data-author="Keri Lake" data-narrator="James Cassidy, Melissa Barr" data-year="2026" data-genre="Audiobook" data-duration="22:05" data-companions="" data-desc="" data-library-work-id="" data-library-formats="" data-universe="" data-series-gap="Volumes 1-2 owned" style="display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer"><div style="flex-shrink:0"><img src="https://covers.heygabi.ai/Keri%20Lake/Eldritch.jpg" alt="Cover" style="width:48px;height:auto;border-radius:6px;" loading="lazy"></div><div style="flex:1;min-width:0"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Eldritch: The Eating Woods, Book 2</div><div style="color:var(--muted);font-size:.9em">Keri Lake</div><span class="ab-chip" style="font-size:.8em">The Eating Woods #2</span></div><div style="flex-shrink:0;color:var(--muted);font-size:.8em;font-family:var(--et-font-mono)">2026-08-15</div></div>
-<div class="recently-added-item" data-cover="https://covers.heygabi.ai/Pirateaba/The%20Witch%20of%20Webs.jpg" data-title="The Witch of Webs: The Wandering Inn, Book 12" data-series="The Wandering Inn" data-index="12" data-author="Pirateaba" data-narrator="Andrea Parsneau" data-year="2024" data-genre="Audiobook" data-duration="45:53" data-companions="Fae and Fare - The Wandering Inn, Book 2.pdf | The Wandering Inn - The Wandering Inn, Book 1.pdf" data-desc="" data-library-work-id="" data-library-formats="" data-universe="Innworld" data-series-gap="Volumes 1-16 owned" style="display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer"><div style="flex-shrink:0"><img src="https://covers.heygabi.ai/Pirateaba/The%20Witch%20of%20Webs.jpg" alt="Cover" style="width:48px;height:auto;border-radius:6px;" loading="lazy"></div><div style="flex:1;min-width:0"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">The Witch of Webs: The Wandering Inn, Book 12</div><div style="color:var(--muted);font-size:.9em">Pirateaba</div><span class="ab-chip" style="font-size:.8em">The Wandering Inn #12</span></div><div style="flex-shrink:0;color:var(--muted);font-size:.8em;font-family:var(--et-font-mono)">2026-08-12</div></div>
-<div class="recently-added-item" data-cover="https://covers.heygabi.ai/Michael-Scott%20Earle/Michael-Scott%20Earle%20-%20%5BSpace%20Knight%20-%207%5D%20-%20Space%20Knight%20Book%207%20%28Alex%20Perone%2C%20Marissa%20Parness%29.png" data-title="Space Knight Book 7" data-series="Space Knight" data-index="7" data-author="Michael-scott Earle" data-narrator="Alex Perone, Marissa Parness" data-year="" data-genre="Fantasy" data-duration="11:54" data-companions="Monster Empire Book 2 - Michael-Scott Earle.epub | Space Knight Book 5 - Michael-Scott Earle.epub | Space Knight Book 6 - Michael-Scott Earle.epub | Tamer King of Dinosaurs Book 10 - Michael-Scott Earle.epub | Tamer King of Dinosaurs Book 11 - Michael-Scott Earle.epub | Tamer King of Dinosaurs Book 7 - Michael-Scott Earle.epub | Tamer King of Dinosaurs Book 8 - Michael-Scott Earle.epub | Tamer King of Dinosaurs Book 9 - Michael-Scott Earle.epub" data-desc="" data-library-work-id="253" data-library-formats="Paperback" data-universe="" data-series-gap="Volumes 1-10 owned" style="display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer"><div style="flex-shrink:0"><img src="https://covers.heygabi.ai/Michael-Scott%20Earle/Michael-Scott%20Earle%20-%20%5BSpace%20Knight%20-%207%5D%20-%20Space%20Knight%20Book%207%20%28Alex%20Perone%2C%20Marissa%20Parness%29.png" alt="Cover" style="width:48px;height:auto;border-radius:6px;" loading="lazy"></div><div style="flex:1;min-width:0"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Space Knight Book 7</div><div style="color:var(--muted);font-size:.9em">Michael-scott Earle</div><span class="ab-chip" style="font-size:.8em">Space Knight #7</span></div><div style="flex-shrink:0;color:var(--muted);font-size:.8em;font-family:var(--et-font-mono)">2026-08-12</div></div></div>
-    <div id="upload-history" style="display:none; max-height:60vh; overflow-y:auto; margin-top:0.5rem; border-top:1px solid var(--border);"><div style="margin-top:10px;color:var(--neon-cyan);font-size:.85em;text-transform:var(--et-title-case);letter-spacing:var(--et-title-spacing);font-family:var(--et-font-mono)">2026-08-19 <span style="color:var(--muted)">(1)</span></div>
+<div class="recently-added-item" data-cover="https://covers.heygabi.ai/Pirateaba/The%20Witch%20of%20Webs.jpg" data-title="The Witch of Webs: The Wandering Inn, Book 12" data-series="The Wandering Inn" data-index="12" data-author="Pirateaba" data-narrator="Andrea Parsneau" data-year="2024" data-genre="Audiobook" data-duration="45:53" data-companions="Fae and Fare - The Wandering Inn, Book 2.pdf | The Wandering Inn - The Wandering Inn, Book 1.pdf" data-desc="" data-library-work-id="" data-library-formats="" data-universe="Innworld" data-series-gap="Volumes 1-16 owned" style="display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer"><div style="flex-shrink:0"><img src="https://covers.heygabi.ai/Pirateaba/The%20Witch%20of%20Webs.jpg" alt="Cover" style="width:48px;height:auto;border-radius:6px;" loading="lazy"></div><div style="flex:1;min-width:0"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">The Witch of Webs: The Wandering Inn, Book 12</div><div style="color:var(--muted);font-size:.9em">Pirateaba</div><span class="ab-chip" style="font-size:.8em">The Wandering Inn #12</span></div><div style="flex-shrink:0;color:var(--muted);font-size:.8em;font-family:var(--et-font-mono)">2026-08-12</div></div></div>
+    <div id="upload-history" style="display:none; max-height:60vh; overflow-y:auto; margin-top:0.5rem; border-top:1px solid var(--border);"><div style="margin-top:10px;color:var(--neon-cyan);font-size:.85em;text-transform:var(--et-title-case);letter-spacing:var(--et-title-spacing);font-family:var(--et-font-mono)">2026-08-22 <span style="color:var(--muted)">(1)</span></div>
+<div class="recently-added-item" data-cover="https://covers.heygabi.ai/Samer%20Rabadi/Eight-%20The%20Saint%20of%20Water.jpg" data-title="Eight: The Saint of Water: Eight, Book 5" data-series="" data-index="" data-author="Samer Rabadi" data-narrator="Gary Tiedemann" data-year="2026" data-genre="Audiobook" data-duration="13:18" data-companions="" data-desc="" data-library-work-id="" data-library-formats="" data-universe="" data-series-gap="" style="display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer"><div style="flex-shrink:0"><img src="https://covers.heygabi.ai/Samer%20Rabadi/Eight-%20The%20Saint%20of%20Water.jpg" alt="Cover" style="width:48px;height:auto;border-radius:6px;" loading="lazy"></div><div style="flex:1;min-width:0"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Eight: The Saint of Water: Eight, Book 5</div><div style="color:var(--muted);font-size:.9em">Samer Rabadi</div></div></div>
+<div style="margin-top:10px;color:var(--neon-cyan);font-size:.85em;text-transform:var(--et-title-case);letter-spacing:var(--et-title-spacing);font-family:var(--et-font-mono)">2026-08-19 <span style="color:var(--muted)">(1)</span></div>
 <div class="recently-added-item" data-cover="https://covers.heygabi.ai/Zogarth/The%20Primal%20Hunter%2015.jpg" data-title="The Primal Hunter 15: A LitRPG Adventure" data-series="The Primal Hunter" data-index="15" data-author="Zogarth" data-narrator="Travis Baldree" data-year="2026" data-genre="Audiobook" data-duration="21:03" data-companions="" data-desc="" data-library-work-id="" data-library-formats="" data-universe="" data-series-gap="Volumes 1-15 owned" style="display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer"><div style="flex-shrink:0"><img src="https://covers.heygabi.ai/Zogarth/The%20Primal%20Hunter%2015.jpg" alt="Cover" style="width:48px;height:auto;border-radius:6px;" loading="lazy"></div><div style="flex:1;min-width:0"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">The Primal Hunter 15: A LitRPG Adventure</div><div style="color:var(--muted);font-size:.9em">Zogarth</div><span class="ab-chip" style="font-size:.8em">The Primal Hunter #15</span></div></div>
 <div style="margin-top:10px;color:var(--neon-cyan);font-size:.85em;text-transform:var(--et-title-case);letter-spacing:var(--et-title-spacing);font-family:var(--et-font-mono)">2026-08-16 <span style="color:var(--muted)">(1)</span></div>
 <div class="recently-added-item" data-cover="https://covers.heygabi.ai/Britney%20S.%20Lewis/Blood%20Moon.jpg" data-title="Blood Moon" data-series="Blood Chronicles" data-index="" data-author="Britney S. Lewis" data-narrator="Adenrele Ojo" data-year="2025" data-genre="Young Adult Fantasy" data-duration="13:14" data-companions="" data-desc="Blood Chronicles, Book 1. Narrated by Adenrele Ojo." data-library-work-id="" data-library-formats="" data-universe="" data-series-gap="" style="display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer"><div style="flex-shrink:0"><img src="https://covers.heygabi.ai/Britney%20S.%20Lewis/Blood%20Moon.jpg" alt="Cover" style="width:48px;height:auto;border-radius:6px;" loading="lazy"></div><div style="flex:1;min-width:0"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Blood Moon</div><div style="color:var(--muted);font-size:.9em">Britney S. Lewis</div><span class="ab-chip" style="font-size:.8em">Blood Chronicles</span></div></div>
@@ -1691,7 +1737,7 @@ Perfect for fans of: Enemies-to-lovers Magic Sensual Bonds Winged Romantic Leads
  Katherine ‘Kat’ Debs, a hereditary employee of one of the megacorporations that ruled the world, eked out a meager existence in a massive arcology of glittering glass and chrome. She dreamt of one day earning enough money to buy her freedom, and was more than willing to break a law here or there in the process. When she is offered an opportunity to enter the Tower of Somnus free of corporate control, she jumps at the chance. After all, the &#x27;game&#x27; was more than just a status symbol, players retained the fantastic powers they earned in the game in the waking world as well.
 
  A perfect opportunity to take control of her destiny, or die trying." data-library-work-id="" data-library-formats="" data-universe="" data-series-gap="Volumes 1-3 owned" style="display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer"><div style="flex-shrink:0"><img src="https://covers.heygabi.ai/Cale%20Plamann/Tower%20of%20Somnus%20Omnibus%2C%20Books%201-3.jpg" alt="Cover" style="width:48px;height:auto;border-radius:6px;" loading="lazy"></div><div style="flex:1;min-width:0"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Tower of Somnus Omnibus, Books 1-3</div><div style="color:var(--muted);font-size:.9em">Cale Plamann</div><span class="ab-chip" style="font-size:.8em">Tower of Somnus #1-3</span></div></div>
-<div class="recently-added-item" data-cover="https://covers.heygabi.ai/Dakota%20Krout/Dakota%20Krout%20-%20%5BUncapped%20-%2014%5D%20-%20Uncapped%20%28Luke%20Daniels%29.png" data-title="Uncapped" data-series="The Completionist Chronicles" data-index="14" data-author="Dakota Krout" data-narrator="Luke Daniels" data-year="" data-genre="Litrpg" data-duration="16:25" data-companions="Dungeon Born - Dakota Krout.epub | Invent Short Story - Dakota Krout.epub | The Divine Dungeon Complete Series- Dungeon Core GameLit Fantasy - Dakota Krout.epub | Uncapped - Dakota Krout.epub | Unmapped - Dakota Krout.epub | Untapped - Dakota Krout.epub | Worlds Only Hero - Dakota Krout.epub" data-desc="" data-library-work-id="32" data-library-formats="Ebook" data-universe="CAL Verse" data-series-gap="Volumes 1-14 owned" style="display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer"><div style="flex-shrink:0"><img src="https://covers.heygabi.ai/Dakota%20Krout/Dakota%20Krout%20-%20%5BUncapped%20-%2014%5D%20-%20Uncapped%20%28Luke%20Daniels%29.png" alt="Cover" style="width:48px;height:auto;border-radius:6px;" loading="lazy"></div><div style="flex:1;min-width:0"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Uncapped</div><div style="color:var(--muted);font-size:.9em">Dakota Krout</div><span class="ab-chip" style="font-size:.8em">The Completionist Chronicles #14</span></div></div>
+<div class="recently-added-item" data-cover="https://covers.heygabi.ai/Dakota%20Krout/Dakota%20Krout%20-%20%5BUncapped%20-%2014%5D%20-%20Uncapped%20%28Luke%20Daniels%29.png" data-title="Uncapped" data-series="The Completionist Chronicles" data-index="14" data-author="Dakota Krout" data-narrator="Luke Daniels" data-year="" data-genre="Litrpg" data-duration="16:25" data-companions="Dungeon Born - Dakota Krout.epub | Invent Short Story - Dakota Krout.epub | The Divine Dungeon Complete Series- Dungeon Core GameLit Fantasy - Dakota Krout.epub | Uncapped - Dakota Krout.epub | Unmapped - Dakota Krout.epub | Untapped - Dakota Krout.epub | Worlds Only Hero - Dakota Krout.epub" data-desc="" data-library-work-id="32" data-library-formats="Hardcover|Paperback|Ebook" data-universe="CAL Verse" data-series-gap="Volumes 1-14 owned" style="display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer"><div style="flex-shrink:0"><img src="https://covers.heygabi.ai/Dakota%20Krout/Dakota%20Krout%20-%20%5BUncapped%20-%2014%5D%20-%20Uncapped%20%28Luke%20Daniels%29.png" alt="Cover" style="width:48px;height:auto;border-radius:6px;" loading="lazy"></div><div style="flex:1;min-width:0"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Uncapped</div><div style="color:var(--muted);font-size:.9em">Dakota Krout</div><span class="ab-chip" style="font-size:.8em">The Completionist Chronicles #14</span></div></div>
 <div class="recently-added-item" data-cover="https://covers.heygabi.ai/Jonathan%20Brooks/Unexpected%20Healer%20-%20Earthen%20Contenders%2C%20Book%201.jpg" data-title="Unexpected Healer - Earthen Contenders, Book 1" data-series="Earthen Contenders" data-index="1" data-author="Jonathan Brooks" data-narrator="Miles Meili" data-year="2024-04-12" data-genre="Science Fiction &amp; Fantasy:Fantasy:Epic" data-duration="15:07" data-companions="" data-desc="Something went wrong. Something went very wrong….
 
  Against his will, Thaden was transported elsewhere in a big flash of light along with millions of other Humans from Earth, to a place where they would train to become Contenders in a whole new world. Unfortunately for him, something occurred during his transference into the “Training” program, and he was ejected from the whole training process and sent into the open mouth of an active volcano for bodily disposal.
@@ -10274,6 +10320,7 @@ Alex Tate - Production, Editing, Mastering" data-library-work-id="" data-library
         <button id="ab-sort-asc" class="btn">Asc</button>
         <button id="ab-sort-desc" class="btn">Desc</button>
         <button id="ab-toggle-view" class="btn">Toggle View</button>
+        <button id="ab-select-toggle" class="btn">☐ Select</button>
       </div>
     </div>
 
@@ -10298,7 +10345,7 @@ Alex Tate - Production, Editing, Mastering" data-library-work-id="" data-library
     </div>
 
     <div id="meta"><small>
-      Generated at: 2026-08-19 08:08:24 ·
+      Generated at: 2026-08-22 08:05:35 ·
       <a href="catalog.csv" download>Download CSV</a> · <a href="https://drive.google.com/drive/folders/1yZHU_UryCZkuhg9zFzu5uOadx3NI0FJv?usp=sharing" target="_blank" rel="noopener">Google Drive folder</a>
     </small></div>
   </div>
@@ -12321,7 +12368,7 @@ Though Eirale and Lia tear through Medaluo on different planes of reality, the t
 
  But when he jumps feetfirst into the world of Eternium, run by CAL (the Certified Altruistic Lexicon), it’s not exactly what he expected. All he wants is to quest, game, grind some levels, and get his hands on awesome loot. You know, have fun! But the Mage’s College seems to have a very different definition of fun - one involving study, blisteringly strict regulations, aristocratic hierarchy, and tons of pay to play.
 
- Sam crosses the college and finds himself running for his life with a back-talking book that is far more than it seems and a class that no one has even heard of. If he can navigate the deadly college politics and the looming war with the barbaric Wolfmen, he might just find the fun and adventure he was looking for." data-library-work-id="" data-library-formats="" data-universe="CAL Verse" data-series-gap=""><img class="cover" src="https://covers.heygabi.ai/Dakota%20Krout/Bibliomancer%20-%20Wolfman%20Warlock%2C%20Book%201.jpg" alt="Cover of Bibliomancer - Wolfman Warlock, Book 1" loading="lazy" /></button></td><td>Bibliomancer - Wolfman Warlock, Book 1</td><td>Wolfman Warlock</td><td data-sort="1.0">1</td><td>Dakota Krout, James Hunter</td><td>Nick Podehl</td><td>2020-02-25</td><td>Science Fiction &amp; Fantasy:Science Fiction:Cyberpunk</td><td>12:50</td><td class="rating-cell" data-sort="0">—</td></tr><tr data-universe="CAL Verse"><td><button class="cover-btn" data-cover="https://covers.heygabi.ai/Dakota%20Krout/Cinder%20X%20Bella%20-%20Damsels%20of%20Distress%2C%20Book%202.jpg" data-title="Cinder X Bella - Damsels of Distress, Book 2" data-series="Damsels of Distress" data-index="2" data-author="Dakota Krout" data-narrator="Emily Woo Zeller" data-year="2025-05-20" data-genre="Romance:Fantasy" data-duration="13:37" data-companions="Dungeon Born - Dakota Krout.epub | Invent Short Story - Dakota Krout.epub | The Divine Dungeon Complete Series- Dungeon Core GameLit Fantasy - Dakota Krout.epub | Uncapped - Dakota Krout.epub | Unmapped - Dakota Krout.epub | Untapped - Dakota Krout.epub | Worlds Only Hero - Dakota Krout.epub" data-desc="Dakota Krout presents Book 2 in the Damsels of Distress series." data-library-work-id="" data-library-formats="" data-universe="CAL Verse" data-series-gap="Volumes 1-5 owned"><img class="cover" src="https://covers.heygabi.ai/Dakota%20Krout/Cinder%20X%20Bella%20-%20Damsels%20of%20Distress%2C%20Book%202.jpg" alt="Cover of Cinder X Bella - Damsels of Distress, Book 2" loading="lazy" /></button></td><td>Cinder X Bella - Damsels of Distress, Book 2</td><td>Damsels of Distress</td><td data-sort="2.0">2</td><td>Dakota Krout</td><td>Emily Woo Zeller</td><td>2025-05-20</td><td>Romance:Fantasy</td><td>13:37</td><td class="rating-cell" data-sort="0">—</td></tr><tr data-universe="CAL Verse"><td><button class="cover-btn" data-cover="https://covers.heygabi.ai/Dakota%20Krout/Dakota%20Krout%20-%20%5BThe%20Completionist%20Chronicles%20-%2010%5D%20-%20Thesaurize%20%28Luke%20Daniels%29.png" data-title="Thesaurize" data-series="The Completionist Chronicles" data-index="10" data-author="Dakota Krout" data-narrator="Luke Daniels" data-year="" data-genre="" data-duration="11:40" data-companions="Dungeon Born - Dakota Krout.epub | Invent Short Story - Dakota Krout.epub | The Divine Dungeon Complete Series- Dungeon Core GameLit Fantasy - Dakota Krout.epub | Uncapped - Dakota Krout.epub | Unmapped - Dakota Krout.epub | Untapped - Dakota Krout.epub | Worlds Only Hero - Dakota Krout.epub" data-desc="" data-library-work-id="" data-library-formats="" data-universe="CAL Verse" data-series-gap="Volumes 1-14 owned"><img class="cover" src="https://covers.heygabi.ai/Dakota%20Krout/Dakota%20Krout%20-%20%5BThe%20Completionist%20Chronicles%20-%2010%5D%20-%20Thesaurize%20%28Luke%20Daniels%29.png" alt="Cover of Thesaurize" loading="lazy" /></button></td><td>Thesaurize</td><td>The Completionist Chronicles</td><td data-sort="10.0">10</td><td>Dakota Krout</td><td>Luke Daniels</td><td></td><td></td><td>11:40</td><td class="rating-cell" data-sort="0">—</td></tr><tr data-universe="CAL Verse"><td><button class="cover-btn" data-cover="https://covers.heygabi.ai/Dakota%20Krout/Dakota%20Krout%20-%20%5BThe%20Completionist%20Chronicles%20-%2011%5D%20-%20Thunderplump%20%28Luke%20Daniels%29.png" data-title="Thunderplump" data-series="The Completionist Chronicles" data-index="11" data-author="Dakota Krout" data-narrator="Luke Daniels" data-year="" data-genre="Litrpg" data-duration="12:13" data-companions="Dungeon Born - Dakota Krout.epub | Invent Short Story - Dakota Krout.epub | The Divine Dungeon Complete Series- Dungeon Core GameLit Fantasy - Dakota Krout.epub | Uncapped - Dakota Krout.epub | Unmapped - Dakota Krout.epub | Untapped - Dakota Krout.epub | Worlds Only Hero - Dakota Krout.epub" data-desc="" data-library-work-id="" data-library-formats="" data-universe="CAL Verse" data-series-gap="Volumes 1-14 owned"><img class="cover" src="https://covers.heygabi.ai/Dakota%20Krout/Dakota%20Krout%20-%20%5BThe%20Completionist%20Chronicles%20-%2011%5D%20-%20Thunderplump%20%28Luke%20Daniels%29.png" alt="Cover of Thunderplump" loading="lazy" /></button></td><td>Thunderplump</td><td>The Completionist Chronicles</td><td data-sort="11.0">11</td><td>Dakota Krout</td><td>Luke Daniels</td><td></td><td>Litrpg</td><td>12:13</td><td class="rating-cell" data-sort="0">—</td></tr><tr data-universe="CAL Verse"><td><button class="cover-btn" data-cover="https://covers.heygabi.ai/Dakota%20Krout/Dakota%20Krout%20-%20%5BThe%20Completionist%20Chronicles%20-%209%5D%20-%20Tenacity%20%28Luke%20Daniels%29.png" data-title="Tenacity" data-series="The Completionist Chronicles" data-index="9" data-author="Dakota Krout" data-narrator="Luke Daniels" data-year="" data-genre="Litrpg" data-duration="11:42" data-companions="Dungeon Born - Dakota Krout.epub | Invent Short Story - Dakota Krout.epub | The Divine Dungeon Complete Series- Dungeon Core GameLit Fantasy - Dakota Krout.epub | Uncapped - Dakota Krout.epub | Unmapped - Dakota Krout.epub | Untapped - Dakota Krout.epub | Worlds Only Hero - Dakota Krout.epub" data-desc="" data-library-work-id="" data-library-formats="" data-universe="CAL Verse" data-series-gap="Volumes 1-14 owned"><img class="cover" src="https://covers.heygabi.ai/Dakota%20Krout/Dakota%20Krout%20-%20%5BThe%20Completionist%20Chronicles%20-%209%5D%20-%20Tenacity%20%28Luke%20Daniels%29.png" alt="Cover of Tenacity" loading="lazy" /></button></td><td>Tenacity</td><td>The Completionist Chronicles</td><td data-sort="9.0">9</td><td>Dakota Krout</td><td>Luke Daniels</td><td></td><td>Litrpg</td><td>11:42</td><td class="rating-cell" data-sort="0">—</td></tr><tr data-universe="CAL Verse"><td><button class="cover-btn" data-cover="https://covers.heygabi.ai/Dakota%20Krout/Dakota%20Krout%20-%20%5BUncapped%20-%2014%5D%20-%20Uncapped%20%28Luke%20Daniels%29.png" data-title="Uncapped" data-series="The Completionist Chronicles" data-index="14" data-author="Dakota Krout" data-narrator="Luke Daniels" data-year="" data-genre="Litrpg" data-duration="16:25" data-companions="Dungeon Born - Dakota Krout.epub | Invent Short Story - Dakota Krout.epub | The Divine Dungeon Complete Series- Dungeon Core GameLit Fantasy - Dakota Krout.epub | Uncapped - Dakota Krout.epub | Unmapped - Dakota Krout.epub | Untapped - Dakota Krout.epub | Worlds Only Hero - Dakota Krout.epub" data-desc="" data-library-work-id="32" data-library-formats="Ebook" data-universe="CAL Verse" data-series-gap="Volumes 1-14 owned"><img class="cover" src="https://covers.heygabi.ai/Dakota%20Krout/Dakota%20Krout%20-%20%5BUncapped%20-%2014%5D%20-%20Uncapped%20%28Luke%20Daniels%29.png" alt="Cover of Uncapped" loading="lazy" /></button></td><td>Uncapped</td><td>The Completionist Chronicles</td><td data-sort="14.0">14</td><td>Dakota Krout</td><td>Luke Daniels</td><td></td><td>Litrpg</td><td>16:25</td><td class="rating-cell" data-sort="0">—</td></tr><tr data-universe="CAL Verse"><td><button class="cover-btn" data-cover="https://covers.heygabi.ai/Dakota%20Krout/Dokeshi%20March%20-%20Year%20of%20the%20Sword%2C%20Book%203.jpg" data-title="Dokeshi March - Year of the Sword, Book 3" data-series="Year of the Sword" data-index="3" data-author="Dakota Krout" data-narrator="Travis Baldree" data-year="2022-03-23" data-genre="Teen &amp; Young Adult:Literature &amp; Fiction:Action &amp; Adventure" data-duration="10:24" data-companions="Dungeon Born - Dakota Krout.epub | Invent Short Story - Dakota Krout.epub | The Divine Dungeon Complete Series- Dungeon Core GameLit Fantasy - Dakota Krout.epub | Uncapped - Dakota Krout.epub | Unmapped - Dakota Krout.epub | Untapped - Dakota Krout.epub | Worlds Only Hero - Dakota Krout.epub" data-desc="The House is in control. The House always wins. The House has rolled out the red carpet to welcome you home.
+ Sam crosses the college and finds himself running for his life with a back-talking book that is far more than it seems and a class that no one has even heard of. If he can navigate the deadly college politics and the looming war with the barbaric Wolfmen, he might just find the fun and adventure he was looking for." data-library-work-id="" data-library-formats="" data-universe="CAL Verse" data-series-gap=""><img class="cover" src="https://covers.heygabi.ai/Dakota%20Krout/Bibliomancer%20-%20Wolfman%20Warlock%2C%20Book%201.jpg" alt="Cover of Bibliomancer - Wolfman Warlock, Book 1" loading="lazy" /></button></td><td>Bibliomancer - Wolfman Warlock, Book 1</td><td>Wolfman Warlock</td><td data-sort="1.0">1</td><td>Dakota Krout, James Hunter</td><td>Nick Podehl</td><td>2020-02-25</td><td>Science Fiction &amp; Fantasy:Science Fiction:Cyberpunk</td><td>12:50</td><td class="rating-cell" data-sort="0">—</td></tr><tr data-universe="CAL Verse"><td><button class="cover-btn" data-cover="https://covers.heygabi.ai/Dakota%20Krout/Cinder%20X%20Bella%20-%20Damsels%20of%20Distress%2C%20Book%202.jpg" data-title="Cinder X Bella - Damsels of Distress, Book 2" data-series="Damsels of Distress" data-index="2" data-author="Dakota Krout" data-narrator="Emily Woo Zeller" data-year="2025-05-20" data-genre="Romance:Fantasy" data-duration="13:37" data-companions="Dungeon Born - Dakota Krout.epub | Invent Short Story - Dakota Krout.epub | The Divine Dungeon Complete Series- Dungeon Core GameLit Fantasy - Dakota Krout.epub | Uncapped - Dakota Krout.epub | Unmapped - Dakota Krout.epub | Untapped - Dakota Krout.epub | Worlds Only Hero - Dakota Krout.epub" data-desc="Dakota Krout presents Book 2 in the Damsels of Distress series." data-library-work-id="" data-library-formats="" data-universe="CAL Verse" data-series-gap="Volumes 1-5 owned"><img class="cover" src="https://covers.heygabi.ai/Dakota%20Krout/Cinder%20X%20Bella%20-%20Damsels%20of%20Distress%2C%20Book%202.jpg" alt="Cover of Cinder X Bella - Damsels of Distress, Book 2" loading="lazy" /></button></td><td>Cinder X Bella - Damsels of Distress, Book 2</td><td>Damsels of Distress</td><td data-sort="2.0">2</td><td>Dakota Krout</td><td>Emily Woo Zeller</td><td>2025-05-20</td><td>Romance:Fantasy</td><td>13:37</td><td class="rating-cell" data-sort="0">—</td></tr><tr data-universe="CAL Verse"><td><button class="cover-btn" data-cover="https://covers.heygabi.ai/Dakota%20Krout/Dakota%20Krout%20-%20%5BThe%20Completionist%20Chronicles%20-%2010%5D%20-%20Thesaurize%20%28Luke%20Daniels%29.png" data-title="Thesaurize" data-series="The Completionist Chronicles" data-index="10" data-author="Dakota Krout" data-narrator="Luke Daniels" data-year="" data-genre="" data-duration="11:40" data-companions="Dungeon Born - Dakota Krout.epub | Invent Short Story - Dakota Krout.epub | The Divine Dungeon Complete Series- Dungeon Core GameLit Fantasy - Dakota Krout.epub | Uncapped - Dakota Krout.epub | Unmapped - Dakota Krout.epub | Untapped - Dakota Krout.epub | Worlds Only Hero - Dakota Krout.epub" data-desc="" data-library-work-id="" data-library-formats="" data-universe="CAL Verse" data-series-gap="Volumes 1-14 owned"><img class="cover" src="https://covers.heygabi.ai/Dakota%20Krout/Dakota%20Krout%20-%20%5BThe%20Completionist%20Chronicles%20-%2010%5D%20-%20Thesaurize%20%28Luke%20Daniels%29.png" alt="Cover of Thesaurize" loading="lazy" /></button></td><td>Thesaurize</td><td>The Completionist Chronicles</td><td data-sort="10.0">10</td><td>Dakota Krout</td><td>Luke Daniels</td><td></td><td></td><td>11:40</td><td class="rating-cell" data-sort="0">—</td></tr><tr data-universe="CAL Verse"><td><button class="cover-btn" data-cover="https://covers.heygabi.ai/Dakota%20Krout/Dakota%20Krout%20-%20%5BThe%20Completionist%20Chronicles%20-%2011%5D%20-%20Thunderplump%20%28Luke%20Daniels%29.png" data-title="Thunderplump" data-series="The Completionist Chronicles" data-index="11" data-author="Dakota Krout" data-narrator="Luke Daniels" data-year="" data-genre="Litrpg" data-duration="12:13" data-companions="Dungeon Born - Dakota Krout.epub | Invent Short Story - Dakota Krout.epub | The Divine Dungeon Complete Series- Dungeon Core GameLit Fantasy - Dakota Krout.epub | Uncapped - Dakota Krout.epub | Unmapped - Dakota Krout.epub | Untapped - Dakota Krout.epub | Worlds Only Hero - Dakota Krout.epub" data-desc="" data-library-work-id="" data-library-formats="" data-universe="CAL Verse" data-series-gap="Volumes 1-14 owned"><img class="cover" src="https://covers.heygabi.ai/Dakota%20Krout/Dakota%20Krout%20-%20%5BThe%20Completionist%20Chronicles%20-%2011%5D%20-%20Thunderplump%20%28Luke%20Daniels%29.png" alt="Cover of Thunderplump" loading="lazy" /></button></td><td>Thunderplump</td><td>The Completionist Chronicles</td><td data-sort="11.0">11</td><td>Dakota Krout</td><td>Luke Daniels</td><td></td><td>Litrpg</td><td>12:13</td><td class="rating-cell" data-sort="0">—</td></tr><tr data-universe="CAL Verse"><td><button class="cover-btn" data-cover="https://covers.heygabi.ai/Dakota%20Krout/Dakota%20Krout%20-%20%5BThe%20Completionist%20Chronicles%20-%209%5D%20-%20Tenacity%20%28Luke%20Daniels%29.png" data-title="Tenacity" data-series="The Completionist Chronicles" data-index="9" data-author="Dakota Krout" data-narrator="Luke Daniels" data-year="" data-genre="Litrpg" data-duration="11:42" data-companions="Dungeon Born - Dakota Krout.epub | Invent Short Story - Dakota Krout.epub | The Divine Dungeon Complete Series- Dungeon Core GameLit Fantasy - Dakota Krout.epub | Uncapped - Dakota Krout.epub | Unmapped - Dakota Krout.epub | Untapped - Dakota Krout.epub | Worlds Only Hero - Dakota Krout.epub" data-desc="" data-library-work-id="" data-library-formats="" data-universe="CAL Verse" data-series-gap="Volumes 1-14 owned"><img class="cover" src="https://covers.heygabi.ai/Dakota%20Krout/Dakota%20Krout%20-%20%5BThe%20Completionist%20Chronicles%20-%209%5D%20-%20Tenacity%20%28Luke%20Daniels%29.png" alt="Cover of Tenacity" loading="lazy" /></button></td><td>Tenacity</td><td>The Completionist Chronicles</td><td data-sort="9.0">9</td><td>Dakota Krout</td><td>Luke Daniels</td><td></td><td>Litrpg</td><td>11:42</td><td class="rating-cell" data-sort="0">—</td></tr><tr data-universe="CAL Verse"><td><button class="cover-btn" data-cover="https://covers.heygabi.ai/Dakota%20Krout/Dakota%20Krout%20-%20%5BUncapped%20-%2014%5D%20-%20Uncapped%20%28Luke%20Daniels%29.png" data-title="Uncapped" data-series="The Completionist Chronicles" data-index="14" data-author="Dakota Krout" data-narrator="Luke Daniels" data-year="" data-genre="Litrpg" data-duration="16:25" data-companions="Dungeon Born - Dakota Krout.epub | Invent Short Story - Dakota Krout.epub | The Divine Dungeon Complete Series- Dungeon Core GameLit Fantasy - Dakota Krout.epub | Uncapped - Dakota Krout.epub | Unmapped - Dakota Krout.epub | Untapped - Dakota Krout.epub | Worlds Only Hero - Dakota Krout.epub" data-desc="" data-library-work-id="32" data-library-formats="Hardcover|Paperback|Ebook" data-universe="CAL Verse" data-series-gap="Volumes 1-14 owned"><img class="cover" src="https://covers.heygabi.ai/Dakota%20Krout/Dakota%20Krout%20-%20%5BUncapped%20-%2014%5D%20-%20Uncapped%20%28Luke%20Daniels%29.png" alt="Cover of Uncapped" loading="lazy" /></button></td><td>Uncapped</td><td>The Completionist Chronicles</td><td data-sort="14.0">14</td><td>Dakota Krout</td><td>Luke Daniels</td><td></td><td>Litrpg</td><td>16:25</td><td class="rating-cell" data-sort="0">—</td></tr><tr data-universe="CAL Verse"><td><button class="cover-btn" data-cover="https://covers.heygabi.ai/Dakota%20Krout/Dokeshi%20March%20-%20Year%20of%20the%20Sword%2C%20Book%203.jpg" data-title="Dokeshi March - Year of the Sword, Book 3" data-series="Year of the Sword" data-index="3" data-author="Dakota Krout" data-narrator="Travis Baldree" data-year="2022-03-23" data-genre="Teen &amp; Young Adult:Literature &amp; Fiction:Action &amp; Adventure" data-duration="10:24" data-companions="Dungeon Born - Dakota Krout.epub | Invent Short Story - Dakota Krout.epub | The Divine Dungeon Complete Series- Dungeon Core GameLit Fantasy - Dakota Krout.epub | Uncapped - Dakota Krout.epub | Unmapped - Dakota Krout.epub | Untapped - Dakota Krout.epub | Worlds Only Hero - Dakota Krout.epub" data-desc="The House is in control. The House always wins. The House has rolled out the red carpet to welcome you home.
 
  Grant looks forward to the vast megalopolis that is the District of March. He’s finally got a real companion - not just a voice in his head pretending to kill him over and again - and Suki’s perspective is invaluable. She’s a Noble, a warrior, and a noble warrior. With two months of intense physical training under his much-tightened belt, Lord January is ready to face whatever his next challenge might be.
 
@@ -16651,7 +16698,7 @@ And foes bear arms to the Doors of Death.
 
  The clash with Baxteiyel&#x27;s dark warriors changes everything. The choices made and bonds tested in the ruins send ripples far beyond the battlefield, leaving Eight to grapple with the aftermath and the profound shift in his relationship with Ikfael.
 
- Eight: New Blood, Old Bones is a tale of daring exploration, cunning strategies, and the sacrifices demanded by ambition and love. The ruins hold secrets that could reshape the world, but at what cost? Join Eight on his most dangerous journey yet, where every step challenges not just his strength, but the very foundations of his life." data-library-work-id="" data-library-formats="" data-universe="" data-series-gap="Volumes 1-4 owned"><img class="cover" src="https://covers.heygabi.ai/Samer%20Rabadi/Eight-%20New%20Blood%2C%20Old%20Bones%20-%20Eight%2C%20Book%204.jpg" alt="Cover of Eight: New Blood, Old Bones - Eight, Book 4" loading="lazy" /></button></td><td>Eight: New Blood, Old Bones - Eight, Book 4</td><td>Eight</td><td data-sort="4.0">4</td><td>Samer Rabadi</td><td>Gary Tiedemann</td><td>2025-05-27</td><td>Science Fiction &amp; Fantasy:Fantasy:Action &amp; Adventure</td><td>18:47</td><td class="rating-cell" data-sort="0">—</td></tr><tr data-universe=""><td><button class="cover-btn" data-cover="https://covers.heygabi.ai/Samer%20Rabadi/Eight-%20Undaunted%20-%20Eight%2C%20Book%203.jpg" data-title="Eight: Undaunted - Eight, Book 3" data-series="Eight" data-index="3" data-author="Samer Rabadi" data-narrator="Gary Tiedemann" data-year="2024-03-12" data-genre="Science Fiction &amp; Fantasy:Fantasy:Action &amp; Adventure" data-duration="23:34" data-companions="" data-desc="How does an old man in an eight-year-old body hunt down a killer? With wisdom, courage, and a healthy dash of magic.
+ Eight: New Blood, Old Bones is a tale of daring exploration, cunning strategies, and the sacrifices demanded by ambition and love. The ruins hold secrets that could reshape the world, but at what cost? Join Eight on his most dangerous journey yet, where every step challenges not just his strength, but the very foundations of his life." data-library-work-id="" data-library-formats="" data-universe="" data-series-gap="Volumes 1-4 owned"><img class="cover" src="https://covers.heygabi.ai/Samer%20Rabadi/Eight-%20New%20Blood%2C%20Old%20Bones%20-%20Eight%2C%20Book%204.jpg" alt="Cover of Eight: New Blood, Old Bones - Eight, Book 4" loading="lazy" /></button></td><td>Eight: New Blood, Old Bones - Eight, Book 4</td><td>Eight</td><td data-sort="4.0">4</td><td>Samer Rabadi</td><td>Gary Tiedemann</td><td>2025-05-27</td><td>Science Fiction &amp; Fantasy:Fantasy:Action &amp; Adventure</td><td>18:47</td><td class="rating-cell" data-sort="0">—</td></tr><tr data-universe=""><td><button class="cover-btn" data-cover="https://covers.heygabi.ai/Samer%20Rabadi/Eight-%20The%20Saint%20of%20Water.jpg" data-title="Eight: The Saint of Water: Eight, Book 5" data-series="" data-index="" data-author="Samer Rabadi" data-narrator="Gary Tiedemann" data-year="2026" data-genre="Audiobook" data-duration="13:18" data-companions="" data-desc="" data-library-work-id="" data-library-formats="" data-universe="" data-series-gap=""><img class="cover" src="https://covers.heygabi.ai/Samer%20Rabadi/Eight-%20The%20Saint%20of%20Water.jpg" alt="Cover of Eight: The Saint of Water: Eight, Book 5" loading="lazy" /></button></td><td>Eight: The Saint of Water: Eight, Book 5</td><td></td><td data-sort=""></td><td>Samer Rabadi</td><td>Gary Tiedemann</td><td>2026</td><td>Audiobook</td><td>13:18</td><td class="rating-cell" data-sort="0">—</td></tr><tr data-universe=""><td><button class="cover-btn" data-cover="https://covers.heygabi.ai/Samer%20Rabadi/Eight-%20Undaunted%20-%20Eight%2C%20Book%203.jpg" data-title="Eight: Undaunted - Eight, Book 3" data-series="Eight" data-index="3" data-author="Samer Rabadi" data-narrator="Gary Tiedemann" data-year="2024-03-12" data-genre="Science Fiction &amp; Fantasy:Fantasy:Action &amp; Adventure" data-duration="23:34" data-companions="" data-desc="How does an old man in an eight-year-old body hunt down a killer? With wisdom, courage, and a healthy dash of magic.
 
  When a murderer-turned-monster escapes, the evil once restrained now roams free, leaving death in his wake. Inleio, the former lodge master, has fallen, and the responsibility to avenge his death lands squarely on Eight&#x27;s shoulders.
 
@@ -23766,8 +23813,8 @@ Though Eirale and Lia tear through Medaluo on different planes of reality, the t
   <div class="ab-row"><span class="ab-chip">Series: The Completionist Chronicles</span><span class="ab-chip">#: 9</span><span class="ab-chip">Author: Dakota Krout</span><span class="ab-chip">Narrator: Luke Daniels</span><span class="ab-chip">Genre: Litrpg</span><span class="ab-chip">Dur: 11:42</span></div>
 </div>
 
-<div class="ab-card" data-cover="https://covers.heygabi.ai/Dakota%20Krout/Dakota%20Krout%20-%20%5BUncapped%20-%2014%5D%20-%20Uncapped%20%28Luke%20Daniels%29.png" data-title="Uncapped" data-series="The Completionist Chronicles" data-index="14" data-author="Dakota Krout" data-narrator="Luke Daniels" data-year="" data-genre="Litrpg" data-duration="16:25" data-companions="Dungeon Born - Dakota Krout.epub | Invent Short Story - Dakota Krout.epub | The Divine Dungeon Complete Series- Dungeon Core GameLit Fantasy - Dakota Krout.epub | Uncapped - Dakota Krout.epub | Unmapped - Dakota Krout.epub | Untapped - Dakota Krout.epub | Worlds Only Hero - Dakota Krout.epub" data-desc="" data-library-work-id="32" data-library-formats="Ebook" data-universe="CAL Verse" data-series-gap="Volumes 1-14 owned" data-series_index_sort="14.0">
-  <div class="t"><button class="cover-btn inline" data-cover="https://covers.heygabi.ai/Dakota%20Krout/Dakota%20Krout%20-%20%5BUncapped%20-%2014%5D%20-%20Uncapped%20%28Luke%20Daniels%29.png" data-title="Uncapped" data-series="The Completionist Chronicles" data-index="14" data-author="Dakota Krout" data-narrator="Luke Daniels" data-year="" data-genre="Litrpg" data-duration="16:25" data-companions="Dungeon Born - Dakota Krout.epub | Invent Short Story - Dakota Krout.epub | The Divine Dungeon Complete Series- Dungeon Core GameLit Fantasy - Dakota Krout.epub | Uncapped - Dakota Krout.epub | Unmapped - Dakota Krout.epub | Untapped - Dakota Krout.epub | Worlds Only Hero - Dakota Krout.epub" data-desc="" data-library-work-id="32" data-library-formats="Ebook" data-universe="CAL Verse" data-series-gap="Volumes 1-14 owned"><img class="cover-inline" src="https://covers.heygabi.ai/Dakota%20Krout/Dakota%20Krout%20-%20%5BUncapped%20-%2014%5D%20-%20Uncapped%20%28Luke%20Daniels%29.png" alt="Cover of Uncapped" loading="lazy" /></button><span>Uncapped</span></div>
+<div class="ab-card" data-cover="https://covers.heygabi.ai/Dakota%20Krout/Dakota%20Krout%20-%20%5BUncapped%20-%2014%5D%20-%20Uncapped%20%28Luke%20Daniels%29.png" data-title="Uncapped" data-series="The Completionist Chronicles" data-index="14" data-author="Dakota Krout" data-narrator="Luke Daniels" data-year="" data-genre="Litrpg" data-duration="16:25" data-companions="Dungeon Born - Dakota Krout.epub | Invent Short Story - Dakota Krout.epub | The Divine Dungeon Complete Series- Dungeon Core GameLit Fantasy - Dakota Krout.epub | Uncapped - Dakota Krout.epub | Unmapped - Dakota Krout.epub | Untapped - Dakota Krout.epub | Worlds Only Hero - Dakota Krout.epub" data-desc="" data-library-work-id="32" data-library-formats="Hardcover|Paperback|Ebook" data-universe="CAL Verse" data-series-gap="Volumes 1-14 owned" data-series_index_sort="14.0">
+  <div class="t"><button class="cover-btn inline" data-cover="https://covers.heygabi.ai/Dakota%20Krout/Dakota%20Krout%20-%20%5BUncapped%20-%2014%5D%20-%20Uncapped%20%28Luke%20Daniels%29.png" data-title="Uncapped" data-series="The Completionist Chronicles" data-index="14" data-author="Dakota Krout" data-narrator="Luke Daniels" data-year="" data-genre="Litrpg" data-duration="16:25" data-companions="Dungeon Born - Dakota Krout.epub | Invent Short Story - Dakota Krout.epub | The Divine Dungeon Complete Series- Dungeon Core GameLit Fantasy - Dakota Krout.epub | Uncapped - Dakota Krout.epub | Unmapped - Dakota Krout.epub | Untapped - Dakota Krout.epub | Worlds Only Hero - Dakota Krout.epub" data-desc="" data-library-work-id="32" data-library-formats="Hardcover|Paperback|Ebook" data-universe="CAL Verse" data-series-gap="Volumes 1-14 owned"><img class="cover-inline" src="https://covers.heygabi.ai/Dakota%20Krout/Dakota%20Krout%20-%20%5BUncapped%20-%2014%5D%20-%20Uncapped%20%28Luke%20Daniels%29.png" alt="Cover of Uncapped" loading="lazy" /></button><span>Uncapped</span></div>
   <div class="ab-row"><span class="ab-chip">Series: The Completionist Chronicles</span><span class="ab-chip">#: 14</span><span class="ab-chip">Author: Dakota Krout</span><span class="ab-chip">Narrator: Luke Daniels</span><span class="ab-chip">Genre: Litrpg</span><span class="ab-chip">Dur: 16:25</span></div>
 </div>
 
@@ -35526,6 +35573,11 @@ And foes bear arms to the Doors of Death.
   <div class="ab-row"><span class="ab-chip">Series: Eight</span><span class="ab-chip">#: 4</span><span class="ab-chip">Author: Samer Rabadi</span><span class="ab-chip">Narrator: Gary Tiedemann</span><span class="ab-chip">Year: 2025-05-27</span><span class="ab-chip">Genre: Science Fiction &amp; Fantasy:Fantasy:Action &amp; Adventure</span><span class="ab-chip">Dur: 18:47</span></div>
 </div>
 
+<div class="ab-card" data-cover="https://covers.heygabi.ai/Samer%20Rabadi/Eight-%20The%20Saint%20of%20Water.jpg" data-title="Eight: The Saint of Water: Eight, Book 5" data-series="" data-index="" data-author="Samer Rabadi" data-narrator="Gary Tiedemann" data-year="2026" data-genre="Audiobook" data-duration="13:18" data-companions="" data-desc="" data-library-work-id="" data-library-formats="" data-universe="" data-series-gap="" data-series_index_sort="">
+  <div class="t"><button class="cover-btn inline" data-cover="https://covers.heygabi.ai/Samer%20Rabadi/Eight-%20The%20Saint%20of%20Water.jpg" data-title="Eight: The Saint of Water: Eight, Book 5" data-series="" data-index="" data-author="Samer Rabadi" data-narrator="Gary Tiedemann" data-year="2026" data-genre="Audiobook" data-duration="13:18" data-companions="" data-desc="" data-library-work-id="" data-library-formats="" data-universe="" data-series-gap=""><img class="cover-inline" src="https://covers.heygabi.ai/Samer%20Rabadi/Eight-%20The%20Saint%20of%20Water.jpg" alt="Cover of Eight: The Saint of Water: Eight, Book 5" loading="lazy" /></button><span>Eight: The Saint of Water: Eight, Book 5</span></div>
+  <div class="ab-row"><span class="ab-chip">Author: Samer Rabadi</span><span class="ab-chip">Narrator: Gary Tiedemann</span><span class="ab-chip">Year: 2026</span><span class="ab-chip">Genre: Audiobook</span><span class="ab-chip">Dur: 13:18</span></div>
+</div>
+
 <div class="ab-card" data-cover="https://covers.heygabi.ai/Samer%20Rabadi/Eight-%20Undaunted%20-%20Eight%2C%20Book%203.jpg" data-title="Eight: Undaunted - Eight, Book 3" data-series="Eight" data-index="3" data-author="Samer Rabadi" data-narrator="Gary Tiedemann" data-year="2024-03-12" data-genre="Science Fiction &amp; Fantasy:Fantasy:Action &amp; Adventure" data-duration="23:34" data-companions="" data-desc="How does an old man in an eight-year-old body hunt down a killer? With wisdom, courage, and a healthy dash of magic.
 
  When a murderer-turned-monster escapes, the evil once restrained now roams free, leaving death in his wake. Inleio, the former lodge master, has fallen, and the responsibility to avenge his death lands squarely on Eight&#x27;s shoulders.
@@ -40726,6 +40778,14 @@ A Macmillan Audio production from Tor Books" data-library-work-id="" data-librar
     <button id="ab-page-last-bottom"  class="btn">Last »</button>
     <span id="ab-page-info-bottom" class="pagination-info"></span>
   </div>
+
+  <!-- Bulk select action bar — hidden until select mode is active -->
+  <div id="ab-bulk-bar" style="display:none; position:fixed; bottom:0; left:0; right:0; z-index:200; padding:12px 20px; background:var(--surface, #1a1a2e); border-top:1px solid var(--border); box-shadow:0 -2px 12px rgba(0,0,0,.3); display:none; align-items:center; gap:12px; animation:ab-bulk-slide .2s ease-out;">
+    <span id="ab-bulk-count" style="font-weight:600;font-size:.9em;white-space:nowrap"></span>
+    <button id="ab-bulk-tbr" class="btn" style="background:var(--neon-magenta);color:#fff;border-color:var(--neon-magenta)">Add to TBR</button>
+    <span id="ab-bulk-progress" style="font-size:.85em;color:var(--muted,#888)"></span>
+    <button id="ab-bulk-cancel" class="btn" style="margin-left:auto">Cancel</button>
+  </div>
 </div>
 
 <!-- Modal -->
@@ -41312,6 +41372,7 @@ function wireAppearance(container){
     var td=e.target.closest("#ab-table tbody td");
     if(!td) return;
     if (e.target.closest("a,button") && !e.target.closest("button.cover-btn")) return;
+    if (window._abSelectMode) { var tr=td.parentElement; if(tr) _abToggleRowSelect(tr); return; }
     var tr=td.parentElement; if(!tr) return;
     var coverBtn=tr.querySelector("button.cover-btn"); if(!coverBtn) return;
     openModal(bookPayloadFromEl(coverBtn));
@@ -41322,6 +41383,7 @@ function wireAppearance(container){
     var card=e.target.closest(".ab-card");
     if(!card) return;
     if (e.target.closest("a,button")) return; // Don't trigger on interactive elements
+    if (window._abSelectMode) { _abToggleCardSelect(card); return; }
 
     openModal(bookPayloadFromEl(card));
   });
@@ -41824,6 +41886,90 @@ function wireAppearance(container){
         renderBookOfDay(randomBook);
       });
     }
+
+    // ===== Multi-select mode for bulk TBR =====
+    window._abSelectMode = false;
+    var _abSelected = new Set(); // titles
+
+    var selectToggle = document.getElementById('ab-select-toggle');
+    var bulkBar = document.getElementById('ab-bulk-bar');
+    var bulkCount = document.getElementById('ab-bulk-count');
+    var bulkTbrBtn = document.getElementById('ab-bulk-tbr');
+    var bulkCancel = document.getElementById('ab-bulk-cancel');
+    var bulkProgress = document.getElementById('ab-bulk-progress');
+
+    function _abEnterSelect() {
+      window._abSelectMode = true;
+      if (selectToggle) { selectToggle.textContent = '✓ Selecting'; selectToggle.style.background = 'var(--neon-magenta)'; selectToggle.style.color = '#fff'; }
+      _abUpdateBar();
+    }
+    function _abExitSelect() {
+      window._abSelectMode = false;
+      _abSelected.clear();
+      if (selectToggle) { selectToggle.textContent = '☐ Select'; selectToggle.style.background = ''; selectToggle.style.color = ''; }
+      document.querySelectorAll('.ab-selected').forEach(function(el) { el.classList.remove('ab-selected'); });
+      document.querySelectorAll('.ab-select-check').forEach(function(el) { el.remove(); });
+      _abUpdateBar();
+    }
+    function _abUpdateBar() {
+      var n = _abSelected.size;
+      if (bulkBar) bulkBar.style.display = n > 0 ? 'flex' : 'none';
+      if (bulkCount) bulkCount.textContent = n + ' book' + (n === 1 ? '' : 's') + ' selected';
+      if (bulkProgress) bulkProgress.textContent = '';
+    }
+
+    window._abToggleCardSelect = function(card) {
+      var title = card.getAttribute('data-title') || '';
+      if (!title) return;
+      if (_abSelected.has(title)) {
+        _abSelected.delete(title);
+        card.classList.remove('ab-selected');
+        var chk = card.querySelector('.ab-select-check');
+        if (chk) chk.remove();
+      } else {
+        _abSelected.add(title);
+        card.classList.add('ab-selected');
+        var cb = document.createElement('input');
+        cb.type = 'checkbox'; cb.checked = true; cb.className = 'ab-select-check';
+        card.appendChild(cb);
+      }
+      _abUpdateBar();
+    };
+
+    window._abToggleRowSelect = function(tr) {
+      var coverBtn = tr.querySelector('button.cover-btn');
+      var title = coverBtn ? (coverBtn.getAttribute('data-title') || '') : (tr.cells && tr.cells[1] ? tr.cells[1].textContent.trim() : '');
+      if (!title) return;
+      if (_abSelected.has(title)) {
+        _abSelected.delete(title);
+        tr.classList.remove('ab-selected');
+      } else {
+        _abSelected.add(title);
+        tr.classList.add('ab-selected');
+      }
+      _abUpdateBar();
+    };
+
+    if (selectToggle) {
+      selectToggle.addEventListener('click', function() {
+        if (window._abSelectMode) _abExitSelect();
+        else _abEnterSelect();
+      });
+    }
+    if (bulkCancel) bulkCancel.addEventListener('click', _abExitSelect);
+
+    // Bulk TBR write — fires from the module script below via a bridge.
+    // The module script sets window._abBulkTbrHandler once Firebase is ready.
+    if (bulkTbrBtn) {
+      bulkTbrBtn.addEventListener('click', function() {
+        if (typeof window._abBulkTbrHandler === 'function') {
+          window._abBulkTbrHandler(Array.from(_abSelected));
+        } else {
+          alert('Sign in with Google to use bulk TBR.');
+        }
+      });
+    }
+
   });
 })();
 </script>
@@ -42355,6 +42501,56 @@ function wireAppearance(container){
       });
 
       console.log(`[Reviews] Loaded ratings for ${Object.keys(avgByBook).length} books`);
+
+      // --- "Read" badge: mark books the current user has rated ---
+      const session = getSession();
+      if (session) {
+        const myName = session.displayName.toLowerCase();
+        const myBookIds = new Set();
+        snapshot.docs.forEach(d => {
+          const data = d.data();
+          if (data.displayName && data.displayName.toLowerCase() === myName && data.bookId && data.rating) {
+            myBookIds.add(data.bookId);
+          }
+        });
+
+        if (myBookIds.size > 0) {
+          // Add badge to table rows
+          document.querySelectorAll('#ab-table tbody tr').forEach(row => {
+            const titleCell = row.cells[1];
+            if (!titleCell) return;
+            const title = titleCell.textContent.trim();
+            const bookId = bookIdFromTitle(title);
+            if (!myBookIds.has(bookId)) return;
+            // Place badge on the cover button (positioned relative)
+            const coverBtn = row.querySelector('button.cover-btn');
+            if (coverBtn && !coverBtn.querySelector('.read-badge')) {
+              coverBtn.insertAdjacentHTML('beforeend', '<span class="read-badge">Read</span>');
+            }
+          });
+
+          // Add badge to cards
+          document.querySelectorAll('#ab-cards .ab-card').forEach(card => {
+            const title = card.getAttribute('data-title') || '';
+            const bookId = bookIdFromTitle(title);
+            if (!myBookIds.has(bookId)) return;
+            const coverImg = card.querySelector('img.cover-inline');
+            if (coverImg && !coverImg.parentElement.querySelector('.read-badge')) {
+              // Wrap cover in a positioned container if not already
+              let wrap = coverImg.closest('.card-cover-wrap');
+              if (!wrap) {
+                wrap = document.createElement('span');
+                wrap.className = 'card-cover-wrap';
+                coverImg.parentNode.insertBefore(wrap, coverImg);
+                wrap.appendChild(coverImg);
+              }
+              wrap.insertAdjacentHTML('beforeend', '<span class="read-badge">Read</span>');
+            }
+          });
+
+          console.log(`[Reviews] Marked ${myBookIds.size} books as read for ${session.displayName}`);
+        }
+      }
     } catch (e) {
       console.warn('[Reviews] Failed to load ratings:', e);
     }
@@ -42915,6 +43111,68 @@ function wireAppearance(container){
       });
     }
   }
+
+  // ===== Bulk TBR handler (bridged from the plain-script multi-select) =====
+  // Registers itself on `window._abBulkTbrHandler` so the non-module IIFE can
+  // call it when the user presses "Add to TBR" in the bulk action bar.
+  window._abBulkTbrHandler = async function(titles) {
+    const bulkProgress = document.getElementById('ab-bulk-progress');
+    const bulkTbrBtn = document.getElementById('ab-bulk-tbr');
+    if (bulkTbrBtn) bulkTbrBtn.disabled = true;
+
+    const live = await getLiveUser(app).catch(() => null);
+    const uid = live && live.uid ? live.uid : null;
+    const session = getSession();
+
+    if (!uid || !session) {
+      alert('Sign in with Google to add books to your TBR.');
+      if (bulkTbrBtn) bulkTbrBtn.disabled = false;
+      return;
+    }
+
+    const { doc, setDoc, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
+    let done = 0;
+    let failed = 0;
+
+    for (const title of titles) {
+      if (bulkProgress) bulkProgress.textContent = `Adding ${done + 1} of ${titles.length}…`;
+      const bookId = bookIdFromTitle(title);
+      const docId = readingListDocId(uid, bookId);
+      try {
+        await setDoc(doc(db, col('readingLists'), docId), {
+          uid,
+          displayName: session.displayName,
+          bookId,
+          bookTitle: title,
+          bookCover: '',
+          status: 'tbr',
+          addedAt: serverTimestamp(),
+        }, { merge: true });
+      } catch (e) {
+        console.warn('[BulkTBR] Failed for:', title, e);
+        failed++;
+      }
+      done++;
+    }
+
+    if (bulkProgress) {
+      bulkProgress.textContent = failed > 0
+        ? `Done — ${failed} of ${titles.length} failed.`
+        : `Added ${titles.length} to your TBR!`;
+      setTimeout(() => { if (bulkProgress) bulkProgress.textContent = ''; }, 4000);
+    }
+    if (bulkTbrBtn) bulkTbrBtn.disabled = false;
+
+    // Exit select mode
+    if (typeof window._abExitSelect === 'function') window._abExitSelect();
+    else {
+      window._abSelectMode = false;
+      document.querySelectorAll('.ab-selected').forEach(el => el.classList.remove('ab-selected'));
+      document.querySelectorAll('.ab-select-check').forEach(el => el.remove());
+      const bar = document.getElementById('ab-bulk-bar');
+      if (bar) bar.style.display = 'none';
+    }
+  };
 </script>
 </body>
 </html>
