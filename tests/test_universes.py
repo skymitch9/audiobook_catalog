@@ -275,7 +275,7 @@ def test_the_counts_the_owner_signed_off():
         # CAL Verse.
         "CAL Verse": (9, 1, 0),
         "Maasverse": (3, 0, 0),
-        "Riordanverse": (3, 0, 0),
+        "Riordanverse": (6, 0, 0),
         "Solaria": (2, 0, 0),
         # Cradle and The Last Horizon are owned; The Elder Empire and The
         # Traveler's Gate are listed so a future purchase files itself.
@@ -321,7 +321,7 @@ def test_the_counts_the_owner_signed_off():
         # "Firstborn / Defending Elysium", which carries no series at all —
         # Defending Elysium's own ebook edition is subtitled "A Cytoverse
         # Novella".
-        "Cytoverse": (1, 1, 0),
+        "Cytoverse": (2, 1, 0),
         # New 2026-08-15, owner-approved during the same sweep. Two series
         # because the spin-off carries a DIFFERENT series value ("Texas
         # Reckoners series", on Lux), and one override because Snapshot carries

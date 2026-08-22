@@ -213,7 +213,12 @@ def test_run_rclone_failure_is_reported_not_swallowed(monkeypatch):
 
 def test_run_locked_takes_and_releases_the_pipeline_lock(monkeypatch):
     seen = {}
-    monkeypatch.setattr(s2s, "run", lambda dry_run=False, mirror=False: (seen.update(held=pl.LOCK_PATH.exists())) or s2s.ShelfUploadResult(True, True, True, "ok"))
+    monkeypatch.setattr(
+        s2s, "run",
+        lambda dry_run=False, mirror=False: (
+            seen.update(held=pl.LOCK_PATH.exists())
+        ) or s2s.ShelfUploadResult(True, True, True, "ok"),
+    )
     s2s.run_locked()
     assert seen["held"] is True
     assert not pl.LOCK_PATH.exists()
