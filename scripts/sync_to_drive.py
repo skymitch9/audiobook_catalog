@@ -2440,6 +2440,14 @@ def _auto_commit_and_push() -> None:
         # 2026-08-17). It is gitignored — it lists the household's books by
         # filename — so naming it would make `git add` exit 1, and committing
         # it would publish 630 GB worth of paths from a PUBLIC repo.
+        # ⚠️ MIRRORED IN .github/workflows/auto-promote.yml (the `allow=`
+        # regex). What the pipeline may COMMIT and what the promote gate will
+        # PROMOTE are the same list at two altitudes, and they drifted by one
+        # entry on 2026-08-19: "site/ebooks_status.json" was added HERE and not
+        # there, so every commit carrying it was refused at the gate. Three
+        # days of books reached /dev/ and never prod, silently, because the
+        # runs in between reported "skipped" rather than failing. ADD TO BOTH
+        # IN THE SAME COMMIT.
         _ALLOWLIST = [
             "site/catalog.csv", "site/index.html",
             "site/covers_manifest.json", "site/covers-base.js",
