@@ -219,8 +219,9 @@ def test_an_outage_is_never_reported_as_a_refusal():
 
 
 def test_nothing_renders_without_the_grant():
-    """Preferred over a control that refuses: do not render what someone cannot
-    use. The row stays EMPTY for signed-out visitors, for accounts without the
-    listen grant, and during an outage."""
+    """The streaming UI is replaced by the shelf link (K8/K12, 2026-08-21).
+    The shelf button renders for everyone — ABS's own Cloudflare Access gate
+    handles who can actually open it."""
     src = strip_comments(read(TEMPLATE))
-    assert "if (!status.ok) return;" in src
+    # The shelf button renders unconditionally; auth is on ABS's side
+    assert "Play / Download in Shelf" in src or "Find in Shelf" in src
