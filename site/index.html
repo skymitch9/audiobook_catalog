@@ -10345,7 +10345,7 @@ Alex Tate - Production, Editing, Mastering" data-library-work-id="" data-library
     </div>
 
     <div id="meta"><small>
-      Generated at: 2026-08-22 08:05:35 ·
+      Generated at: 2026-08-22 12:05:53 ·
       <a href="catalog.csv" download>Download CSV</a> · <a href="https://drive.google.com/drive/folders/1yZHU_UryCZkuhg9zFzu5uOadx3NI0FJv?usp=sharing" target="_blank" rel="noopener">Google Drive folder</a>
     </small></div>
   </div>
@@ -40803,6 +40803,7 @@ A Macmillan Audio production from Tor Books" data-library-work-id="" data-librar
         <a id="m-author-folder" class="link-btn" href="#" target="_blank" rel="noopener" style="display:none">Open author folder</a>
         <a id="m-author-drive" class="link-btn" href="#" target="_blank" rel="noopener" style="display:none">Search author in Drive</a>
         <a id="m-book-drive"   class="link-btn" href="#" target="_blank" rel="noopener" style="display:none">Search book in Drive</a>
+        <a id="m-shelf-link"   class="link-btn" href="#" target="_blank" rel="noopener" style="display:none">Open in Shelf</a>
       </div>
 
       <div class="meta-grid" style="margin-top:6px">
@@ -41185,7 +41186,17 @@ function wireAppearance(container){
   var mAuthorDrive=document.getElementById("m-author-drive");
   var mAuthorFolder=document.getElementById("m-author-folder");
   var mBookDrive=document.getElementById("m-book-drive");
+  var mShelfLink=document.getElementById("m-shelf-link");
   var modalClose=document.getElementById("modal-close");
+
+  // Shelf book map: bookId slug -> ABS item ID (loaded from shelf_book_map.json)
+  var _shelfMap=null;
+  fetch("shelf_book_map.json").then(function(r){ return r.ok?r.json():null; })
+    .then(function(d){ if(d) _shelfMap=d; })
+    .catch(function(){});
+  function _bookIdFromTitle(title){
+    return (title||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/-{2,}/g,"-").replace(/^-|-$/g,"");
+  }
 
   // THE book-modal data contract's reader half (Python emit half:
   // _book_data_attrs in app/web/html_builder.py). Every element that can
@@ -41320,6 +41331,22 @@ function wireAppearance(container){
     } else {
       mBookDrive.removeAttribute("href");
       mBookDrive.style.display="none";
+    }
+
+    // Open in Shelf — direct link if mapped, search fallback otherwise
+    var _shelfBookId=_bookIdFromTitle(payload.title||"");
+    var _shelfAbsId=_shelfMap && _shelfMap[_shelfBookId];
+    if(_shelfAbsId){
+      mShelfLink.href="https://shelf.heygabi.ai/audiobookshelf/item/"+encodeURIComponent(_shelfAbsId);
+      mShelfLink.textContent="Open in Shelf";
+      mShelfLink.style.display="inline-block";
+    } else if((payload.title||"").trim()){
+      mShelfLink.href="https://shelf.heygabi.ai/audiobookshelf/library/69bed7b1-89b1-422d-92de-c27d7c9087db/search?q="+encodeURIComponent((payload.title||"").trim());
+      mShelfLink.textContent="Search in Shelf";
+      mShelfLink.style.display="inline-block";
+    } else {
+      mShelfLink.removeAttribute("href");
+      mShelfLink.style.display="none";
     }
 
     // Content warnings for checked books (published sources)
