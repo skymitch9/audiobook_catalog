@@ -185,7 +185,7 @@ def reachable(host: str, port: int, timeout: float = 5.0) -> bool:
         return False
 
 
-def run(dry_run: bool = False) -> ShelfUploadResult:
+def run(dry_run: bool = False, mirror: bool = False) -> ShelfUploadResult:
     """Never raises — degrades honestly at every stage, same 'never break
     the caller' contract as app/pipeline_status.py's own functions."""
     from app.config import ROOT_DIR
@@ -218,8 +218,25 @@ def run(dry_run: bool = False) -> ShelfUploadResult:
         )
 
     remote_spec = f":sftp,host={host},user={user},port={port}:{remote_path}"
+    # ⚠️ TWO MODES, AND THE DEFAULT IS THE SAFE ONE (owner, 2026-08-22:
+    # "have both, a force override for everything and a missing books one too").
+    #
+    #   copy (default)  adds what the shelf is missing. NEVER deletes. This is
+    #                   the button you actually want 99 times out of 100 - it
+    #                   is the fix for "a book is on my disk and not on the
+    #                   shelf", which is the only failure this has ever had.
+    #   sync (--mirror) makes the shelf match this PC EXACTLY, which means it
+    #                   DELETES anything there that is not here. Correct when
+    #                   you have removed books and want that reflected; a
+    #                   catastrophe if ROOT_DIR is ever wrong or half-mounted.
+    #
+    # ⚠️ `sync` used to be the only mode and the default. It was never run in
+    # anger, which is the only reason that was survivable: a wrong ROOT_DIR
+    # would have wiped 684 GB off the shelf on the first press of a button
+    # labelled "force upload".
+    verb = "sync" if mirror else "copy"
     cmd = [
-        "rclone", "sync", str(ROOT_DIR), remote_spec,
+        "rclone", verb, str(ROOT_DIR), remote_spec,
         "--fast-list", "--transfers", "4", "--checkers", "8",
     ]
     if dry_run:
@@ -236,7 +253,11 @@ def run(dry_run: bool = False) -> ShelfUploadResult:
 
     return ShelfUploadResult(
         ok=True, configured=True, reachable=True, returncode=0,
-        message=f"Pushed {ROOT_DIR} -> {user}@{host}:{remote_path} (rclone sync, rc=0).",
+        message=(
+            f"Pushed {ROOT_DIR} -> {user}@{host}:{remote_path} "
+            f"(rclone {verb}, rc=0)."
+            + ("" if mirror else " Missing files only; nothing on the shelf was deleted.")
+        ),
     )
 
 
@@ -254,7 +275,11 @@ def _publish(result: ShelfUploadResult) -> None:
         pass
 
 
-def run_locked(dry_run: bool = False, trigger: str = "manual-force-upload") -> ShelfUploadResult:
+def run_locked(
+    dry_run: bool = False,
+    trigger: str = "manual-force-upload",
+    mirror: bool = False,
+) -> ShelfUploadResult:
     """Public entry point: takes the SAME single-flight lock every pipeline
     step takes (app/core/pipeline_lock.py) — defense in depth, even though
     this is deliberately NOT one of the 7 numbered pipeline steps: reading
@@ -270,7 +295,7 @@ def run_locked(dry_run: bool = False, trigger: str = "manual-force-upload") -> S
         raise
 
     try:
-        result = run(dry_run=dry_run)
+        result = run(dry_run=dry_run, mirror=mirror)
         _publish(result)
         return result
     finally:
@@ -285,10 +310,42 @@ def main() -> int:
         "--dry-run", action="store_true",
         help="Pass --dry-run to rclone (still requires a reachable, configured target)",
     )
+    parser.add_argument(
+        "--mirror", action="store_true",
+        help=(
+            "MIRROR mode: rclone sync, which DELETES anything on the shelf that is "
+            "not on this PC. Default is copy - missing files only, never deletes."
+        ),
+    )
+    parser.add_argument(
+        "--yes", action="store_true",
+        help="Skip the confirmation that --mirror asks for. Required for --mirror in a script.",
+    )
     args = parser.parse_args()
 
+    # ⚠️ MIRROR DELETES, so it asks first. A DRY RUN does not: nothing will be
+    # written, so there is nothing to confirm, and making the safe rehearsal
+    # annoying is how people stop rehearsing.
+    if args.mirror and not args.dry_run and not args.yes:
+        print("\n*** MIRROR MODE ***")
+        from app.config import ROOT_DIR as _ROOT  # local, as in run()
+        print(f"This makes the shelf match {_ROOT} EXACTLY.")
+        print("Anything on the shelf that is not on this PC will be DELETED.")
+        print("\nIf you only want to push books the shelf is MISSING, stop now and")
+        print("re-run without --mirror. That is the default, and it never deletes.")
+        print("\nRehearse first:  python scripts/sync_to_server.py --mirror --dry-run")
+        try:
+            if input("\nType 'mirror' to continue: ").strip() != "mirror":
+                print("Aborted. Nothing was transferred.")
+                return 1
+        except EOFError:
+            # ⚠️ No terminal means no human read the warning. Refuse rather
+            # than assume consent - --yes is how a script says it meant it.
+            print("Aborted - nothing to confirm on. Pass --yes if you really mean it.")
+            return 1
+
     try:
-        result = run_locked(dry_run=args.dry_run)
+        result = run_locked(dry_run=args.dry_run, mirror=args.mirror)
     except pipeline_lock.PipelineLockHeld:
         return 1
 
