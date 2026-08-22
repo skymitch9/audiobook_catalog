@@ -104,29 +104,20 @@ def test_the_player_is_rendered_for_streamable_books():
 
 
 # --------------------------------------------------------------------------- #
-# ⚠️ THE COPY — the wait is EIGHT HOURS, and saying "within the hour" is a lie
+# ⚠️ THE COPY — streaming UI replaced by shelf button (2026-08-21)
 # --------------------------------------------------------------------------- #
 def test_the_wait_is_described_honestly():
-    """The design's first draft said "requested, usually ready within the hour".
-
-    The pipeline that fulfils this queue runs every EIGHT HOURS (sync step 5.9,
-    excluded from --rebuild-only on purpose). A person told "within the hour"
-    who waits three concludes the button is broken — and then presses it again,
-    which the duplicate clause absorbs but which nobody should have to do.
-    """
-    # ⚠️ strip_comments, because both files EXPLAIN this rule by quoting the
-    # forbidden phrase — and a naive search finds the explanation and calls it
-    # the copy. It did exactly that when this test was written.
-    src = strip_comments(read(TEMPLATE)) + strip_comments(read(MODULE))
-    assert "within the hour" not in src, (
-        "the copy promises an hour; the pipeline runs every eight. Say a few hours."
-    )
-    assert "every eight hours" in src, "the copy no longer says how long the wait really is"
+    """Streaming UI has been replaced by the shelf button (2026-08-21).
+    The old wait-time copy is gone — there is no request queue anymore."""
+    src = strip_comments(read(TEMPLATE))
+    assert "Play / Download in Shelf" in src or "Find in Shelf" in src
+    assert "Not streamable yet" not in src
 
 
 def test_the_first_rung_is_the_designs_words():
+    """The shelf button is the new first rung — no more request flow."""
     src = read(TEMPLATE)
-    assert "Not streamable yet — request it" in src
+    assert "Play / Download in Shelf" in src or "Find in Shelf" in src
 
 
 # --------------------------------------------------------------------------- #
