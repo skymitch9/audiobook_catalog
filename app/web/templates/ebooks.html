@@ -458,6 +458,21 @@ h1 .tail{color:var(--accent)}
 .eb-read:hover{background:var(--accent-deep);color:var(--card)}
 .eb-read-note{display:block;margin-top:8px;font-family:var(--sans);
   font-size:.78em;color:var(--ink-faint);line-height:1.5}
+
+/* Read: Native | Shelf dual-button group (K12/K13, 2026-08-18).
+   Shows two pill-shaped options inline when the ebook has a matching ABS item.
+   The label + both pills sit on one line; the pills share the accent family
+   but "Native" is filled (primary action) and "Shelf" is outlined (secondary). */
+.eb-read-group{display:inline-flex;align-items:center;gap:8px;margin-top:14px;
+  font-family:var(--sans);font-size:.9em;font-weight:600}
+.eb-read-group .eb-read-label{color:var(--ink-faint);font-weight:500;font-size:.88em}
+.eb-read-group .eb-read-native{display:inline-block;padding:8px 16px;border-radius:9px;
+  background:var(--accent);color:var(--card);text-decoration:none;transition:background .15s}
+.eb-read-group .eb-read-native:hover{background:var(--accent-deep)}
+.eb-read-group .eb-read-shelf{display:inline-block;padding:7px 15px;border-radius:9px;
+  border:1.5px solid var(--accent);color:var(--accent);background:transparent;
+  text-decoration:none;transition:background .15s,color .15s}
+.eb-read-group .eb-read-shelf:hover{background:var(--accent);color:var(--card)}
 .loading{text-align:center;padding:40px;color:var(--ink-faint);font-style:italic}
 /* The permission gate (2026-08-17). It is a designed state, not an error
    state: a signed-out visitor should meet a closed shelf that looks made,
@@ -656,6 +671,20 @@ h1 .tail{color:var(--accent)}
   var shownBooks = [];      // what the shelf currently renders, in order
   var activeFormats = {};   // format -> true while its chip is toggled on
   var lastFocused = null;   // focus returns to the tapped tile on close
+
+  // Shelf book map: audiobook bookId slug -> ABS item ID (K12/K13, 2026-08-18).
+  // Loaded from shelf_book_map.json (the same file the audiobook site uses).
+  // Ebooks whose `audiobook_title` resolves to a slug present in this map get
+  // a "Shelf" button linking to ABS's item page for the sibling audiobook.
+  var _shelfMap = null;
+  fetch('shelf_book_map.json').then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) { if (d) _shelfMap = d; })
+    .catch(function () {});
+
+  // bookIdFromTitle — mirrors site/reviews.js (same logic as the audiobook site)
+  function _bookIdFromTitle(title) {
+    return (title || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-{2,}/g, '-').replace(/^-|-$/g, '');
+  }
 
   // The reading card's one extension point. The AUTH module below registers a
   // function here (window.ebooksShelf.onCard) and openCard hands it the book
@@ -941,9 +970,32 @@ h1 .tail{color:var(--accent)}
     // with no trailing slash — both forms break, for two different reasons the
     // read.html header spells out.
     var fmt = String(b.format || '').toLowerCase();
-    var read = (fmt === 'pdf' || fmt === 'epub') && b.anchor
-      ? '<a class="eb-read" href="read?b=' + encodeURIComponent(b.anchor) + '">Read &#x2192;</a>'
-      : '';
+    var read = '';
+    if ((fmt === 'pdf' || fmt === 'epub') && b.anchor) {
+      // Look up the shelf map via the audiobook_title first (the audiobook catalog's
+      // spelling of this book), then fall back to the ebook's own title. ABS items
+      // can hold both an audiobook AND an ebook (same item ID), so matching on
+      // either title finds the right ABS item. (K12/K13, 2026-08-21).
+      var shelfAbsId = null;
+      if (_shelfMap) {
+        if (b.audiobook_title) {
+          shelfAbsId = _shelfMap[_bookIdFromTitle(b.audiobook_title)] || null;
+        }
+        if (!shelfAbsId && b.title) {
+          shelfAbsId = _shelfMap[_bookIdFromTitle(b.title)] || null;
+        }
+      }
+      if (shelfAbsId) {
+        var shelfHref = 'https://shelf.heygabi.ai/audiobookshelf/item/' + encodeURIComponent(shelfAbsId);
+        read = '<span class="eb-read-group">' +
+          '<span class="eb-read-label">Read:</span>' +
+          '<a class="eb-read-native" href="read?b=' + encodeURIComponent(b.anchor) + '">Native</a>' +
+          '<a class="eb-read-shelf" href="' + esc(shelfHref) + '" target="_blank" rel="noopener">Shelf</a>' +
+        '</span>';
+      } else {
+        read = '<a class="eb-read" href="read?b=' + encodeURIComponent(b.anchor) + '">Read &#x2192;</a>';
+      }
+    }
     cardInfoEl.innerHTML =
       '<h2 id="eb-card-title">' + esc(b.title) + '</h2>' +
       (b.author ? '<div class="eb-card-author">' + esc(b.author) + '</div>' : '') +
