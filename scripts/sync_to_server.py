@@ -97,6 +97,7 @@ def _env(name: str) -> str:
 # after deploying, not by reading the code. `docs/access/justin/03-shelf-parity.sh`
 # already posts to this same host for the same reason.
 ESTATE_CONFIG_URL = "https://auth.heygabi.ai/api/machine/shelf-config"
+ESTATE_USER_AGENT = "audiobook-catalog-shelf-sync/1.0 (+https://heygabi.ai)"
 
 
 def _config_from_estate() -> dict[str, str]:
@@ -126,9 +127,24 @@ def _config_from_estate() -> dict[str, str]:
         import urllib.error
         import urllib.request
 
+        # ⚠️ THE USER-AGENT IS LOAD-BEARING. urllib's default
+        # `Python-urllib/3.x` is refused by Cloudflare with **Error 1010,
+        # "Access denied"** before the Worker is ever reached - a 403 that
+        # looks exactly like a bad token and is not one. Measured 2026-08-22:
+        # same URL, same bogus bearer, default UA -> 403 Error 1010; this UA
+        # -> 401 bad_token from our own route. curl was never affected, which
+        # is why the endpoint tested fine by hand and failed from here.
+        #
+        # ⚠️ Deliberately an HONEST, identifying UA rather than a browser
+        # string. Impersonating Chrome would also pass and would make this
+        # request indistinguishable from a person in our own logs.
         req = urllib.request.Request(
             ESTATE_CONFIG_URL,
-            headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Accept": "application/json",
+                "User-Agent": ESTATE_USER_AGENT,
+            },
         )
         with urllib.request.urlopen(req, timeout=10) as resp:
             payload = json.loads(resp.read().decode("utf-8"))
