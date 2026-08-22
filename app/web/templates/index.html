@@ -2699,13 +2699,38 @@ function wireAppearance(container){
   }
 
   async function renderAudioRow(bookTitle) {
-    // ⚠️ STREAMING UI HIDDEN (owner, 2026-08-21): "we're gonna use shelf."
-    // The request-and-stream feature is superseded by the ABS shelf link
-    // (K8's "Open in Shelf" button). All streaming UI — the request button,
-    // the "not streamable yet" ladder, and the in-browser player — is hidden
-    // until/unless a decision is made to bring it back. The shelf handles
-    // playback now.
-    return;
+    // Play/Download in Shelf — the ABS shelf link replaces the old streaming UI.
+    if (!audioContainer || !bookTitle) return;
+    audioContainer.innerHTML = '';
+
+    // Look up the shelf map to get the ABS item ID for this book
+    var bookId = _bookIdFromTitle(bookTitle);
+    var absId = _shelfMap && _shelfMap[bookId];
+
+    if (absId) {
+      var href = 'https://shelf.heygabi.ai/audiobookshelf/item/' + encodeURIComponent(absId);
+      var btn = document.createElement('a');
+      btn.href = href;
+      btn.target = '_blank';
+      btn.rel = 'noopener';
+      btn.textContent = '🎧 Play / Download in Shelf';
+      btn.style.cssText = 'display:inline-block;padding:10px 20px;border-radius:8px;background:var(--neon-cyan,#0cc);color:#111;font-weight:700;font-size:.95em;text-decoration:none;transition:background .15s;cursor:pointer;';
+      btn.addEventListener('mouseenter', function() { btn.style.background = 'var(--neon-cyan-bright,#5ff)'; });
+      btn.addEventListener('mouseleave', function() { btn.style.background = 'var(--neon-cyan,#0cc)'; });
+      audioContainer.appendChild(btn);
+    } else {
+      // Fallback: search link
+      var href = 'https://shelf.heygabi.ai/audiobookshelf/library/69bed7b1-89b1-422d-92de-c27d7c9087db/search?q=' + encodeURIComponent(bookTitle);
+      var btn = document.createElement('a');
+      btn.href = href;
+      btn.target = '_blank';
+      btn.rel = 'noopener';
+      btn.textContent = '🎧 Find in Shelf';
+      btn.style.cssText = 'display:inline-block;padding:10px 20px;border-radius:8px;border:1.5px solid var(--neon-cyan,#0cc);color:var(--neon-cyan,#0cc);background:transparent;font-weight:700;font-size:.95em;text-decoration:none;transition:background .15s,color .15s;cursor:pointer;';
+      btn.addEventListener('mouseenter', function() { btn.style.background = 'var(--neon-cyan,#0cc)'; btn.style.color = '#111'; });
+      btn.addEventListener('mouseleave', function() { btn.style.background = 'transparent'; btn.style.color = 'var(--neon-cyan,#0cc)'; });
+      audioContainer.appendChild(btn);
+    }
   }
 
     // Rung 3 — the file is in the bucket and every grant holder can play it.
