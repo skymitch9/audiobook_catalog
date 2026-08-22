@@ -10345,7 +10345,7 @@ Alex Tate - Production, Editing, Mastering" data-library-work-id="" data-library
     </div>
 
     <div id="meta"><small>
-      Generated at: 2026-08-22 12:05:53 ·
+      Generated at: 2026-08-22 12:10:09 ·
       <a href="catalog.csv" download>Download CSV</a> · <a href="https://drive.google.com/drive/folders/1yZHU_UryCZkuhg9zFzu5uOadx3NI0FJv?usp=sharing" target="_blank" rel="noopener">Google Drive folder</a>
     </small></div>
   </div>
@@ -42794,16 +42794,14 @@ function wireAppearance(container){
   }
 
   async function renderAudioRow(bookTitle) {
-    if (!audioContainer || !db || !app) return;
-    audioContainer.innerHTML = '';
-    if (!bookTitle) return;
-
-    const status = await getAudioStatus(app);
-    // The user may have opened a different book while we asked.
-    if (document.getElementById('modal-title').textContent !== bookTitle) return;
-    // Signed out, no grant, or an outage — render nothing at all. See above.
-    if (!status.ok) return;
-    audioContainer.innerHTML = '';
+    // ⚠️ STREAMING UI HIDDEN (owner, 2026-08-21): "we're gonna use shelf."
+    // The request-and-stream feature is superseded by the ABS shelf link
+    // (K8's "Open in Shelf" button). All streaming UI — the request button,
+    // the "not streamable yet" ladder, and the in-browser player — is hidden
+    // until/unless a decision is made to bring it back. The shelf handles
+    // playback now.
+    return;
+  }
 
     // Rung 3 — the file is in the bucket and every grant holder can play it.
     // Phase 2: render the actual audio player.
