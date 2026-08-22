@@ -2844,23 +2844,23 @@ function wireAppearance(container){
   // the case that matters: opening a different book without closing first
   // still re-renders, because the title changed.
   const modal = document.getElementById('modal');
-  if (modal && db) {
+  if (modal) {
     let _modalRenderedFor = null;
     const observer = new MutationObserver(function() {
       if (!modal.classList.contains('open')) {
-        // Closed — arm the next open, including a re-open of the same book.
         _modalRenderedFor = null;
         return;
       }
       const title = document.getElementById('modal-title').textContent;
       if (!title || title === _modalRenderedFor) return;
       _modalRenderedFor = title;
-      renderReviewSection(title);
-      renderReadingListButtons(title);
-      // Audio phase 1. ⚠️ Fire-and-forget on purpose: the row is a
-      // gated cross-origin fetch, and a slow Worker must never hold up
-      // the reviews or the TBR buttons rendering.
+      // Shelf button renders for everyone — no auth needed.
       renderAudioRow(title);
+      // Reviews + TBR need Firebase auth.
+      if (db) {
+        renderReviewSection(title);
+        renderReadingListButtons(title);
+      }
     });
     observer.observe(modal, { attributes: true });
   }
