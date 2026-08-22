@@ -91,7 +91,12 @@ def _env(name: str) -> str:
     return (os.getenv(name) or "").strip()
 
 
-ESTATE_CONFIG_URL = "https://heygabi.ai/api/machine/shelf-config"
+# ⚠️ auth.heygabi.ai, NOT the apex. The apex serves the SITE; `/api/*` there
+# returns the homepage HTML, which json.loads would choke on with a message
+# naming neither the real cause nor the fix. Caught by probing the live URL
+# after deploying, not by reading the code. `docs/access/justin/03-shelf-parity.sh`
+# already posts to this same host for the same reason.
+ESTATE_CONFIG_URL = "https://auth.heygabi.ai/api/machine/shelf-config"
 
 
 def _config_from_estate() -> dict[str, str]:
