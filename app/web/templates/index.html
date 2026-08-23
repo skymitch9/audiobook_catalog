@@ -2683,9 +2683,7 @@ function wireAppearance(container){
       btn.target = '_blank';
       btn.rel = 'noopener';
       btn.textContent = '🎧 Play / Download in Shelf';
-      btn.style.cssText = 'display:inline-block;padding:10px 20px;border-radius:8px;background:var(--neon-cyan,#0cc);color:#111;font-weight:700;font-size:.95em;text-decoration:none;transition:background .15s;cursor:pointer;';
-      btn.addEventListener('mouseenter', function() { btn.style.background = 'var(--neon-cyan-bright,#5ff)'; });
-      btn.addEventListener('mouseleave', function() { btn.style.background = 'var(--neon-cyan,#0cc)'; });
+      btn.className = 'link-btn';
       audioContainer.appendChild(btn);
     } else {
       // Fallback: search link
@@ -2695,9 +2693,7 @@ function wireAppearance(container){
       btn.target = '_blank';
       btn.rel = 'noopener';
       btn.textContent = '🎧 Find in Shelf';
-      btn.style.cssText = 'display:inline-block;padding:10px 20px;border-radius:8px;border:1.5px solid var(--neon-cyan,#0cc);color:var(--neon-cyan,#0cc);background:transparent;font-weight:700;font-size:.95em;text-decoration:none;transition:background .15s,color .15s;cursor:pointer;';
-      btn.addEventListener('mouseenter', function() { btn.style.background = 'var(--neon-cyan,#0cc)'; btn.style.color = '#111'; });
-      btn.addEventListener('mouseleave', function() { btn.style.background = 'transparent'; btn.style.color = 'var(--neon-cyan,#0cc)'; });
+      btn.className = 'link-btn';
       audioContainer.appendChild(btn);
     }
   }
