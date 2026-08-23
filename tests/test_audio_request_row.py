@@ -50,7 +50,7 @@ def test_the_module_exists():
 
 def test_the_template_imports_it_and_carries_the_slot():
     src = read(TEMPLATE)
-    assert "./audio-request.js" in src
+    # audio-request.js import removed (shelf handles playback); slot remains
     assert 'id="m-audio"' in src
 
 
@@ -68,7 +68,6 @@ def test_the_REBUILD_actually_happened():
         "site/index.html has no audio slot — the template was edited but not rebuilt. "
         "Run: python -m app.main   (PowerShell: prefix $env:PYTHONIOENCODING='utf-8')"
     )
-    assert "./audio-request.js" in generated
     assert "renderAudioRow" in generated
 
 
@@ -96,11 +95,9 @@ def test_the_service_worker_exists():
 
 
 def test_the_player_is_rendered_for_streamable_books():
-    """Phase 2 replaced the 'player coming' placeholder with the actual player."""
+    """Shelf button replaced the in-browser player (2026-08-21)."""
     src = strip_comments(read(TEMPLATE))
-    assert "renderAudioPlayer" in src, (
-        "renderAudioRow no longer calls renderAudioPlayer for streamable books"
-    )
+    assert "Play / Download in Shelf" in src or "Find in Shelf" in src
 
 
 # --------------------------------------------------------------------------- #

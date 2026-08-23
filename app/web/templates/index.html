@@ -1896,8 +1896,7 @@ function wireAppearance(container){
   import { getSession, getLiveUser, signInWithGoogle, signOutGoogle, whenAdmin, handleRedirectResult, renderDevSiteLink, getSiteRole, resolveSiteAccess } from './identity.js';
   import { submitReview, getReviews, renderStars, bookIdFromTitle, computeAverageRating, formatDate, deleteReview, readingListDocId, ownsReadingListDoc } from './reviews.js';
   import { addUserWarning, getUserWarnings, deleteUserWarning, requestWarningCheck, getWarningRequest } from './user-warnings.js';
-  import { getAudioStatus, isStreamable, getAnchorForBook, getAudioRequest, requestAudio } from './audio-request.js';
-  import { renderAudioPlayer } from './audio-player.js';
+  // Audio streaming imports removed — shelf handles playback now (2026-08-21).
   import { col, FIREBASE_CONFIG } from './fb-env.js';
   import { mountEstateSearch } from './estate-search-mount.js';
 
@@ -2667,18 +2666,6 @@ function wireAppearance(container){
   // claiming the book is unavailable — mislabelling an outage as a permission
   // fact sends people asking for access they already hold.
   const audioContainer = document.getElementById('m-audio');
-
-  function _audioBtnStyle() {
-    return 'margin:0;padding:5px 12px;background:none;border:1px solid var(--border,#555);'
-         + 'color:var(--muted,#888);cursor:pointer;font-family:inherit;font-size:.82em;';
-  }
-
-  function _audioNote(text) {
-    const p = document.createElement('div');
-    p.style.cssText = 'margin-top:6px;color:var(--muted,#888);font-size:.78em;line-height:1.4;';
-    p.textContent = text;
-    return p;
-  }
 
   async function renderAudioRow(bookTitle) {
     // Play/Download in Shelf — the ABS shelf link replaces the old streaming UI.
