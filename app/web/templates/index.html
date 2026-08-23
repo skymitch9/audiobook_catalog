@@ -1092,15 +1092,6 @@ function wireAppearance(container){
   var mBookDrive=document.getElementById("m-book-drive");
   var modalClose=document.getElementById("modal-close");
 
-  // Shelf book map: bookId slug -> ABS item ID (loaded from shelf_book_map.json)
-  var _shelfMap=null;
-  fetch("shelf_book_map.json").then(function(r){ return r.ok?r.json():null; })
-    .then(function(d){ if(d) _shelfMap=d; })
-    .catch(function(){});
-  function _bookIdFromTitle(title){
-    return (title||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/-{2,}/g,"-").replace(/^-|-$/g,"");
-  }
-
   // THE book-modal data contract's reader half (Python emit half:
   // _book_data_attrs in app/web/html_builder.py). Every element that can
   // open the book modal — cover buttons, grid cards, Recently Added /
@@ -1900,6 +1891,15 @@ function wireAppearance(container){
   import { col, FIREBASE_CONFIG } from './fb-env.js';
   import { mountEstateSearch } from './estate-search-mount.js';
 
+  // Shelf book map: loaded once for the Play/Download in Shelf button
+  let _moduleShelfMap = null;
+  fetch('shelf_book_map.json').then(r => r.ok ? r.json() : null)
+    .then(d => { if (d) _moduleShelfMap = d; })
+    .catch(() => {});
+  function _moduleBookIdFromTitle(title) {
+    return (title || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-{2,}/g, '-').replace(/^-|-$/g, '');
+  }
+
   // Production Firebase config — canonical copy lives in site/fb-env.js
   const firebaseConfig = FIREBASE_CONFIG;
 
@@ -2673,8 +2673,8 @@ function wireAppearance(container){
     audioContainer.innerHTML = '';
 
     // Look up the shelf map to get the ABS item ID for this book
-    var bookId = _bookIdFromTitle(bookTitle);
-    var absId = _shelfMap && _shelfMap[bookId];
+    var bookId = _moduleBookIdFromTitle(bookTitle);
+    var absId = _moduleShelfMap && _moduleShelfMap[bookId];
 
     if (absId) {
       var href = 'https://shelf.heygabi.ai/audiobookshelf/item/' + encodeURIComponent(absId);
