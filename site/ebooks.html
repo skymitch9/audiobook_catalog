@@ -458,6 +458,21 @@ h1 .tail{color:var(--accent)}
 .eb-read:hover{background:var(--accent-deep);color:var(--card)}
 .eb-read-note{display:block;margin-top:8px;font-family:var(--sans);
   font-size:.78em;color:var(--ink-faint);line-height:1.5}
+
+/* Read: Native | Shelf dual-button group (K12/K13, 2026-08-18).
+   Shows two pill-shaped options inline when the ebook has a matching ABS item.
+   The label + both pills sit on one line; the pills share the accent family
+   but "Native" is filled (primary action) and "Shelf" is outlined (secondary). */
+.eb-read-group{display:inline-flex;align-items:center;gap:8px;margin-top:14px;
+  font-family:var(--sans);font-size:.9em;font-weight:600}
+.eb-read-group .eb-read-label{color:var(--ink-faint);font-weight:500;font-size:.88em}
+.eb-read-group .eb-read-native{display:inline-block;padding:8px 16px;border-radius:9px;
+  background:var(--accent);color:var(--card);text-decoration:none;transition:background .15s}
+.eb-read-group .eb-read-native:hover{background:var(--accent-deep)}
+.eb-read-group .eb-read-shelf{display:inline-block;padding:7px 15px;border-radius:9px;
+  border:1.5px solid var(--accent);color:var(--accent);background:transparent;
+  text-decoration:none;transition:background .15s,color .15s}
+.eb-read-group .eb-read-shelf:hover{background:var(--accent);color:var(--card)}
 .loading{text-align:center;padding:40px;color:var(--ink-faint);font-style:italic}
 /* The permission gate (2026-08-17). It is a designed state, not an error
    state: a signed-out visitor should meet a closed shelf that looks made,
@@ -499,6 +514,38 @@ h1 .tail{color:var(--accent)}
 /* Sign-in / user chip: the shared widget's mount, dressed in shelf colours */
 #identity-bar{margin-left:auto;font-family:var(--sans)}
 #identity-bar #account-btn{border-radius:8px}
+
+/* -- Multi-select mode -- */
+.eb-tile.eb-selected .eb-cover{
+  outline:3px solid var(--accent);outline-offset:-3px;
+}
+.eb-tile.eb-selected{opacity:.85}
+.eb-tile .eb-sel-check{
+  position:absolute;top:7px;left:7px;width:20px;height:20px;
+  accent-color:var(--accent);z-index:5;pointer-events:none;
+}
+#eb-bulk-bar{
+  position:fixed;bottom:0;left:0;right:0;z-index:200;
+  padding:12px 20px;background:var(--card);border-top:1px solid var(--rule);
+  box-shadow:0 -2px 12px rgba(0,0,0,.2);display:none;align-items:center;gap:12px;
+  font-family:var(--sans);animation:eb-bulk-slide .2s ease-out;
+}
+#eb-bulk-bar[hidden]{display:none}
+@keyframes eb-bulk-slide{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.eb-bulk-count{font-weight:600;font-size:.9em;white-space:nowrap}
+.eb-bulk-act{
+  padding:8px 16px;border:0;border-radius:8px;
+  background:var(--accent);color:var(--card);font-weight:600;cursor:pointer;
+  font-family:var(--sans);font-size:.88em;
+}
+.eb-bulk-act:hover{background:var(--accent-deep)}
+.eb-bulk-act:disabled{opacity:.5;cursor:default}
+.eb-bulk-cancel{
+  margin-left:auto;padding:8px 14px;border:1px solid var(--rule);border-radius:8px;
+  background:var(--card);color:var(--ink);cursor:pointer;font-family:var(--sans);font-size:.88em;
+}
+.eb-bulk-cancel:hover{border-color:var(--accent);color:var(--accent)}
+.eb-bulk-progress{font-size:.85em;color:var(--ink-faint)}
 </style>
 </head>
 <body>
@@ -549,6 +596,7 @@ h1 .tail{color:var(--accent)}
       <input type="checkbox" id="eb-show-pdfs" />
       <span>Show PDFs<span id="eb-pdf-count"></span></span>
     </label>
+    <button type="button" class="format-chip" id="eb-select-toggle">☐ Select</button>
     <span id="eb-count"></span>
   </div>
 
@@ -594,6 +642,14 @@ h1 .tail{color:var(--accent)}
   </div>
 </div>
 
+<!-- Bulk select action bar for ebooks -->
+<div id="eb-bulk-bar" hidden>
+  <span class="eb-bulk-count" id="eb-bulk-count"></span>
+  <button type="button" class="eb-bulk-act" id="eb-bulk-tbr">Add to TBR</button>
+  <span class="eb-bulk-progress" id="eb-bulk-progress"></span>
+  <button type="button" class="eb-bulk-cancel" id="eb-bulk-cancel">Cancel</button>
+</div>
+
 <script>
 (function () {
   'use strict';
@@ -615,6 +671,20 @@ h1 .tail{color:var(--accent)}
   var shownBooks = [];      // what the shelf currently renders, in order
   var activeFormats = {};   // format -> true while its chip is toggled on
   var lastFocused = null;   // focus returns to the tapped tile on close
+
+  // Shelf book map: audiobook bookId slug -> ABS item ID (K12/K13, 2026-08-18).
+  // Loaded from shelf_book_map.json (the same file the audiobook site uses).
+  // Ebooks whose `audiobook_title` resolves to a slug present in this map get
+  // a "Shelf" button linking to ABS's item page for the sibling audiobook.
+  var _shelfMap = null;
+  fetch('shelf_book_map.json').then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) { if (d) _shelfMap = d; })
+    .catch(function () {});
+
+  // bookIdFromTitle — mirrors site/reviews.js (same logic as the audiobook site)
+  function _bookIdFromTitle(title) {
+    return (title || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-{2,}/g, '-').replace(/^-|-$/g, '');
+  }
 
   // The reading card's one extension point. The AUTH module below registers a
   // function here (window.ebooksShelf.onCard) and openCard hands it the book
@@ -858,20 +928,11 @@ h1 .tail{color:var(--accent)}
       ? '<div><span class="eb-provisional" title="Title and author were parsed from the file name, not read from the file&#x27;s own metadata — treat them as provisional.">unverified metadata</span></div>'
       : '';
     // "Also on audio": the file was filed beside an audiobook, so hand the
-    // reader the audiobook catalog's own search for this title. When the
-    // catalog holds MORE THAN ONE audio edition of this book, echo the
-    // library's "You own N audiobooks" and say the count instead — same link,
-    // same folder gate (the count rides on top; a book with no matched sibling
-    // still shows the plain mark). `audio_edition_count` is the manifest's
-    // per-book edition count (scripts/build_ebook_manifest.py).
-    var audioCount = Number(b.audio_edition_count) || 0;
-    var audioLabel = audioCount > 1
-      ? (audioCount + ' audiobooks &#x2192;')
-      : 'Also on audio &#x2192;';
+    // reader the audiobook catalog's own search for this title.
     var audio = b.beside_audiobook
       ? '<a class="eb-audio-link" href="https://audiobooks.heygabi.ai/#' +
           esc(new URLSearchParams({ q: String(b.title || '') }).toString()) +
-        '">' + audioLabel + '</a>'
+        '">Also on audio &#x2192;</a>'
       : '';
     var meta =
       '<div class="eb-meta">' +
@@ -909,9 +970,32 @@ h1 .tail{color:var(--accent)}
     // with no trailing slash — both forms break, for two different reasons the
     // read.html header spells out.
     var fmt = String(b.format || '').toLowerCase();
-    var read = (fmt === 'pdf' || fmt === 'epub') && b.anchor
-      ? '<a class="eb-read" href="read?b=' + encodeURIComponent(b.anchor) + '">Read &#x2192;</a>'
-      : '';
+    var read = '';
+    if ((fmt === 'pdf' || fmt === 'epub') && b.anchor) {
+      // Look up the shelf map via the audiobook_title first (the audiobook catalog's
+      // spelling of this book), then fall back to the ebook's own title. ABS items
+      // can hold both an audiobook AND an ebook (same item ID), so matching on
+      // either title finds the right ABS item. (K12/K13, 2026-08-21).
+      var shelfAbsId = null;
+      if (_shelfMap) {
+        if (b.audiobook_title) {
+          shelfAbsId = _shelfMap[_bookIdFromTitle(b.audiobook_title)] || null;
+        }
+        if (!shelfAbsId && b.title) {
+          shelfAbsId = _shelfMap[_bookIdFromTitle(b.title)] || null;
+        }
+      }
+      if (shelfAbsId) {
+        var shelfHref = 'https://shelf.heygabi.ai/audiobookshelf/item/' + encodeURIComponent(shelfAbsId);
+        read = '<span class="eb-read-group">' +
+          '<span class="eb-read-label">Read:</span>' +
+          '<a class="eb-read-native" href="read?b=' + encodeURIComponent(b.anchor) + '">Native</a>' +
+          '<a class="eb-read-shelf" href="' + esc(shelfHref) + '" target="_blank" rel="noopener">Shelf</a>' +
+        '</span>';
+      } else {
+        read = '<a class="eb-read" href="read?b=' + encodeURIComponent(b.anchor) + '">Read &#x2192;</a>';
+      }
+    }
     cardInfoEl.innerHTML =
       '<h2 id="eb-card-title">' + esc(b.title) + '</h2>' +
       (b.author ? '<div class="eb-card-author">' + esc(b.author) + '</div>' : '') +
@@ -956,6 +1040,7 @@ h1 .tail{color:var(--accent)}
   listEl.addEventListener('click', function (ev) {
     var tile = ev.target.closest('.eb-tile');
     if (!tile) return;
+    if (window._ebSelectMode) { _ebToggleTile(tile); return; }
     var b = shownBooks[Number(tile.dataset.idx)];
     if (b) openCard(b);
   });
@@ -1008,6 +1093,83 @@ h1 .tail{color:var(--accent)}
     onCard: function (fn) { cardHook = typeof fn === 'function' ? fn : null; },
   };
 
+  // ===== Multi-select mode for bulk TBR =====
+  window._ebSelectMode = false;
+  var _ebSelected = new Set(); // titles
+
+  var ebSelectToggle = document.getElementById('eb-select-toggle');
+  var ebBulkBar = document.getElementById('eb-bulk-bar');
+  var ebBulkCount = document.getElementById('eb-bulk-count');
+  var ebBulkTbr = document.getElementById('eb-bulk-tbr');
+  var ebBulkCancel = document.getElementById('eb-bulk-cancel');
+  var ebBulkProgress = document.getElementById('eb-bulk-progress');
+
+  function _ebUpdateBar() {
+    var n = _ebSelected.size;
+    if (ebBulkBar) ebBulkBar.hidden = n === 0;
+    if (ebBulkBar && n > 0) ebBulkBar.style.display = 'flex';
+    if (ebBulkCount) ebBulkCount.textContent = n + ' book' + (n === 1 ? '' : 's') + ' selected';
+    if (ebBulkProgress) ebBulkProgress.textContent = '';
+  }
+
+  function _ebEnterSelect() {
+    window._ebSelectMode = true;
+    if (ebSelectToggle) { ebSelectToggle.textContent = '✓ Selecting'; ebSelectToggle.classList.add('on'); }
+    _ebUpdateBar();
+  }
+
+  function _ebExitSelect() {
+    window._ebSelectMode = false;
+    _ebSelected.clear();
+    if (ebSelectToggle) { ebSelectToggle.textContent = '☐ Select'; ebSelectToggle.classList.remove('on'); }
+    listEl.querySelectorAll('.eb-selected').forEach(function(el) { el.classList.remove('eb-selected'); });
+    listEl.querySelectorAll('.eb-sel-check').forEach(function(el) { el.remove(); });
+    if (ebBulkBar) { ebBulkBar.hidden = true; ebBulkBar.style.display = 'none'; }
+  }
+
+  function _ebToggleTile(tile) {
+    var idx = Number(tile.dataset.idx);
+    var b = shownBooks[idx];
+    if (!b || !b.title) return;
+    var title = b.title;
+    if (_ebSelected.has(title)) {
+      _ebSelected.delete(title);
+      tile.classList.remove('eb-selected');
+      var chk = tile.querySelector('.eb-sel-check');
+      if (chk) chk.remove();
+    } else {
+      _ebSelected.add(title);
+      tile.classList.add('eb-selected');
+      var cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.checked = true; cb.className = 'eb-sel-check';
+      tile.querySelector('.eb-cover').appendChild(cb);
+    }
+    _ebUpdateBar();
+  }
+  window._ebToggleTile = _ebToggleTile;
+
+  if (ebSelectToggle) {
+    ebSelectToggle.addEventListener('click', function() {
+      if (window._ebSelectMode) _ebExitSelect();
+      else _ebEnterSelect();
+    });
+  }
+  if (ebBulkCancel) ebBulkCancel.addEventListener('click', _ebExitSelect);
+
+  // Bulk TBR bridge — the module script below sets window._ebBulkTbrHandler
+  if (ebBulkTbr) {
+    ebBulkTbr.addEventListener('click', function() {
+      if (typeof window._ebBulkTbrHandler === 'function') {
+        window._ebBulkTbrHandler(Array.from(_ebSelected));
+      } else {
+        alert('Sign in with Google to use bulk TBR.');
+      }
+    });
+  }
+
+  // Expose exit for the module script
+  window._ebExitSelect = _ebExitSelect;
+
   searchEl.addEventListener('input', render);
   sortEl.addEventListener('change', render);
 })();
@@ -1023,10 +1185,11 @@ h1 .tail{color:var(--accent)}
 <script type="module">
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
   import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
-  import { FIREBASE_CONFIG } from './fb-env.js';
+  import { FIREBASE_CONFIG, col } from './fb-env.js';
   import { mountAccountModal } from './account-modal.js';
   import { getLiveUser, getIdToken, signInWithGoogle, handleRedirectResult, getSession, resolveSiteAccess } from './identity.js';
   import { renderEbookNotes } from './ebook-notes.js';
+  import { bookIdFromTitle, readingListDocId } from './reviews.js';
   // ⚠️ CURTAIN, NOT LOCK. That module's header carries the whole argument; this
   // page takes no view of its own. The books stay gated by the estate's
   // `vis_ebooks` grant, server-side, on the manifest and on every range — on
@@ -1250,6 +1413,59 @@ h1 .tail{color:var(--accent)}
 
   // A redirect sign-in lands back here; resolve it before asking who is live.
   handleRedirectResult(app).catch(() => {}).then(boot);
+
+  // ===== Bulk TBR handler for ebook multi-select =====
+
+  window._ebBulkTbrHandler = async function(titles) {
+    const progress = document.getElementById('eb-bulk-progress');
+    const tbrBtn = document.getElementById('eb-bulk-tbr');
+    if (tbrBtn) tbrBtn.disabled = true;
+
+    const live = await getLiveUser(app).catch(() => null);
+    const uid = live && live.uid ? live.uid : null;
+    const session = getSession();
+
+    if (!uid || !session) {
+      alert('Sign in with Google to add books to your TBR.');
+      if (tbrBtn) tbrBtn.disabled = false;
+      return;
+    }
+
+    const { doc, setDoc, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
+    let done = 0;
+    let failed = 0;
+
+    for (const title of titles) {
+      if (progress) progress.textContent = `Adding ${done + 1} of ${titles.length}\u2026`;
+      const bookId = bookIdFromTitle(title);
+      const docId = readingListDocId(uid, bookId);
+      try {
+        await setDoc(doc(db, col('readingLists'), docId), {
+          uid,
+          displayName: session.displayName,
+          bookId,
+          bookTitle: title,
+          bookCover: '',
+          status: 'tbr',
+          addedAt: serverTimestamp(),
+        }, { merge: true });
+      } catch (e) {
+        console.warn('[EbookBulkTBR] Failed for:', title, e);
+        failed++;
+      }
+      done++;
+    }
+
+    if (progress) {
+      progress.textContent = failed > 0
+        ? `Done \u2014 ${failed} of ${titles.length} failed.`
+        : `Added ${titles.length} to your TBR!`;
+      setTimeout(() => { if (progress) progress.textContent = ''; }, 4000);
+    }
+    if (tbrBtn) tbrBtn.disabled = false;
+
+    if (typeof window._ebExitSelect === 'function') window._ebExitSelect();
+  };
 </script>
 </body>
 </html>
