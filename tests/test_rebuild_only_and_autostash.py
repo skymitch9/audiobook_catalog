@@ -140,11 +140,16 @@ def test_auto_commit_git_add_allowlist_unchanged(monkeypatch):
     add_calls = [c for c in calls if c[:2] == ["git", "add"]]
     assert len(add_calls) == 1
     assert add_calls[0] == [
-        "git", "add", "site/catalog.csv", "site/index.html",
+        "git", "add", "site/catalog.csv", "site/index.html", "site/ebooks.html",
         "site/covers_manifest.json", "site/covers-base.js",
         "site/stats.html", "site/chapters.json", "site/content_warnings.json",
         "site/additions_log.json", "site/ebooks_status.json", "author_drive_map.json",
     ]
+    # site/ebooks.html joined _ALLOWLIST in 23761c3 ("ship site/ebooks.html
+    # like index.html"); this assertion had not been updated and was failing on
+    # main until the 2026-08-24 sanctity pass. Both this list and the
+    # auto-promote.yml `allow=` regex must carry it — enforced now by
+    # tests/test_allowlist_promote_parity.py.
     # ⚠️ site/ebooks.json is DELIBERATELY absent since 2026-08-17. The manifest
     # is gitignored (owner directive: "I don't want people scraping my books"
     # — this repo is PUBLIC, so a tracked manifest is world-readable at a raw
