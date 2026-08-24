@@ -109,8 +109,16 @@ def list_files_in_folder(service, folder_id: str) -> list[dict]:
     return files
 
 
-def download_file(service, file_id: str, dest_path: Path) -> bool:
-    """Download a file from Drive to local path."""
+def download_file(service, file_id: str, dest_path: Path, expected_size: int = 0) -> bool:
+    """Download a file from Drive to local path.
+
+    When expected_size (>0) is supplied, the on-disk size is verified against it
+    after download; a mismatch is treated as a FAILED download (the partial file
+    is removed and False returned). This guard matters because the reclaim path
+    deletes the Drive copy only after a "successful" download — a truncated
+    download that was treated as success would take the only remaining copy with
+    it.
+    """
     from googleapiclient.http import MediaIoBaseDownload
 
     try:
@@ -125,6 +133,19 @@ def download_file(service, file_id: str, dest_path: Path) -> bool:
                 if status:
                     pct = int(status.progress() * 100)
                     print(f"\r    Downloading... {pct}%", end="", flush=True)
+
+        # Verify the download is complete before treating it as successful.
+        if expected_size and expected_size > 0:
+            actual_size = dest_path.stat().st_size
+            if actual_size != expected_size:
+                print(
+                    f"\n    [ERROR] Size mismatch for {dest_path.name}: "
+                    f"got {actual_size} bytes, expected {expected_size}. "
+                    f"Treating as failed download."
+                )
+                dest_path.unlink()
+                return False
+
         print(f"\r    Downloaded: {dest_path.name}")
         return True
     except Exception as e:
@@ -135,13 +156,19 @@ def download_file(service, file_id: str, dest_path: Path) -> bool:
 
 
 def delete_file_from_drive(service, file_id: str, file_name: str) -> bool:
-    """Delete a file from Drive."""
+    """Move a file to the Drive trash (recoverable), not a permanent delete.
+
+    Every sibling script in this repo trashes rather than files().delete(); a
+    permanent delete here would irreversibly destroy another user's file if the
+    prior download check were ever wrong. Trashed files are recoverable for the
+    Drive retention window.
+    """
     try:
-        service.files().delete(fileId=file_id).execute()
-        print(f"    [DELETED] {file_name} from Drive")
+        service.files().update(fileId=file_id, body={"trashed": True}).execute()
+        print(f"    [TRASHED] {file_name} on Drive")
         return True
     except Exception as e:
-        print(f"    [ERROR] Could not delete {file_name}: {e}")
+        print(f"    [ERROR] Could not trash {file_name}: {e}")
         return False
 
 
@@ -253,7 +280,7 @@ def run_reclaim(dry_run: bool = False, download_only: bool = False):
             if dry_run:
                 print(f"    [DRY-RUN] Would download to: {item['local_path']}")
             else:
-                success = download_file(service, item["file_id"], item["local_path"])
+                success = download_file(service, item["file_id"], item["local_path"], item["size"])
                 if success:
                     downloaded += 1
 
@@ -280,7 +307,7 @@ def run_reclaim(dry_run: bool = False, download_only: bool = False):
                     print(f"    [DRY-RUN] Would download first, then delete from Drive")
                 else:
                     print(f"    Downloading before deleting...")
-                    success = download_file(service, item["file_id"], item["local_path"])
+                    success = download_file(service, item["file_id"], item["local_path"], item["size"])
                     if not success:
                         print(f"    [SKIP] Failed to download, won't delete from Drive")
                         continue
