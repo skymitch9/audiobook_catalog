@@ -619,6 +619,151 @@ class TestControlContract:
         assert decision.may_start is False
 
 
+class TestPauseMode:
+    """What a manual pause MEANS (owner ask 2026-08-23, verbatim: *"when i
+    manually pause the pipeline it says nothing can override it. I want it to
+    ask me if i want to stop all work until unpaused or if scheduled window is
+    fine to continue."*).
+
+    ⚠️ THE MATRIX IS THE TEST. Two modes x two triggers is four cases and all
+    four are pinned below, because three of them are "blocked" and it would be
+    very easy to ship a mode that never actually unlocked anything — or, far
+    worse, one that unlocked the manual path too. `window_ok=True` IS the
+    scheduled trigger (a start genuinely inside the nightly 12am-8am window);
+    `window_ok=False` is a manual/interactive one.
+    """
+
+    PAUSED_ALL = dict(paused=True, pause_mode=ic.PAUSE_MODE_ALL, updated_by="estate-ops:nb@x")
+    PAUSED_MANUAL_ONLY = dict(paused=True, pause_mode=ic.PAUSE_MODE_MANUAL_ONLY,
+                              updated_by="estate-ops:nb@x")
+
+    # -- the four cases ------------------------------------------------------
+    def test_mode_all_blocks_the_scheduled_window(self):
+        """Answer 1, scheduled: today's behaviour, unchanged."""
+        reason = ic.control_blocks_start(ic.ControlState(**self.PAUSED_ALL), phx(2), window_ok=True)
+        assert reason and "paused" in reason.lower()
+
+    def test_mode_all_blocks_a_manual_start(self):
+        """Answer 1, manual."""
+        reason = ic.control_blocks_start(ic.ControlState(**self.PAUSED_ALL), phx(2), window_ok=False)
+        assert reason and "paused" in reason.lower()
+
+    def test_mode_manual_only_lets_the_scheduled_window_through(self):
+        """Answer 2, scheduled - THE ONLY CASE THAT PROCEEDS."""
+        assert ic.control_blocks_start(
+            ic.ControlState(**self.PAUSED_MANUAL_ONLY), phx(2), window_ok=True) is None
+
+    def test_mode_manual_only_still_blocks_a_manual_start(self):
+        """Answer 2, manual. ⚠️ 'the scheduled window may continue' grants the
+        WINDOW permission, never a person at a keyboard."""
+        reason = ic.control_blocks_start(
+            ic.ControlState(**self.PAUSED_MANUAL_ONLY), phx(2), window_ok=False)
+        assert reason and "manual start" in reason
+
+    # -- the default, which is the safety story ------------------------------
+    def test_absent_mode_means_stop_everything(self):
+        """⚠️ EVERY pause document written before 2026-08-23 lacks this field
+        and every one of them meant 'stop everything'. Defaulting the other way
+        would silently reinterpret an old pause into permission to run."""
+        legacy = ic.ControlState(paused=True)  # no pause_mode passed at all
+        assert legacy.pause_mode == ic.PAUSE_MODE_ALL
+        assert ic.control_blocks_start(legacy, phx(2), window_ok=True) is not None
+        assert ic.control_blocks_start(legacy, phx(2), window_ok=False) is not None
+
+    def test_read_control_defaults_an_absent_field_closed(self):
+        assert ic.normalise_pause_mode(None) == ic.PAUSE_MODE_ALL
+
+    @pytest.mark.parametrize("junk", ["manual-only", "MANUAL_ONLY", "", 1, None, ["manual_only"]])
+    def test_unrecognised_mode_fails_closed(self, junk):
+        """A typo or a wrong type must never become a permissive pause."""
+        assert ic.normalise_pause_mode(junk) == ic.PAUSE_MODE_ALL
+        state = ic.ControlState(paused=True, pause_mode=junk)
+        assert ic.control_blocks_start(state, phx(2), window_ok=True) is not None
+
+    def test_window_ok_defaults_to_false_so_an_unupdated_caller_is_safe(self):
+        """The default argument is the fail-closed one: a caller that does not
+        pass window_ok is treated as manual and refused."""
+        assert ic.control_blocks_start(ic.ControlState(**self.PAUSED_MANUAL_ONLY), phx(2)) is not None
+
+    # -- the wording, which is half the feature ------------------------------
+    def test_refusal_names_the_mode_and_who_paused(self):
+        reason = ic.control_blocks_start(ic.ControlState(**self.PAUSED_ALL), phx(2), window_ok=True)
+        assert "stop all work until unpaused" in reason
+        assert "estate-ops:nb@x" in reason
+
+    def test_manual_only_refusal_names_who_paused(self):
+        reason = ic.control_blocks_start(
+            ic.ControlState(**self.PAUSED_MANUAL_ONLY), phx(2), window_ok=False)
+        assert "estate-ops:nb@x" in reason and "12am-8am" in reason
+
+    def test_missing_updated_by_does_not_produce_a_dangling_phrase(self):
+        reason = ic.control_blocks_start(ic.ControlState(paused=True), phx(2))
+        assert "set by" not in reason
+
+    # -- scope: what the mode governs, and what it must not ------------------
+    def test_mode_governs_paused_until_too(self):
+        timed = ic.ControlState(paused_until="2026-08-19T00:00:00-07:00",
+                                pause_mode=ic.PAUSE_MODE_MANUAL_ONLY)
+        assert ic.control_blocks_start(timed, phx(20), window_ok=True) is None
+        assert ic.control_blocks_start(timed, phx(20), window_ok=False) is not None
+
+    def test_mode_never_unlocks_a_scheduled_pause_window(self):
+        """⚠️ A pause window IS a scheduled block - the owner's quiet hours. If
+        'let the scheduled window continue' overrode one, pause windows would
+        mean nothing at all."""
+        state = ic.ControlState(
+            pause_mode=ic.PAUSE_MODE_MANUAL_ONLY,
+            pause_windows=[{"from": "2026-08-18T19:00:00-07:00",
+                            "until": "2026-08-19T00:00:00-07:00"}])
+        assert ic.control_blocks_start(state, phx(20), window_ok=True) is not None
+
+    def test_mode_never_unlocks_an_unreadable_control(self):
+        """Fail-closed beats every field on the document, including this one."""
+        state = ic.ControlState(readable=False, error="timeout",
+                                pause_mode=ic.PAUSE_MODE_MANUAL_ONLY)
+        assert "PAUSED" in ic.control_blocks_start(state, phx(2), window_ok=True)
+
+    def test_mode_does_not_touch_dont_check_until(self):
+        state = ic.ControlState(dont_check_until="2026-08-19T00:00:00-07:00",
+                                pause_mode=ic.PAUSE_MODE_MANUAL_ONLY)
+        assert ic.control_defers_check(state, phx(20)) is not None
+
+    def test_an_unpaused_control_is_unaffected_by_either_mode(self):
+        for mode in ic.PAUSE_MODES:
+            assert ic.control_blocks_start(ic.ControlState(pause_mode=mode), phx(2)) is None
+
+    # -- end to end through the real gate ------------------------------------
+    def test_decide_start_honours_manual_only_inside_the_window(self, monkeypatch):
+        monkeypatch.setattr(ic, "gpu_utilisation", lambda *a, **k: 4)
+        decision = ic.decide_start(ic.ControlState(**self.PAUSED_MANUAL_ONLY),
+                                   now=phx(2), needs_gpu=True)
+        assert decision.may_start is True
+
+    def test_decide_start_still_refuses_manual_only_outside_the_window(self, monkeypatch):
+        """2pm is outside 12am-8am, so `window_ok` is False and the pause binds
+        - even though `decide_start` is the 'scheduled' entry point. The gate is
+        the WINDOW, not the name of the function."""
+        monkeypatch.setattr(ic, "gpu_utilisation", lambda *a, **k: 4)
+        decision = ic.decide_start(ic.ControlState(**self.PAUSED_MANUAL_ONLY),
+                                   now=phx(14), needs_gpu=True)
+        assert decision.may_start is False and "manual start" in decision.reason
+
+    def test_decide_start_refuses_mode_all_inside_the_window(self, monkeypatch):
+        monkeypatch.setattr(ic, "gpu_utilisation", lambda *a, **k: 4)
+        decision = ic.decide_start(ic.ControlState(**self.PAUSED_ALL), now=phx(2), needs_gpu=True)
+        assert decision.may_start is False
+
+    def test_the_now_flag_path_is_refused_under_both_modes(self):
+        """⚠️ `--now` has already waived the window, so it is a manual start by
+        definition and must not inherit the window's exemption. Guards the
+        `window_ok=False` at ingest_books._control_or_guard's call site."""
+        from app.tools.ingest_books import _control_or_guard
+
+        for kwargs in (self.PAUSED_ALL, self.PAUSED_MANUAL_ONLY):
+            blocked = _control_or_guard(ic.ControlState(**kwargs), needs_gpu=True)
+            assert blocked and "paused" in blocked.lower()
+
+
 class TestDecideStart:
     def test_cpu_work_is_gpu_guard_exempt(self, monkeypatch):
         """⚠️ CHANGED 2026-08-18 and the old assertion was the BUG. This used to

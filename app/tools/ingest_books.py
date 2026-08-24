@@ -49,7 +49,7 @@ from app.core.book_chunker import chunk_book
 from app.core.ingest_control import (
     ControlState, StartDecision, batch_size_for, clear_requeue, decide_start,
     gpu_utilisation, in_window, machine_tz_is_phoenix, may_start_new_book,
-    phoenix_now, read_control,
+    pause_mode_words, phoenix_now, read_control,
 )
 from app.core.ingest_pack import (
     INGESTER_VERSION, PackRefused, build_index, build_pack, pack_stats,
@@ -583,7 +583,14 @@ def _control_or_guard(control: ControlState, needs_gpu: bool,
         cpu_guard, deadline_blocks_start,
     )
 
-    blocked = control_defers_check(control) or control_blocks_start(control)
+    # ⚠️ `window_ok=False` IS DELIBERATE AND IS THE POINT OF THIS CALL SITE
+    # (owner ask 2026-08-23). This is the `--now` path — a person at a keyboard
+    # who has already waived the window — so it is a MANUAL start by
+    # definition, and a manual start is refused under BOTH pause modes. The
+    # owner's "let the scheduled window continue" exempts the 12am-8am window,
+    # not a hand-run that has just declared it is ignoring that window.
+    # Passing the real clock here would let `--now` at 2am walk through a pause.
+    blocked = control_defers_check(control) or control_blocks_start(control, window_ok=False)
     if blocked:
         return blocked
     if not needs_gpu:
@@ -673,6 +680,11 @@ def status(args) -> int:
         },
         "control": {
             "paused": control.paused, "paused_until": control.paused_until,
+            # ⚠️ `paused: true` alone no longer says what the pause MEANS — the
+            # mode is half the answer, so --status prints both or it is lying
+            # by omission (owner ask 2026-08-23).
+            "pause_mode": control.pause_mode,
+            "pause_mode_means": pause_mode_words(control.pause_mode),
             "dont_check_until": control.dont_check_until,
             "pause_windows": control.pause_windows,
             # ⚠️ `requeue` is what is PENDING CONSUMPTION, not what was applied -

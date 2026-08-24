@@ -381,6 +381,51 @@ CONTROL_COLLECTION = os.getenv("INGEST_CONTROL_COLLECTION", "ingestion_control")
 CONTROL_DOC = "state"
 
 
+# --------------------------------------------------------------------------
+# What a manual pause MEANS (owner ask 2026-08-23, verbatim: "when i manually
+# pause the pipeline it says nothing can override it. I want it to ask me if i
+# want to stop all work until unpaused or if scheduled window is fine to
+# continue.")
+#
+# Until now `paused=true` was step 2 of control_blocks_start() and it was
+# UNCONDITIONAL — the dashboard even said so in words ("It stays paused until
+# someone presses Resume"). The owner wants that to be a question with two
+# answers, asked afresh at every pause (his decision: nothing is saved as a
+# preference), so the pause document now carries what the pause MEANT.
+#
+#   "all"          stop everything until unpaused — the historical behaviour.
+#   "manual_only"  stop interactive/by-hand work; the nightly scheduled window
+#                  proceeds as if nothing were paused.
+#
+# ⚠️ ABSENT OR UNRECOGNISED == "all", AND THAT IS THE WHOLE SAFETY STORY. Every
+# pause document written before today has no `pause_mode` field, and every one
+# of them meant "stop everything". A reader that defaulted to `manual_only` —
+# or that treated a typo'd value as permissive — would silently reinterpret
+# pauses the owner set days ago into permission to run. Fail CLOSED, always:
+# the only value that unlocks the window is the exact string "manual_only".
+PAUSE_MODE_ALL = "all"
+PAUSE_MODE_MANUAL_ONLY = "manual_only"
+PAUSE_MODES = (PAUSE_MODE_ALL, PAUSE_MODE_MANUAL_ONLY)
+
+
+def normalise_pause_mode(raw) -> str:
+    """Whatever the dashboard wrote -> one of PAUSE_MODES, failing closed.
+
+    ⚠️ Same defensive posture as `clean_id_list`: this field is written by a
+    DIFFERENT repo's Worker, so its shape is somebody else's promise. A
+    number, a None, a mis-spelling and a missing field all mean "all" — the
+    strict reading — because the alternative is a pause that quietly stops
+    binding.
+    """
+    return PAUSE_MODE_MANUAL_ONLY if raw == PAUSE_MODE_MANUAL_ONLY else PAUSE_MODE_ALL
+
+
+def pause_mode_words(mode: str) -> str:
+    """The mode in the owner's own words, for logs and refusals."""
+    return ("stop all work until unpaused" if mode == PAUSE_MODE_ALL
+            else "let the scheduled window continue")
+
+
 @dataclass
 class ControlState:
     """The contract the GABI dashboard writes and this processor reads.
@@ -389,6 +434,9 @@ class ControlState:
     (/dev/ lane). Fields, all optional, absent == permissive:
 
         paused           bool        hard stop; no new book starts
+        pause_mode       "all"|"manual_only"   what the pause MEANS (see the
+                                     PAUSE_MODES block above). Governs `paused`
+                                     and `paused_until`; ABSENT == "all".
         paused_until     ISO8601     no new starts before this instant
         dont_check_until ISO8601     do not even EVALUATE the guard before this
         pause_windows    [{from,until}]  scheduled quiet hours, ISO8601 with tz
@@ -420,6 +468,10 @@ class ControlState:
     """
 
     paused: bool = False
+    # ⚠️ Defaults to "all" so a ControlState built by hand (tests, the no-
+    # credential path) carries the strict meaning, exactly like a pause
+    # document written before this field existed.
+    pause_mode: str = PAUSE_MODE_ALL
     paused_until: Optional[str] = None
     dont_check_until: Optional[str] = None
     pause_windows: List[dict] = None
@@ -440,6 +492,11 @@ class ControlState:
     error: Optional[str] = None
 
     def __post_init__(self):
+        # Normalised here rather than only in read_control(), so EVERY route
+        # into this dataclass fails closed — including a test or a caller that
+        # passes pause_mode="manual-only" (hyphen) and would otherwise get a
+        # permissive pause out of a typo.
+        self.pause_mode = normalise_pause_mode(self.pause_mode)
         if self.pause_windows is None:
             self.pause_windows = []
         if self.requeue is None:
@@ -521,21 +578,64 @@ def parse_iso(value: Optional[str]) -> Optional[datetime]:
     return dt.replace(tzinfo=PHOENIX) if dt.tzinfo is None else dt
 
 
-def control_blocks_start(state: ControlState, now: Optional[datetime] = None) -> Optional[str]:
+def _who_paused(state: ControlState) -> str:
+    """Who set the pause, for the refusal line. `updated_by` is written by the
+    dashboard as `estate-ops:<email>`; the processor writes "processor"."""
+    who = (state.updated_by or "").strip()
+    return f" (set by {who})" if who else ""
+
+
+def control_blocks_start(state: ControlState, now: Optional[datetime] = None,
+                         window_ok: bool = False) -> Optional[str]:
     """A worded reason a start is blocked, or None to proceed.
 
     Never a bare boolean: every refusal this estate makes has to say what
     happened and what would clear it, and these strings are what the log and the
     dashboard show.
+
+    ⚠️ `window_ok` IS THE SCHEDULED/MANUAL DISTINCTION, AND ITS DEFAULT IS THE
+    SAFE ONE (owner ask 2026-08-23 — see the PAUSE_MODES block). A pause set to
+    `manual_only` yields ONLY to a start that is genuinely inside the nightly
+    12am-8am window; `window_ok=False` — which is what every caller that does
+    not pass it gets, including `--now`'s `_control_or_guard` — is a
+    manual/interactive start and is refused under BOTH modes. That is the
+    owner's second answer read literally: *"if scheduled window is fine to
+    continue"* grants the WINDOW permission, never a person at a keyboard.
+
+    ⚠️ THE MODE GOVERNS `paused` AND `paused_until` ONLY — NEVER `pause_windows`.
+    A pause window IS a scheduled block (the owner's quiet hours), so letting
+    "the scheduled window may continue" override one would make pause windows
+    mean nothing at all. Nor does it touch `dont_check_until`, which is a
+    spend-nothing instruction rather than a pause, or the unreadable-control
+    branch, which must keep failing closed no matter what any field says.
     """
     now = now or phoenix_now()
     if not state.readable:
         return f"ingestion control unreadable ({state.error or 'unknown'}) - treating as PAUSED"
-    if state.paused:
-        return "paused by the dashboard (paused=true); clear it there to resume"
+
+    # The manual pause and its timed twin both mean whatever `pause_mode` says
+    # they mean. `window_ok` decides whether this particular start is the one
+    # the owner exempted.
+    mode = normalise_pause_mode(state.pause_mode)
+    scheduled_exempt = mode == PAUSE_MODE_MANUAL_ONLY and window_ok
+    who = _who_paused(state)
+
+    if state.paused and not scheduled_exempt:
+        if mode == PAUSE_MODE_MANUAL_ONLY:
+            return ("paused by the dashboard - the scheduled 12am-8am window may "
+                    f"continue, but this is a manual start{who}; clear the pause "
+                    "there to run by hand")
+        return (f"paused by the dashboard (paused=true, mode={mode}: "
+                f"{pause_mode_words(mode)}){who}; clear it there to resume")
+
     until = parse_iso(state.paused_until)
-    if until and now < until:
-        return f"paused until {until.isoformat()} (dashboard paused_until)"
+    if until and now < until and not scheduled_exempt:
+        if mode == PAUSE_MODE_MANUAL_ONLY:
+            return (f"paused until {until.isoformat()} - the scheduled 12am-8am "
+                    f"window may continue, but this is a manual start{who}")
+        return (f"paused until {until.isoformat()} (dashboard paused_until, "
+                f"mode={mode}: {pause_mode_words(mode)}){who}")
+
     for window in state.pause_windows or []:
         start = parse_iso(window.get("from"))
         end = parse_iso(window.get("until"))
@@ -602,6 +702,9 @@ def read_control(collection: str = None) -> ControlState:
                   f"{[repr(b)[:60] for b in bad[:5]]}")
     return ControlState(
         paused=bool(data.get("paused", False)),
+        # Absent on every document written before 2026-08-23, and absent means
+        # "all" — see normalise_pause_mode.
+        pause_mode=normalise_pause_mode(data.get("pause_mode")),
         paused_until=data.get("paused_until"),
         dont_check_until=data.get("dont_check_until"),
         pause_windows=list(data.get("pause_windows") or []),
@@ -1030,11 +1133,16 @@ def decide_start(state: ControlState, now: Optional[datetime] = None,
     if deferred:
         return StartDecision(False, deferred, batch_size_for(now))
 
-    blocked = control_blocks_start(state, now)
+    # ⚠️ MOVED ABOVE THE PAUSE CHECK 2026-08-23, and the order now matters.
+    # `window_ok` used to be computed after the pause gate because the pause
+    # gate had no use for it; a `manual_only` pause is exactly the case where
+    # it does. `may_start_new_book()` is pure clock arithmetic with no I/O, so
+    # computing it first costs nothing and cannot change any other gate.
+    window_ok = may_start_new_book(now)
+
+    blocked = control_blocks_start(state, now, window_ok=window_ok)
     if blocked:
         return StartDecision(False, blocked, batch_size_for(now))
-
-    window_ok = may_start_new_book(now)
 
     if not needs_gpu:
         return _decide_cpu_only(window_ok, now, sleep, allow_opportunistic)
