@@ -67,6 +67,12 @@ from app.core.ingest_transcripts import (
     save_ledger as save_transcript_ledger,
     upload_transcript,
 )
+# ⚠️ REUSE, do not duplicate: pid_alive() is the estate's single canonical
+# PID-liveness decision (Windows OpenProcess + GetExitCodeProcess done right;
+# see app/core/pipeline_lock.py's module docstring for why os.kill is unsafe on
+# Windows). The estate forbids a second copy of a decision-making function, so
+# this lock borrows that one primitive rather than re-implementing it here.
+from app.core.pipeline_lock import pid_alive
 from app.core.review_join import normalise_title
 
 
@@ -78,13 +84,86 @@ def log(msg: str) -> None:
     print(f"[{phoenix_now().strftime('%Y-%m-%d %H:%M:%S')} MST] {msg}", flush=True)
 
 
+def _this_host() -> str:
+    # Same env probe pipeline_lock uses (a trivial read, not a decision), so the
+    # host recorded in the lock and the host we compare against agree.
+    return os.getenv("COMPUTERNAME") or os.getenv("HOSTNAME") or "unknown"
+
+
+def _read_lock_holder(path: Path) -> Optional[dict]:
+    """Best-effort read of the lock's {pid, host, at}. None if missing OR
+    unparseable (a crash mid-write can leave a truncated file); the caller then
+    falls back to the file-mtime age ceiling."""
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        return {
+            "pid": int(raw["pid"]),
+            "host": str(raw.get("host", "?")),
+            "at": str(raw.get("at", "?")),
+        }
+    except FileNotFoundError:
+        return None
+    except Exception:
+        return None  # corrupt/partial write -> caller uses mtime backstop
+
+
+def _lock_age_hours(path: Path) -> float:
+    try:
+        return (time.time() - path.stat().st_mtime) / 3600.0
+    except OSError:
+        return float("inf")
+
+
+def _lock_is_stale(path: Path) -> tuple[bool, str]:
+    """Is the ingest lock at `path` safe to reclaim? Returns (stale, reason).
+
+    Two independent signals, mirroring app/core/pipeline_lock.py — either one
+    alone clears the lock:
+
+      1. **PID-liveness (the fast path).** If the recorded holder pid is
+         provably NOT running, the lock died the instant the holder did — a hard
+         crash, a kill, or a power loss mid-window — and is reclaimable
+         immediately, regardless of age. This is the whole point of the fix:
+         without it a crash mid-window stranded the 00:00-08:00 ingestion window
+         for up to LOCK_STALE_HOURS (12 h), the exact failure the 30-minute
+         cadence exists to prevent.
+
+      2. **Age ceiling (LOCK_STALE_HOURS, the backstop).** Covers a holder that
+         is still alive but wedged, AND every case where liveness CANNOT be
+         trusted — a corrupt/unreadable lock file, or a lock recorded on a
+         DIFFERENT host (a pid is meaningless on another machine, and a foreign
+         or recycled pid must never be read as 'alive enough to steal').
+
+    ⚠️ Fail-safe direction preserved: when liveness is uncertain we DO NOT steal
+    — only a pid that is provably dead ON THIS HOST short-circuits the ceiling.
+    A pid that reads alive (including a recycled pid that now belongs to some
+    unrelated process) is left alone until the age ceiling elapses.
+    """
+    holder = _read_lock_holder(path)
+    if holder is not None and holder["pid"] > 0 and holder["host"] == _this_host():
+        if not pid_alive(holder["pid"]):
+            return True, f"holder pid {holder['pid']} is dead"
+        # Alive on this host: only the age ceiling below can reclaim it.
+    age_h = _lock_age_hours(path)
+    if age_h >= LOCK_STALE_HOURS:
+        return True, f"{age_h:.1f} h old, past the {LOCK_STALE_HOURS} h ceiling"
+    return False, ""
+
+
 class _Lock:
     """Single-flight guard, because the scheduled task fires every 30 minutes.
 
     ⚠️ Without this, the 02:00 invocation starts a second transcription while the
     00:00 one is still running - two Whisper processes on a 16 GB card, both of
-    which then OOM or thrash, and neither of which finishes. Stale after
-    LOCK_STALE_HOURS so a machine that lost power does not stay locked forever.
+    which then OOM or thrash, and neither of which finishes.
+
+    Stale-lock recovery has TWO independent signals (see _lock_is_stale): a
+    provably-dead holder pid reclaims the lock instantly, and LOCK_STALE_HOURS is
+    the age backstop for a wedged-but-alive holder or a lock whose pid cannot be
+    trusted. Before the pid check was added this was time-only, so a crash /
+    kill / power loss mid-window left the whole 00:00-08:00 window stranded for
+    up to 12 h — the exact failure the 30-minute cadence claims to prevent
+    (docs/info/pipeline-sanctity-2026-08-24.md, finding #1).
     """
 
     def __init__(self, path: Path = LOCK_PATH):
@@ -94,13 +173,23 @@ class _Lock:
     def __enter__(self):
         self.path.parent.mkdir(parents=True, exist_ok=True)
         if self.path.exists():
-            age_h = (time.time() - self.path.stat().st_mtime) / 3600
-            if age_h < LOCK_STALE_HOURS:
-                log(f"another ingest run holds the lock ({age_h:.1f} h old); exiting")
+            stale, reason = _lock_is_stale(self.path)
+            if not stale:
+                holder = _read_lock_holder(self.path)
+                who = (
+                    f"pid {holder['pid']} on {holder['host']}, started {holder['at']}"
+                    if holder else "unreadable lock file"
+                )
+                log(f"another ingest run holds the lock ({who}, "
+                    f"{_lock_age_hours(self.path):.1f} h old); exiting")
                 return self
-            log(f"stale lock ({age_h:.1f} h) - taking it")
+            log(f"stale lock - taking it ({reason})")
         self.path.write_text(
-            json.dumps({"pid": os.getpid(), "at": phoenix_now().isoformat()}),
+            json.dumps({
+                "pid": os.getpid(),
+                "host": _this_host(),
+                "at": phoenix_now().isoformat(),
+            }),
             encoding="utf-8")
         self.acquired = True
         return self
