@@ -1192,7 +1192,11 @@ def _run_pipeline_body(
             # would refresh the link exactly as often as the owner buys
             # audiobooks: not a fix for the staleness that created this step,
             # but the same bug on a longer fuse. See its own header.
-            _run_sibling_link()
+            # `mark_step=False` for the STEP 7 reason one door along: pstatus
+            # .step() would mark sort/upload/catalog/publish 'done', and on
+            # this path none of them ran. The detail line is still written —
+            # the sweep really did run, and that is a real result.
+            _run_sibling_link(mark_step=False)
         print("=" * 60)
         # The common case: an idle scheduled run. Report it as a real success
         # so the panel shows "checked, nothing new" rather than a stale run.
@@ -2542,15 +2546,30 @@ def _link_tsx_cmd(repo: Path) -> list[str] | None:
     return [npx, "--yes", "tsx"]
 
 
-def _run_sibling_link(label: str = "[STEP 11] Linking sibling catalogues (audiobook ⇄ library)") -> None:
+def _run_sibling_link(
+    label: str = "[STEP 11] Linking sibling catalogues (audiobook ⇄ library)",
+    mark_step: bool = True,
+) -> None:
     """Run library_catalog's backfill-audiobook-holdings.mjs for this cycle.
 
     Never raises. Exactly one named line is printed on every path — applied,
     in sync, skipped, failed.
+
+    ⚠️ `mark_step=False` on the IDLE path, and this is not cosmetic.
+    pstatus.step() marks every entry BEFORE the named one 'done' — true on the
+    busy path, where sort/upload/catalog/publish really did run, and a
+    fabrication on the idle path, where STEP 2 returned early and none of them
+    did. So the idle cycle writes the DETAIL (the sweep genuinely ran, and its
+    result is a real fact) without claiming the five steps above it happened.
+    Same stance as _push_estate_index()'s `record_step`, arrived at from the
+    other side: that step suppresses a detail it did not earn; this one
+    suppresses a position it did not reach.
     """
     import subprocess
 
     print(f"\n{label}...")
+    if mark_step:
+        pstatus.step("link")
 
     # --- three named skips, never silence. A machine that CANNOT reach the
     # sibling must be distinguishable from one that reached it and found

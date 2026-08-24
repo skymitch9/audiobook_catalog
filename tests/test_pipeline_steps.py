@@ -557,3 +557,21 @@ def test_step_link_is_dispatchable_and_never_commits_this_repo(monkeypatch, isol
     sync._run_step_body("link", "manual-step:link")
     started = isolated_env.calls_named("start_step_run")[0]
     assert started[1] == ("link", "Link sibling catalogues", "manual-step:link")
+
+
+def test_link_marks_the_step_on_the_busy_path_only(monkeypatch, isolated_env, tmp_path):
+    """pstatus.step() marks every entry BEFORE the named one 'done'. True on
+    the busy path; a fabrication on the idle one, where STEP 2 returned early
+    and sort/upload/catalog/publish never ran. The DETAIL is written either
+    way, because the sweep genuinely ran on both."""
+    _fake_link_run(monkeypatch, tmp_path, _FakeProc(stdout=_REAL_FINAL_LINE))
+    sync._run_sibling_link(mark_step=False)
+    assert isolated_env.calls_named("step") == []
+    assert _link_detail(isolated_env)  # still reported
+
+
+def test_link_default_marks_the_step(monkeypatch, isolated_env, tmp_path):
+    _fake_link_run(monkeypatch, tmp_path, _FakeProc(stdout=_REAL_FINAL_LINE))
+    sync._run_sibling_link()
+    marked = isolated_env.calls_named("step")
+    assert len(marked) == 1 and marked[0][1] == ("link",)
