@@ -25,6 +25,7 @@ import json
 import os
 import re
 import sys
+import tempfile
 import time
 from dataclasses import dataclass, field
 
@@ -114,19 +115,71 @@ DRIVE_PARENT_FOLDER_ID: str = "1yZHU_UryCZkuhg9zFzu5uOadx3NI0FJv"
 # ---------------------------------------------------------------------------
 
 
+def _atomic_write_json(path: Path, data) -> None:
+    """Write JSON to `path` atomically (F3, 2026-08-24).
+
+    Dump to a temp file in the SAME directory, flush + fsync, then
+    ``os.replace()`` — an atomic swap on both NTFS and POSIX. A crash, reboot
+    or kill *during* the write therefore leaves the PREVIOUS file fully intact
+    rather than a half-written, truncated one. That matters most for
+    upload_manifest.json: a truncated manifest makes the next run's
+    ``load_manifest()`` raise and halts EVERY future run until a human repairs
+    the file. The temp file shares the target's directory so the replace stays
+    on one filesystem (a cross-device replace is not atomic and can raise)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(
+        dir=str(path.parent), prefix=path.name + ".", suffix=".tmp"
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+    except BaseException:
+        # Best-effort cleanup; never mask the original error.
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
 def load_manifest() -> dict:
-    """Load upload manifest. Structure: {relative_path: {uploaded_at, drive_file_id}}"""
-    if MANIFEST_PATH.exists():
+    """Load upload manifest. Structure: {relative_path: {uploaded_at, drive_file_id}}.
+
+    A corrupt, truncated or otherwise unreadable manifest degrades to EMPTY
+    with a loud WARN rather than crashing every future run (F3, 2026-08-24).
+    Drive dedup makes a rebuilt-from-empty manifest self-correcting: already
+    uploaded files are re-detected by ``check_file_exists_on_drive`` and their
+    entries re-recorded. Losing the manifest must degrade to 're-scan', never
+    to 'halt'."""
+    if not MANIFEST_PATH.exists():
+        return {}
+    try:
         with open(MANIFEST_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return {}
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError, ValueError) as e:
+        print(
+            f"  [WARN] Upload manifest at {MANIFEST_PATH} is unreadable ({e}); "
+            "treating it as EMPTY and rebuilding from Drive. Already-uploaded "
+            "files will be re-detected and skipped, not re-uploaded."
+        )
+        return {}
+    if not isinstance(data, dict):
+        print(
+            f"  [WARN] Upload manifest at {MANIFEST_PATH} is not a JSON object "
+            "(unexpected shape); treating it as EMPTY."
+        )
+        return {}
+    return data
 
 
 def save_manifest(manifest: dict) -> None:
-    """Persist the upload manifest."""
-    MANIFEST_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with open(MANIFEST_PATH, "w", encoding="utf-8") as f:
-        json.dump(manifest, f, ensure_ascii=False, indent=2)
+    """Persist the upload manifest atomically (F3): a crash mid-write leaves
+    the previous manifest intact rather than a truncated file that would halt
+    every future run at ``load_manifest()``."""
+    _atomic_write_json(MANIFEST_PATH, manifest)
 
 
 # ---------------------------------------------------------------------------
@@ -204,9 +257,13 @@ def fetch_all_drive_folders(service) -> dict[str, str]:
 
 
 def save_drive_folders_cache(folders: dict) -> None:
-    """Cache Drive folders locally for faster subsequent lookups."""
-    with open(DRIVE_FOLDERS_CACHE_PATH, "w", encoding="utf-8") as f:
-        json.dump(folders, f, ensure_ascii=False, indent=2)
+    """Cache Drive folders locally for faster subsequent lookups.
+
+    Written atomically (F3) for the same reason as the manifest: a crash
+    mid-write must not leave a truncated cache. This one is less critical —
+    ``load_drive_folders_cache`` already expires it after an hour and a fresh
+    Drive listing rebuilds it — but the atomic write is free and consistent."""
+    _atomic_write_json(DRIVE_FOLDERS_CACHE_PATH, folders)
 
 
 def load_drive_folders_cache() -> dict | None:
@@ -217,8 +274,15 @@ def load_drive_folders_cache() -> dict | None:
     age = time.time() - DRIVE_FOLDERS_CACHE_PATH.stat().st_mtime
     if age > 3600:  # 1 hour
         return None
-    with open(DRIVE_FOLDERS_CACHE_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)
+    try:
+        with open(DRIVE_FOLDERS_CACHE_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError, ValueError) as e:
+        # A corrupt cache must never crash the run — treat it as absent and
+        # fall back to a fresh Drive listing (F3, 2026-08-24).
+        print(f"  [WARN] Drive folder cache unreadable ({e}); re-listing from Drive.")
+        return None
+    return data if isinstance(data, dict) else None
 
 
 # ---------------------------------------------------------------------------
@@ -582,10 +646,35 @@ def resolve_author_to_drive_folder(
             print(f"  [CLAUDE] '{author_name}' -> '{claude_match}'")
             return (claude_match, drive_folders[claude_match])
 
-    # 6. If we have a decent fuzzy match, confirm with user
+    # 6. If we have a decent fuzzy match, confirm with a HUMAN — but only when
+    # one is actually at the console. (F2, 2026-08-24)
+    #
+    # The scheduled pipeline runs headless (wscript -> .vbs -> .bat, no
+    # console), so stdin is not a TTY. Calling input() there does NOT pause for
+    # an answer that will never come — it raises EOFError immediately, which is
+    # UNCAUGHT in the upload loop and aborts the ENTIRE upload batch (every book
+    # queued after this one is skipped that run). In a context where stdin
+    # blocks rather than EOFs, it hangs instead, holding the single-flight lock
+    # until STALE_LOCK_HOURS reclaims it. Either way one ambiguous author must
+    # never take down the run. This path is far more reachable than it looks
+    # whenever the Claude key is dead (ask_claude_for_match returns None on any
+    # API error), which is exactly the state commit db62d65 flags.
+    #
+    # So: only prompt when sys.stdin.isatty(). Otherwise skip the guess and fall
+    # through to "no match" (return None), which creates a fresh tag-named
+    # folder — the safe, already-idempotent path — and log it LOUDLY for later
+    # human review (add an author_shelf_aliases.json entry to collapse the two).
     if scored:
         best_name = scored[0][0]
         best_score = scored[0][1]
+        if not sys.stdin.isatty():
+            print(
+                f"  [REVIEW] '{author_name}' ~ '{best_name}' (score: {best_score}) "
+                "is ambiguous and no human is attached to confirm. Creating a new "
+                "folder rather than guessing or blocking the batch. If they are the "
+                "same author, add an author_shelf_aliases.json entry."
+            )
+            return None
         print(f"\n  [FUZZY] '{author_name}' ~ '{best_name}' (score: {best_score})")
         response = input(f"  Use '{best_name}'? (y/n): ").strip().lower()
         if response in ("y", "yes", ""):
@@ -1197,11 +1286,27 @@ def _run_pipeline_body(
             # this path none of them ran. The detail line is still written —
             # the sweep really did run, and that is a real result.
             _run_sibling_link(mark_step=False)
+            # F1: the idle path never commits, but it IS the self-healing pass
+            # for a push that failed on an earlier busy run. Without this, a
+            # commit stranded local-only stays unpushed until the next NEW book
+            # arrives — days, if the library is quiet. Retry it here.
+            idle_publish_ok = _push_pending_commits()
+        else:
+            idle_publish_ok = True
         print("=" * 60)
         # The common case: an idle scheduled run. Report it as a real success
-        # so the panel shows "checked, nothing new" rather than a stale run.
+        # so the panel shows "checked, nothing new" rather than a stale run —
+        # unless a stranded commit could not be pushed, which is a real
+        # partial failure the panel must show (F1).
         pstatus.set_summary(idle=True)
-        pstatus.finish_run("success")
+        if idle_publish_ok:
+            pstatus.finish_run("success")
+        else:
+            pstatus.finish_run(
+                "partial",
+                "unpushed local commit(s) could not be pushed to origin — "
+                "prod is behind (will retry next run)",
+            )
         return
 
     if sort_only:
@@ -1474,10 +1579,13 @@ def _run_pipeline_body(
     # exactly the ebook-only / misplaced-only path this run must still
     # publish (manifest, index push, commit) in full.
     # -----------------------------------------------------------------------
+    publish_ok = True
     if not dry_run:
         print("\n[STEP 6] Auto-commit & push...")
         pstatus.step("publish")
-        _auto_commit_and_push()
+        # F1: a failed push (commit stays local-only) must move the run state,
+        # not just print a WARN. Captured here and folded into finish_run below.
+        publish_ok = _auto_commit_and_push()
 
         # STEP 7 — refresh the shared estate index. Unconditional for the same
         # reason STEP 6 is: step 1b rewrote site/ebooks.json earlier in this
@@ -1528,7 +1636,20 @@ def _run_pipeline_body(
     # panel should show, so key the outcome on failed_count rather than just
     # "we reached the end". Misplaced files are excluded from failed_count
     # (see UploadOutcome.run_state()), so a misplaced-only run reports success.
-    pstatus.finish_run(outcome.run_state())
+    #
+    # F1: a failed push is ALSO a partial failure. The commit is local-only,
+    # deploy.yml never fired, and prod is behind — the panel must not read
+    # green. Fold publish_ok into the state and surface why.
+    final_state = outcome.run_state()
+    push_error = None
+    if not publish_ok:
+        push_error = (
+            "git push failed — catalog committed locally but not pushed to "
+            "origin; deploy did not fire and prod is behind (will retry next run)"
+        )
+        if final_state == "success":
+            final_state = "partial"
+    pstatus.finish_run(final_state, push_error)
 
 
 # ---------------------------------------------------------------------------
@@ -1748,7 +1869,7 @@ def _run_rebuild_only_body(trigger: str = "manual") -> None:
 
     print("\n[REBUILD-ONLY] Auto-commit & push (STEP 6)...")
     pstatus.step("publish")
-    _auto_commit_and_push()
+    publish_ok = _auto_commit_and_push()  # F1: capture push outcome
 
     _push_estate_index("[REBUILD-ONLY] Pushing to the shared estate index (STEP 7)")
 
@@ -1761,7 +1882,15 @@ def _run_rebuild_only_body(trigger: str = "manual") -> None:
         print(f"  [WARN] Warning-request fulfillment failed: {e}")
 
     print("=" * 60)
-    pstatus.finish_run("success")
+    # F1: a failed push on a rebuild-only run is a partial failure too.
+    if publish_ok:
+        pstatus.finish_run("success")
+    else:
+        pstatus.finish_run(
+            "partial",
+            "git push failed — catalog committed locally but not pushed to "
+            "origin; deploy did not fire and prod is behind (will retry next run)",
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -1946,14 +2075,18 @@ def _step_publish() -> None:
 
     The index push belongs HERE and not in `catalog`: since 2026-08-17 this
     step is the one place a manual run reaches the outside world, and the
-    `catalog` step's contract is "rebuild on disk, ship nothing"."""
-    _auto_commit_and_push()
+    `catalog` step's contract is "rebuild on disk, ship nothing".
+
+    Returns a run-state string so a failed push marks the single-step card
+    'partial' rather than green (F1)."""
+    publish_ok = _auto_commit_and_push()
     _push_estate_index()
     try:
         from app.tools.fetch_content_warnings import fulfill_requests
         fulfill_requests()
     except Exception as e:
         print(f"  [WARN] Warning-request fulfillment failed: {e}")
+    return "success" if publish_ok else "partial"
 
 
 def _step_link() -> None:
@@ -2025,8 +2158,10 @@ def _run_step_body(step: str, trigger: str) -> None:
     print("=" * 60)
     pstatus.start_step_run(step, info["label"], trigger)
     print(f"  {pstatus.status_note()}")
-    _STEP_HANDLERS[step]()
-    pstatus.finish_run("success")
+    # A handler may return a run-state string (e.g. 'partial' from a failed
+    # push in the publish step, F1); handlers that return None mean 'success'.
+    handler_state = _STEP_HANDLERS[step]()
+    pstatus.finish_run(handler_state if isinstance(handler_state, str) else "success")
     print("=" * 60)
 
 
@@ -2678,8 +2813,66 @@ def _parse_link_summary(stdout: str) -> tuple[int, str] | None:
 # ---------------------------------------------------------------------------
 
 
-def _auto_commit_and_push() -> None:
-    """Commit updated catalog/site files and push to trigger deploy + Discord."""
+def _count_unpushed_commits() -> int | None:
+    """How many local commits are ahead of the upstream branch, or None when
+    that can't be determined (no upstream configured, detached HEAD, git
+    error). None means 'unknown' — callers treat it as 'nothing stranded' so a
+    read failure never manufactures a false run failure (F1, 2026-08-24)."""
+    import subprocess
+
+    res = subprocess.run(
+        ["git", "rev-list", "--count", "@{u}..HEAD"],
+        capture_output=True, text=True, cwd=str(PROJECT_ROOT),
+    )
+    if res.returncode != 0:
+        return None
+    try:
+        return int(res.stdout.strip())
+    except ValueError:
+        return None
+
+
+def _push_pending_commits() -> bool:
+    """Self-heal a previously stranded commit (F1, 2026-08-24).
+
+    A transient push failure on an earlier run can leave the catalog commit
+    local-only; because the idle path never calls ``_auto_commit_and_push``,
+    that commit would otherwise sit unpushed until the *next* busy run — days,
+    if the library is quiet. This checks for local commits ahead of origin and,
+    if any exist, retries the push (matching how STEP 7 already self-heals a
+    remote push). Returns True when nothing is stranded (or the state is
+    unknown), False when commits remain unpushed after the retry."""
+    import subprocess
+
+    count = _count_unpushed_commits()
+    if not count:  # None (unknown) or 0 (level with upstream)
+        return True
+    print(f"  [WARN] {count} local commit(s) not on origin — retrying push...")
+    subprocess.run(
+        ["git", "pull", "--rebase", "--autostash"],
+        capture_output=True, text=True, cwd=str(PROJECT_ROOT),
+    )
+    push = subprocess.run(
+        ["git", "push"],
+        capture_output=True, text=True, cwd=str(PROJECT_ROOT),
+    )
+    if push.returncode != 0:
+        print(f"  [WARN] Retry push failed: {push.stderr.strip()}")
+    remaining = _count_unpushed_commits()
+    return not remaining
+
+
+def _auto_commit_and_push() -> bool:
+    """Commit updated catalog/site files and push to trigger deploy + Discord.
+
+    Returns True when the catalog is fully published — either nothing needed
+    committing (and no earlier commit is stranded) or the commit reached
+    origin. Returns False when a local commit exists that did NOT reach origin
+    (a commit or push failure, or an exception). The caller MUST fold a False
+    into the run outcome so the /status panel stops reading green on a run whose
+    work never left this machine (F1, 2026-08-24): a failed push used to print
+    one WARN and return, while finish_run keyed only on upload failures, so the
+    panel went green, deploy.yml never fired, and prod silently fell behind."""
     import subprocess
 
     try:
@@ -2690,7 +2883,10 @@ def _auto_commit_and_push() -> None:
         )
         if not status.stdout.strip():
             print("  No catalog changes to commit.")
-            return
+            # Even with nothing new to commit, an earlier run may have left a
+            # commit stranded locally (transient push failure). Retry it here so
+            # a quiet run heals it instead of leaving prod behind indefinitely.
+            return _push_pending_commits()
 
         # Stage site files.
         # ⚠️ site/covers/ is deliberately NOT here: covers live in Cloudflare
@@ -2754,7 +2950,9 @@ def _auto_commit_and_push() -> None:
         )
         if result.returncode != 0:
             print(f"  [WARN] Commit failed: {result.stderr.strip()}")
-            return
+            # There WERE catalog changes (status check above), so a failed
+            # commit means they never got published — a real failure state.
+            return False
 
         print(f"  Committed: {commit_msg}")
 
@@ -2785,12 +2983,20 @@ def _auto_commit_and_push() -> None:
         )
         if result.returncode != 0:
             print(f"  [WARN] Push failed: {result.stderr.strip()}")
-            return
+            print(
+                "  [WARN] The catalog commit is LOCAL-ONLY — origin/main did not "
+                "advance, so deploy.yml will not fire and prod is behind. The run "
+                "is marked degraded; the next run will retry the push."
+            )
+            # Signal the failure up so finish_run does not report success (F1).
+            return False
 
         print("  Pushed to origin. Deploy + Discord notification will fire.")
+        return True
 
     except Exception as e:
         print(f"  [ERROR] Auto-commit failed: {e}")
+        return False
 
 
 # ---------------------------------------------------------------------------
