@@ -1320,7 +1320,7 @@ service cloud.firestore {
       return !('step' in request.resource.data)
              || request.resource.data.step in [
                'audit', 'sort', 'detect', 'folders', 'upload', 'catalog',
-               'publish', 'force-upload-server'
+               'publish', 'link', 'force-upload-server'
              ];
     }
 

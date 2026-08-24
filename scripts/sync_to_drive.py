@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 import time
 from dataclasses import dataclass, field
@@ -1180,6 +1181,18 @@ def _run_pipeline_body(
             # refreshed on busy cycles would track the estate's backups exactly
             # as often as the owner buys audiobooks. See its own header.
             _mirror_estate_backups()
+            # STEP 11 — link the sibling catalogues. 🔴 THE IDLE PATH IS THE
+            # MORE IMPORTANT OF THE TWO for this step, and its reason is
+            # stronger than STEP 8/9/10's: those merely have nothing to do with
+            # books, whereas this one is driven by books in the OTHER
+            # CATALOGUE. The link drifts when the LIBRARY gains a print or
+            # ebook title — a scan session there adds dozens on a day nobody
+            # buys audio — which is completely uncorrelated with whether THIS
+            # machine gained an audiobook. Wiring it only to the busy path
+            # would refresh the link exactly as often as the owner buys
+            # audiobooks: not a fix for the staleness that created this step,
+            # but the same bug on a longer fuse. See its own header.
+            _run_sibling_link()
         print("=" * 60)
         # The common case: an idle scheduled run. Report it as a real success
         # so the panel shows "checked, nothing new" rather than a stale run.
@@ -1487,6 +1500,15 @@ def _run_pipeline_body(
         # workflow-log read.
         _mirror_estate_backups()
 
+        # STEP 11 — link the sibling catalogues (audiobook ⇄ library). Last,
+        # and outside every book-shaped gate for the same reason STEP 8 is: it
+        # reconciles the OTHER catalogue's rows against this one's CSV, so
+        # nothing earlier in this cycle is a precondition beyond STEP 5 having
+        # rewritten site/catalog.csv — which is exactly why it sits after the
+        # commit rather than before it. ⚠️ The idle-path copy of this call is
+        # the one that matters more; see its comment there and the header.
+        _run_sibling_link()
+
     # Fulfill any flagged books (site's "Request AI check" button or
     # cw_requests.txt) — full chain including Claude. Runs on EVERY non-dry
     # sync (not just when new books arrived) so the 8-hourly scheduled task
@@ -1742,7 +1764,7 @@ def _run_rebuild_only_body(trigger: str = "manual") -> None:
 # Fine-grained manual step controls (owner ask 2026-08-16, catalog-platform
 # /status Operations section: "give us fine control over each part of the
 # pipeline in case we need to do part way steps... make sure we cant break
-# stuff"). Each of the 7 stages pipeline_status.STEPS already names can be
+# stuff"). Each of the 8 stages pipeline_status.STEPS already names can be
 # run ALONE, on demand — but every one of them goes through run_step()
 # below, which takes the EXACT SAME single-flight lock
 # (app/core/pipeline_lock.py) as the scheduled 8h run, the full manual
@@ -1758,7 +1780,10 @@ def _run_rebuild_only_body(trigger: str = "manual") -> None:
 #   mutating   — sort (moves local files), folders (writes the local Drive
 #                folder cache + reads Drive), upload (real Drive writes).
 #   publishing — catalog (rebuilds site/ on disk), publish (git commit+push,
-#                which is what actually ships to the live site).
+#                which is what actually ships to the live site), link (writes
+#                ANOTHER APP's production D1 — see STEP 11's header; a button
+#                that reaches into a different application's live database
+#                earns the top confirmation tier, not `mutating`).
 #
 # Like run_pipeline()'s non-scheduled path, a manual step NEVER defers —
 # blocked means refused immediately, loudly, and reported to pipeline_status
@@ -1773,6 +1798,7 @@ STEP_INFO: dict[str, dict[str, str]] = {
     "upload": {"label": "Upload to Drive", "kind": "mutating"},
     "catalog": {"label": "Rebuild catalog", "kind": "publishing"},
     "publish": {"label": "Commit & deploy", "kind": "publishing"},
+    "link": {"label": "Link sibling catalogues", "kind": "publishing"},
 }
 STEP_CHOICES: tuple[str, ...] = tuple(STEP_INFO.keys())
 
@@ -1926,6 +1952,24 @@ def _step_publish() -> None:
         print(f"  [WARN] Warning-request fulfillment failed: {e}")
 
 
+def _step_link() -> None:
+    """Publishing (live, and in ANOTHER APP): runs library_catalog's
+    backfill-audiobook-holdings.mjs against its REMOTE D1, so the library site
+    knows which of its books the household already owns on audio.
+
+    Nothing in THIS repo changes — it reads site/catalog.csv and writes the
+    sibling's database — so there is nothing to commit and this step
+    deliberately does not call _auto_commit_and_push().
+
+    Same body as the 8-hourly STEP 11, and like it, it never raises: a failure
+    is one named WARN and the previously linked holdings still stand (the sweep
+    marks vanished matches `stale_at` rather than deleting them). A single-step
+    run that could not reach the sibling therefore finishes 'success' with a
+    `skipped` detail, which is the honest report — the step ran, the machine
+    could not reach the other repo."""
+    _run_sibling_link("[STEP] Linking sibling catalogues (audiobook ⇄ library)")
+
+
 _STEP_HANDLERS = {
     "audit": _step_audit,
     "sort": _step_sort,
@@ -1934,6 +1978,7 @@ _STEP_HANDLERS = {
     "upload": _step_upload,
     "catalog": _step_catalog,
     "publish": _step_publish,
+    "link": _step_link,
 }
 
 
@@ -2392,6 +2437,217 @@ def _report_parity_summary(summary: dict) -> None:
 
 
 # ---------------------------------------------------------------------------
+# STEP 11 — link the sibling catalogues (audiobook ⇄ library)
+#
+# 🔴 WHY THIS STEP EXISTS AT ALL: the sweep was hand-run, and that WAS the bug.
+# `library_catalog/scripts/backfill-audiobook-holdings.mjs` writes the
+# `audiobook_holding` / `audiobook_series_holding` tables that tell the library
+# site "you already own this on audio". Nothing ran it on a schedule, so it
+# drifted the moment either catalogue grew: measured 2026-08-22, **401 of 493
+# works had arrived since its last run**, and work 514 (Elantris) showed no
+# audio at all despite the household owning two editions of it. Re-running it by
+# hand fixed that day and fixed nothing about the next one. A sweep whose
+# freshness depends on somebody remembering is a sweep that is stale.
+#
+# ⚠️ IT MUST RUN ON THE IDLE PATH, AND THAT IS THE MORE IMPORTANT HALF — a
+# stronger argument than STEP 8's, STEP 9's or STEP 10's. Those steps merely
+# have nothing to do with books; this one is driven by books in the WRONG
+# CATALOGUE. The drift arrives when the **library** gains a print or ebook
+# title, which is completely uncorrelated with whether THIS machine gained an
+# audiobook — and a scan session in the library adds dozens of works on a day
+# nobody buys audio. Wiring this only to the busy path would mean the link
+# refreshed exactly as often as the owner buys audiobooks, which reproduces the
+# precise failure being fixed here rather than repairing it.
+#
+# Shelled out, not imported, for STEP 8's reasons (see its header): it is
+# another repo's Node program with its own failure domain and its own fatal
+# exits, PYTHONIOENCODING must be forced on the child because the report prints
+# ⚠️ and em-dashes that die on a captured cp1252 pipe, and a hard timeout is the
+# only defence against `wrangler` deciding it wants an interactive login on an
+# unattended machine.
+#
+# ⚠️ THE EXECUTABLE IS RESOLVED, NOT HARDCODED. The documented command is
+# `npx tsx scripts/backfill-audiobook-holdings.mjs --remote --commit`, but a
+# bare "npx" in an argv list does NOT start on Windows — npx is `npx.cmd`, and
+# CreateProcess only ever appends `.exe`. So this uses the same idiom
+# publish_ebooks_manifest.py / publish_audio_manifest.py already use for
+# wrangler: prefer the repo-local `node_modules/.bin/tsx(.cmd)`, fall back to
+# `npx --yes tsx`. `tsx` rather than plain `node` because the script imports
+# `packages/core/src/titles.ts`.
+#
+# ⚠️ ONE FAILURE DOMAIN, AND IT NEVER RAISES. A failed link leaves the PREVIOUS
+# holdings standing — the sweep marks vanished matches `stale_at` rather than
+# deleting them (migration 0003's rule), so a skipped cycle costs freshness and
+# never data. Exactly one named line is printed on every path: applied, in sync,
+# skipped, or failed.
+#
+# ⚠️ IT WRITES ANOTHER APP'S PRODUCTION D1 (`--remote --commit`), which is why
+# the manual `link` step is classified `publishing` and not `mutating`: the
+# top confirmation tier is right for a button that reaches into a different
+# application's live database.
+#
+# Reporting: a `link` step DETAIL, not a summary field — unlike STEP 8, which
+# had to use set_summary() because it had no step key of its own and could not
+# borrow `publish`'s (the idle path never runs `publish`). This step DOES have
+# its own key in pipeline_status.STEPS, so the detail line is visible on both
+# paths and on a manual single-step run.
+#
+# ⚠️ The step key `link` is MIRRORED BY HAND in four other places and there is
+# no shared module — see STEP_INFO's comment above. app/pipeline_status.py's
+# STEPS, app/tools/pipeline_watcher.py's PIPELINE_STEP_CHOICES and
+# firestore.rules' validPipelineStep() on this side; auth-worker's ops.ts
+# PIPELINE_STEPS and heygabi-home's status/pipelines/pipelines.js on the
+# catalog-platform side. Miss one and the step renders unlabelled, or the
+# remote trigger is rejected as an unknown step.
+# ---------------------------------------------------------------------------
+
+# ~493 works against REMOTE D1 plus an npx cold start. The 2026-08-22 hand-run
+# sent 296 statements; 15 minutes is generous rather than measured-tight, which
+# is the right side to err on for a step that can only ever cost freshness.
+LINK_TIMEOUT_S = 900
+LINK_SCRIPT_REL = "scripts/backfill-audiobook-holdings.mjs"
+
+try:
+    from app.config import LIBRARY_CATALOG_DIR
+except Exception:  # pragma: no cover — same defensive stance as the pstatus import
+    LIBRARY_CATALOG_DIR = None  # type: ignore[assignment]
+
+
+def _link_report(state: str, detail: str) -> None:
+    """One place that writes the STEP 11 outcome, so every path reports.
+
+    Mirrors _parity_report()'s shape, but writes a step DETAIL as well —
+    `link` is a real key in pipeline_status.STEPS, which parity never was.
+    """
+    pstatus.step_detail("link", detail)
+    pstatus.set_summary(
+        siblingLinkState=state,
+        siblingLinkDetail=detail,
+        siblingLinkAt=datetime.now().isoformat(timespec="seconds"),
+    )
+
+
+def _link_tsx_cmd(repo: Path) -> list[str] | None:
+    """The argv prefix that runs a .mjs through tsx in `repo`, or None when
+    this machine has no way to run one. See the header: a bare "npx" cannot be
+    exec'd on Windows, so the repo-local binary is preferred."""
+    import shutil
+
+    local = repo / "node_modules" / ".bin" / ("tsx.cmd" if os.name == "nt" else "tsx")
+    if local.exists():
+        return [str(local)]
+    npx = shutil.which("npx") or shutil.which("npx.cmd")
+    if not npx:
+        return None
+    return [npx, "--yes", "tsx"]
+
+
+def _run_sibling_link(label: str = "[STEP 11] Linking sibling catalogues (audiobook ⇄ library)") -> None:
+    """Run library_catalog's backfill-audiobook-holdings.mjs for this cycle.
+
+    Never raises. Exactly one named line is printed on every path — applied,
+    in sync, skipped, failed.
+    """
+    import subprocess
+
+    print(f"\n{label}...")
+
+    # --- three named skips, never silence. A machine that CANNOT reach the
+    # sibling must be distinguishable from one that reached it and found
+    # nothing to do; "0 statements" and "no checkout" are different facts and
+    # the status page must not render them the same. -----------------------
+    if LIBRARY_CATALOG_DIR is None:
+        print("  [INFO] Sibling link SKIPPED: app/config.py could not be imported, so "
+              "this machine cannot name a library_catalog checkout.")
+        _link_report("skipped", "app/config unavailable — no library_catalog path")
+        return
+
+    repo = Path(LIBRARY_CATALOG_DIR)
+    script = repo / LINK_SCRIPT_REL
+    if not script.exists():
+        print(f"  [INFO] Sibling link SKIPPED: no library_catalog checkout at {repo} "
+              "(check out bookbuddy/library_catalog beside this repo, or set "
+              "LIBRARY_CATALOG_DIR).")
+        _link_report("skipped", f"no library_catalog checkout at {repo}")
+        return
+
+    prefix = _link_tsx_cmd(repo)
+    if prefix is None:
+        print(f"  [INFO] Sibling link SKIPPED: neither {repo / 'node_modules' / '.bin'} nor "
+              "PATH has tsx/npx (run `npm install` in library_catalog, or install Node.js).")
+        _link_report("skipped", "no tsx/npx on this machine")
+        return
+
+    env = dict(os.environ)
+    env["PYTHONIOENCODING"] = "utf-8"  # see reason 2 in STEP 8's block above
+    cmd = prefix + [LINK_SCRIPT_REL, "--remote", "--commit"]
+
+    try:
+        proc = subprocess.run(
+            cmd, cwd=str(repo), env=env, capture_output=True,
+            text=True, encoding="utf-8", errors="replace",
+            timeout=LINK_TIMEOUT_S,
+        )
+    except subprocess.TimeoutExpired:
+        print(f"  [WARN] Sibling link TIMED OUT after {LINK_TIMEOUT_S}s and was killed. "
+              "The usual cause is wrangler wanting an interactive login — run "
+              "`npx wrangler whoami` in library_catalog on this machine.")
+        _link_report("skipped", f"timed out after {LINK_TIMEOUT_S}s (wrangler may need a human)")
+        return
+    except Exception as e:  # noqa: BLE001 — independent failure domain, by design
+        print(f"  [WARN] Sibling link could not be started: {e}")
+        _link_report("failed", f"could not start: {e}")
+        return
+
+    # The sweep's own report goes to the LOCAL log in full — match counts, the
+    # containment matches it wants a human to read, the titles it could not
+    # place. This is the audit trail for an unattended write to another app's
+    # production database, so it is printed whether the run succeeded or not.
+    for line in (proc.stdout or "").splitlines():
+        if line.strip():
+            print(f"  | {line}")
+
+    summary = _parse_link_summary(proc.stdout or "")
+
+    if summary is None:
+        tail = (proc.stderr or proc.stdout or "").strip().splitlines()
+        tail = tail[-1] if tail else f"exit {proc.returncode}, no output"
+        print(f"  [WARN] Sibling link FAILED: {tail}")
+        print("  [WARN] The previous holdings still stand; the next cycle retries.")
+        _link_report("failed", tail[:200])
+        return
+
+    sent, detail = summary
+    if sent == 0:
+        print(f"  Sibling link in sync — nothing to write ({detail}).")
+        _link_report("in-sync", f"in sync — {detail}")
+    else:
+        print(f"  Sibling link APPLIED {sent} statement(s): {detail}")
+        _link_report("applied", f"{sent} statement(s) applied — {detail}")
+
+
+# The sweep's last line, verbatim from backfill-audiobook-holdings.mjs:
+#   "296 statement(s) run. 121 live holding(s) of 154 row(s), and 12 live audio
+#    rung(s) of 14, in the REMOTE database."
+# ⚠️ Parsed rather than trusted-by-position: the script also exits 0 EARLY when
+# the database has no works at all, printing no such line. Finding no line is
+# therefore a FAILED/unknown outcome, never a silent success — that early exit
+# is exactly the case where reporting "in sync" would be a lie.
+_LINK_SUMMARY_RE = re.compile(
+    r"^(?P<sent>\d+) statement\(s\) run\.\s*(?P<rest>.*)$"
+)
+
+
+def _parse_link_summary(stdout: str) -> tuple[int, str] | None:
+    """(statements_run, the rest of the sweep's final line), or None."""
+    for line in reversed(stdout.splitlines()):
+        m = _LINK_SUMMARY_RE.match(line.strip())
+        if m:
+            return int(m.group("sent")), m.group("rest").strip().rstrip(".")
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Auto-commit and push (for autonomous operation)
 # ---------------------------------------------------------------------------
 
@@ -2558,8 +2814,10 @@ def main():
         help=(
             "Run ONE pipeline stage in isolation (fine-grained manual control, "
             "catalog-platform /status Operations section) instead of the whole "
-            "pipeline: audit, sort, detect, folders, upload, catalog, or "
-            "publish. Takes the exact same single-flight lock as every other "
+            "pipeline: audit, sort, detect, folders, upload, catalog, "
+            "publish, or link (STEP 11 — re-links the sibling library "
+            "catalogue; writes ANOTHER APP's production D1). Takes the exact "
+            "same single-flight lock as every other "
             "run, so it can never overlap another run — it fails loudly and "
             "immediately (never defers) if the lock is held. Mutually "
             "exclusive with --sort-only/--upload-only/--rebuild-only/--dry-run."

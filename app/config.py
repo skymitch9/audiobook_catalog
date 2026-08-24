@@ -18,6 +18,26 @@ ROOT_DIR_ENV = os.getenv("ROOT_DIR")
 DEFAULT_LIBRARY_DIR = PROJECT_ROOT / "library"
 ROOT_DIR: Path = Path(ROOT_DIR_ENV if ROOT_DIR_ENV else DEFAULT_LIBRARY_DIR).expanduser().resolve()
 
+# ---------------------------------------------------------------------------
+# The SIBLING library catalogue (bookbuddy/library_catalog)
+# ---------------------------------------------------------------------------
+# ⚠️ NOT the same thing as ROOT_DIR above. ROOT_DIR is the AUDIO library — the
+# folder of .m4b files this machine sorts and uploads. This is the checkout of
+# the *print/ebook* catalogue repo that lives beside this one, and the only
+# reason this repo needs to know where it is: sync_to_drive.py's STEP 11 shells
+# out to that repo's scripts/backfill-audiobook-holdings.mjs to link the two
+# catalogues (see that step's header for why it is a script and not a route).
+#
+# There is no discovery here on purpose. A machine that does not have the
+# sibling checked out must be TOLD apart from one that ran the sweep and found
+# nothing, so STEP 11 turns a missing directory into a named skip rather than
+# hunting for a plausible path.
+LIBRARY_CATALOG_DIR_ENV = os.getenv("LIBRARY_CATALOG_DIR")
+DEFAULT_LIBRARY_CATALOG_DIR = PROJECT_ROOT.parent / "library_catalog"
+LIBRARY_CATALOG_DIR: Path = Path(
+    LIBRARY_CATALOG_DIR_ENV if LIBRARY_CATALOG_DIR_ENV else DEFAULT_LIBRARY_CATALOG_DIR
+).expanduser()
+
 DRIVE_FOLDER_URL: str | None = os.getenv("DRIVE_FOLDER_URL") or None
 
 EXTS: set[str] = {".m4b", ".m4a", ".mp4"}

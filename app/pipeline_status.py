@@ -33,6 +33,12 @@ from app.config import PROJECT_ROOT
 
 # Step 0-6 mirror scripts/sync_to_drive.py run_pipeline(). Kept here so the UI
 # can render the whole list greyed out before the run reaches each one.
+#
+# ⚠️ `link` is STEP 11 and is the only entry here that is not book-shaped: it
+# runs on BOTH cycle paths, and the IDLE one matters more, because the drift it
+# repairs arrives when the LIBRARY gains books rather than when this machine
+# gains an audiobook. See _run_sibling_link()'s header in
+# scripts/sync_to_drive.py.
 STEPS: list[tuple[str, str]] = [
     ("audit", "Purchase audit"),
     ("sort", "Sort books"),
@@ -41,6 +47,7 @@ STEPS: list[tuple[str, str]] = [
     ("upload", "Upload to Drive"),
     ("catalog", "Rebuild catalog"),
     ("publish", "Commit & deploy"),
+    ("link", "Link sibling catalogues"),
 ]
 
 DEFAULT_KEY_PATH = PROJECT_ROOT / "scripts" / "firebase_service_account.json"
@@ -260,7 +267,7 @@ def fail_run(exc: BaseException) -> None:
 # --------------------------------------------------------------------------
 def start_step_run(step_key: str, step_label: str, trigger: str) -> str:
     """Begin a STANDALONE single-step run. Deliberately NOT start_run(): that
-    function scaffolds the full 7-entry STEPS list and its companion step()
+    function scaffolds the full 8-entry STEPS list and its companion step()
     marks every entry BEFORE the given index 'done' on the assumption of
     sequential progression through the whole pipeline — true for a full run,
     false for an isolated step. Running 'upload' alone must never make the

@@ -52,7 +52,9 @@ STALE_LOCK_HOURS = 6
 # even for a full run — see _run_pipeline()). MUST mirror
 # scripts/sync_to_drive.py's STEP_INFO keys exactly — a
 # tests/test_pipeline_watcher.py assertion pins the two in sync.
-PIPELINE_STEP_CHOICES = frozenset({"audit", "sort", "detect", "folders", "upload", "catalog", "publish"})
+PIPELINE_STEP_CHOICES = frozenset(
+    {"audit", "sort", "detect", "folders", "upload", "catalog", "publish", "link"}
+)
 # The standalone "force full upload to the shelf server" control (see
 # scripts/sync_to_server.py) — NOT a pipeline step (no entry in
 # PIPELINE_STEP_CHOICES / STEP_INFO), recognized as its own special marker.
