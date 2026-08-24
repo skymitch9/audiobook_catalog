@@ -858,11 +858,20 @@ h1 .tail{color:var(--accent)}
       ? '<div><span class="eb-provisional" title="Title and author were parsed from the file name, not read from the file&#x27;s own metadata — treat them as provisional.">unverified metadata</span></div>'
       : '';
     // "Also on audio": the file was filed beside an audiobook, so hand the
-    // reader the audiobook catalog's own search for this title.
+    // reader the audiobook catalog's own search for this title. When the
+    // catalog holds MORE THAN ONE audio edition of this book, echo the
+    // library's "You own N audiobooks" and say the count instead — same link,
+    // same folder gate (the count rides on top; a book with no matched sibling
+    // still shows the plain mark). `audio_edition_count` is the manifest's
+    // per-book edition count (scripts/build_ebook_manifest.py).
+    var audioCount = Number(b.audio_edition_count) || 0;
+    var audioLabel = audioCount > 1
+      ? (audioCount + ' audiobooks &#x2192;')
+      : 'Also on audio &#x2192;';
     var audio = b.beside_audiobook
       ? '<a class="eb-audio-link" href="https://audiobooks.heygabi.ai/#' +
           esc(new URLSearchParams({ q: String(b.title || '') }).toString()) +
-        '">Also on audio &#x2192;</a>'
+        '">' + audioLabel + '</a>'
       : '';
     var meta =
       '<div class="eb-meta">' +
