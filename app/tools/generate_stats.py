@@ -512,6 +512,13 @@ html[data-theme="cyberpunk"] .nav-link{{clip-path:polygon(6px 0, 100% 0, calc(10
   }});
   const db = getFirestore(app);
 
+  // Escape Firestore-sourced, user-controlled fields (e.g. reviewer
+  // displayName) before they are interpolated into innerHTML below (stored
+  // XSS). Expression-body arrow (no braces) so it survives this Python f-string.
+  const escapeHtml = (s) => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
   async function loadCommunityStats() {{
     try {{
       const [profilesSnap, reviewsSnap] = await Promise.all([
@@ -566,7 +573,7 @@ html[data-theme="cyberpunk"] .nav-link{{clip-path:polygon(6px 0, 100% 0, calc(10
         html += ('<div style="margin-top:12px"><strong style="color:var(--neon-cyan);' +
                  'font-size:.85em;text-transform:var(--et-title-case)">Top Reviewers</strong>');
         topReviewers.forEach(([name, count]) => {{
-          html += `<div class="top-item"><span class="top-name">${{name}}</span><span class="top-count">${{count}} reviews</span></div>`;
+          html += `<div class="top-item"><span class="top-name">${{escapeHtml(name)}}</span><span class="top-count">${{count}} reviews</span></div>`;
         }});
         html += '</div>';
       }}
@@ -576,7 +583,7 @@ html[data-theme="cyberpunk"] .nav-link{{clip-path:polygon(6px 0, 100% 0, calc(10
                  'font-size:.85em;text-transform:var(--et-title-case)">Most Reviewed Books</strong>');
         topBooks.forEach(([bookId, count]) => {{
           const title = bookId.replace(/-/g, ' ').replace(/\\b\\w/g, c => c.toUpperCase());
-          html += `<div class="top-item"><span class="top-name">${{title}}</span><span class="top-count">${{count}} reviews</span></div>`;
+          html += `<div class="top-item"><span class="top-name">${{escapeHtml(title)}}</span><span class="top-count">${{count}} reviews</span></div>`;
         }});
         html += '</div>';
       }}
