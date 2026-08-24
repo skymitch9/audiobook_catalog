@@ -1970,8 +1970,15 @@ def _step_link() -> None:
     marks vanished matches `stale_at` rather than deleting them). A single-step
     run that could not reach the sibling therefore finishes 'success' with a
     `skipped` detail, which is the honest report — the step ran, the machine
-    could not reach the other repo."""
-    _run_sibling_link("[STEP] Linking sibling catalogues (audiobook ⇄ library)")
+    could not reach the other repo.
+
+    ⚠️ `mark_step=False`, like every other _step_*() handler: start_step_run()
+    scaffolds a ONE-ENTRY steps list already 'active' and says in its own
+    docstring that no separate step() call is needed. Calling it here would be
+    worse than redundant — step() marks everything before the key's index in
+    the FULL STEPS list done, and against a one-entry scaffold that means
+    marking this very step 'done' the moment it starts."""
+    _run_sibling_link("[STEP] Linking sibling catalogues (audiobook ⇄ library)", mark_step=False)
 
 
 _STEP_HANDLERS = {

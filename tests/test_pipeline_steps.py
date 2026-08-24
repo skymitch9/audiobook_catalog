@@ -544,9 +544,15 @@ def test_link_command_shape_is_the_documented_one(monkeypatch, isolated_env, tmp
 
 def test_step_link_runs_the_same_body(monkeypatch):
     calls = []
-    monkeypatch.setattr(sync, "_run_sibling_link", lambda label=None: calls.append(label))
+    monkeypatch.setattr(
+        sync, "_run_sibling_link",
+        lambda label=None, mark_step=True: calls.append((label, mark_step)),
+    )
     sync._step_link()
-    assert len(calls) == 1 and "sibling catalogues" in calls[0]
+    assert len(calls) == 1
+    label, mark_step = calls[0]
+    assert "sibling catalogues" in label
+    assert mark_step is False  # see _step_link()'s docstring
 
 
 def test_step_link_is_dispatchable_and_never_commits_this_repo(monkeypatch, isolated_env):
@@ -575,3 +581,15 @@ def test_link_default_marks_the_step(monkeypatch, isolated_env, tmp_path):
     sync._run_sibling_link()
     marked = isolated_env.calls_named("step")
     assert len(marked) == 1 and marked[0][1] == ("link",)
+
+
+def test_step_link_never_calls_pstatus_step(monkeypatch, isolated_env):
+    """⚠️ start_step_run() scaffolds a ONE-ENTRY steps list already 'active'.
+    pstatus.step('link') marks everything before link's index in the FULL
+    STEPS list done — against a one-entry scaffold that is index 0, i.e. this
+    very step, marked done the instant it starts. Every other _step_*()
+    handler avoids step() for the same reason; this pins that it does too."""
+    monkeypatch.setattr(sync, "LIBRARY_CATALOG_DIR", None)
+    sync._run_step_body("link", "manual-step:link")
+    assert isolated_env.calls_named("step") == []
+    assert _link_detail(isolated_env)  # the outcome is still reported
