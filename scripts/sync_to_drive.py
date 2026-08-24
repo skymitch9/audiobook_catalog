@@ -2731,7 +2731,7 @@ def _auto_commit_and_push() -> None:
         # runs in between reported "skipped" rather than failing. ADD TO BOTH
         # IN THE SAME COMMIT.
         _ALLOWLIST = [
-            "site/catalog.csv", "site/index.html",
+            "site/catalog.csv", "site/index.html", "site/ebooks.html",
             "site/covers_manifest.json", "site/covers-base.js",
             "site/stats.html", "site/chapters.json", "site/content_warnings.json",
             "site/additions_log.json", "site/ebooks_status.json", "author_drive_map.json",

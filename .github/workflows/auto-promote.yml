@@ -80,7 +80,7 @@ jobs:
         # defect is that adding a pipeline output is a TWO-file change and
         # nothing enforced that. If you add a filename to one list, add it here
         # in the same commit.
-        allow='^(site/(catalog\.csv|index\.html|stats\.html|chapters\.json|content_warnings\.json|additions_log\.json|covers_manifest\.json|covers-base\.js|ebooks_status\.json)|site/covers/.*|author_drive_map\.json)$'
+        allow='^(site/(catalog\.csv|index\.html|ebooks\.html|stats\.html|chapters\.json|content_warnings\.json|additions_log\.json|covers_manifest\.json|covers-base\.js|ebooks_status\.json)|site/covers/.*|author_drive_map\.json)$'
         # core.quotePath=false: emit raw UTF-8 paths (cover filenames often
         # carry non-ASCII chars git would otherwise wrap in quotes + \escapes).
         files=$(git -c core.quotePath=false diff-tree --no-commit-id --name-only -r "$SHA")
