@@ -2763,6 +2763,13 @@ function wireAppearance(container){
     if (!reviewsContainer || !db) return;
     const bookId = bookIdFromTitle(bookTitle);
 
+    // Escape user-controlled review fields (text, displayName) before they are
+    // interpolated into innerHTML below. Review text/name are world-readable and
+    // user-submitted; without this a review can inject markup/script (stored XSS).
+    const escHtml = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[c]));
+
     // Show loading
     reviewsContainer.innerHTML = '<div style="color:var(--muted)">Loading reviews...</div>';
 
@@ -2792,13 +2799,13 @@ function wireAppearance(container){
 
       html += `
         <div id="review-form" style="${formHidden}margin-bottom:12px; padding:10px; background:var(--bg); border:1px solid var(--border);">
-          <div style="margin-bottom:6px; font-size:.85em; color:var(--muted);">${formLabel} as <strong>${session.displayName}</strong></div>
+          <div style="margin-bottom:6px; font-size:.85em; color:var(--muted);">${formLabel} as <strong>${escHtml(session.displayName)}</strong></div>
           <div id="star-selector" style="font-size:1.6em; cursor:pointer; margin-bottom:6px; display:inline-flex;" data-prefill="${prefillRating}">
             ${[1,2,3,4,5].map(i => `<span class="star-pick" data-star="${i}" style="position:relative;display:inline-block;width:1em"><span class="star-half-left" data-value="${i-0.5}" style="position:absolute;left:0;top:0;width:50%;height:100%;overflow:hidden;z-index:1"></span><span class="star-half-right" data-value="${i}" style="position:absolute;right:0;top:0;width:50%;height:100%;z-index:1"></span><span class="star-display">${prefillRating >= i ? '★' : prefillRating >= i-0.5 ? '★' : '☆'}</span></span>`).join('')}
           </div>
           <div id="star-rating-label" style="font-size:.8em;color:var(--muted);margin-bottom:6px">${prefillRating ? prefillRating + '/5' : ''}</div>
           <textarea id="review-text" placeholder="Add a written review (optional)..." rows="3"
-            style="width:100%; padding:8px; border:1px solid var(--border); background:var(--bg-2); color:var(--text); resize:vertical; font-family:inherit;">${prefillText}</textarea>
+            style="width:100%; padding:8px; border:1px solid var(--border); background:var(--bg-2); color:var(--text); resize:vertical; font-family:inherit;">${escHtml(prefillText)}</textarea>
           <div style="display:flex; gap:8px; align-items:center; margin-top:6px;">
             <button id="submit-review-btn" class="btn" style="padding:8px 14px;">${btnLabel}</button>
             <span id="review-status" style="font-size:.85em; color:var(--muted);"></span>
@@ -2819,13 +2826,13 @@ function wireAppearance(container){
         // renders only for a rules-enforced site_roles 'admin', and
         // firestore.rules denies the delete to everyone else anyway.
         const adminDelBtn = (_siteRole && _siteRole.role === 'admin')
-          ? `<button class="admin-del-review-btn" data-review-name="${r.displayName.replace(/"/g, '&quot;')}" style="background:none;border:none;cursor:pointer;color:var(--neon-magenta);font-size:.95em;padding:2px 4px" title="Remove this review (site admin)">&#128465;</button>`
+          ? `<button class="admin-del-review-btn" data-review-name="${escHtml(r.displayName)}" style="background:none;border:none;cursor:pointer;color:var(--neon-magenta);font-size:.95em;padding:2px 4px" title="Remove this review (site admin)">&#128465;</button>`
           : '';
-        const textHtml = r.text ? `<div style="margin-top:4px; font-size:.95em; white-space:pre-wrap;">${r.text}</div>` : '';
+        const textHtml = r.text ? `<div style="margin-top:4px; font-size:.95em; white-space:pre-wrap;">${escHtml(r.text)}</div>` : '';
         html += `
           <div class="review-item" style="padding:8px 0; border-bottom:1px solid var(--border);">
             <div style="display:flex; justify-content:space-between; align-items:center;">
-              <span><strong>${r.displayName}</strong> ${editBtn}${adminDelBtn}</span>
+              <span><strong>${escHtml(r.displayName)}</strong> ${editBtn}${adminDelBtn}</span>
               <span style="font-size:.85em; color:var(--muted);">${formatDate(r.createdAt)}</span>
             </div>
             <div>${renderStars(r.rating)}</div>
