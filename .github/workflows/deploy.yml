@@ -46,13 +46,18 @@ jobs:
   test:
     uses: ./.github/workflows/tests.yml
 
+  # Run the JS/vitest suite (site/__tests__) — the only guard for client-side
+  # regressions (e.g. review/community output-escaping). Gated like test/lint.
+  js-test:
+    uses: ./.github/workflows/js-tests.yml
+
   # Run linting
   lint:
     uses: ./.github/workflows/lint.yml
 
-  # Build only if tests and lint pass
+  # Build only if tests, JS tests and lint pass
   build:
-    needs: [test, lint]
+    needs: [test, js-test, lint]
     runs-on: ubuntu-latest
 
     env:

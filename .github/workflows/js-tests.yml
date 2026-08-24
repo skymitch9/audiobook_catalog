@@ -1,0 +1,42 @@
+name: JS Tests
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+  workflow_call:  # Allow this workflow to be called by other workflows
+
+jobs:
+  js-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v5
+
+    - name: 🟢 Set up Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: 📦 Install dependencies
+      run: |
+        echo "::group::npm ci"
+        npm ci
+        echo "::endgroup::"
+
+    - name: 🧪 Run vitest suite
+      run: |
+        echo "::group::Running JS test suite (site/__tests__)"
+        # ⚠️ The ~30 files under site/__tests__ are the ONLY guard for
+        # client-side regressions (e.g. the review/community output-escaping
+        # tests). They must run before deploy — see deploy.yml build.needs.
+        npm test
+        echo "::endgroup::"
+
+    - name: 📊 JS test summary
+      if: always()
+      run: |
+        echo "::notice::JS test execution completed. Check logs above for details."
