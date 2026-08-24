@@ -245,6 +245,17 @@ html[data-theme="cyberpunk"] .um-name{letter-spacing:1px}
   const searchInput = document.getElementById('search-input');
   const userCountEl = document.getElementById('user-count');
 
+  // Escape user-controlled profile/review fields before innerHTML assignment.
+  // Every sibling page (clubs.html, club.html, club-read.html) defines the same
+  // helper for exactly these fields; community.html was the only one omitting
+  // it, giving a stored/cross-user XSS on displayName/currentlyReading/
+  // favorites/photoURL/club emoji. Mirrors clubs.html:escapeHtml.
+  function escapeHtml(s) {
+    return (s || '').replace(/[&<>"']/g, c => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[c]));
+  }
+
   // "Estate admin" entry point, shown to the owner only. A convenience link,
   // NOT access control — heygabi.ai/admin is its own gate, and this reads the
   // localStorage mirror, which is editable from devtools. Spoofing it shows
@@ -396,27 +407,27 @@ html[data-theme="cyberpunk"] .um-name{letter-spacing:1px}
 
     grid.innerHTML = users.map(u => {
       const avatar = u.photoURL
-        ? `<img class="user-avatar" src="${u.photoURL}" alt="">`
-        : `<div class="user-avatar" style="display:flex;align-items:center;justify-content:center;background:var(--border);font-size:1.2em">${u.displayName.charAt(0).toUpperCase()}</div>`;
+        ? `<img class="user-avatar" src="${escapeHtml(u.photoURL)}" alt="">`
+        : `<div class="user-avatar" style="display:flex;align-items:center;justify-content:center;background:var(--border);font-size:1.2em">${escapeHtml(u.displayName.charAt(0).toUpperCase())}</div>`;
 
       const reading = u.currentlyReading
-        ? `<div class="user-reading"><strong>Reading:</strong> <span style="display:inline-flex;align-items:center;gap:6px">${u.currentlyReadingCover ? '<a href="index.html#q=' + encodeURIComponent(u.currentlyReading) + '"><img src="' + coverUrl(u.currentlyReadingCover) + '"></a>' : ''}${u.currentlyReading}</span></div>`
+        ? `<div class="user-reading"><strong>Reading:</strong> <span style="display:inline-flex;align-items:center;gap:6px">${u.currentlyReadingCover ? '<a href="index.html#q=' + encodeURIComponent(u.currentlyReading) + '"><img src="' + coverUrl(u.currentlyReadingCover) + '"></a>' : ''}${escapeHtml(u.currentlyReading)}</span></div>`
         : '';
 
       const favs = u.favorites.length > 0
         ? `<div class="user-favs">${u.favorites.map(f => {
             const cover = coverUrl(u.favCovers[f] || '');
             return cover
-              ? '<a href="index.html#q=' + encodeURIComponent(f) + '"><img src="' + cover + '" title="' + f + '"></a>'
-              : '<span class="fav-chip">' + f + '</span>';
+              ? '<a href="index.html#q=' + encodeURIComponent(f) + '"><img src="' + cover + '" title="' + escapeHtml(f) + '"></a>'
+              : '<span class="fav-chip">' + escapeHtml(f) + '</span>';
           }).join('')}</div>`
         : '';
 
       return `
-        <div class="user-card" data-name="${u.displayName.toLowerCase()}">
+        <div class="user-card" data-name="${escapeHtml(u.displayName.toLowerCase())}">
           <div class="user-header">
             ${avatar}
-            <span class="user-name">${u.displayName}</span>
+            <span class="user-name">${escapeHtml(u.displayName)}</span>
           </div>
           <div class="user-stats">
             <div class="stat-box"><a href="index.html#list=reviews&user=${encodeURIComponent(u.displayName)}" style="text-decoration:none"><div class="stat-val">${u.reviewCount}</div><div class="stat-lbl">Reviews</div></a></div>
@@ -457,15 +468,15 @@ html[data-theme="cyberpunk"] .um-name{letter-spacing:1px}
 
   function openUserModal(user) {
     const avatar = user.photoURL
-      ? `<img class="um-avatar" src="${user.photoURL}" alt="">`
-      : `<div class="um-avatar" style="display:flex;align-items:center;justify-content:center;background:var(--border);font-size:1.6em">${user.displayName.charAt(0).toUpperCase()}</div>`;
+      ? `<img class="um-avatar" src="${escapeHtml(user.photoURL)}" alt="">`
+      : `<div class="um-avatar" style="display:flex;align-items:center;justify-content:center;background:var(--border);font-size:1.6em">${escapeHtml(user.displayName.charAt(0).toUpperCase())}</div>`;
 
     const reading = user.currentlyReading
       ? `<div class="um-section">
           <div class="um-section-title">Currently Reading</div>
           <div style="display:flex;align-items:center;gap:12px">
             ${user.currentlyReadingCover ? '<a href="index.html#q=' + encodeURIComponent(user.currentlyReading) + '"><img src="' + coverUrl(user.currentlyReadingCover) + '" style="width:56px;height:auto;border-radius:3px;border:1px solid var(--border)"></a>' : ''}
-            <span style="font-size:1.05em">${user.currentlyReading}</span>
+            <span style="font-size:1.05em">${escapeHtml(user.currentlyReading)}</span>
           </div>
         </div>` : '';
 
@@ -475,15 +486,15 @@ html[data-theme="cyberpunk"] .um-name{letter-spacing:1px}
           <div class="um-favs">${user.favorites.map(f => {
             const cover = coverUrl(user.favCovers[f] || '');
             return cover
-              ? '<a href="index.html#q=' + encodeURIComponent(f) + '"><img src="' + cover + '" title="' + f + '"></a>'
-              : '<span class="fav-chip" style="padding:4px 8px;border:1px solid var(--border);font-size:.85em">' + f + '</span>';
+              ? '<a href="index.html#q=' + encodeURIComponent(f) + '"><img src="' + cover + '" title="' + escapeHtml(f) + '"></a>'
+              : '<span class="fav-chip" style="padding:4px 8px;border:1px solid var(--border);font-size:.85em">' + escapeHtml(f) + '</span>';
           }).join('')}</div>
         </div>` : '';
 
     userModalContent.innerHTML = `
       <div style="text-align:center;margin-bottom:14px">
         ${avatar}
-        <div class="um-name" style="margin-top:8px">${user.displayName}</div>
+        <div class="um-name" style="margin-top:8px">${escapeHtml(user.displayName)}</div>
       </div>
       <div class="um-stats">
         <div class="um-stat"><a href="index.html#list=reviews&user=${encodeURIComponent(user.displayName)}" style="text-decoration:none"><div class="um-stat-val">${user.reviewCount}</div><div class="um-stat-lbl">Reviews</div></a></div>
@@ -504,8 +515,8 @@ html[data-theme="cyberpunk"] .um-name{letter-spacing:1px}
           <div class="um-section-title">Book Clubs</div>
           <div class="um-clubs">${user.clubs.map(c => `
             <a class="um-club" href="club.html?id=${encodeURIComponent(c.id)}">
-              ${c.cover ? `<img src="${coverUrl(c.cover)}" alt="" onerror="this.remove()">` : `<span class="um-club-emoji">${c.emoji}</span>`}
-              <span>${c.name.replace(/</g, '&lt;')}</span>
+              ${c.cover ? `<img src="${coverUrl(c.cover)}" alt="" onerror="this.remove()">` : `<span class="um-club-emoji">${escapeHtml(c.emoji)}</span>`}
+              <span>${escapeHtml(c.name)}</span>
             </a>`).join('')}</div>
         </div>` : ''}
       ${reading}
