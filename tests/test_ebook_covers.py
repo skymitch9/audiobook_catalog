@@ -113,9 +113,18 @@ def test_exact_beats_extension():
     assert bem.sibling_cover_href("Dungeon Crawler Carl", "X", idx) == "covers/X/dcc1.jpg"
 
 
-def test_duplicate_exact_titles_with_different_covers_are_ambiguous():
+def test_duplicate_exact_titles_with_different_covers_are_multiple_editions():
+    # ⚠️ Changed 2026-08-24 (owner T-F): two EXACT-title rows with different
+    # covers are no longer "ambiguous". They share the ebook's title, so they
+    # are the SAME book with two audio editions — the ebook echo of the
+    # library's "You own N audiobooks". The cover join still resolves (to the
+    # deterministic sorted representative, never swapping between rebuilds); the
+    # count is what the extra edition adds. The genuine-ambiguity guard now
+    # lives on the subtitle-EXTENSION bucket only (see
+    # test_ambiguous_extension_still_refuses in test_ebook_warning_keys.py).
     idx = folder_index(("X", "Same Title", "one.jpg"), ("X", "Same Title", "two.jpg"))
-    assert bem.sibling_cover_href("Same Title", "X", idx) is None
+    assert bem.sibling_cover_href("Same Title", "X", idx) == "covers/X/one.jpg"
+    assert bem.sibling_catalog_match("Same Title", "X", idx) == ("covers/X/one.jpg", "Same Title", 2)
 
 
 def test_duplicate_exact_titles_with_the_same_cover_are_fine():

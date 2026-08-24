@@ -42,7 +42,8 @@ def test_exact_match_returns_the_catalog_spelling_not_the_ebook_one():
         ("Suzanne Collins", "Sunrise on the Reaping", "sunrise.jpg"),
     )
     match = bem.sibling_catalog_match("sunrise on the reaping!", "Suzanne Collins", idx)
-    assert match == ("covers/Suzanne Collins/sunrise.jpg", "Sunrise on the Reaping")
+    # Third element is the audio-edition count: a lone edition counts as 1.
+    assert match == ("covers/Suzanne Collins/sunrise.jpg", "Sunrise on the Reaping", 1)
 
 
 def test_subtitle_extension_hands_back_the_FULL_catalog_title():
@@ -67,11 +68,31 @@ def test_no_sibling_means_no_audiobook_title():
     assert bem.sibling_catalog_match("Unrelated", "X", idx) is None   # no title match
 
 
-def test_an_ambiguous_join_yields_no_title_rather_than_a_guess():
-    # Two different books with the same title in one folder. A guessed identity
-    # files somebody's note on the wrong book — worse than no note at all.
+def test_two_exact_title_rows_are_two_editions_of_one_book_not_ambiguity():
+    # ⚠️ Changed 2026-08-24 (owner T-F). Two rows with the SAME exact title in
+    # one folder used to be refused as "two different books". They are not: an
+    # exact-title match means the identity is settled (both name this one book),
+    # and the second differing cover is a second AUDIO EDITION — the ebook echo
+    # of the library's "You own N audiobooks". So the join returns the title
+    # (safe — both rows agree on it) plus a count of 2. The genuine-ambiguity
+    # guard moved to the EXTENSION bucket, where different covers really are
+    # different volumes (test_ambiguous_extension_still_refuses).
     idx = folder_index(("X", "Same Title", "one.jpg"), ("X", "Same Title", "two.jpg"))
-    assert bem.sibling_catalog_match("Same Title", "X", idx) is None
+    match = bem.sibling_catalog_match("Same Title", "X", idx)
+    assert match == ("covers/X/one.jpg", "Same Title", 2)
+
+
+def test_ambiguous_extension_still_refuses():
+    # ⚠️ The guard `_agreed_row` still enforces. The ebook is "Cradle"; the
+    # catalog has two SUBTITLE EXTENSIONS with different covers — genuinely
+    # different volumes. Picking one would pin its art and identity on the
+    # other, exactly the wrong-single-match this refusal has always prevented.
+    idx = folder_index(
+        ("X", "Cradle - Book 1", "c1.jpg"),
+        ("X", "Cradle - Book 2", "c2.jpg"),
+    )
+    assert bem.sibling_catalog_match("Cradle", "X", idx) is None
+    assert bem.sibling_cover_href("Cradle", "X", idx) is None
 
 
 def test_duplicate_rows_naming_one_cover_are_one_book_and_pick_deterministically():
@@ -96,7 +117,7 @@ def test_cover_href_and_catalog_title_come_from_the_SAME_row():
         ("X", "Dungeon Crawler Carl's Christmas Special", "xmas.jpg"),
     )
     match = bem.sibling_catalog_match("Dungeon Crawler Carl", "X", idx)
-    assert match == ("covers/X/dcc1.jpg", "Dungeon Crawler Carl")
+    assert match == ("covers/X/dcc1.jpg", "Dungeon Crawler Carl", 1)
     assert bem.sibling_cover_href("Dungeon Crawler Carl", "X", idx) == match[0]
 
 
@@ -135,3 +156,27 @@ def test_every_scanned_row_carries_the_key_even_when_it_is_null(tmp_path):
     _touch(root, "two.pdf")
     for e in bem.scan(root, catalog_covers={}, extract=False):
         assert "audiobook_title" in e
+        assert "audio_edition_count" in e  # same always-present contract
+
+
+def test_scan_publishes_the_audio_edition_count(tmp_path):
+    # ⚠️ The "N audiobooks" feature end to end, shaped like the ONE real case
+    # in this library's catalog.csv: "Isles of the Emberdark" (Brandon
+    # Sanderson) has two audio editions with two different covers. A book with
+    # a single edition counts 1; an ebook with no sibling counts 0.
+    root = tmp_path / "books"
+    _touch(root, "Brandon Sanderson/Isles of the Emberdark.epub")  # two audio editions
+    _touch(root, "Suzanne Collins/Sunrise on the Reaping.epub")    # one edition
+    _touch(root, "Loose Book - Some Author.epub")                  # no sibling
+
+    idx = folder_index(
+        ("Brandon Sanderson", "Isles of the Emberdark", "emberdark-a.jpg"),
+        ("Brandon Sanderson", "Isles of the Emberdark", "emberdark-b.jpg"),
+        ("Suzanne Collins", "Sunrise on the Reaping", "sunrise.jpg"),
+    )
+    rows = {e["title"]: e for e in bem.scan(root, catalog_covers=idx, extract=False)}
+
+    assert rows["Isles of the Emberdark"]["audio_edition_count"] == 2
+    assert rows["Isles of the Emberdark"]["audiobook_title"] == "Isles of the Emberdark"
+    assert rows["Sunrise on the Reaping"]["audio_edition_count"] == 1
+    assert rows["Loose Book"]["audio_edition_count"] == 0

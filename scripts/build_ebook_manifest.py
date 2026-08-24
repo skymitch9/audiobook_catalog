@@ -389,39 +389,83 @@ def _subtitle_extension(ebook_norm: str, catalog_norm: str) -> bool:
 def _agreed_row(rows: list[tuple[str, str, str]]) -> tuple[str, str, str] | None:
     """The one catalog row these candidates agree on, or None.
 
-    Agreement is on the **cover_href**, which is the original rule and is kept
-    verbatim: two catalog rows naming the same cover are one book spelled
-    twice; two naming different covers are genuinely ambiguous and refused.
-    Among rows that agree, the pick is `sorted()[0]` — deterministic, so a
-    rebuild never silently swaps which spelling of the title travels.
+    Agreement is on the **cover_href**: two catalog rows naming the same cover
+    are one book spelled twice; two naming DIFFERENT covers are refused. Among
+    rows that agree, the pick is `sorted()[0]` — deterministic, so a rebuild
+    never silently swaps which spelling of the title travels.
+
+    ⚠️ This refusal is the guard for the SUBTITLE-EXTENSION bucket only. There,
+    two different covers really are two different volumes ("Moonfall … Book 13"
+    and "… Book 15" both extend the ebook "Moonfall"), and picking one pins one
+    volume's art and identity on the other — a genuinely wrong single match.
+    The EXACT-title bucket is a different question: every row there already
+    shares the ebook's normalised title, so multiple covers are multiple audio
+    EDITIONS of the one book, counted rather than refused (see `_edition_pick`).
     """
     if len({href for _, href, _ in rows}) != 1:
         return None
     return sorted(rows)[0]
 
 
+def _edition_pick(rows: list[tuple[str, str, str]]) -> tuple[tuple[str, str, str], int]:
+    """`(representative_row, audio_edition_count)` for exact-title candidates.
+
+    ⚠️ Every row handed here has `row[0] == the ebook's normalised title`, so
+    they are the SAME book — this is NOT the ambiguity `_agreed_row` guards
+    (that is genuinely different volumes in the subtitle-extension bucket).
+    Multiple DISTINCT `cover_href`s are multiple audio editions of this one
+    book, which is exactly how the library side counts ("You own N audiobooks"
+    is a per-work edition count — `library_catalog` book modal). So:
+
+      * count = number of DISTINCT covers — two rows naming one cover are one
+        edition spelled twice (the `_agreed_row` collapse), never two;
+      * the representative is `sorted()[0]` — deterministic, so cover + title
+        never swap between rebuilds.
+
+    ⚠️ LIMITATION (`library_work_id`): the catalog CSV carries a
+    `library_work_id`, but it is populated on a minority of rows and NEVER
+    repeats across rows (measured 2026-08-24: 84/1081 rows carry one, 0 repeat),
+    so it cannot group two editions of one work. Editions are therefore
+    identified by exact normalised-title agreement WITHIN one author/series
+    folder — the safest available signal. The one residual risk is two truly
+    different books sharing a byte-identical title in one folder; that pair
+    would already collide on the content-notes key (`bookIdFromTitle` is title-
+    derived), so counting them as editions is no worse than the status quo.
+    """
+    covers = {href for _, href, _ in rows}
+    return sorted(rows)[0], len(covers)
+
+
 def sibling_catalog_match(
     title: str | None, beside: str | None, by_folder: dict[str, list[tuple[str, str, str]]]
-) -> tuple[str, str] | None:
-    """`(cover_href, catalog_title)` for the audiobook this ebook sits beside.
+) -> tuple[str, str, int] | None:
+    """`(cover_href, catalog_title, audio_edition_count)` for the audiobook
+    this ebook sits beside, or None.
 
-    ⚠️ ONE join, TWO consumers. It began life as the cover join and is now
-    also the **identity** join: `catalog_title` is *what the audiobook catalog
-    itself calls this book*, which is the convention every content warning in
-    this estate is keyed by (`library_catalog/docs/info/content-warnings.md`
-    §2 — the library reaches the same answer from its own
-    `audiobook_holding.title` cache). Deriving it here rather than a second
-    time keeps one implementation of "which audiobook is this ebook?", and
-    means a cover and a content note can never disagree about it.
+    ⚠️ ONE join, THREE answers now. It began life as the cover join, became
+    also the **identity** join (`catalog_title` is *what the audiobook catalog
+    itself calls this book*, the key every content warning in this estate is
+    keyed by — `library_catalog/docs/info/content-warnings.md` §2, the library
+    reaches the same answer from its own `audiobook_holding.title` cache), and
+    now also yields the **audio-edition count** so the ebook page can echo the
+    library's "You own N audiobooks" for a book with more than one audio
+    edition. Deriving all three here keeps one implementation of "which
+    audiobook is this ebook?", so a cover, a content note and a count can never
+    disagree about it.
+
+    `audio_edition_count` is >= 1 whenever a match is returned (a single
+    edition counts as 1); it exceeds 1 only in the exact-title bucket, where
+    every candidate already shares this ebook's title and so the extra covers
+    are extra editions of the same book, not ambiguity.
 
     Conservative by design — a wrong cover is worse than a placeholder, and a
     wrong identity is worse still (it files a reader's note under a key nobody
     reads, which looks exactly like "nobody has added one yet"):
-      1. exact normalised title match in the same folder, if it names exactly
-         one cover file;
+      1. exact normalised title match in the same folder -> the deterministic
+         representative, counting its distinct covers as editions;
       2. else a subtitle extension (see _subtitle_extension) matching exactly
-         one cover file;
-      3. anything ambiguous, reversed, or numeric-continued -> None.
+         one cover file -> that row, count 1;
+      3. anything reversed, numeric-continued, or an ambiguous EXTENSION -> None.
     """
     t = _norm_title(title)
     if not t or not beside:
@@ -430,13 +474,14 @@ def sibling_catalog_match(
     if not candidates:
         return None
     exact = [r for r in candidates if r[0] == t]
-    picked = _agreed_row(exact) if exact else None
-    if picked is None and not exact:
-        prefixed = [r for r in candidates if _subtitle_extension(t, r[0])]
-        picked = _agreed_row(prefixed) if prefixed else None
+    if exact:
+        picked, count = _edition_pick(exact)
+        return picked[1], picked[2], count
+    prefixed = [r for r in candidates if _subtitle_extension(t, r[0])]
+    picked = _agreed_row(prefixed) if prefixed else None
     if picked is None:
         return None
-    return picked[1], picked[2]
+    return picked[1], picked[2], 1
 
 
 def sibling_cover_href(
@@ -1072,6 +1117,11 @@ def scan(
         sibling = sibling_catalog_match(title, beside, catalog_covers or {})
         href = sibling[0] if sibling else None
         audiobook_title = sibling[1] if sibling else None
+        # How many audio editions of THIS book the catalog holds: >1 lets the
+        # ebook page echo the library's "You own N audiobooks". 0 when no
+        # sibling matched (ebook-only, or an ambiguous extension refused above);
+        # the "Also on audio" folder mark is unaffected — it keys on `beside`.
+        audio_edition_count = sibling[2] if sibling else 0
         if href:
             cover_url = canonical_cover_url(href) or None
             cover_source = "audiobook" if cover_url else None
@@ -1114,6 +1164,12 @@ def scan(
                 # A raw title, never a slug: `bookIdFromTitle` has exactly one
                 # implementation and it is in JavaScript (site/reviews.js).
                 "audiobook_title": audiobook_title,
+                # Count of audio editions the catalog holds for this book (0 if
+                # none). >1 renders as "N audiobooks" on site/ebooks.html, the
+                # ebook echo of the library's "You own N audiobooks". Always
+                # present, like audiobook_title — a consumer must never have to
+                # branch on the key's absence.
+                "audio_edition_count": audio_edition_count,
                 "size_bytes": stat.st_size,
                 "modified": datetime.fromtimestamp(stat.st_mtime, timezone.utc)
                 .isoformat()
