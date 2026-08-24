@@ -41,7 +41,12 @@ const platformDir = findPlatformDir();
 const describeOrSkip = platformDir ? describe : describe.skip;
 
 describeOrSkip('club fixtures (site/club-reads.js is canon)', () => {
-  const fixtures = JSON.parse(readFileSync(resolve(platformDir, 'data', 'club-fixtures.json'), 'utf8'));
+  // Read lazily: describe.skip still runs this factory to collect skipped
+  // children (vitest 4), so an unconditional read here throws resolve(null,...)
+  // when the sibling checkout is absent — exactly the CI condition.
+  const fixtures = platformDir
+    ? JSON.parse(readFileSync(resolve(platformDir, 'data', 'club-fixtures.json'), 'utf8'))
+    : null;
 
   it('has the expected schema version and is not truncated', () => {
     expect(fixtures.schemaVersion).toBe(1);
