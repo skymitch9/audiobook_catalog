@@ -919,6 +919,78 @@ h1 .tail{color:var(--accent)}
     openCard(b);
   }
 
+  // ---- title search-hash (#q=<title>) --------------------------------------
+  // The SECOND deep-link form, mirroring the audiobook site
+  // (audiobooks.heygabi.ai/#q=<title>, its `_parseHash` key `q`). The library
+  // catalog cannot compute a book's `#<anchor>` (that id is minted only in
+  // scripts/build_ebook_manifest.ebook_anchor and must never be copied), so an
+  // owned-ebook row there links here by TITLE instead: it drops the title into
+  // the search box and lets the existing filter surface the matching book(s).
+  //
+  // ⚠️ Strictly ADDITIVE. A bare `#<anchor>` deep link is NOT of this form (it
+  // has no leading "q="), so goToAnchor still owns it; an empty hash still does
+  // nothing. Parsing with URLSearchParams is exactly the inverse of the
+  // audiobook site's URLSearchParams writer, so `+` and %xx decode the way the
+  // link intended.
+  function queryFromHash() {
+    var h = String(window.location.hash || '').replace(/^#/, '');
+    if (!h || h.indexOf('q=') === -1) return null;
+    var params;
+    try {
+      params = new URLSearchParams(h);
+    } catch (e) {
+      return null;
+    }
+    if (!params.has('q')) return null;
+    return params.get('q') || '';
+  }
+
+  // Would this query have matched a book that is only hidden because PDFs are
+  // off? Same match test as visibleBooks, restricted to the pdf format — used
+  // to decide whether to reveal PDFs for this one visit (never persisted), so a
+  // #q= link to a handbook is not a silently dead link.
+  function queryMatchesHiddenPdf(q) {
+    var needle = String(q || '').toLowerCase().trim();
+    if (!needle) return false;
+    return allBooks.some(function (b) {
+      if (String(b.format || '').toLowerCase() !== 'pdf') return false;
+      return String(b.title || '').toLowerCase().indexOf(needle) !== -1 ||
+             String(b.author || '').toLowerCase().indexOf(needle) !== -1 ||
+             String(b.filename || '').toLowerCase().indexOf(needle) !== -1;
+    });
+  }
+
+  function applyQueryHash() {
+    var q = queryFromHash();
+    if (q == null) return false;  // not a #q= hash — leave it for goToAnchor
+    searchEl.value = q;
+    // A #q= link is an instruction to SHOW this title; a stale chip/format
+    // filter could hide the very book we were sent to, so start clean — the
+    // same thing goToAnchor does when a filter is masking its target.
+    activeFormats = {};
+    renderChips();
+    render();
+    // Nothing matched, but a hidden PDF would: reveal PDFs FOR THIS VISIT ONLY
+    // (deliberately WITHOUT persisting the preference), matching goToAnchor's
+    // rule for a deep-linked PDF, then re-render.
+    if (shownBooks.length === 0 && !showPdfs && queryMatchesHiddenPdf(q)) {
+      showPdfs = true;
+      renderPdfToggle();
+      renderChips();
+      render();
+    }
+    // Nice-to-have: give the top match the same brief arrival glow a bare
+    // #anchor deep link gets, and bring it into view.
+    if (shownBooks.length > 0) {
+      var topTile = listEl.querySelector('.eb-tile');
+      if (topTile) {
+        topTile.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        topTile.classList.add('eb-anchored');
+      }
+    }
+    return true;
+  }
+
   // ------------------------------ reading card ------------------------------
   function openCard(b) {
     // `source` is the manifest's honesty flag: 'opf' means title/author were
@@ -1047,6 +1119,7 @@ h1 .tail{color:var(--accent)}
 
   // Back/forward, or a second estate-search link pasted into the same tab.
   window.addEventListener('hashchange', function () {
+    if (applyQueryHash()) return;  // a #q=<title> link — same treatment as on load
     if (currentAnchor()) goToAnchor();
     else if (!overlayEl.hidden) closeCard();
   });
@@ -1081,7 +1154,15 @@ h1 .tail{color:var(--accent)}
       // Deep links resolve only once the manifest is in - the tiles (and so
       // their anchor ids) do not exist before this point, which is why the
       // browser's own fragment scroll cannot do this job.
-      goToAnchor();
+      //
+      // Two link forms, tried in order: a title search-hash (#q=<title>, from
+      // the library catalog, which cannot compute an anchor) and the per-book
+      // #<anchor> (from estate search). Only one hash is ever present, and
+      // applyQueryHash returns false for the anchor form so goToAnchor still
+      // owns it.
+      if (!applyQueryHash()) {
+        goToAnchor();
+      }
     },
     /** The honest failure state for a reader who IS allowed in. */
     failed: function (sentence) {
