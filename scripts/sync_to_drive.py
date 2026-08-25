@@ -2755,6 +2755,14 @@ def _run_drive_pull(label: str = "[STEP 0b] Drive → local pull (enforcing)") -
 # never data. Exactly one named line is printed on every path: applied, in sync,
 # skipped, or failed.
 #
+# ⚠️ IT SWEEPS BOTH LIBRARY INSTANCES (2026-08-25) — main, then padhard
+# (`--friend`, which `library_catalog/scripts/lib/d1.mjs` requires be paired
+# with `--remote`). They are two separate D1 databases, so one run cannot reach
+# both, and padhard's links were being kept alive by hand. The two instances are
+# independent failure domains: a padhard failure is reported as a named
+# `partial` and does NOT take main's good sweep down with it. `SIBLING_LINK_FRIEND`
+# in app/config.py turns the friend half off without a code change.
+#
 # ⚠️ IT WRITES ANOTHER APP'S PRODUCTION D1 (`--remote --commit`), which is why
 # the manual `link` step is classified `publishing` and not `mutating`: the
 # top confirmation tier is right for a button that reaches into a different
@@ -2785,6 +2793,16 @@ try:
     from app.config import LIBRARY_CATALOG_DIR
 except Exception:  # pragma: no cover — same defensive stance as the pstatus import
     LIBRARY_CATALOG_DIR = None  # type: ignore[assignment]
+
+# ⚠️ Imported SEPARATELY from LIBRARY_CATALOG_DIR, and defaulting to True rather
+# than to None. The path import above turns its own failure into a named skip
+# because a missing path means the step CANNOT run; a missing switch means only
+# that this checkout predates it, and the honest default there is the documented
+# behaviour — sweep both — not "silently go back to main only".
+try:
+    from app.config import SIBLING_LINK_FRIEND
+except Exception:  # pragma: no cover — see above
+    SIBLING_LINK_FRIEND = True  # type: ignore[assignment]
 
 
 def _link_report(state: str, detail: str) -> None:
@@ -2822,8 +2840,18 @@ def _run_sibling_link(
 ) -> None:
     """Run library_catalog's backfill-audiobook-holdings.mjs for this cycle.
 
-    Never raises. Exactly one named line is printed on every path — applied,
-    in sync, skipped, failed.
+    ⚠️ **BOTH library instances, main then padhard** (2026-08-25). They are two
+    D1 databases, so a sweep of one leaves the other exactly as stale as it was,
+    and padhard's audio links existed only because somebody had run `--friend`
+    by hand — the same "freshness depends on remembering" failure this step was
+    built to end, one instance over. Justified by the owner's decision that the
+    two of them share ONE audio pool; see `app.config.SIBLING_LINK_FRIEND`,
+    which turns the friend half off without a code change.
+
+    Never raises, and **a friend failure never fails main's success**: each
+    instance reports its own named line through `_link_report`, and a mixed
+    outcome ends as a named `partial` rather than as either half's word.
+    States are unchanged — applied, in sync, skipped, failed — plus `partial`.
 
     ⚠️ `mark_step=False` on the IDLE path, and this is not cosmetic.
     pstatus.step() marks every entry BEFORE the named one 'done' — true on the
@@ -2869,7 +2897,75 @@ def _run_sibling_link(
 
     env = dict(os.environ)
     env["PYTHONIOENCODING"] = "utf-8"  # see reason 2 in STEP 8's block above
-    cmd = prefix + [LINK_SCRIPT_REL, "--remote", "--commit"]
+
+    # --- MAIN first, then padhard. -----------------------------------------
+    # Order matters and is not alphabetical: main is the owner's own catalogue
+    # and the one whose staleness he sees, so it gets the fresh timeout budget
+    # and it gets reported even if the friend half then hangs for 15 minutes.
+    main_state, main_detail = _link_one_instance(repo, prefix, env, friend=False)
+    _link_report(main_state, f"main: {main_detail}")
+
+    if not SIBLING_LINK_FRIEND:
+        print("  [INFO] Friend instance (padhard) SKIPPED: SIBLING_LINK_FRIEND is off.")
+        return
+
+    friend_state, friend_detail = _link_one_instance(repo, prefix, env, friend=True)
+
+    # ⚠️ ONE COMBINED LINE WINS, and a mixed outcome is named `partial` rather
+    # than taking either half's word for it. `_link_report` writes a single
+    # summary field, so the last call is what the status page renders — and
+    # "applied" alone, after the friend half failed, would be a lie of omission
+    # about a sweep that half-ran. Main's line was already written above, so a
+    # friend half that hangs and gets killed still leaves main's real result on
+    # the page in the meantime.
+    ok = {"applied", "in-sync"}
+    if main_state in ok and friend_state in ok:
+        combined = main_state if main_state == friend_state else "applied"
+    elif main_state in ok or friend_state in ok:
+        combined = "partial"
+    else:
+        combined = "failed"
+
+    _link_report(combined, f"main: {main_detail} · friend: {friend_detail}")
+    if combined == "partial":
+        # Never raises, never aborts: the two instances are independent failure
+        # domains, and a padhard problem must not turn a good main sweep into a
+        # failed pipeline step.
+        loser = "friend (padhard)" if main_state in ok else "main"
+        print(f"  [WARN] Sibling link PARTIAL — {loser} did not complete. "
+              "The other instance's result stands; the next cycle retries both.")
+
+
+def _link_one_instance(
+    repo: Path,
+    prefix: list[str],
+    env: dict[str, str],
+    friend: bool,
+) -> tuple[str, str]:
+    """Run the sweep against ONE library instance and return `(state, detail)`.
+
+    Never raises, never reports — the caller owns `_link_report`, because two
+    instances share one summary field and only the caller can see both halves.
+    States are the same four words as before: applied, in-sync, skipped, failed.
+
+    ⚠️ `--friend` REQUIRES `--remote` (`library_catalog/scripts/lib/d1.mjs`
+    refuses the pair outright): there is no local copy of the second instance —
+    both instances bind `DB`, so miniflare keeps ONE local database and a local
+    `--friend` run would rewrite the MAIN catalogue's holdings while reporting
+    on padhard's. This step is `--remote` anyway, so the flags simply travel
+    together.
+
+    ⚠️ The script is invoked through `tsx` by path, NOT through
+    `npm run backfill:audiobooks -- --remote --friend --commit`. That npm script
+    is the documented human command and does the same thing; a bare `npm` in an
+    argv list has the identical Windows CreateProcess problem `npx` has (see the
+    header), and the resolved-tsx idiom already solves it.
+    """
+    import subprocess
+
+    who = "padhard (friend)" if friend else "main"
+    cmd = prefix + [LINK_SCRIPT_REL, "--remote"] + (["--friend"] if friend else []) + ["--commit"]
+    print(f"\n  -- {who}: {' '.join(cmd[len(prefix):])}")
 
     try:
         proc = subprocess.run(
@@ -2878,15 +2974,13 @@ def _run_sibling_link(
             timeout=LINK_TIMEOUT_S,
         )
     except subprocess.TimeoutExpired:
-        print(f"  [WARN] Sibling link TIMED OUT after {LINK_TIMEOUT_S}s and was killed. "
+        print(f"  [WARN] Sibling link ({who}) TIMED OUT after {LINK_TIMEOUT_S}s and was killed. "
               "The usual cause is wrangler wanting an interactive login — run "
               "`npx wrangler whoami` in library_catalog on this machine.")
-        _link_report("skipped", f"timed out after {LINK_TIMEOUT_S}s (wrangler may need a human)")
-        return
+        return "skipped", f"timed out after {LINK_TIMEOUT_S}s (wrangler may need a human)"
     except Exception as e:  # noqa: BLE001 — independent failure domain, by design
-        print(f"  [WARN] Sibling link could not be started: {e}")
-        _link_report("failed", f"could not start: {e}")
-        return
+        print(f"  [WARN] Sibling link ({who}) could not be started: {e}")
+        return "failed", f"could not start: {e}"
 
     # The sweep's own report goes to the LOCAL log in full — match counts, the
     # containment matches it wants a human to read, the titles it could not
@@ -2901,18 +2995,17 @@ def _run_sibling_link(
     if summary is None:
         tail = (proc.stderr or proc.stdout or "").strip().splitlines()
         tail = tail[-1] if tail else f"exit {proc.returncode}, no output"
-        print(f"  [WARN] Sibling link FAILED: {tail}")
+        print(f"  [WARN] Sibling link ({who}) FAILED: {tail}")
         print("  [WARN] The previous holdings still stand; the next cycle retries.")
-        _link_report("failed", tail[:200])
-        return
+        return "failed", tail[:200]
 
     sent, detail = summary
     if sent == 0:
-        print(f"  Sibling link in sync — nothing to write ({detail}).")
-        _link_report("in-sync", f"in sync — {detail}")
-    else:
-        print(f"  Sibling link APPLIED {sent} statement(s): {detail}")
-        _link_report("applied", f"{sent} statement(s) applied — {detail}")
+        print(f"  Sibling link ({who}) in sync — nothing to write ({detail}).")
+        return "in-sync", f"in sync — {detail}"
+
+    print(f"  Sibling link ({who}) APPLIED {sent} statement(s): {detail}")
+    return "applied", f"{sent} statement(s) applied — {detail}"
 
 
 # The sweep's last line, verbatim from backfill-audiobook-holdings.mjs:

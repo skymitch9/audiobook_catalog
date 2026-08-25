@@ -38,6 +38,36 @@ LIBRARY_CATALOG_DIR: Path = Path(
     LIBRARY_CATALOG_DIR_ENV if LIBRARY_CATALOG_DIR_ENV else DEFAULT_LIBRARY_CATALOG_DIR
 ).expanduser()
 
+# ⚠️ THERE ARE TWO LIBRARY INSTANCES, AND STEP 11 MUST SWEEP BOTH.
+#
+# `library_catalog` deploys twice: MAIN (library.heygabi.ai) and FRIEND —
+# padhard.heygabi.ai, on its own D1 (`library-catalog-2nd`). They are separate
+# databases, so the sibling-link sweep run against one leaves the other exactly
+# as stale as it was.
+#
+# The owner and padhard SHARE ONE AUDIO POOL (owner decision 2026-08-25: *"her
+# and I share audio and ebooks … they're already pre-mixed with mine; they
+# should count as she owns them too"*), which is what makes sweeping her
+# instance correct rather than presumptuous — the same audiobooks really are
+# hers. Her machine-route tokens were set by hand the same day; before that her
+# routes were off and there was nothing here to target.
+#
+# Measured 2026-08-25: her 101 audio links existed only because somebody ran the
+# sweep with `--friend` BY HAND. That is the same "freshness depends on somebody
+# remembering" failure STEP 11 was built to end, one instance over.
+#
+# The switch exists so this can be turned off WITHOUT A CODE CHANGE — a machine
+# that should only ever touch the main catalogue (a fresh checkout, a test box,
+# or the day padhard is retired) sets `SIBLING_LINK_FRIEND=0`. Default ON.
+# A friend failure never fails the cycle: STEP 11 reports it as a named partial
+# and main's result still stands.
+SIBLING_LINK_FRIEND: bool = (os.getenv("SIBLING_LINK_FRIEND") or "1").strip().lower() not in {
+    "0",
+    "false",
+    "no",
+    "off",
+}
+
 DRIVE_FOLDER_URL: str | None = os.getenv("DRIVE_FOLDER_URL") or None
 
 EXTS: set[str] = {".m4b", ".m4a", ".mp4"}

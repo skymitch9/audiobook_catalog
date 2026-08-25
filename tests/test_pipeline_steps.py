@@ -399,14 +399,24 @@ def test_step_publish_tolerates_fulfill_requests_failure(monkeypatch):
 #
 # The contract this step is built to (see its header in sync_to_drive.py):
 #   * NEVER raises, on any path;
-#   * exactly ONE named outcome per run — applied / in sync / skipped / failed;
+#   * a named outcome per instance — applied / in sync / skipped / failed;
 #   * a machine that CANNOT REACH the sibling is distinguishable from one that
 #     reached it and found nothing to write. That distinction is the whole
 #     reason for the named skips: "0 statements" and "no checkout" are
 #     different facts and the status page must not render them the same.
 #
+# ⚠️ CHANGED 2026-08-25 — TWO INSTANCES, so "exactly ONE named outcome per run"
+# became "one per instance, plus a combined line that WINS". `library_catalog`
+# deploys twice (main + padhard/`--friend`) onto two separate D1 databases, and
+# a sweep of one leaves the other as stale as it was. `_run_sibling_link` now
+# calls `_link_report` twice: main's result immediately (so it is on the status
+# page even if the friend half then hangs for the full 15-minute timeout), then
+# a combined line. A mixed outcome is named `partial` — "applied", after the
+# friend half failed, would be a lie of omission about a sweep that half-ran.
+# `_link_detail()` therefore returns the LAST detail, which is the one rendered.
+#
 # Every test here fakes subprocess.run — nothing in this file ever starts the
-# real sweep, which would write another application's PRODUCTION D1.
+# real sweep, which would write another application's PRODUCTION D1, twice over.
 # ---------------------------------------------------------------------------
 
 # The sweep's real final line, copied verbatim from the 2026-08-22 hand-run
@@ -424,10 +434,16 @@ class _FakeProc:
         self.returncode = returncode
 
 
-def _fake_link_run(monkeypatch, tmp_path, proc_or_exc):
+def _fake_link_run(monkeypatch, tmp_path, proc_or_exc, friend_proc_or_exc=None):
     """Point STEP 11 at a fake checkout with a fake tsx, and fake the run.
 
-    Returns the dict the fake subprocess.run records its call into.
+    Returns the dict the fake subprocess.run records its calls into. `seen`
+    keeps the LAST call's kwargs (as it always did) and `seen["cmds"]` keeps
+    every argv in order — the step runs once per instance now, so a single
+    `cmd` can no longer describe what happened.
+
+    `friend_proc_or_exc` gives the second (padhard) run a DIFFERENT outcome
+    from the first, which is the only way to exercise the partial case.
     """
     import subprocess
 
@@ -437,23 +453,38 @@ def _fake_link_run(monkeypatch, tmp_path, proc_or_exc):
     monkeypatch.setattr(sync, "LIBRARY_CATALOG_DIR", repo)
     monkeypatch.setattr(sync, "_link_tsx_cmd", lambda r: ["tsx-fake"])
 
-    seen = {}
+    seen = {"cmds": []}
 
     def fake_run(cmd, **kw):
+        seen["cmds"].append(list(cmd))
         seen["cmd"] = cmd
         seen.update(kw)
-        if isinstance(proc_or_exc, BaseException):
-            raise proc_or_exc
-        return proc_or_exc
+        outcome = proc_or_exc
+        if friend_proc_or_exc is not None and "--friend" in cmd:
+            outcome = friend_proc_or_exc
+        if isinstance(outcome, BaseException):
+            raise outcome
+        return outcome
 
     monkeypatch.setattr(subprocess, "run", fake_run)
     return seen
 
 
+def _link_details(fake_status):
+    """Every `link` step detail, in order — main's, then the combined line."""
+    return [c[1][1] for c in fake_status.calls_named("step_detail") if c[1][0] == "link"]
+
+
 def _link_detail(fake_status):
-    details = [c[1] for c in fake_status.calls_named("step_detail") if c[1][0] == "link"]
-    assert len(details) == 1, f"expected exactly one link detail, got {details}"
-    return details[0][1]
+    """The detail the status page ends up RENDERING, i.e. the last one written.
+
+    ⚠️ Was `assert len(details) == 1` until 2026-08-25. Two instances means two
+    reports (see this section's header); the last call is the combined line, and
+    the combined line is what a reader sees.
+    """
+    details = _link_details(fake_status)
+    assert details, "expected at least one link detail, got none"
+    return details[-1]
 
 
 def test_parse_link_summary_reads_the_sweeps_real_final_line():
@@ -499,11 +530,16 @@ def test_link_skips_named_when_there_is_no_tsx_or_npx(monkeypatch, isolated_env,
 def test_link_applied_parses_the_final_line_into_the_step_detail(monkeypatch, isolated_env, tmp_path):
     _fake_link_run(monkeypatch, tmp_path, _FakeProc(stdout=f"working...\n{_REAL_FINAL_LINE}"))
     sync._run_sibling_link()
-    detail = _link_detail(isolated_env)
-    assert detail.startswith("296 statement(s) applied")
-    assert "121 live holding(s) of 154 row(s)" in detail
+    first, combined = _link_details(isolated_env)
+    # Main is reported on its own FIRST, so its real result is on the page even
+    # if the friend half then hangs for the full timeout.
+    assert first.startswith("main: 296 statement(s) applied")
+    assert combined.startswith("main: 296 statement(s) applied")
+    assert "friend: 296 statement(s) applied" in combined
+    assert "121 live holding(s) of 154 row(s)" in combined
     states = [c[2].get("siblingLinkState") for c in isolated_env.calls_named("set_summary")]
     assert "applied" in states
+    assert "partial" not in states
 
 
 def test_link_zero_statements_is_in_sync_not_applied(monkeypatch, isolated_env, tmp_path):
@@ -513,9 +549,10 @@ def test_link_zero_statements_is_in_sync_not_applied(monkeypatch, isolated_env, 
         _FakeProc(stdout="0 statement(s) run. 121 live holding(s) of 154 row(s), in the REMOTE database."),
     )
     sync._run_sibling_link()
-    assert _link_detail(isolated_env).startswith("in sync")
+    assert _link_detail(isolated_env).startswith("main: in sync")
     states = [c[2].get("siblingLinkState") for c in isolated_env.calls_named("set_summary")]
     assert "in-sync" in states
+    assert "partial" not in states
 
 
 def test_link_no_summary_line_is_failed_never_in_sync(monkeypatch, isolated_env, tmp_path):
@@ -548,13 +585,137 @@ def test_link_unstartable_process_is_failed_and_never_raises(monkeypatch, isolat
 def test_link_command_shape_is_the_documented_one(monkeypatch, isolated_env, tmp_path):
     """cwd = the SIBLING repo (not this one), --remote --commit, a hard
     timeout, and PYTHONIOENCODING forced on the child — the sweep prints
-    warning emoji and em-dashes that die on a captured cp1252 pipe."""
+    warning emoji and em-dashes that die on a captured cp1252 pipe.
+
+    ⚠️ TWO commands since 2026-08-25: main, then padhard. `--friend` is paired
+    with `--remote` because `library_catalog/scripts/lib/d1.mjs` refuses the
+    pair's absence outright — there is no local copy of the second instance, so
+    a local `--friend` run would rewrite MAIN's holdings while reporting on
+    hers.
+    """
     seen = _fake_link_run(monkeypatch, tmp_path, _FakeProc(stdout=_REAL_FINAL_LINE))
     sync._run_sibling_link()
-    assert seen["cmd"] == ["tsx-fake", sync.LINK_SCRIPT_REL, "--remote", "--commit"]
+    assert seen["cmds"] == [
+        ["tsx-fake", sync.LINK_SCRIPT_REL, "--remote", "--commit"],
+        ["tsx-fake", sync.LINK_SCRIPT_REL, "--remote", "--friend", "--commit"],
+    ]
     assert seen["cwd"] == str(tmp_path / "library_catalog")
     assert seen["env"]["PYTHONIOENCODING"] == "utf-8"
     assert seen["timeout"] == sync.LINK_TIMEOUT_S
+
+
+# --- the friend instance (padhard), added 2026-08-25 -----------------------
+
+
+def test_link_sweeps_main_first_then_padhard(monkeypatch, isolated_env, tmp_path):
+    """Order is not alphabetical and not incidental: main is the owner's own
+    catalogue, so it gets the fresh timeout budget and gets reported first."""
+    seen = _fake_link_run(monkeypatch, tmp_path, _FakeProc(stdout=_REAL_FINAL_LINE))
+    sync._run_sibling_link()
+    assert len(seen["cmds"]) == 2
+    assert "--friend" not in seen["cmds"][0]
+    assert "--friend" in seen["cmds"][1]
+
+
+def test_link_friend_failure_does_not_take_mains_success_down(monkeypatch, isolated_env, tmp_path):
+    """⚠️ The property the whole two-instance change rests on. Two D1 databases
+    are two failure domains, and a padhard problem must not turn a good main
+    sweep into a failed pipeline step."""
+    seen = _fake_link_run(
+        monkeypatch, tmp_path,
+        _FakeProc(stdout=_REAL_FINAL_LINE),
+        friend_proc_or_exc=_FakeProc(stdout="", stderr="D1_ERROR: no such table", returncode=1),
+    )
+    sync._run_sibling_link()  # must not raise
+    assert len(seen["cmds"]) == 2, "main must still have run"
+    states = [c[2].get("siblingLinkState") for c in isolated_env.calls_named("set_summary")]
+    assert states[-1] == "partial", f"a mixed outcome is a named partial, got {states}"
+    detail = _link_detail(isolated_env)
+    assert "main: 296 statement(s) applied" in detail  # main's real result survives
+    assert "friend: D1_ERROR: no such table" in detail  # …and hers is NAMED, not hidden
+
+
+def test_link_main_failure_still_sweeps_padhard(monkeypatch, isolated_env, tmp_path):
+    """The mirror image: the instances are independent, so main failing is not
+    a reason to leave HER catalogue stale as well."""
+    seen = _fake_link_run(
+        monkeypatch, tmp_path,
+        _FakeProc(stdout="", stderr="D1_ERROR: main is unhappy", returncode=1),
+        friend_proc_or_exc=_FakeProc(stdout=_REAL_FINAL_LINE),
+    )
+    sync._run_sibling_link()  # must not raise
+    assert len(seen["cmds"]) == 2
+    states = [c[2].get("siblingLinkState") for c in isolated_env.calls_named("set_summary")]
+    assert states[-1] == "partial"
+
+
+def test_link_both_failing_is_failed_not_partial(monkeypatch, isolated_env, tmp_path):
+    """`partial` must mean "one half worked". If it also meant "neither did",
+    the status page could never tell a degraded sweep from a dead one."""
+    _fake_link_run(
+        monkeypatch, tmp_path,
+        _FakeProc(stdout="", stderr="D1_ERROR: everything is unhappy", returncode=1),
+    )
+    sync._run_sibling_link()
+    states = [c[2].get("siblingLinkState") for c in isolated_env.calls_named("set_summary")]
+    assert states[-1] == "failed"
+
+
+def test_link_mixed_applied_and_in_sync_is_not_partial(monkeypatch, isolated_env, tmp_path):
+    """Both halves succeeded — one had work to do and one did not. That is the
+    ordinary steady state once the step is scheduled, and it must not alarm."""
+    _fake_link_run(
+        monkeypatch, tmp_path,
+        _FakeProc(stdout=_REAL_FINAL_LINE),
+        friend_proc_or_exc=_FakeProc(
+            stdout="0 statement(s) run. 101 live holding(s) of 101 row(s), in the REMOTE database."
+        ),
+    )
+    sync._run_sibling_link()
+    states = [c[2].get("siblingLinkState") for c in isolated_env.calls_named("set_summary")]
+    assert states[-1] == "applied"
+    assert "friend: in sync" in _link_detail(isolated_env)
+
+
+def test_sibling_link_friend_switch_off_runs_main_only(monkeypatch, isolated_env, tmp_path):
+    """The config switch exists so a machine that must never touch padhard can
+    be told so WITHOUT a code change (app/config.py SIBLING_LINK_FRIEND)."""
+    monkeypatch.setattr(sync, "SIBLING_LINK_FRIEND", False)
+    seen = _fake_link_run(monkeypatch, tmp_path, _FakeProc(stdout=_REAL_FINAL_LINE))
+    sync._run_sibling_link()
+    assert len(seen["cmds"]) == 1
+    assert "--friend" not in seen["cmds"][0]
+    # Only main's line — no combined line to write, and nothing claims a
+    # padhard result that was never asked for.
+    assert _link_details(isolated_env) == [_link_detail(isolated_env)]
+    assert _link_detail(isolated_env).startswith("main: 296 statement(s) applied")
+
+
+def test_sibling_link_friend_defaults_on():
+    """⚠️ Default ON, and the fallback when app/config is too old to have the
+    name is ALSO on: a missing switch means "this checkout predates it", and
+    the honest default is the documented behaviour, not a silent regression to
+    main-only. (The env var still turns it off: SIBLING_LINK_FRIEND=0.)"""
+    assert sync.SIBLING_LINK_FRIEND is True
+    import app.config as cfg
+
+    assert cfg.SIBLING_LINK_FRIEND is True
+
+
+def test_sibling_link_friend_env_var_turns_it_off(monkeypatch):
+    """Parsed the way an operator would expect, not just `== "0"`."""
+    import importlib
+
+    import app.config as cfg
+
+    for off in ("0", "false", "no", "off", "OFF"):
+        monkeypatch.setenv("SIBLING_LINK_FRIEND", off)
+        assert importlib.reload(cfg).SIBLING_LINK_FRIEND is False, off
+    for on in ("1", "true", "yes"):
+        monkeypatch.setenv("SIBLING_LINK_FRIEND", on)
+        assert importlib.reload(cfg).SIBLING_LINK_FRIEND is True, on
+    monkeypatch.delenv("SIBLING_LINK_FRIEND", raising=False)
+    importlib.reload(cfg)
 
 
 def test_step_link_runs_the_same_body(monkeypatch):
