@@ -242722,5 +242722,913 @@
    }
   ],
   "parts": []
+ },
+ "Caged Wolf: Darkmore Penitentiary, Book 1": {
+  "source": "m4b",
+  "chapters": [
+   {
+    "title": "Chapter 1",
+    "start_min": 0.0,
+    "start_sec": 0.0
+   },
+   {
+    "title": "Chapter 2",
+    "start_min": 0.3,
+    "start_sec": 16.695
+   },
+   {
+    "title": "Chapter 3",
+    "start_min": 31.7,
+    "start_sec": 1902.527
+   },
+   {
+    "title": "Chapter 4",
+    "start_min": 50.7,
+    "start_sec": 3044.926
+   },
+   {
+    "title": "Chapter 5",
+    "start_min": 91.4,
+    "start_sec": 5481.558
+   },
+   {
+    "title": "Chapter 6",
+    "start_min": 104.9,
+    "start_sec": 6295.766
+   },
+   {
+    "title": "Chapter 7",
+    "start_min": 141.8,
+    "start_sec": 8510.555
+   },
+   {
+    "title": "Chapter 8",
+    "start_min": 158.9,
+    "start_sec": 9534.647
+   },
+   {
+    "title": "Chapter 9",
+    "start_min": 192.2,
+    "start_sec": 11529.892
+   },
+   {
+    "title": "Chapter 10",
+    "start_min": 216.1,
+    "start_sec": 12967.253
+   },
+   {
+    "title": "Chapter 11",
+    "start_min": 249.8,
+    "start_sec": 14989.735
+   },
+   {
+    "title": "Chapter 12",
+    "start_min": 265.4,
+    "start_sec": 15922.573
+   },
+   {
+    "title": "Chapter 13",
+    "start_min": 282.3,
+    "start_sec": 16936.705
+   },
+   {
+    "title": "Chapter 14",
+    "start_min": 300.7,
+    "start_sec": 18042.741
+   },
+   {
+    "title": "Chapter 15",
+    "start_min": 327.3,
+    "start_sec": 19638.253
+   },
+   {
+    "title": "Chapter 16",
+    "start_min": 345.9,
+    "start_sec": 20754.553
+   },
+   {
+    "title": "Chapter 17",
+    "start_min": 362.2,
+    "start_sec": 21732.484
+   },
+   {
+    "title": "Chapter 18",
+    "start_min": 393.0,
+    "start_sec": 23578.773
+   },
+   {
+    "title": "Chapter 19",
+    "start_min": 437.0,
+    "start_sec": 26218.115
+   },
+   {
+    "title": "Chapter 20",
+    "start_min": 460.8,
+    "start_sec": 27646.444
+   },
+   {
+    "title": "Chapter 21",
+    "start_min": 493.1,
+    "start_sec": 29585.171
+   },
+   {
+    "title": "Chapter 22",
+    "start_min": 521.4,
+    "start_sec": 31285.615
+   },
+   {
+    "title": "Chapter 23",
+    "start_min": 551.9,
+    "start_sec": 33116.253
+   },
+   {
+    "title": "Chapter 24",
+    "start_min": 576.0,
+    "start_sec": 34557.608
+   },
+   {
+    "title": "Chapter 25",
+    "start_min": 607.9,
+    "start_sec": 36475.646
+   },
+   {
+    "title": "Chapter 26",
+    "start_min": 646.9,
+    "start_sec": 38816.427
+   },
+   {
+    "title": "Chapter 27",
+    "start_min": 666.9,
+    "start_sec": 40013.23
+   },
+   {
+    "title": "Chapter 28",
+    "start_min": 680.4,
+    "start_sec": 40824.326
+   },
+   {
+    "title": "Chapter 29",
+    "start_min": 706.4,
+    "start_sec": 42384.103
+   },
+   {
+    "title": "Chapter 30",
+    "start_min": 728.2,
+    "start_sec": 43692.78
+   },
+   {
+    "title": "Chapter 31",
+    "start_min": 770.7,
+    "start_sec": 46239.707
+   },
+   {
+    "title": "Chapter 32",
+    "start_min": 784.1,
+    "start_sec": 47046.67
+   },
+   {
+    "title": "Chapter 33",
+    "start_min": 814.9,
+    "start_sec": 48894.351
+   },
+   {
+    "title": "Chapter 34",
+    "start_min": 845.1,
+    "start_sec": 50703.952
+   },
+   {
+    "title": "Chapter 35",
+    "start_min": 862.6,
+    "start_sec": 51753.424
+   },
+   {
+    "title": "Chapter 36",
+    "start_min": 878.8,
+    "start_sec": 52729.87
+   },
+   {
+    "title": "Chapter 37",
+    "start_min": 901.8,
+    "start_sec": 54105.141
+   },
+   {
+    "title": "Chapter 38",
+    "start_min": 920.6,
+    "start_sec": 55237.579
+   },
+   {
+    "title": "Chapter 39",
+    "start_min": 935.1,
+    "start_sec": 56108.28
+   },
+   {
+    "title": "Chapter 40",
+    "start_min": 948.3,
+    "start_sec": 56895.274
+   },
+   {
+    "title": "Chapter 41",
+    "start_min": 960.9,
+    "start_sec": 57651.989
+   },
+   {
+    "title": "Chapter 42",
+    "start_min": 976.0,
+    "start_sec": 58562.653
+   },
+   {
+    "title": "Chapter 43",
+    "start_min": 989.7,
+    "start_sec": 59384.407
+   },
+   {
+    "title": "Chapter 44",
+    "start_min": 997.4,
+    "start_sec": 59846.438
+   },
+   {
+    "title": "Chapter 45",
+    "start_min": 1006.9,
+    "start_sec": 60412.401
+   }
+  ],
+  "parts": []
+ },
+ "Wild Era 4 - A LitRPG Progression Epic": {
+  "source": "m4b",
+  "chapters": [
+   {
+    "title": "Opening Credits",
+    "start_min": 0.0,
+    "start_sec": 0.0
+   },
+   {
+    "title": "The Story So Far",
+    "start_min": 0.3,
+    "start_sec": 18.11
+   },
+   {
+    "title": "Kelin Wildfire: A Brief Status Sheet",
+    "start_min": 5.9,
+    "start_sec": 352.895
+   },
+   {
+    "title": "Chapter 1: Highmist",
+    "start_min": 9.0,
+    "start_sec": 537.958
+   },
+   {
+    "title": "Chapter 2: Taren and Esla",
+    "start_min": 24.1,
+    "start_sec": 1445.254
+   },
+   {
+    "title": "Chapter 3: Archmage's Sanctum",
+    "start_min": 38.9,
+    "start_sec": 2333.579
+   },
+   {
+    "title": "Chapter 4: A Private Realm",
+    "start_min": 59.8,
+    "start_sec": 3589.337
+   },
+   {
+    "title": "Chapter 5: Highmist",
+    "start_min": 74.2,
+    "start_sec": 4451.702
+   },
+   {
+    "title": "Chapter 6: Apprentices",
+    "start_min": 88.9,
+    "start_sec": 5333.224
+   },
+   {
+    "title": "Chapter 7: Allies",
+    "start_min": 108.5,
+    "start_sec": 6508.943
+   },
+   {
+    "title": "Chapter 8: Progress",
+    "start_min": 124.9,
+    "start_sec": 7495.907
+   },
+   {
+    "title": "Chapter 9: Realm of Falling Sand",
+    "start_min": 142.5,
+    "start_sec": 8551.555
+   },
+   {
+    "title": "Chapter 10: Escalation",
+    "start_min": 158.4,
+    "start_sec": 9505.941
+   },
+   {
+    "title": "Chapter 11: Attempt",
+    "start_min": 178.0,
+    "start_sec": 10678.571
+   },
+   {
+    "title": "Chapter 12: Falling Sands",
+    "start_min": 199.3,
+    "start_sec": 11955.993
+   },
+   {
+    "title": "Chapter 13: A Walk in Highmist",
+    "start_min": 225.6,
+    "start_sec": 13534.787
+   },
+   {
+    "title": "Chapter 14: Arcolen",
+    "start_min": 239.6,
+    "start_sec": 14378.855
+   },
+   {
+    "title": "Chapter 15: A Visitor",
+    "start_min": 262.3,
+    "start_sec": 15735.364
+   },
+   {
+    "title": "Chapter 16: Arrangements",
+    "start_min": 287.1,
+    "start_sec": 17226.549
+   },
+   {
+    "title": "Chapter 17: Connections",
+    "start_min": 305.8,
+    "start_sec": 18350.58
+   },
+   {
+    "title": "Chapter 18: Setting Out",
+    "start_min": 334.4,
+    "start_sec": 20066.534
+   },
+   {
+    "title": "Chapter 19: Baelorn Fell",
+    "start_min": 358.4,
+    "start_sec": 21502.13
+   },
+   {
+    "title": "Chapter 20: Respect",
+    "start_min": 383.1,
+    "start_sec": 22987.556
+   },
+   {
+    "title": "Chapter 21: Wells of Miasma",
+    "start_min": 402.5,
+    "start_sec": 24147.323
+   },
+   {
+    "title": "Chapter 22: Sands of Decay",
+    "start_min": 425.8,
+    "start_sec": 25550.319
+   },
+   {
+    "title": "Chapter 23: Ancient Spirits",
+    "start_min": 441.7,
+    "start_sec": 26500.061
+   },
+   {
+    "title": "Chapter 24: Baelorn King",
+    "start_min": 457.5,
+    "start_sec": 27452.636
+   },
+   {
+    "title": "Chapter 25: What Lies Beneath",
+    "start_min": 478.2,
+    "start_sec": 28691.908
+   },
+   {
+    "title": "Chapter 26: Ambassador",
+    "start_min": 514.2,
+    "start_sec": 30849.204
+   },
+   {
+    "title": "Chapter 27: Possession",
+    "start_min": 532.6,
+    "start_sec": 31955.588
+   },
+   {
+    "title": "Chapter 28: The Hermit Emperor",
+    "start_min": 562.9,
+    "start_sec": 33774.685
+   },
+   {
+    "title": "Chapter 29: Interlude",
+    "start_min": 584.2,
+    "start_sec": 35049.414
+   },
+   {
+    "title": "Chapter 30: The Great Houses",
+    "start_min": 604.8,
+    "start_sec": 36288.407
+   },
+   {
+    "title": "Chapter 31: Settling the City Lords",
+    "start_min": 626.8,
+    "start_sec": 37609.111
+   },
+   {
+    "title": "Chapter 32: Hugo Whitestar",
+    "start_min": 655.9,
+    "start_sec": 39351.791
+   },
+   {
+    "title": "Chapter 33: Conversations",
+    "start_min": 669.7,
+    "start_sec": 40184.806
+   },
+   {
+    "title": "Chapter 34: Lessons in Politics",
+    "start_min": 692.2,
+    "start_sec": 41533.908
+   },
+   {
+    "title": "Kelin Wildfire, Stat Sheet, End of Book 4",
+    "start_min": 711.0,
+    "start_sec": 42660.145
+   },
+   {
+    "title": "End Credits",
+    "start_min": 730.4,
+    "start_sec": 43825.183
+   }
+  ],
+  "parts": []
+ },
+ "Portal to Nova Roma: Paris": {
+  "source": "m4b",
+  "chapters": [
+   {
+    "title": "Opening Credits",
+    "start_min": 0.0,
+    "start_sec": 0.0
+   },
+   {
+    "title": "Summary of Book One",
+    "start_min": 0.3,
+    "start_sec": 15.975
+   },
+   {
+    "title": "Summary of Book Two",
+    "start_min": 3.5,
+    "start_sec": 208.189
+   },
+   {
+    "title": "Summary of Book Three",
+    "start_min": 7.5,
+    "start_sec": 448.515
+   },
+   {
+    "title": "Character Sheet",
+    "start_min": 14.1,
+    "start_sec": 848.734
+   },
+   {
+    "title": "Chapter 1",
+    "start_min": 44.2,
+    "start_sec": 2650.37
+   },
+   {
+    "title": "Chapter 2",
+    "start_min": 58.0,
+    "start_sec": 3477.743
+   },
+   {
+    "title": "Chapter 3",
+    "start_min": 87.6,
+    "start_sec": 5256.345
+   },
+   {
+    "title": "Chapter 4",
+    "start_min": 100.0,
+    "start_sec": 5999.569
+   },
+   {
+    "title": "Chapter 5",
+    "start_min": 123.1,
+    "start_sec": 7387.054
+   },
+   {
+    "title": "Chapter 6",
+    "start_min": 138.5,
+    "start_sec": 8311.254
+   },
+   {
+    "title": "Chapter 7",
+    "start_min": 156.3,
+    "start_sec": 9378.675
+   },
+   {
+    "title": "Chapter 8",
+    "start_min": 174.6,
+    "start_sec": 10477.071
+   },
+   {
+    "title": "Chapter 9",
+    "start_min": 197.8,
+    "start_sec": 11870.268
+   },
+   {
+    "title": "Chapter 10",
+    "start_min": 223.1,
+    "start_sec": 13385.37
+   },
+   {
+    "title": "Chapter 11",
+    "start_min": 243.2,
+    "start_sec": 14589.603
+   },
+   {
+    "title": "Chapter 12",
+    "start_min": 264.7,
+    "start_sec": 15879.843
+   },
+   {
+    "title": "Chapter 13",
+    "start_min": 275.6,
+    "start_sec": 16534.924
+   },
+   {
+    "title": "Chapter 14",
+    "start_min": 294.7,
+    "start_sec": 17679.482
+   },
+   {
+    "title": "Chapter 15",
+    "start_min": 321.1,
+    "start_sec": 19264.476
+   },
+   {
+    "title": "Chapter 16",
+    "start_min": 356.0,
+    "start_sec": 21357.476
+   },
+   {
+    "title": "Chapter 17",
+    "start_min": 366.0,
+    "start_sec": 21962.634
+   },
+   {
+    "title": "Chapter 18",
+    "start_min": 384.1,
+    "start_sec": 23047.934
+   },
+   {
+    "title": "Chapter 19",
+    "start_min": 405.7,
+    "start_sec": 24339.288
+   },
+   {
+    "title": "Chapter 20",
+    "start_min": 422.1,
+    "start_sec": 25324.696
+   },
+   {
+    "title": "Chapter 21",
+    "start_min": 447.4,
+    "start_sec": 26846.903
+   },
+   {
+    "title": "Chapter 22",
+    "start_min": 479.8,
+    "start_sec": 28785.026
+   },
+   {
+    "title": "Chapter 23",
+    "start_min": 487.4,
+    "start_sec": 29243.155
+   },
+   {
+    "title": "Chapter 24",
+    "start_min": 499.0,
+    "start_sec": 29942.261
+   },
+   {
+    "title": "Chapter 25",
+    "start_min": 512.2,
+    "start_sec": 30733.318
+   },
+   {
+    "title": "Chapter 26",
+    "start_min": 532.7,
+    "start_sec": 31961.467
+   },
+   {
+    "title": "Chapter 27",
+    "start_min": 543.5,
+    "start_sec": 32607.678
+   },
+   {
+    "title": "Chapter 28",
+    "start_min": 556.5,
+    "start_sec": 33387.589
+   },
+   {
+    "title": "Chapter 29",
+    "start_min": 571.7,
+    "start_sec": 34302.873
+   },
+   {
+    "title": "Chapter 30",
+    "start_min": 584.6,
+    "start_sec": 35077.026
+   },
+   {
+    "title": "Chapter 31",
+    "start_min": 601.3,
+    "start_sec": 36076.18
+   },
+   {
+    "title": "Chapter 32",
+    "start_min": 617.3,
+    "start_sec": 37039.343
+   },
+   {
+    "title": "Chapter 33",
+    "start_min": 634.2,
+    "start_sec": 38052.568
+   },
+   {
+    "title": "Chapter 34",
+    "start_min": 653.9,
+    "start_sec": 39236.739
+   },
+   {
+    "title": "Chapter 35",
+    "start_min": 666.4,
+    "start_sec": 39986.975
+   },
+   {
+    "title": "Chapter 36",
+    "start_min": 683.1,
+    "start_sec": 40986.176
+   },
+   {
+    "title": "Chapter 37",
+    "start_min": 693.0,
+    "start_sec": 41580.003
+   },
+   {
+    "title": "Chapter 38",
+    "start_min": 703.1,
+    "start_sec": 42186.276
+   },
+   {
+    "title": "Chapter 39",
+    "start_min": 722.5,
+    "start_sec": 43348.481
+   },
+   {
+    "title": "Chapter 40",
+    "start_min": 735.3,
+    "start_sec": 44117.711
+   },
+   {
+    "title": "Chapter 41",
+    "start_min": 762.8,
+    "start_sec": 45765.956
+   },
+   {
+    "title": "Chapter 42",
+    "start_min": 771.5,
+    "start_sec": 46289.148
+   },
+   {
+    "title": "Chapter 43",
+    "start_min": 785.7,
+    "start_sec": 47143.503
+   },
+   {
+    "title": "Chapter 44",
+    "start_min": 799.2,
+    "start_sec": 47951.65
+   },
+   {
+    "title": "Chapter 45",
+    "start_min": 805.5,
+    "start_sec": 48328.927
+   },
+   {
+    "title": "Chapter 46",
+    "start_min": 831.1,
+    "start_sec": 49865.066
+   },
+   {
+    "title": "Chapter 47",
+    "start_min": 860.6,
+    "start_sec": 51635.169
+   },
+   {
+    "title": "Chapter 48",
+    "start_min": 868.3,
+    "start_sec": 52095.388
+   },
+   {
+    "title": "Chapter 49",
+    "start_min": 897.4,
+    "start_sec": 53845.243
+   },
+   {
+    "title": "Chapter 50",
+    "start_min": 916.3,
+    "start_sec": 54977.494
+   },
+   {
+    "title": "Chapter 51",
+    "start_min": 941.5,
+    "start_sec": 56487.348
+   },
+   {
+    "title": "Chapter 52",
+    "start_min": 954.4,
+    "start_sec": 57262.476
+   },
+   {
+    "title": "Chapter 53",
+    "start_min": 962.8,
+    "start_sec": 57766.627
+   },
+   {
+    "title": "Chapter 54",
+    "start_min": 980.7,
+    "start_sec": 58839.806
+   },
+   {
+    "title": "Chapter 55",
+    "start_min": 990.4,
+    "start_sec": 59422.023
+   },
+   {
+    "title": "Chapter 56",
+    "start_min": 1009.1,
+    "start_sec": 60544.289
+   },
+   {
+    "title": "Chapter 57",
+    "start_min": 1040.5,
+    "start_sec": 62429.47
+   },
+   {
+    "title": "Chapter 58",
+    "start_min": 1056.5,
+    "start_sec": 63390.636
+   },
+   {
+    "title": "Chapter 59",
+    "start_min": 1070.0,
+    "start_sec": 64197.947
+   },
+   {
+    "title": "Chapter 60",
+    "start_min": 1075.8,
+    "start_sec": 64550.286
+   },
+   {
+    "title": "Chapter 61",
+    "start_min": 1089.2,
+    "start_sec": 65350.492
+   },
+   {
+    "title": "Chapter 62",
+    "start_min": 1099.8,
+    "start_sec": 65988.529
+   },
+   {
+    "title": "Chapter 63",
+    "start_min": 1128.5,
+    "start_sec": 67709.313
+   },
+   {
+    "title": "Chapter 64",
+    "start_min": 1146.1,
+    "start_sec": 68765.588
+   },
+   {
+    "title": "Chapter 65",
+    "start_min": 1156.4,
+    "start_sec": 69386.814
+   },
+   {
+    "title": "Chapter 66",
+    "start_min": 1164.1,
+    "start_sec": 69846.244
+   },
+   {
+    "title": "Chapter 67",
+    "start_min": 1173.9,
+    "start_sec": 70434.312
+   },
+   {
+    "title": "Chapter 68",
+    "start_min": 1189.0,
+    "start_sec": 71340.865
+   },
+   {
+    "title": "Chapter 69",
+    "start_min": 1197.7,
+    "start_sec": 71860.991
+   },
+   {
+    "title": "Chapter 70",
+    "start_min": 1211.6,
+    "start_sec": 72694.169
+   },
+   {
+    "title": "Character Sheet",
+    "start_min": 1243.7,
+    "start_sec": 74623.282
+   },
+   {
+    "title": "Chapter 71",
+    "start_min": 1292.7,
+    "start_sec": 77559.352
+   },
+   {
+    "title": "Chapter 72",
+    "start_min": 1304.5,
+    "start_sec": 78271.229
+   },
+   {
+    "title": "Chapter 73",
+    "start_min": 1319.8,
+    "start_sec": 79185.445
+   },
+   {
+    "title": "Chapter 74",
+    "start_min": 1340.5,
+    "start_sec": 80431.195
+   },
+   {
+    "title": "Chapter 75",
+    "start_min": 1350.2,
+    "start_sec": 81012.854
+   },
+   {
+    "title": "Chapter 76",
+    "start_min": 1358.5,
+    "start_sec": 81508.367
+   },
+   {
+    "title": "Chapter 77",
+    "start_min": 1368.4,
+    "start_sec": 82104.562
+   },
+   {
+    "title": "Chapter 78",
+    "start_min": 1388.5,
+    "start_sec": 83311.906
+   },
+   {
+    "title": "Chapter 79",
+    "start_min": 1402.1,
+    "start_sec": 84124.093
+   },
+   {
+    "title": "Chapter 80",
+    "start_min": 1413.0,
+    "start_sec": 84779.22
+   },
+   {
+    "title": "Chapter 81",
+    "start_min": 1422.7,
+    "start_sec": 85359.393
+   },
+   {
+    "title": "Chapter 82",
+    "start_min": 1431.9,
+    "start_sec": 85916.253
+   },
+   {
+    "title": "Chapter 83",
+    "start_min": 1443.5,
+    "start_sec": 86611.412
+   },
+   {
+    "title": "Chapter 84",
+    "start_min": 1462.6,
+    "start_sec": 87756.666
+   },
+   {
+    "title": "Chapter 85",
+    "start_min": 1479.7,
+    "start_sec": 88779.876
+   },
+   {
+    "title": "Chapter 86",
+    "start_min": 1501.7,
+    "start_sec": 90104.063
+   },
+   {
+    "title": "Epilogue",
+    "start_min": 1509.4,
+    "start_sec": 90566.279
+   },
+   {
+    "title": "End Credits",
+    "start_min": 1512.6,
+    "start_sec": 90758.122
+   }
+  ],
+  "parts": []
  }
 }

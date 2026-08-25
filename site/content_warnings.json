@@ -7701,5 +7701,37 @@
   "warnings": [],
   "source": "none",
   "checked_at": 1787411197
+ },
+ "Caged Wolf: Darkmore Penitentiary, Book 1": {
+  "warnings": [
+   {
+    "label": "Gore",
+    "source_url": "https://app.thestorygraph.com/book_reviews/a4777f23-7477-435f-8ce4-c2a15dda00f4/content_warning/26"
+   },
+   {
+    "label": "Death",
+    "source_url": "https://app.thestorygraph.com/book_reviews/a4777f23-7477-435f-8ce4-c2a15dda00f4/content_warning/18"
+   },
+   {
+    "label": "Murder",
+    "source_url": "https://app.thestorygraph.com/book_reviews/a4777f23-7477-435f-8ce4-c2a15dda00f4/content_warning/78"
+   },
+   {
+    "label": "Sexual content",
+    "source_url": "https://app.thestorygraph.com/book_reviews/570da2de-78aa-49d9-9ca6-93ecc6fc3809/content_warning/45"
+   }
+  ],
+  "source": "web",
+  "checked_at": 1787699804
+ },
+ "Wild Era 4 - A LitRPG Progression Epic": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1787699941
+ },
+ "Portal to Nova Roma: Paris": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1787699976
  }
 }
