@@ -1121,6 +1121,23 @@ def _run_pipeline_body(
         print(f"  [WARN] Purchase audit failed: {e}")
 
     # -----------------------------------------------------------------------
+    # Step 0b: Pull Drive-only books to local — EARLY, before sort, so a book
+    # someone dropped straight into Drive is on disk before detect/sort/catalog
+    # run and ingests from this cycle on. Placed ahead of the STEP 2 idle
+    # early-return so it ALSO runs on idle cycles: a Drive-only drop is
+    # uncorrelated with whether THIS machine gained a local file. Subprocess,
+    # never-raises, kill-switch — see _run_drive_pull() for the full rationale
+    # (incident, churn, timeout, DRIVE_PULL_ENABLED).
+    # -----------------------------------------------------------------------
+    pstatus.step("drive-pull")
+    if dry_run:
+        print("\n[STEP 0b] Drive → local pull skipped (--dry-run).")
+        pstatus.step_detail("drive-pull", "skipped (dry-run)")
+    else:
+        pulled = _run_drive_pull()
+        pstatus.step_detail("drive-pull", f"{pulled} pulled")
+
+    # -----------------------------------------------------------------------
     # Step 1: Sort books from OpenAudible into author folders
     # -----------------------------------------------------------------------
     just_moved: frozenset[Path] = frozenset()
@@ -2580,6 +2597,117 @@ def _report_parity_summary(summary: dict) -> None:
         # cycle that could not read the estate directory made NO role→Drive
         # decisions, and that must be visible rather than read as "in sync".
         print(f"  [WARN] Estate directory was unreadable this cycle: {summary['estateUnreadable']}")
+
+
+# ---------------------------------------------------------------------------
+# STEP 0b — Drive → local pull. Bring down books someone dropped straight into
+# Drive so they ingest here.
+#
+# 🔴 WHY THIS RUNS AT ALL: the pipeline only ever pushed local → Drive. A file
+# added to Drive by hand (or by Justin's box) never came DOWN, so it never
+# sorted, catalogued, indexed or reached the sites — the exact gap the
+# 2026-08-24 duplicate incident exposed. This is the missing pull, now
+# ENFORCING (owner: "end users expect books fast, we're safe to rip the drive
+# pull down right away"). The matcher is all-format, copy-safe and series-safe;
+# see app/core/drive_pull.py's header for the three rules it enforces.
+#
+# Shelled out to scripts/drive_pull.py (not imported), for STEP 8's reasons:
+# it owns its own Drive client (reused from audit_drive_vs_local), a subprocess
+# gives a hard timeout against an interactive-OAuth hang, and its failure domain
+# stays independent — a pull that dies must never cost the sort/upload run. Like
+# every side-step here it NEVER raises: exactly one named line on every path.
+#
+# KILL SWITCH: DRIVE_PULL_ENABLED (default ON). Set it to 0/false/no/off to stop
+# pulling without a code change. DRIVE_PULL_TIMEOUT_S (default 1800) bounds a run.
+#
+# CHURN: a pulled file lands in ROOT_DIR/<Author>/ but is NOT in
+# upload_manifest.json, so a later cycle's STEP 2 detect flags it once. STEP 4
+# then finds it already on Drive (check_file_exists_on_drive → already_existed),
+# SKIPS the upload (no re-upload, no duplicate) and records a manifest entry —
+# after which detect never flags it again. Bounded to one detect+list, never a
+# per-run loop. (It is not detected the SAME cycle it is pulled: the file is
+# freshly written, so detect's age guard holds it until it has settled.)
+# ---------------------------------------------------------------------------
+DRIVE_PULL_SCRIPT = SCRIPTS_DIR / "drive_pull.py"
+DRIVE_PULL_TIMEOUT_S = int(os.getenv("DRIVE_PULL_TIMEOUT_S", "1800"))
+
+
+def _drive_pull_enabled() -> bool:
+    """The kill switch. Default ON (owner: enforce now). Only an explicit
+    off-word disables it, so a typo fails safe toward pulling."""
+    return os.getenv("DRIVE_PULL_ENABLED", "1").strip().lower() not in (
+        "0", "false", "no", "off", ""
+    )
+
+
+def _run_drive_pull(label: str = "[STEP 0b] Drive → local pull (enforcing)") -> int:
+    """Pull Drive-only books to local for this cycle. Returns the number pulled
+    (0 on disabled/skip/timeout/failure). Never raises — same contract as
+    _run_drive_parity(); modelled on it line for line."""
+    import subprocess
+
+    print(f"\n{label}...")
+
+    if not _drive_pull_enabled():
+        print("  [INFO] Pull DISABLED via DRIVE_PULL_ENABLED — nothing pulled.")
+        return 0
+
+    env = dict(os.environ)
+    env["PYTHONIOENCODING"] = "utf-8"  # see reason 2 in STEP 8's block above
+    cmd = [
+        sys.executable,
+        str(DRIVE_PULL_SCRIPT),
+        "--enforce",       # the owner wants it actually pulling, not report-only
+        "--json-summary",
+    ]
+
+    try:
+        proc = subprocess.run(
+            cmd, cwd=str(PROJECT_ROOT), env=env, capture_output=True,
+            text=True, encoding="utf-8", errors="replace",
+            timeout=DRIVE_PULL_TIMEOUT_S,
+        )
+    except subprocess.TimeoutExpired:
+        print(f"  [WARN] Pull TIMED OUT after {DRIVE_PULL_TIMEOUT_S}s and was killed. "
+              "The usual cause is Drive OAuth wanting an interactive browser flow — "
+              "run `python scripts/drive_auth.py` on this machine. Nothing was left "
+              "half-ingested: downloads stage to a temp file and only atomic-move on "
+              "completion.")
+        return 0
+    except Exception as e:  # noqa: BLE001 — independent failure domain, by design
+        print(f"  [WARN] Pull could not be started: {e}")
+        return 0
+
+    # Full output to the local log — the audit trail for an unattended download.
+    if proc.stdout:
+        for line in proc.stdout.splitlines():
+            if not line.startswith("PULL_JSON "):
+                print(f"  | {line}")
+
+    summary = None
+    for line in (proc.stdout or "").splitlines():
+        if line.startswith("PULL_JSON "):
+            try:
+                summary = json.loads(line[len("PULL_JSON "):])
+            except json.JSONDecodeError:
+                summary = None
+
+    if summary is None:
+        tail = (proc.stderr or proc.stdout or "").strip().splitlines()
+        tail = tail[-1] if tail else f"exit {proc.returncode}, no output"
+        print(f"  [WARN] Pull produced no summary: {tail}")
+        print("  [WARN] Nothing pulled this cycle; the next cycle retries.")
+        return 0
+
+    pulled = int(summary.get("pulled", 0))
+    if pulled:
+        print(f"  Pulled {pulled} Drive-only file(s) to local "
+              f"(they ingest from the next detect on).")
+    else:
+        print("  Pull in sync — nothing new on Drive to bring down "
+              f"({summary.get('present', 0)} already local, "
+              f"{summary.get('skippedCopies', 0)} copies skipped).")
+    return pulled
 
 
 # ---------------------------------------------------------------------------

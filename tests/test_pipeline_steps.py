@@ -56,20 +56,35 @@ def isolated_env(tmp_path, monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-def test_step_info_has_exactly_the_pipeline_status_steps():
+def test_step_info_is_the_manually_dispatchable_subset_of_pipeline_status_steps():
+    """STEP_INFO is the set of steps a human can run ALONE from the /status
+    Operations panel; pipeline_status.STEPS is the FULL ordered list the live
+    run card renders. They were identical until the auto-only 'drive-pull' step
+    (STEP 0b — the enforcing Drive→local pull) joined STEPS: it runs on every 8h
+    cycle but is deliberately NOT a manual on-demand button (wiring that would
+    mean editing the cross-repo mirror surfaces in catalog-platform, out of
+    scope). So STEP_INFO is now a SUBSET of STEPS, and the auto-only extras are
+    exactly {'drive-pull'}. STEP_CHOICES (and, via it, the watcher's
+    PIPELINE_STEP_CHOICES) stay tied to STEP_INFO, not to STEPS."""
     from app import pipeline_status as pstatus_real
 
-    assert set(sync.STEP_INFO.keys()) == {k for k, _label in pstatus_real.STEPS}
+    step_keys = {k for k, _label in pstatus_real.STEPS}
+    info_keys = set(sync.STEP_INFO.keys())
+    assert info_keys <= step_keys
+    assert step_keys - info_keys == {"drive-pull"}
     assert sync.STEP_CHOICES == tuple(sync.STEP_INFO.keys())
 
 
-def test_step_info_labels_match_pipeline_status_exactly():
+def test_step_info_labels_match_pipeline_status_for_shared_keys():
     """Not only the KEYS. The label is what the status page renders, so a key
     present under a mismatched label is the failure that shows one step under
-    two different names on two different pages."""
+    two different names on two different pages. Pinned for every key the two
+    lists share; 'drive-pull' is auto-only (see the subset test above)."""
     from app import pipeline_status as pstatus_real
 
-    assert {k: v["label"] for k, v in sync.STEP_INFO.items()} == dict(pstatus_real.STEPS)
+    status_labels = dict(pstatus_real.STEPS)
+    for key, info in sync.STEP_INFO.items():
+        assert info["label"] == status_labels[key]
 
 
 def test_step_info_classification_matches_the_owner_brief():
@@ -593,3 +608,92 @@ def test_step_link_never_calls_pstatus_step(monkeypatch, isolated_env):
     sync._run_step_body("link", "manual-step:link")
     assert isolated_env.calls_named("step") == []
     assert _link_detail(isolated_env)  # the outcome is still reported
+
+
+# ---------------------------------------------------------------------------
+# STEP 0b — _run_drive_pull(): the enforcing Drive → local pull.
+#
+# Same contract as STEP 8 parity and STEP 11 link: NEVER raises, exactly one
+# named outcome, and a kill switch (DRIVE_PULL_ENABLED). Every test here fakes
+# subprocess.run — nothing starts the real pull, which would download from
+# Drive to the live library.
+# ---------------------------------------------------------------------------
+
+
+def _fake_pull_run(monkeypatch, proc_or_exc):
+    """Fake the drive_pull subprocess. Returns the dict the call is recorded
+    into so the command shape can be asserted."""
+    import subprocess
+
+    seen = {}
+
+    def fake_run(cmd, **kw):
+        seen["cmd"] = cmd
+        seen.update(kw)
+        if isinstance(proc_or_exc, BaseException):
+            raise proc_or_exc
+        return proc_or_exc
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    return seen
+
+
+def test_drive_pull_enabled_defaults_on_and_only_off_words_disable(monkeypatch):
+    monkeypatch.delenv("DRIVE_PULL_ENABLED", raising=False)
+    assert sync._drive_pull_enabled() is True  # default ON (owner: enforce now)
+    for off in ("0", "false", "no", "off", "OFF", "", "  false  "):
+        monkeypatch.setenv("DRIVE_PULL_ENABLED", off)
+        assert sync._drive_pull_enabled() is False
+    for on in ("1", "true", "yes", "on", "anything-else"):
+        monkeypatch.setenv("DRIVE_PULL_ENABLED", on)
+        assert sync._drive_pull_enabled() is True
+
+
+def test_drive_pull_disabled_never_starts_the_subprocess(monkeypatch):
+    monkeypatch.setenv("DRIVE_PULL_ENABLED", "0")
+    started = _fake_pull_run(monkeypatch, _FakeProc(stdout="PULL_JSON {\"pulled\": 9}"))
+    assert sync._run_drive_pull() == 0
+    assert started == {}  # subprocess.run was never called
+
+
+def test_drive_pull_parses_the_pulled_count_from_pull_json(monkeypatch):
+    monkeypatch.setenv("DRIVE_PULL_ENABLED", "1")
+    payload = ('PULL_JSON {"enforced": true, "pulled": 3, "toPull": 3, '
+               '"skippedCopies": 2, "present": 1274, "ignored": 0}')
+    _fake_pull_run(monkeypatch, _FakeProc(stdout=f"working...\n{payload}\ndone"))
+    assert sync._run_drive_pull() == 3
+
+
+def test_drive_pull_in_sync_returns_zero(monkeypatch):
+    monkeypatch.setenv("DRIVE_PULL_ENABLED", "1")
+    _fake_pull_run(monkeypatch, _FakeProc(stdout='PULL_JSON {"pulled": 0, "present": 1274}'))
+    assert sync._run_drive_pull() == 0
+
+
+def test_drive_pull_no_summary_line_returns_zero_and_never_raises(monkeypatch):
+    monkeypatch.setenv("DRIVE_PULL_ENABLED", "1")
+    _fake_pull_run(monkeypatch, _FakeProc(stdout="", stderr="Drive auth failed", returncode=1))
+    assert sync._run_drive_pull() == 0  # no PULL_JSON -> 0, no exception
+
+
+def test_drive_pull_timeout_returns_zero_and_never_raises(monkeypatch):
+    import subprocess as _sp
+    monkeypatch.setenv("DRIVE_PULL_ENABLED", "1")
+    _fake_pull_run(monkeypatch, _sp.TimeoutExpired(cmd="drive_pull", timeout=sync.DRIVE_PULL_TIMEOUT_S))
+    assert sync._run_drive_pull() == 0  # must not raise
+
+
+def test_drive_pull_unstartable_process_returns_zero_and_never_raises(monkeypatch):
+    monkeypatch.setenv("DRIVE_PULL_ENABLED", "1")
+    _fake_pull_run(monkeypatch, OSError("[WinError 2] cannot find the file"))
+    assert sync._run_drive_pull() == 0
+
+
+def test_drive_pull_command_shape_is_enforce_with_json_summary(monkeypatch):
+    monkeypatch.setenv("DRIVE_PULL_ENABLED", "1")
+    seen = _fake_pull_run(monkeypatch, _FakeProc(stdout='PULL_JSON {"pulled": 0}'))
+    sync._run_drive_pull()
+    assert seen["cmd"][1:] == [str(sync.DRIVE_PULL_SCRIPT), "--enforce", "--json-summary"]
+    assert seen["cwd"] == str(sync.PROJECT_ROOT)
+    assert seen["env"]["PYTHONIOENCODING"] == "utf-8"
+    assert seen["timeout"] == sync.DRIVE_PULL_TIMEOUT_S

@@ -41,6 +41,7 @@ from app.config import PROJECT_ROOT
 # scripts/sync_to_drive.py.
 STEPS: list[tuple[str, str]] = [
     ("audit", "Purchase audit"),
+    ("drive-pull", "Pull Drive→local"),
     ("sort", "Sort books"),
     ("detect", "Detect new books"),
     ("folders", "Read Drive folders"),

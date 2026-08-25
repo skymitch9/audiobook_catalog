@@ -21,6 +21,7 @@ except Exception:
     pass
 
 import argparse
+import json
 import os
 import sys
 import tempfile
@@ -54,7 +55,23 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="Pull Drive-only books to local (dry-run by default)")
     ap.add_argument("--enforce", action="store_true", help="actually download (default: report only)")
     ap.add_argument("--limit", type=int, default=0, help="cap how many to pull under --enforce (0 = all)")
+    ap.add_argument("--json-summary", action="store_true",
+                    help="print one machine-readable line, 'PULL_JSON {...}', for the pipeline to parse")
     args = ap.parse_args()
+
+    def _emit_summary(enforced: bool, pulled: int) -> None:
+        """One machine-readable line the 8h pipeline parses for its step
+        detail. Gated behind --json-summary so manual runs stay clean — same
+        convention as drive_role_parity.py's PARITY_JSON."""
+        if args.json_summary:
+            print("PULL_JSON " + json.dumps({
+                "enforced": enforced,
+                "pulled": pulled,
+                "toPull": len(plan.to_pull),
+                "skippedCopies": len(plan.skipped_copies),
+                "present": len(plan.skipped_present),
+                "ignored": len(plan.ignored),
+            }))
 
     service = A.build_drive_service()
     if not service:
@@ -90,6 +107,7 @@ def main() -> int:
 
     if not args.enforce:
         print("\n  DRY-RUN — nothing downloaded. Re-run with --enforce to pull.")
+        _emit_summary(enforced=False, pulled=0)
         return 0
 
     # --- enforce: download to a staging temp, then atomic move into the library ---
@@ -113,6 +131,7 @@ def main() -> int:
         else:
             tmp_path.unlink(missing_ok=True)
     print(f"\n  Pulled {pulled} file(s).")
+    _emit_summary(enforced=True, pulled=pulled)
     return 0
 
 
