@@ -204,7 +204,7 @@ def test_real_crashed_holder_pid_is_reclaimed_instantly(lock_path):
     assert proc.wait(timeout=15) == 0        # genuinely exited
     assert held_pid != os.getpid()
     assert lock_path.exists()                # left behind, exactly like a crash
-    assert ib._lock_age_hours(lock_path) < 1 # fresh: age alone would not clear it
+    assert ib._lock_age_hours(lock_path) < 1  # fresh: age alone would not clear it
     assert not ib.pid_alive(held_pid)        # real ctypes check, real dead pid
 
     with ib._Lock(lock_path) as lk:
