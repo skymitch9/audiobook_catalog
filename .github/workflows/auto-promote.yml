@@ -80,6 +80,11 @@ jobs:
         # defect is that adding a pipeline output is a TWO-file change and
         # nothing enforced that. If you add a filename to one list, add it here
         # in the same commit.
+        #
+        # ENFORCED since 2026-08-26 by tests/test_allowlist_promote_parity.py,
+        # which parses BOTH sides and fails CI on a one-sided edit in either
+        # direction. site/covers/.* is the ONE intended difference and is
+        # declared there (INTENDED_WORKFLOW_ONLY) with its reason.
         allow='^(site/(catalog\.csv|index\.html|ebooks\.html|stats\.html|chapters\.json|content_warnings\.json|additions_log\.json|covers_manifest\.json|covers-base\.js|ebooks_status\.json)|site/covers/.*|author_drive_map\.json)$'
         # core.quotePath=false: emit raw UTF-8 paths (cover filenames often
         # carry non-ASCII chars git would otherwise wrap in quotes + \escapes).

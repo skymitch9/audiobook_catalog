@@ -3147,6 +3147,11 @@ def _auto_commit_and_push() -> bool:
         # days of books reached /dev/ and never prod, silently, because the
         # runs in between reported "skipped" rather than failing. ADD TO BOTH
         # IN THE SAME COMMIT.
+        # ENFORCED since 2026-08-26 by tests/test_allowlist_promote_parity.py:
+        # it parses both sides and fails CI on a one-sided edit in EITHER
+        # direction. The only permitted difference (site/covers/.*, matched by
+        # the gate so old commits still promote, uncommittable here because the
+        # directory is gitignored) is declared in that file with its reason.
         _ALLOWLIST = [
             "site/catalog.csv", "site/index.html", "site/ebooks.html",
             "site/covers_manifest.json", "site/covers-base.js",
