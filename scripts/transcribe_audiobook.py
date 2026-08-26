@@ -63,6 +63,7 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
 from app.core.ingest_queue import TRANSCRIPTS_DIR, load_catalog  # noqa: E402
+from app.core.m4b_resolver import resolve_book_file  # noqa: E402
 from app.core.review_join import normalise_title  # noqa: E402
 
 TRAINING_ROOT = Path(os.getenv("ESTATE_TRAINING_ROOT", r"C:\Users\nbasl\estate-training-data"))
@@ -313,50 +314,25 @@ def worker_path() -> Path:
 
 
 def resolve_m4b(title: str) -> Path:
-    """Title -> the m4b on disk, joined on the normalised title.
+    """Title -> the m4b on disk. A THIN WRAPPER; the rules live one layer down.
 
-    ⚠️ Normalised, never exact. `The Primal Hunter 9: A LitRPG Adventure` is on
-    disk as `...9- A LitRPG Adventure.m4b` because Windows forbids a colon in a
-    filename; an exact match loses that book and says only "not found".
+    ⚠️ THE DECISION MOVED, 2026-08-26. Every rule this function used to hold is
+    now in `app/core/m4b_resolver.py`, because a title->file join that lives in
+    a script is a join the nightly ingester cannot share, and the 12 books that
+    read `transcription failed` on 2026-08-25 all failed HERE — on a filename
+    guess, never on transcription. Read that module's header for the tiers and
+    the measured filename shapes; it is the single canonical implementation and
+    the estate forbids a second copy.
 
-    ⚠️ The queue title may carry a ` - Series, Book N` tail the filename does
-    not. OpenAudible names some files title-only: the first real nightly book,
-    `A Court of Thorns and Roses (Part 1 of 2) (Dramatized Adaptation) - A
-    Court of Thorns and Roses, Book 1`, is on disk without everything after the
-    ` - ` — while `Fourth Wing - Empyrean, Book 1` keeps its tail. So the tail
-    strip is a FALLBACK, tried only after the full title misses, one ` - `
-    segment at a time from the right. ⚠️ A stripped title that matches MORE
-    THAN ONE file is refused with words, never picked from — a bare volume tail
-    is identity, not boilerplate (the Space Knight false-twin lesson), and
-    transcribing the wrong book reports itself as success.
+    What is kept, unchanged, is this function's contract: it resolves or it
+    raises, and it NEVER picks between candidates. `AmbiguousBookFile` and
+    `BookFileNotFound` are both `FileNotFoundError`, so every existing caller
+    and every existing except-clause behaves exactly as before.
+
+    The module globals are read at CALL time on purpose — the resolver tests
+    monkeypatch `LIBRARY_ROOT` and `load_catalog` on this module.
     """
-    files = list(LIBRARY_ROOT.rglob("*.m4b"))
-    want = normalise_title(title)
-    for path in files:
-        if normalise_title(path.stem) == want:
-            return path
-    # Second pass: the catalog may know an author folder the title does not.
-    for row in load_catalog():
-        if normalise_title(row.get("title", "")) == want:
-            for path in files:
-                if normalise_title(path.stem) == normalise_title(row.get("title", "")):
-                    return path
-    # Third pass: strip ` - …` tail segments, rightmost first, unique match only.
-    stripped = title
-    while " - " in stripped:
-        stripped = stripped.rsplit(" - ", 1)[0]
-        want = normalise_title(stripped)
-        if not want:
-            break
-        hits = [p for p in files if normalise_title(p.stem) == want]
-        if len(hits) == 1:
-            return hits[0]
-        if len(hits) > 1:
-            raise FileNotFoundError(
-                f"title {title!r} stripped to {stripped!r} matches "
-                f"{len(hits)} files under {LIBRARY_ROOT} - refusing to guess: "
-                + ", ".join(p.name for p in hits))
-    raise FileNotFoundError(f"no .m4b under {LIBRARY_ROOT} matches {title!r}")
+    return resolve_book_file(title, rows=load_catalog(), root=LIBRARY_ROOT)
 
 
 def probe_duration(path: Path) -> float:

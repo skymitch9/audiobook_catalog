@@ -126,15 +126,28 @@ def locate_file(row: Dict[str, str], root: Path = ROOT_DIR) -> Optional[Path]:
     (app/metadata.py:_save_cover_for_file), so it is an exact address for the
     file - no guessing from the title, which is the field most likely to be
     wrong on the books that need correcting. All 1076 rows carry one.
+
+    ⚠️ NEVER `with_suffix()` HERE, and that is not a style note. A bare STEM
+    that contains a dot has a "suffix" as far as pathlib is concerned, and
+    `with_suffix` REPLACES it::
+
+        Path("J.L.Mullins - [Binding - 3] - Binding (Tess Irondale)")
+            .with_suffix(".m4b")        ->  "J.L.m4b"
+
+    Measured 2026-08-26 against the live catalog: that is a real row, its .m4b
+    was on disk the whole time, and this function answered ``None`` — which
+    sent the ingester off to guess a filename from the bare title "Binding"
+    and log `transcription failed`. Author initials put a dot in a great many
+    stems, so the extension is appended by hand.
     """
     href = (row.get("cover_href") or "").strip()
     if href:
         rel = Path(href)
         if rel.parts and rel.parts[0] == "covers":
             rel = Path(*rel.parts[1:])
-        base = root / rel.parent / rel.stem
+        base_dir = root / rel.parent
         for ext in sorted(EXTS):
-            candidate = base.with_suffix(ext)
+            candidate = base_dir / (rel.stem + ext)
             if candidate.exists():
                 return candidate
 
