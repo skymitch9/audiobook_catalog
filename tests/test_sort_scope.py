@@ -85,6 +85,43 @@ def test_filed_author_folder_recognises_the_three_cases(tmp_path):
     ) == "Robert Jordan"
 
 
+def test_filed_author_folder_survives_an_unnormalised_root(tmp_path):
+    """⚠️ THE ONE THAT WOULD RELOCATE THE WHOLE LIBRARY.
+
+    OPENAUDIBLE_BOOKS_DIR is raw ``Path(os.getenv("ROOT_DIR"))``; app.config's
+    ROOT_DIR is the same value ``.resolve()``-d. They agree today. If a future
+    $ROOT_DIR carried a trailing slash, a relative segment or different case,
+    ``Path.relative_to`` would raise on EVERY file — every filed book would
+    read as a new arrival and the sorter would move the library. relpath
+    absolutises and normcases both sides, so it cannot.
+
+    ⚠️ Measured 2026-08-26, so the claim is right-sized: ``WindowsPath
+    .relative_to`` ALREADY tolerated the trailing separator and the case
+    variant (they would bite on POSIX, which is case-sensitive). The one that
+    genuinely broke it is an unresolved ``..`` segment — and ``$ROOT_DIR`` is
+    free text in a ``.env``."""
+    root = tmp_path / "books"
+    (root / "Robert Jordan").mkdir(parents=True)
+    book = root / "Robert Jordan" / "Eye.m4b"
+
+    for variant in (
+        Path(str(root) + "\\"),                     # trailing separator
+        Path(str(root) + "/"),
+        root / ".",                                 # a relative segment
+        root / "Robert Jordan" / "..",              # ⚠️ the one that bit
+        Path(str(root).upper()) if root.drive else root,   # case (Windows)
+    ):
+        assert sync.filed_author_folder(book, variant) == "Robert Jordan", variant
+
+
+def test_filed_author_folder_is_none_for_a_sibling_directory(tmp_path):
+    """The `..` case must stay None — a normcase comparison must not make
+    everything look filed either."""
+    root = tmp_path / "books"
+    assert sync.filed_author_folder(tmp_path / "elsewhere" / "X.m4b", root) is None
+    assert sync.filed_author_folder(root, root) is None  # the root itself
+
+
 def test_tag_folder_mismatch_is_casefold_only():
     assert sync.tag_folder_mismatch("Robert Jordan", "Robert Jordamn") is True
     assert sync.tag_folder_mismatch("Robert Jordan", "robert jordan") is False

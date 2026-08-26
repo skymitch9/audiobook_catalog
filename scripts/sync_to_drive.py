@@ -370,12 +370,32 @@ def filed_author_folder(path: Path, target_root: Path) -> str | None:
 
     This is the whole of F5's new-vs-filed distinction, kept as its own pure
     function so it is testable without a library on disk.
+
+    ⚠️ ``os.path.relpath``, NOT ``Path.relative_to``, and the reason is not
+    style. ``OPENAUDIBLE_BOOKS_DIR`` is ``Path(os.getenv("ROOT_DIR", …))`` —
+    raw — while ``app.config.ROOT_DIR`` is the same value ``.expanduser()
+    .resolve()``-d. They are equal today (measured 2026-08-26). If they ever
+    are not, ``relative_to`` raises on EVERY file, every filed book reads as a
+    NEW ARRIVAL, and the sorter relocates the whole library — F5's exact
+    catastrophe by a new road.
+
+    ⚠️ **Measured, not assumed:** ``WindowsPath.relative_to`` already tolerates
+    a trailing separator and a case difference, so those two are NOT the
+    hazard here (they WOULD be on POSIX, which is case-sensitive). What it
+    does not tolerate is an unresolved ``..`` segment, a ``~``, or a relative
+    path — and ``$ROOT_DIR`` is free-text in a ``.env``. ``relpath``
+    absolutises and normcases both sides (see ``ntpath.relpath``), so all of
+    them land on the same answer. A path genuinely outside the library still
+    yields a leading ``..`` and is still None.
     """
     try:
-        rel = path.relative_to(target_root)
-    except ValueError:
-        return None  # not under the library at all → an arrival, not a filing
-    return rel.parts[0] if len(rel.parts) > 1 else None
+        rel = Path(os.path.relpath(os.path.abspath(path), os.path.abspath(target_root)))
+    except (ValueError, OSError):
+        return None  # different drive / unresolvable → an arrival, not a filing
+    parts = rel.parts
+    if not parts or parts[0] in ("..", "."):
+        return None  # outside the library, or the library root itself
+    return parts[0] if len(parts) > 1 else None
 
 
 def tag_folder_mismatch(shelved_author: str, folder_name: str) -> bool:
