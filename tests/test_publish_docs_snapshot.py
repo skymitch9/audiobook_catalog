@@ -203,9 +203,38 @@ def test_scanner_catches_each_provider_shape(planted):
     "token: <your-token-here>",
     "PIPELINE_TRIGGER_TOKEN=$env:PIPELINE_TRIGGER_TOKEN",
     "password: changeme",
+    # ⚠️ KI-6, closed 2026-08-26. The exact literal that refused the live
+    # corpus for a day: an npm SCRIPT NAME with a bracketed optional segment,
+    # read as `secret:` + the value `list[:friend]`. It was 4 of the 4 live
+    # findings, across three files, and no secret was present in any of them.
+    "| `npm run secret:list[:friend]` | List secret NAMES | Either |",
+    "`secret:list[:friend]` in `library_catalog/docs/access/secrets.md` as",
+    "npm run secret:friend -- NAME",
 ])
 def test_scanner_leaves_the_estate_own_documentation_alone(benign):
     assert pds.scan_text(f"# D\n\n{benign}\n", "x/y.md") == []
+
+
+@pytest.mark.parametrize("planted", [
+    # ⚠️ THE OTHER HALF OF KI-6. Loosening the assignment rule is only safe if
+    # the shapes it exists for are still caught, so these are pinned in the
+    # same breath as the exemptions above. A future session that widens the
+    # rule again has to keep both lists green.
+    "API_KEY=0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+    "token: \"aB3xK9mQ7zP2wR5tY8uL1nD4vC6\"",
+    "client_secret=Zq7Zq7Zq7Zq7Zq7Zq7Zq7Zq7",
+])
+def test_the_assignment_rule_still_catches_a_real_looking_value(planted):
+    findings = pds.scan_text(f"# D\n\n{planted}\n", "x/y.md")
+    assert [f["rule"] for f in findings] == ["assigned_secret_value"]
+
+
+def test_an_un_backticked_paste_is_still_scanned():
+    # ⚠️ The inline-code exemption is for a command a doc NAMES, not a licence
+    # to hide a value. A bare `export …=<key>` line is exactly how a real paste
+    # arrives, so it must still refuse.
+    assert pds.scan_text("# D\n\nexport ACCESS_KEY=0f1e2d3c4b5a69788796a5b4c3d2e1f0\n",
+                         "x/y.md")
 
 
 # ---------------------------------------------------------------------------

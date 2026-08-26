@@ -277,10 +277,37 @@ _PREFIX_RULES: List[Tuple[str, re.Pattern[str]]] = [
 # value. The placeholder filter below is what keeps this from firing on every
 # line of every access doc, which is exactly what those docs are FOR (secret
 # NAMES and where they live, never values).
+#
+# ⚠️ 16, NOT 8, AND NO SQUARE BRACKETS — KI-6, closed 2026-08-26. The old
+# `{8,}` with no bracket exclusion read the literal `secret:list[:friend]` (an
+# npm SCRIPT NAME, in a table of commands) as `secret:` + the value
+# `list[:friend]` and refused the whole corpus. Measured that day: it was FOUR
+# of the four live-corpus findings, in three files, and no secret was present
+# in any of them. `[` excluded makes the value `list`, which the length floor
+# then rejects; the floor itself is the KI's own number, chosen because no
+# issuer in `_PREFIX_RULES` mints anything shorter than 16 characters.
 _ASSIGN_RE = re.compile(
     r"(?i)\b(pass(?:word|wd)|secret|token|api[_\-]?key|access[_\-]?key|client[_\-]?secret)"
-    r"\s*[:=]\s*(?P<q>[\"']?)(?P<val>[^\s\"'`,;]{8,})(?P=q)"
+    r"\s*[:=]\s*(?P<q>[\"']?)(?P<val>[^\s\"'`,;\[\]]{16,})(?P=q)"
 )
+
+# ⚠️ INLINE CODE IS EXEMPT FROM THE ASSIGNMENT RULE ONLY, and this is the
+# "not inside backticks / a command" half of KI-6. All four false findings sat
+# inside `…` spans, because that is how these docs write a command they are
+# NAMING rather than a value they are stating.
+#
+# ⚠️ What is NOT exempted, deliberately: an UN-backticked `export TOKEN=…` line
+# is still scanned, because that is the shape a real paste takes. And nothing
+# here weakens the other layers — the prefix rules run on the whole line
+# regardless (a real `sk-ant-` inside backticks is still caught), and the
+# entropy rules run on the whole line outside fences.
+_INLINE_CODE_RE = re.compile(r"`[^`]*`")
+
+# What a credential VALUE is made of. A real token from every issuer in
+# `_PREFIX_RULES` is base64/hex/urlsafe with the odd separator; prose, a shell
+# fragment, a path with spaces or a bracketed alias is not. Applied as a
+# FULLMATCH so one stray character is enough to say "this is not a key".
+_KEYISH_RE = re.compile(r"^[A-Za-z0-9+/=_.:\-]{16,}$")
 
 # A value that looks like documentation rather than a credential. Deliberately
 # generous: in SHADOW this only affects noise, and in ENFORCE a false refusal
@@ -353,10 +380,14 @@ def scan_text(text: str, path_label: str) -> List[Dict[str, object]]:
             if pattern.search(line):
                 hit(lineno, rule_name)
 
-        m = _ASSIGN_RE.search(line)
+        # ⚠️ Inline code spans are blanked FIRST and only for this rule — see
+        # _INLINE_CODE_RE. The prefix rules above already saw the whole line.
+        m = _ASSIGN_RE.search(_INLINE_CODE_RE.sub(" ", line))
         if m:
             val = m.group("val")
-            if not _PLACEHOLDER_RE.search(val) and not _IDENTIFIERISH_RE.match(val):
+            if (_KEYISH_RE.fullmatch(val)
+                    and not _PLACEHOLDER_RE.search(val)
+                    and not _IDENTIFIERISH_RE.match(val)):
                 hit(lineno, "assigned_secret_value")
 
         if in_fence:
