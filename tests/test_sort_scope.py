@@ -28,6 +28,7 @@ tagged m4b) is stubbed.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -104,13 +105,21 @@ def test_filed_author_folder_survives_an_unnormalised_root(tmp_path):
     (root / "Robert Jordan").mkdir(parents=True)
     book = root / "Robert Jordan" / "Eye.m4b"
 
-    for variant in (
-        Path(str(root) + "\\"),                     # trailing separator
-        Path(str(root) + "/"),
-        root / ".",                                 # a relative segment
-        root / "Robert Jordan" / "..",              # ⚠️ the one that bit
-        Path(str(root).upper()) if root.drive else root,   # case (Windows)
-    ):
+    # ⚠️ PLATFORM-AWARE, and this test taught the lesson the hard way: the
+    # first version hardcoded a "\\" separator and an .upper() case variant,
+    # which are meaningless on POSIX — "books\" is a LITERAL directory name on
+    # Linux and .upper() is a genuinely different path — so it passed on the
+    # dev machine and turned CI red on ubuntu. Only the platform's own
+    # separator, and the case variant only where the filesystem folds case.
+    variants = [
+        Path(str(root) + os.sep),        # trailing separator
+        root / ".",                      # a relative segment
+        root / "Robert Jordan" / "..",   # ⚠️ the one that genuinely bit
+    ]
+    if os.name == "nt":
+        variants.append(Path(str(root).upper()))   # case — Windows only
+
+    for variant in variants:
         assert sync.filed_author_folder(book, variant) == "Robert Jordan", variant
 
 
