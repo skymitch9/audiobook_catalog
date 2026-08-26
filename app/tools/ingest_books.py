@@ -22,6 +22,8 @@ USAGE
     python -m app.tools.ingest_books --run             # obey window+guard+pause
     python -m app.tools.ingest_books --cpu-only --now  # EPUB/PDF, ignore window
     python -m app.tools.ingest_books --pack-transcripts  # pack what is on disk
+    python -m app.tools.ingest_books --requeue-failed --dry-run   # what would go back
+    python -m app.tools.ingest_books --requeue-failed             # put them back
     python -m app.tools.ingest_books --dry-run ...     # build, never upload
     python -m app.tools.ingest_books --limit N
 
@@ -500,6 +502,71 @@ def consume_requeue(control: ControlState, state: dict, dry_run: bool = False) -
     return outcome
 
 
+def requeue_failed(dry_run: bool = False, rows=None, root=None) -> dict:
+    """`--requeue-failed`: put back every `failed` book whose file NOW resolves.
+
+    ⚠️ WHY A FLAG AND NOT A HAND EDIT. `ingest_state.json` lives outside every
+    repo and is written by a running pipeline; editing it by hand is the
+    "establish who wrote it" incident waiting to happen. The dashboard's
+    `requeue` control is the other supported route, but it needs the dashboard
+    and a Firestore round trip — this is the local equivalent, and it goes
+    through the SAME primitive (`ingest_queue.apply_requeue`), so `done` is
+    still untouchable and the previous failure reason is still kept.
+
+    ⚠️ AND ONLY THE ONES THAT NOW RESOLVE. A blanket retry re-queues books that
+    will fail again for the same reason in the same window, which is how a
+    retry button becomes a nightly log of the same twelve errors. A book whose
+    title still does not reach a file is reported, by name, and left `failed`.
+
+    Read-only with `--dry-run`: nothing is written and the report says so.
+    """
+    from app.core.m4b_resolver import SCAN_EXTS, resolve_book_file
+    from app.config import ROOT_DIR
+    from app.core.ingest_queue import load_catalog
+
+    root = Path(root) if root else ROOT_DIR
+    rows = load_catalog() if rows is None else rows
+    # ⚠️ Scanned ONCE and handed to every lookup. An rglob per book over ~1,080
+    # files on a OneDrive-backed tree is minutes of pointless IO.
+    files = [p for p in root.rglob("*") if p.suffix.lower() in SCAN_EXTS]
+
+    state = load_state()
+    resolvable, unresolved = [], []
+    for book_id, entry in sorted((state.get("books") or {}).items()):
+        if (entry or {}).get("status") != STATUS_FAILED:
+            continue
+        title = (entry or {}).get("title") or ""
+        if not title:
+            unresolved.append((book_id, "no title recorded on the state entry"))
+            continue
+        try:
+            resolve_book_file(title, rows=rows, root=root, files=files)
+        except FileNotFoundError as exc:
+            unresolved.append((book_id, str(exc)))
+            continue
+        resolvable.append(book_id)
+
+    outcome = apply_requeue(state, resolvable)
+    if outcome["requeued"] and not dry_run:
+        save_state(state)
+    log(f"requeue-failed: {len(outcome['requeued'])} of "
+        f"{len(resolvable) + len(unresolved)} failed book"
+        f"{'' if len(resolvable) + len(unresolved) == 1 else 's'} put back to pending")
+    for book_id in outcome["requeued"]:
+        log(f"  requeued {book_id}")
+    for book_id, why in unresolved:
+        log(f"  LEFT FAILED {book_id}: {why}")
+    for bucket, words in (("unknown", "not in the state file"),
+                          ("skipped_done", "already done"),
+                          ("skipped_other", "not in a requeueable status")):
+        if outcome[bucket]:
+            log(f"  {len(outcome[bucket])} {words}: {outcome[bucket][:5]}")
+    if dry_run:
+        log("  --dry-run, so nothing was written; the state file is unchanged")
+    outcome["left_failed"] = [book_id for book_id, _ in unresolved]
+    return outcome
+
+
 def run(args) -> int:
     state = load_state()
     chapters = load_chapters()
@@ -811,7 +878,19 @@ def main(argv: Optional[List[str]] = None) -> int:
     p.add_argument("--ignore-control", action="store_true",
                    help="⚠️ ignore the dashboard pause (break-glass only)")
     p.add_argument("--publish-index", action="store_true")
+    p.add_argument("--requeue-failed", action="store_true",
+                   help="put back every `failed` book whose file NOW resolves, and "
+                        "only those; combine with --dry-run to see the list first")
     args = p.parse_args(argv)
+
+    # ⚠️ BEFORE the lock and before any gate. This transcribes nothing, starts
+    # no GPU and obeys no window - it only edits queue STATE, and it must be
+    # runnable while the ingester is paused, which is exactly when somebody
+    # wants it. It also returns here rather than falling through to a run: the
+    # next scheduled window picks the books up.
+    if args.requeue_failed:
+        requeue_failed(dry_run=args.dry_run)
+        return 0
 
     if args.status or not (args.run or args.publish_index):
         return status(args)

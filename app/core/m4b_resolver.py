@@ -73,7 +73,7 @@ import re
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence
 
-from app.config import EXTS, ROOT_DIR
+from app.config import ROOT_DIR
 from app.core.book_lookup import locate_file
 from app.core.review_join import normalise_title
 from app.library_link import clean_audiobook_title

@@ -1709,3 +1709,77 @@ class TestTranscriptBackup:
         second = it.backfill(tmp_path, ledger_path)
         assert second["uploaded"] == [], "the ledger must not become a transcript"
         assert [p.name for p in it.transcripts_on_disk(tmp_path, ledger_path)] == ["real.json"]
+
+
+class TestRequeueFailed:
+    """`--requeue-failed`: only the books whose FILE now resolves go back.
+
+    The whole point of the flag is that it is narrower than a retry-all. A
+    blanket retry re-queues books that will fail again for the same reason in
+    the same window, and the nightly log fills up with the same twelve errors.
+    """
+
+    def _state(self):
+        return {"version": 1, "books": {
+            "resolvable": {"status": STATUS_FAILED, "title": "Space Knight Book 9",
+                           "reason": "transcription failed"},
+            "still-missing": {"status": STATUS_FAILED, "title": "A Book Nobody Owns",
+                              "reason": "transcription failed"},
+            "finished": {"status": STATUS_DONE, "title": "Space Knight Book 9"},
+        }}
+
+    def _library(self, tmp_path):
+        (tmp_path / "Michael-Scott Earle").mkdir(parents=True, exist_ok=True)
+        (tmp_path / "Michael-Scott Earle" /
+         "Michael-Scott Earle - [Space Knight - 9] - Space Knight Book 9 "
+         "(Alex Perone and Marissa Parness).m4b").write_bytes(b"")
+        return tmp_path
+
+    def _patched(self, monkeypatch, tmp_path, saved):
+        from app.tools import ingest_books as ib
+
+        monkeypatch.setattr(ib, "load_state", lambda *a, **k: self._state())
+        monkeypatch.setattr(ib, "save_state", lambda s, *a, **k: saved.append(s))
+        return ib
+
+    def test_only_the_resolvable_book_goes_back_to_pending(self, monkeypatch, tmp_path):
+        saved = []
+        ib = self._patched(monkeypatch, tmp_path, saved)
+        out = ib.requeue_failed(rows=[], root=self._library(tmp_path))
+        assert out["requeued"] == ["resolvable"]
+        assert out["left_failed"] == ["still-missing"]
+        assert saved and saved[0]["books"]["resolvable"]["status"] == STATUS_PENDING
+        assert saved[0]["books"]["still-missing"]["status"] == STATUS_FAILED
+
+    def test_a_done_book_is_never_touched(self, monkeypatch, tmp_path):
+        # ⚠️ The safety property of REQUEUABLE_STATUSES, restated at this layer:
+        # a done book must never be re-transcribed by a retry button, however
+        # well its title resolves.
+        saved = []
+        ib = self._patched(monkeypatch, tmp_path, saved)
+        out = ib.requeue_failed(rows=[], root=self._library(tmp_path))
+        assert "finished" not in out["requeued"]
+        assert saved[0]["books"]["finished"]["status"] == STATUS_DONE
+
+    def test_the_previous_failure_reason_is_kept(self, monkeypatch, tmp_path):
+        saved = []
+        ib = self._patched(monkeypatch, tmp_path, saved)
+        ib.requeue_failed(rows=[], root=self._library(tmp_path))
+        entry = saved[0]["books"]["resolvable"]
+        assert entry["previous_reason"] == "transcription failed"
+        assert entry["previous_status"] == STATUS_FAILED
+
+    def test_dry_run_writes_nothing(self, monkeypatch, tmp_path):
+        saved = []
+        ib = self._patched(monkeypatch, tmp_path, saved)
+        out = ib.requeue_failed(dry_run=True, rows=[], root=self._library(tmp_path))
+        assert out["requeued"] == ["resolvable"]
+        assert saved == [], "--dry-run must not write the state file"
+
+    def test_an_empty_library_requeues_nothing(self, monkeypatch, tmp_path):
+        saved = []
+        ib = self._patched(monkeypatch, tmp_path, saved)
+        out = ib.requeue_failed(rows=[], root=tmp_path)
+        assert out["requeued"] == []
+        assert sorted(out["left_failed"]) == ["resolvable", "still-missing"]
+        assert saved == []
