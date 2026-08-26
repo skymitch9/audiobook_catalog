@@ -883,13 +883,28 @@ def main(argv: Optional[List[str]] = None) -> int:
                         "only those; combine with --dry-run to see the list first")
     args = p.parse_args(argv)
 
-    # ⚠️ BEFORE the lock and before any gate. This transcribes nothing, starts
-    # no GPU and obeys no window - it only edits queue STATE, and it must be
-    # runnable while the ingester is paused, which is exactly when somebody
-    # wants it. It also returns here rather than falling through to a run: the
-    # next scheduled window picks the books up.
+    # Before every GATE (window, GPU, pause, CPU, deadline) — this transcribes
+    # nothing and starts no GPU, and it must be runnable while ingestion is
+    # PAUSED, which is exactly when somebody wants it. It returns here rather
+    # than falling through to a run: the next window picks the books up.
+    #
+    # ⚠️ BUT IT TAKES THE LOCK TO WRITE. A live run holds `state` in memory for
+    # its whole night and calls `save_state` after every book, so a requeue
+    # written underneath it is silently overwritten by the next book that
+    # finishes — the change looks applied, the file disagrees an hour later.
+    # `--dry-run` needs no lock because it writes nothing, and that is the
+    # form to reach for while a run is in flight.
     if args.requeue_failed:
-        requeue_failed(dry_run=args.dry_run)
+        if args.dry_run:
+            requeue_failed(dry_run=True)
+            return 0
+        with _Lock() as lock:
+            if not lock.acquired:
+                log("requeue-failed: NOT APPLIED — an ingest run holds the lock, and a "
+                    "requeue written under a live run is overwritten by its next "
+                    "save_state. Re-run when it finishes, or use --dry-run to look.")
+                return 1
+            requeue_failed(dry_run=False)
         return 0
 
     if args.status or not (args.run or args.publish_index):

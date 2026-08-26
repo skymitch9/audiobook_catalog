@@ -1783,3 +1783,39 @@ class TestRequeueFailed:
         assert out["requeued"] == []
         assert sorted(out["left_failed"]) == ["resolvable", "still-missing"]
         assert saved == []
+
+    def test_a_live_run_holding_the_lock_blocks_the_write(self, monkeypatch, tmp_path):
+        # ⚠️ Measured 2026-08-26: the ingester was mid-window while this flag
+        # was being built. A live run holds `state` in memory all night and
+        # saves after every book, so a requeue written underneath it is gone by
+        # the next book — applied, then silently overwritten.
+        from app.tools import ingest_books as ib
+
+        applied = []
+        monkeypatch.setattr(ib, "requeue_failed", lambda **kw: applied.append(kw))
+
+        class _Held:
+            acquired = False
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+        monkeypatch.setattr(ib, "_Lock", _Held)
+        assert ib.main(["--requeue-failed"]) == 1
+        assert applied == [], "nothing may be written while a run holds the lock"
+
+    def test_dry_run_needs_no_lock_so_it_works_mid_run(self, monkeypatch, tmp_path):
+        from app.tools import ingest_books as ib
+
+        applied = []
+        monkeypatch.setattr(ib, "requeue_failed", lambda **kw: applied.append(kw))
+
+        def _boom(*a, **k):
+            raise AssertionError("--dry-run must not touch the lock")
+
+        monkeypatch.setattr(ib, "_Lock", _boom)
+        assert ib.main(["--requeue-failed", "--dry-run"]) == 0
+        assert applied == [{"dry_run": True}]
