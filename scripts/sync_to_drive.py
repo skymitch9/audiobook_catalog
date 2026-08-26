@@ -359,16 +359,80 @@ def load_drive_folders_cache() -> dict | None:
 # ---------------------------------------------------------------------------
 
 
-def sort_books(dry_run: bool = False) -> list[Path]:
+def filed_author_folder(path: Path, target_root: Path) -> str | None:
+    """The author folder this file is ALREADY shelved under, or None if it is a
+    loose new arrival.
+
+    "Filed" means: under the library root, inside a subfolder — i.e. its
+    relative path has more than one part. A file sitting directly in the
+    library root, or one arriving from a different source root entirely (the
+    Docker container's books dir), has never been sorted and is a new arrival.
+
+    This is the whole of F5's new-vs-filed distinction, kept as its own pure
+    function so it is testable without a library on disk.
+    """
+    try:
+        rel = path.relative_to(target_root)
+    except ValueError:
+        return None  # not under the library at all → an arrival, not a filing
+    return rel.parts[0] if len(rel.parts) > 1 else None
+
+
+def tag_folder_mismatch(shelved_author: str, folder_name: str) -> bool:
+    """True when a filed book's ©ART tag disagrees with the folder it lives in.
+
+    ``shelved_author`` must ALREADY have been through
+    ``app.author_names.resolve_shelf_author`` — that is the repo's one author
+    normaliser and this deliberately adds no second one. The alias is applied
+    to the TAG side only: a book tagged "Alex Toxic" sitting in "Nadya Lee/"
+    resolves to "Nadya Lee" and correctly matches, while a book still filed
+    under the alias's own source name is correctly REPORTED, because the map
+    says its shelf moved.
+
+    Comparison is casefold-only. Local author folders are plain author names
+    (this function's own sort step creates them as ``ROOT_DIR/<author>``); the
+    " - Series" and multi-author folder shapes belong to DRIVE folders and are
+    handled by resolve_author_to_drive_folder, not here.
+    """
+    return shelved_author.casefold() != folder_name.casefold()
+
+
+def sort_books(
+    dry_run: bool = False,
+    resort_all: bool = False,
+    mismatch_out: list[str] | None = None,
+) -> list[Path]:
     """
     Sort audiobook files from OpenAudible export into author-named subfolders.
     Returns list of files that were moved (or would be moved in dry-run).
 
-    ⚠️ Scope is the WHOLE LIBRARY, not just new downloads: OPENAUDIBLE_BOOKS_DIR
-    and ROOT_DIR are the same path (both come from $ROOT_DIR), and this rglobs
-    the source. Every already-filed book is re-evaluated on every run, so the
-    shelf map below rewrites the library, not an inbox. Treat an entry added to
-    it as a bulk move and dry-run it first.
+    ⚠️ Scope is NEW ARRIVALS ONLY by default (F5, 2026-08-26). It used to be
+    the WHOLE LIBRARY — OPENAUDIBLE_BOOKS_DIR and ROOT_DIR are the same path
+    (both come from $ROOT_DIR) and this rglobs the source, so every already-
+    filed book was re-evaluated against its ©ART tag on every single run.
+
+    That is a duplicate factory. A tag that differs from the folder a book is
+    filed in — one un-aliased spelling is enough — RELOCATED the book, and
+    Drive dedup is PER-FOLDER: the moved copy no longer matches the Drive
+    folder holding it, so STEP 4 re-uploads it under the new author and the
+    library has two. The move was also invisible unless somebody read the log.
+
+    Now: a file already under an author folder is never moved by this step. If
+    its tag disagrees with its folder, that is REPORTED — a named line per book
+    plus a count in the sort step's detail — and the book stays where it is. A
+    human resolves it for good with a ``scripts/author_shelf_aliases.json``
+    entry (the usual answer: the two spellings are one shelf) or by running
+    with ``--resort-all``, which restores the old whole-library behaviour for
+    exactly one deliberate, attended run.
+
+    ⚠️ ``--resort-all`` is a BULK MOVE. Dry-run it first.
+
+    Args:
+        dry_run: report only; move nothing.
+        resort_all: also re-sort already-filed books (the old behaviour).
+        mismatch_out: optional list; receives one named line per filed book
+            whose tag disagrees with its folder, for the step detail and the
+            /status warnings.
     """
     from app.author_names import get_author_name, load_shelf_aliases, resolve_shelf_author
     from app.config import ROOT_DIR
@@ -403,6 +467,7 @@ def sort_books(dry_run: bool = False) -> list[Path]:
     shelf_aliases = load_shelf_aliases()
 
     moved = []
+    mismatches: list[str] = [] if mismatch_out is None else mismatch_out
     for f in files:
         author = get_author_name(f)
         if not author:
@@ -412,6 +477,21 @@ def sort_books(dry_run: bool = False) -> list[Path]:
         shelved = resolve_shelf_author(author, shelf_aliases)
         aliased_from = author if shelved != author else None
         author = shelved
+
+        # F5: an already-filed book is REPORTED, never relocated — unless a
+        # human explicitly asked for a whole-library re-sort. See the
+        # docstring for why a relocation becomes a Drive duplicate.
+        filed_under = filed_author_folder(f, target_root)
+        if filed_under is not None and not resort_all:
+            if tag_folder_mismatch(author, filed_under):
+                line = (
+                    f"{filed_under}/{f.name}: tag says '{author}'"
+                    + (f" (via alias from '{aliased_from}')" if aliased_from else "")
+                    + f" but it is filed under '{filed_under}' — left in place"
+                )
+                mismatches.append(line)
+                print(f"  [TAG-MISMATCH] {line}")
+            continue
 
         author_folder = target_root / author
         dest = author_folder / f.name
@@ -433,6 +513,20 @@ def sort_books(dry_run: bool = False) -> list[Path]:
                 print(f"  [ERROR] Failed to move {f.name}: {e}")
         else:
             moved.append(dest)
+
+    if mismatches:
+        print(
+            f"\n  TAG/FOLDER MISMATCH ({len(mismatches)}) — filed books whose ©ART tag "
+            "disagrees with their folder, NOT moved:"
+        )
+        print("  " + "-" * 40)
+        for line in mismatches:
+            print(f"    - {line}")
+        print()
+        print("  Moving these would defeat Drive's per-folder dedup and can")
+        print("  re-upload the book as a duplicate. Resolve for good by adding")
+        print("  the spelling to scripts/author_shelf_aliases.json, or re-run")
+        print("  with --resort-all (a BULK MOVE — dry-run it first).")
 
     return moved
 
@@ -1031,6 +1125,35 @@ class UploadOutcome:
         return "success" if self.failed_count == 0 else "partial"
 
 
+# ---------------------------------------------------------------------------
+# Run-level warnings (2026-08-26)
+#
+# ⚠️ pipeline_status.set_summary() does `summary.update(fields)` — it REPLACES
+# a key, it does not merge. So a later step passing `warnings=[...]` silently
+# DROPS every warning an earlier step reported, and the /status panel shows
+# only the last step that happened to have any. That bit as soon as STEP 1
+# gained warnings of its own (F5's tag/folder mismatches) alongside STEP 4's
+# misplaced + ambiguous-author lines.
+#
+# One accumulating list, and every caller passes the WHOLE of it.
+# ---------------------------------------------------------------------------
+_RUN_WARNINGS: list[str] = []
+
+
+def _reset_run_warnings() -> None:
+    """Start of a run. Idempotent; matters in-process (tests, --step)."""
+    _RUN_WARNINGS.clear()
+
+
+def _add_warnings(*lines: str) -> list[str]:
+    """Record warning lines and return EVERY warning this run has produced,
+    in order, de-duplicated — the value to hand set_summary(warnings=…)."""
+    for line in lines:
+        if line and line not in _RUN_WARNINGS:
+            _RUN_WARNINGS.append(line)
+    return list(_RUN_WARNINGS)
+
+
 def _file_is_misplaced(rel: Path) -> bool:
     """True when a candidate upload sits directly under the library root
     (no <Author>/ folder) rather than filed under an author. Step 1 sorts
@@ -1158,6 +1281,7 @@ def run_pipeline(
     upload_only: bool = False,
     dry_run: bool = False,
     trigger: str = "manual",
+    resort_all: bool = False,
 ) -> None:
     """Public entry point: takes the single-flight lock (see
     app/core/pipeline_lock.py), then runs _run_pipeline_body().
@@ -1177,13 +1301,15 @@ def run_pipeline(
     instant the lock is held — see pipeline_lock.PipelineLockHeld below.
     """
     if dry_run:
-        _run_pipeline_body(sort_only=sort_only, upload_only=upload_only, dry_run=dry_run, trigger=trigger)
+        _run_pipeline_body(sort_only=sort_only, upload_only=upload_only, dry_run=dry_run,
+                           trigger=trigger, resort_all=resort_all)
         return
 
     if trigger == "scheduled":
         pipeline_schedule.run_with_defer(
             lambda: _run_pipeline_body(
-                sort_only=sort_only, upload_only=upload_only, dry_run=dry_run, trigger=trigger
+                sort_only=sort_only, upload_only=upload_only, dry_run=dry_run,
+                trigger=trigger, resort_all=resort_all,
             )
         )
         return
@@ -1202,7 +1328,8 @@ def run_pipeline(
         raise
 
     try:
-        _run_pipeline_body(sort_only=sort_only, upload_only=upload_only, dry_run=dry_run, trigger=trigger)
+        _run_pipeline_body(sort_only=sort_only, upload_only=upload_only, dry_run=dry_run,
+                           trigger=trigger, resort_all=resort_all)
     finally:
         lock.release()
 
@@ -1212,10 +1339,12 @@ def _run_pipeline_body(
     upload_only: bool = False,
     dry_run: bool = False,
     trigger: str = "manual",
+    resort_all: bool = False,
 ) -> None:
     """Run the full audiobook pipeline. Callers MUST already hold the
     single-flight lock (or be in --dry-run mode, which needs none) — use
     run_pipeline() above, never this directly, outside of a test."""
+    _reset_run_warnings()
     print("=" * 60)
     print("  Audiobook Pipeline - Sort & Upload to Google Drive")
     print(f"  {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
@@ -1283,15 +1412,33 @@ def _run_pipeline_body(
             print(f"\n[STEP 1a] Renamed {epubs_renamed} ASIN-named epub(s)")
 
         print("\n[STEP 1] Sorting books from OpenAudible export...")
+        if resort_all:
+            print("  [!] --resort-all: re-sorting the WHOLE library, not just new arrivals.")
         pstatus.step("sort")
-        moved = sort_books(dry_run=dry_run)
+        # F5: `mismatches` collects filed books whose ©ART tag disagrees with
+        # the folder they live in. They are NOT moved; the count and the names
+        # go on the step detail and the /status warnings, so a divergence is
+        # visible without reading a log — which is what the old silent
+        # relocation was not.
+        mismatches: list[str] = []
+        moved = sort_books(dry_run=dry_run, resort_all=resort_all, mismatch_out=mismatches)
         print(f"  Sorted {len(moved)} file(s).")
         filed = sort_companion_files(dry_run=dry_run)
         if filed:
             print(f"  Filed {len(filed)} orphaned companion file(s).")
         just_moved = frozenset(moved) | frozenset(filed)
-        pstatus.step_detail("sort", f"{len(moved)} sorted, {len(filed)} companions filed")
-        pstatus.set_summary(sorted=len(moved))
+        _sort_detail = f"{len(moved)} sorted, {len(filed)} companions filed"
+        if mismatches:
+            _sort_detail += f", {len(mismatches)} tag/folder mismatch (not moved)"
+        if resort_all:
+            _sort_detail += " [--resort-all]"
+        pstatus.step_detail("sort", _sort_detail)
+        pstatus.set_summary(
+            sorted=len(moved),
+            tagFolderMismatch=len(mismatches),
+            tagFolderMismatchFiles=mismatches,
+            warnings=_add_warnings(*mismatches),
+        )
     else:
         print("\n[STEP 1] Skipped (--upload-only)")
         pstatus.step_detail("sort", "skipped (--upload-only)")
@@ -1540,7 +1687,7 @@ def _run_pipeline_body(
         misplaced=outcome.misplaced_count, misplacedFiles=outcome.misplaced,
         ambiguousAuthor=outcome.ambiguous_count,
         ambiguousAuthorFiles=outcome.ambiguous,
-        failed=failed_count, warnings=outcome.warnings(),
+        failed=failed_count, warnings=_add_warnings(*outcome.warnings()),
         uploadSec=round(elapsed),
     )
 
@@ -2104,11 +2251,25 @@ def _step_audit() -> None:
 def _step_sort() -> None:
     """Mutating: moves files on local disk (OpenAudible export -> author
     folders) and files loose companion docs. Idempotent — an already-filed
-    book is skipped, not re-moved."""
-    moved = sort_books(dry_run=False)
+    book is skipped, not re-moved.
+
+    ⚠️ NEVER re-sorts the whole library (F5): this control is a button on the
+    /status Operations panel, and a bulk relocation of 1,000 filed books is
+    not something a click may do. --resort-all is a deliberate, attended
+    command-line act only. A tag/folder divergence found here is reported the
+    same way the scheduled run reports it."""
+    mismatches: list[str] = []
+    moved = sort_books(dry_run=False, resort_all=False, mismatch_out=mismatches)
     filed = sort_companion_files(dry_run=False)
-    pstatus.step_detail("sort", f"{len(moved)} sorted, {len(filed)} companions filed")
-    pstatus.set_summary(sorted=len(moved), companionsFiled=len(filed))
+    detail = f"{len(moved)} sorted, {len(filed)} companions filed"
+    if mismatches:
+        detail += f", {len(mismatches)} tag/folder mismatch (not moved)"
+    pstatus.step_detail("sort", detail)
+    pstatus.set_summary(
+        sorted=len(moved), companionsFiled=len(filed),
+        tagFolderMismatch=len(mismatches), tagFolderMismatchFiles=mismatches,
+        warnings=_add_warnings(*mismatches),
+    )
 
 
 def _step_detect() -> None:
@@ -2188,7 +2349,7 @@ def _step_upload() -> None:
         misplaced=outcome.misplaced_count, misplacedFiles=outcome.misplaced,
         ambiguousAuthor=outcome.ambiguous_count,
         ambiguousAuthorFiles=outcome.ambiguous,
-        failed=outcome.failed_count, warnings=outcome.warnings(),
+        failed=outcome.failed_count, warnings=_add_warnings(*outcome.warnings()),
     )
     if outcome.failed_count:
         raise RuntimeError(f"{outcome.failed_count} file(s) failed to upload — see the log above")
@@ -2311,6 +2472,7 @@ def run_step(step: str, trigger: str = "manual-step") -> None:
 def _run_step_body(step: str, trigger: str) -> None:
     """Callers MUST already hold the single-flight lock — use run_step()
     above, never this directly, outside of a test."""
+    _reset_run_warnings()
     info = STEP_INFO[step]
     print("=" * 60)
     print(f"  Audiobook Pipeline — single step: {step} ({info['label']})")
@@ -3398,6 +3560,19 @@ def main():
         help="Force refresh of Drive folder cache",
     )
     parser.add_argument(
+        "--resort-all",
+        action="store_true",
+        help=(
+            "Re-sort the WHOLE library by each file's ©ART tag, not just new "
+            "arrivals (F5). ⚠️ A BULK MOVE — dry-run it first. Default is "
+            "arrivals only: an already-filed book whose tag disagrees with "
+            "its folder is REPORTED and left alone, because relocating it "
+            "defeats Drive's per-folder dedup and can re-upload the book as a "
+            "duplicate. The durable fix for a divergence is usually a "
+            "scripts/author_shelf_aliases.json entry, not a move."
+        ),
+    )
+    parser.add_argument(
         "--non-interactive",
         action="store_true",
         help=(
@@ -3465,6 +3640,15 @@ def main():
         print("ERROR: --step cannot be combined with --sort-only/--upload-only/--rebuild-only/--dry-run.")
         sys.exit(1)
 
+    # --resort-all is a bulk move of already-filed books. Every mode below
+    # either skips the sort step entirely or is a one-step/button path where a
+    # whole-library relocation must never be reachable by accident (F5). Fail
+    # loudly rather than silently ignoring the flag.
+    if args.resort_all and (args.upload_only or args.rebuild_only or args.step):
+        print("ERROR: --resort-all needs the sort step; it cannot be combined "
+              "with --upload-only/--rebuild-only/--step.")
+        sys.exit(1)
+
     if args.refresh_cache and DRIVE_FOLDERS_CACHE_PATH.exists():
         DRIVE_FOLDERS_CACHE_PATH.unlink()
         print("Drive folder cache cleared.")
@@ -3497,6 +3681,7 @@ def main():
                 upload_only=args.upload_only,
                 dry_run=args.dry_run,
                 trigger=os.getenv("PIPELINE_TRIGGER", "manual"),
+                resort_all=args.resort_all,
             )
     except pipeline_lock.PipelineLockHeld:
         # Already printed and reported to pipeline_status inside run_pipeline()/

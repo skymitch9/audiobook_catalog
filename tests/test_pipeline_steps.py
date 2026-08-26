@@ -271,13 +271,54 @@ def test_step_audit_calls_run_audit(monkeypatch, isolated_env):
 
 
 def test_step_sort_reports_counts(monkeypatch, isolated_env):
-    monkeypatch.setattr(sync, "sort_books", lambda dry_run=False: ["a", "b"])
+    monkeypatch.setattr(
+        sync, "sort_books",
+        lambda dry_run=False, resort_all=False, mismatch_out=None: ["a", "b"],
+    )
     monkeypatch.setattr(sync, "sort_companion_files", lambda dry_run=False: ["c"])
     sync._step_sort()
     detail = isolated_env.calls_named("step_detail")[0]
     assert detail[1] == ("sort", "2 sorted, 1 companions filed")
     summary = isolated_env.calls_named("set_summary")[0]
-    assert summary[2] == {"sorted": 2, "companionsFiled": 1}
+    assert summary[2] == {
+        "sorted": 2, "companionsFiled": 1,
+        "tagFolderMismatch": 0, "tagFolderMismatchFiles": [], "warnings": [],
+    }
+
+
+def test_step_sort_never_resorts_the_whole_library(monkeypatch, isolated_env):
+    """F5: the /status Operations 'sort' button is a click, and a click may
+    never bulk-relocate a thousand filed books. --resort-all is a deliberate
+    command-line act only."""
+    seen = {}
+
+    def _sort(dry_run=False, resort_all=False, mismatch_out=None):
+        seen["resort_all"] = resort_all
+        return []
+
+    monkeypatch.setattr(sync, "sort_books", _sort)
+    monkeypatch.setattr(sync, "sort_companion_files", lambda dry_run=False: [])
+    sync._step_sort()
+    assert seen["resort_all"] is False
+
+
+def test_step_sort_names_a_tag_folder_mismatch(monkeypatch, isolated_env):
+    """A divergence must reach the step detail AND the warnings field — that
+    visibility is the whole replacement for the old silent relocation."""
+    def _sort(dry_run=False, resort_all=False, mismatch_out=None):
+        if mismatch_out is not None:
+            mismatch_out.append("Robert Jordan/Book.m4b: tag says 'Robert Jordamn'")
+        return []
+
+    monkeypatch.setattr(sync, "sort_books", _sort)
+    monkeypatch.setattr(sync, "sort_companion_files", lambda dry_run=False: [])
+    sync._step_sort()
+
+    detail = isolated_env.calls_named("step_detail")[0]
+    assert "1 tag/folder mismatch (not moved)" in detail[1][1]
+    summary = isolated_env.calls_named("set_summary")[0][2]
+    assert summary["tagFolderMismatch"] == 1
+    assert "Robert Jordamn" in summary["warnings"][0]
 
 
 def test_step_detect_reports_count(monkeypatch, isolated_env):
