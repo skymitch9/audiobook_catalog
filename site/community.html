@@ -220,6 +220,10 @@ html[data-theme="cyberpunk"] .um-name{letter-spacing:1px}
   import { mountAccountModal } from './account-modal.js';
   import { clubActivity } from './club-notify.js';
   import { coverUrl } from './covers-base.js';
+  // ⚠️ The ONE fold — see `foldReadingList` in reviews.js. The TBR number on
+  // these cards and the number index.html's filter reports must agree, so both
+  // read it from the same function rather than each counting documents.
+  import { foldReadingList } from './reviews.js';
 
   // "N new" on the Clubs banner: unread club posts for the signed-in user
   // setTimeout defers past the module body so initializeApp below has run.
@@ -306,13 +310,33 @@ html[data-theme="cyberpunk"] .um-name{letter-spacing:1px}
       }
 
       // Build reading list stats per user (TBR only)
-      const readingStats = {};
+      //
+      // ⚠️ COUNTED IN BOOKS, NOT DOCUMENTS — owner, 2026-08-26: *"for the tbr
+      // list, it's double counting if something is owned in multiple media
+      // sources."* A book recorded on this site and in the library catalogue is
+      // TWO documents, because each keys its own by a slug of its own spelling
+      // of the title. Counting rows counted it twice, on this card and in the
+      // filter the card links to.
+      //
+      // ⚠️ Folded PER PERSON, never across the collection: two people wanting
+      // the same book are two intentions, and folding globally would show each
+      // of them a count that included the other's.
+      //
+      // ⚠️ What this still cannot fold is written down in `foldReadingList`'s
+      // own header — the bridge that joins a paperback entry to an audiobook
+      // one lives in the library's D1 and is not reachable from this page.
+      const tbrByUser = {};
       readingListsSnap.docs.forEach(d => {
         const data = d.data();
         const name = (data.displayName || '').toLowerCase();
         if (!name) return;
-        if (!readingStats[name]) readingStats[name] = { tbr: 0 };
-        if (data.status === 'tbr') readingStats[name].tbr++;
+        if (data.status !== 'tbr') return;
+        if (!tbrByUser[name]) tbrByUser[name] = [];
+        tbrByUser[name].push(d);
+      });
+      const readingStats = {};
+      Object.keys(tbrByUser).forEach(name => {
+        readingStats[name] = { tbr: foldReadingList(tbrByUser[name]).length };
       });
 
       // Build review stats per user (+ distinct books reviewed per year)

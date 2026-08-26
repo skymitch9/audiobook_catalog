@@ -41810,6 +41810,16 @@ function wireAppearance(container){
         var matchTitles = new Set();   // TBR: match rows by title
         var matchIds = new Set();      // Reviews: match rows by bookId
         var bookIdFromTitle = null;
+        // ⚠️ The TBR list folded to one entry per BOOK — owner, 2026-08-26:
+        // *"it's double counting if something is owned in multiple media
+        // sources."* This is what the COUNT and the "not in this catalogue"
+        // list below are built from.
+        //
+        // ⚠️ `matchTitles` above deliberately keeps EVERY spelling, because a
+        // catalogue row must still match under either of them. Folding the
+        // MATCH set would HIDE a book rather than stop repeating it — two
+        // different questions, and only the second one was reported.
+        var tbrGroups = [];
 
         if (isReviews) {
           // Reviews — books this user has reviewed (keyed by bookId)
@@ -41878,14 +41888,23 @@ function wireAppearance(container){
               return;
             }
           }
+          var mineDocs = [];
           rlSnap.docs.forEach(function(d) {
             var data = d.data();
             if (data.status !== 'tbr') return;
             var mine = me
               ? revMod2.ownsReadingListDoc(data, me)
               : !!data.displayName && data.displayName.toLowerCase() === targetUser.toLowerCase();
-            if (mine) matchTitles.add(data.bookTitle);
+            if (mine) {
+              mineDocs.push(d);
+              matchTitles.add(data.bookTitle);
+            }
           });
+          // ⚠️ ONE ENTRY PER BOOK. The same `foldReadingList` community.html
+          // counts with, so the TBR number on somebody's community card and
+          // the number this filter reports cannot disagree — they are the same
+          // function over the same documents.
+          tbrGroups = revMod2.foldReadingList(mineDocs);
         }
 
         function _matches(title) {
@@ -41906,7 +41925,10 @@ function wireAppearance(container){
         // ⚠️ Said BEFORE renderPage(), because renderPage is what paints the
         // (possibly empty) result and the notice has to arrive with it.
         var _shownCount = document.querySelectorAll('#ab-table tbody tr[data-search-match="1"]').length;
-        var _wanted = isReviews ? matchIds.size : matchTitles.size;
+        // ⚠️ BOOKS, not documents. `matchTitles.size` counted a book held on
+        // paper AND on audio twice, because each catalogue writes its own
+        // document under its own spelling of the title (owner, 2026-08-26).
+        var _wanted = isReviews ? matchIds.size : tbrGroups.length;
         if (_shownCount === 0) {
           if (_wanted === 0) {
             // ⚠️ NAMES THE ACCOUNT. This is a two-account household, and
@@ -41923,7 +41945,12 @@ function wireAppearance(container){
             // whose title matches them, so listing the titles is the whole
             // explanation and turns "my list vanished" into "that book is not
             // in here".
-            var _missing = (isReviews ? [] : Array.from(matchTitles)).filter(Boolean);
+            // ⚠️ ONE TITLE PER BOOK, not per document — otherwise a book on the
+            // list in two formats would be named twice in the same sentence,
+            // which reads as two missing books.
+            var _missing = (isReviews ? [] : tbrGroups.map(function(g) {
+              return g.titles[0] || '';
+            })).filter(Boolean);
             setListNotice(
               _whose.charAt(0).toUpperCase() + _whose.slice(1) + ' ' + _listLabel + ' has '
               + _wanted + ' book' + (_wanted === 1 ? '' : 's') + ' on it, but '

@@ -109,6 +109,107 @@ export function ownsReadingListDoc(data, me) {
   return !!docUid && !!myUid && docUid === myUid;
 }
 
+/* ── ONE BOOK, ONE COUNT — the media fold, 2026-08-26 ─────────────────────── */
+
+/**
+ * The key that decides whether two reading-list documents are the same BOOK.
+ *
+ * The owner, 2026-08-26, verbatim:
+ *
+ *     "for the tbr list, it's double counting if something is owned in multiple
+ *      media sources. So if a book is audio, physical and ebook or any
+ *      combination we need to have it single count with a link to all formats."
+ *
+ * A document id is `{uid}_{bookId}` and `bookId` is `bookIdFromTitle(title)` —
+ * a slug of the title AS THAT CATALOGUE SPELLS IT. This site says *Firefight -
+ * The Reckoners, Book 2*; the library says *Firefight*. One intention, two
+ * documents, counted twice everywhere.
+ *
+ * ⚠️ **FOLDED AT READ TIME, NEVER BY RE-KEYING THE STORE.** Making both
+ * catalogues write one id is a migration of a persisted key —
+ * `scripts/migrate_tbr_to_uid.py` did one of those and it was not cheap — and
+ * it is not even possible here: this site has no author for most rows, so it
+ * cannot build the composite key at all.
+ *
+ * ## ⚠️ TWO RUNGS, AND THE SECOND IS DELIBERATELY NOT A FOLD
+ *
+ *   1. `workKey` — `normaliseTitle(title)|normaliseTitle(author)`, written only
+ *      by the LIBRARY catalogue (`tbrDocFor` in its `@lc/core`). It is the only
+ *      cross-catalogue key any document in this collection carries.
+ *   2. `bookId` — the document's own slug. Two documents of one person can
+ *      never share one (it is half the document id), so this rung folds nothing
+ *      that was not already one row. It is here to make the key TOTAL, not to
+ *      merge anything.
+ *
+ * ⚠️ **There is deliberately NO title-similarity rung and no matcher.** A key
+ * with no `|` is not one of ours, a bare title collides two books called
+ * *Gold*, and a fold that is too eager is silent and permanent — one book
+ * vanishes from somebody's list and nothing says so. Too shy merely leaves the
+ * count slightly high, which is visible and reportable.
+ *
+ * ⚠️ **SO THIS IS WEAKER THAN THE LIBRARY'S FOLD, AND HERE IS EXACTLY HOW.**
+ * That app resolves a slug back to a work through `audiobook_holding` /
+ * `ebook_holding` — D1 tables in ITS database, which this site cannot see. So a
+ * paperback entry written there and an audiobook entry written here still count
+ * as **two** on this site. Closing that needs either a `workKey` on this side's
+ * writes or a published bridge; both are separate asks. Recorded here rather
+ * than left to be rediscovered.
+ *
+ * @param {{workKey?: string, bookId?: string}} data the document's fields
+ * @param {string} [docId] its id — the last resort, so a fieldless document is
+ *   its own group instead of joining every other fieldless one.
+ */
+export function readingListFoldKey(data, docId) {
+  const workKey = (data && typeof data.workKey === 'string') ? data.workKey.trim() : '';
+  // `workKeyFor` always joins a folded title to a folded author, so a value
+  // with no '|' is not one of ours and a bare title would collide.
+  if (workKey.indexOf('|') !== -1) return 'work:' + workKey;
+
+  const bookId = (data && typeof data.bookId === 'string') ? data.bookId.trim() : '';
+  if (bookId) return 'book:' + bookId;
+
+  return 'doc:' + (docId || '');
+}
+
+/**
+ * Fold a pile of reading-list documents onto one entry per BOOK.
+ *
+ * Returns groups in first-seen order, each `{ key, titles, docIds }`:
+ *
+ *   - `titles` — every spelling the group was recorded under, deduplicated and
+ *     in order. ⚠️ **All of them, not just the first.** A caller filtering a
+ *     catalogue must still match on any of them, or folding would HIDE a book;
+ *     only the COUNT is one per group. Those are two different questions, and
+ *     the bug being fixed is only the second.
+ *   - `docIds` — every document in the group, so a removal can take them all.
+ *
+ * ⚠️ The one implementation. `community.html`'s per-person TBR count and
+ * `index.html`'s reading-list filter both call it, so the number on the
+ * community card and the number the filter reports cannot come to disagree.
+ *
+ * @param {Array<{id?: string, data?: Function}|Object>} docs Firestore snapshots
+ *   (`{ id, data() }`) or plain `{ id, ...fields }` objects.
+ */
+export function foldReadingList(docs) {
+  const groups = new Map();
+  for (const raw of docs || []) {
+    const data = raw && typeof raw.data === 'function' ? raw.data() : raw;
+    if (!data) continue;
+    const docId = (raw && raw.id) || data.id || '';
+    const key = readingListFoldKey(data, docId);
+
+    let group = groups.get(key);
+    if (!group) {
+      group = { key: key, titles: [], docIds: [] };
+      groups.set(key, group);
+    }
+    if (docId) group.docIds.push(docId);
+    const title = typeof data.bookTitle === 'string' ? data.bookTitle.trim() : '';
+    if (title && group.titles.indexOf(title) === -1) group.titles.push(title);
+  }
+  return Array.from(groups.values());
+}
+
 /**
  * Compute the arithmetic mean of review ratings, rounded to 1 decimal place.
  * Returns 0 for an empty array.
