@@ -164,10 +164,23 @@ def test_publish_step_reports_success_on_push_ok(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
+def _mid_band(monkeypatch, score=85):
+    """Force a deterministic 80-91 fuzzy score with no Claude key, so
+    resolve_author_to_drive_folder() reaches step 6 every time."""
+    monkeypatch.setattr(sync, "CLAUDE_API_KEY", None)
+    from thefuzz import fuzz
+    monkeypatch.setattr(fuzz, "token_sort_ratio", lambda a, b: score)
+
+
 def test_ambiguous_author_does_not_prompt_when_headless(monkeypatch):
     """OLD: a fuzzy match in the 80-91 band called input(), which raises
-    EOFError in a headless run and aborts the whole batch. NEW: when stdin is
-    not a TTY, it skips the prompt and returns None (→ new folder, safe path).
+    EOFError in a headless run and aborts the whole batch.
+
+    NEW (2026-08-26): headless returns AmbiguousAuthorFolder — a NAMED SKIP.
+    It used to return None, and None means "new author, create a folder",
+    which for an 85% match splits one author across two Drive folders and
+    defeats per-folder dedup. Not prompting was only half the fix; not
+    GUESSING is the other half.
 
     Under pytest stdin is already not a TTY; we also make input() explode so
     the test fails loudly if the guard is ever removed."""
@@ -175,29 +188,118 @@ def test_ambiguous_author_does_not_prompt_when_headless(monkeypatch):
         raise AssertionError("input() must not be called in a headless run")
 
     monkeypatch.setattr("builtins.input", boom)
-
-    # thefuzz's token_sort_ratio: force a mid-band (80-91) score and no
-    # Claude key so we reach step 6 deterministically.
-    monkeypatch.setattr(sync, "CLAUDE_API_KEY", None)
-    from thefuzz import fuzz
-    monkeypatch.setattr(fuzz, "token_sort_ratio", lambda a, b: 85)
+    _mid_band(monkeypatch)
 
     drive_folders = {"Robert Jordamn": "folder-xyz"}  # deliberate typo → fuzzy
     result = sync.resolve_author_to_drive_folder("Robert Jordan", drive_folders)
-    assert result is None  # falls through to "create a new folder"
+
+    assert isinstance(result, sync.AmbiguousAuthorFolder)
+    assert result is not None, "None would mean 'create a second folder' — the bug"
+    assert (result.author, result.best_name, result.score) == (
+        "Robert Jordan", "Robert Jordamn", 85,
+    )
+    # The named line a human reads off /status without opening a log.
+    assert "Robert Jordan" in result.detail()
+    assert "Robert Jordamn" in result.detail()
+    assert "85" in result.detail()
+    assert "not uploaded" in result.detail()
 
 
 def test_ambiguous_author_prompts_when_interactive(monkeypatch):
     """Symmetry check: with a TTY attached, the confirm prompt IS used."""
     monkeypatch.setattr(sync.sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(sync, "NON_INTERACTIVE", False)
     monkeypatch.setattr("builtins.input", lambda *a, **k: "y")
-    monkeypatch.setattr(sync, "CLAUDE_API_KEY", None)
-    from thefuzz import fuzz
-    monkeypatch.setattr(fuzz, "token_sort_ratio", lambda a, b: 85)
+    _mid_band(monkeypatch)
 
     drive_folders = {"Robert Jordamn": "folder-xyz"}
     result = sync.resolve_author_to_drive_folder("Robert Jordan", drive_folders)
     assert result == ("Robert Jordamn", "folder-xyz")
+
+
+def test_non_interactive_flag_beats_a_real_tty(monkeypatch):
+    """The EXPLICIT half of the fix: --non-interactive / SYNC_NON_INTERACTIVE
+    must suppress the prompt even when stdin genuinely IS a TTY. isatty() is an
+    inference; a scheduled wrapper that fakes a console would otherwise walk
+    straight back into the hang this exists to prevent."""
+    monkeypatch.setattr(sync.sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(sync, "NON_INTERACTIVE", True)
+
+    def boom(*a, **k):
+        raise AssertionError("--non-interactive must never call input()")
+
+    monkeypatch.setattr("builtins.input", boom)
+    _mid_band(monkeypatch, score=87)
+
+    result = sync.resolve_author_to_drive_folder(
+        "Robert Jordan", {"Robert Jordamn": "folder-xyz"},
+    )
+    assert isinstance(result, sync.AmbiguousAuthorFolder)
+    assert result.score == 87
+
+
+def test_is_interactive_is_false_when_stdin_raises(monkeypatch):
+    """A detached stdin can raise rather than return False on some Windows
+    hosts. Anything that is not a confident yes is a no."""
+    monkeypatch.setattr(sync, "NON_INTERACTIVE", False)
+
+    def raiser():
+        raise ValueError("I/O operation on closed file")
+
+    monkeypatch.setattr(sync.sys.stdin, "isatty", raiser)
+    assert sync.is_interactive() is False
+
+
+def test_ambiguous_author_file_is_skipped_named_and_left_unmanifested(monkeypatch, tmp_path):
+    """The whole point, end to end at the upload loop: the book is NOT
+    uploaded, NOT given a new folder, IS named in the outcome (so the step
+    detail and /status warnings carry it), and adds NOTHING to the manifest —
+    which is what leaves it for the next run to re-detect."""
+    root = tmp_path
+    (root / "Robert Jordan").mkdir()
+    book = root / "Robert Jordan" / "The Eye of the World.m4b"
+    book.write_bytes(b"x")
+
+    monkeypatch.setattr(sync, "resolve_alias", lambda author, aliases: (author, None))
+    monkeypatch.setattr(
+        sync, "resolve_author_to_drive_folder",
+        lambda *a, **k: sync.AmbiguousAuthorFolder("Robert Jordan", "Robert Jordamn", 87),
+    )
+    monkeypatch.setattr(
+        sync, "create_drive_folder",
+        lambda *a, **k: pytest.fail("must NOT create a second folder for the same author"),
+    )
+    monkeypatch.setattr(
+        sync, "upload_file_to_drive",
+        lambda *a, **k: pytest.fail("must NOT upload an unresolved author"),
+    )
+
+    updates, outcome, new_folders, links = sync._upload_new_files(
+        [book], root, aliases={}, drive_folders={}, service=None, dry_run=False,
+    )
+
+    assert updates == {}, "an un-manifested file is what makes the next run re-offer it"
+    assert new_folders == []
+    assert links == {}
+    assert outcome.uploaded_count == 0
+    assert outcome.failed_count == 0, "a pending human decision is not a pipeline failure"
+    assert outcome.ambiguous_count == 1
+    line = outcome.ambiguous[0]
+    assert "The Eye of the World.m4b" in line
+    assert "Robert Jordamn" in line and "87" in line
+    assert line in outcome.warnings(), "it must reach the /status warnings field"
+    assert outcome.run_state() == "success"
+
+
+def test_ambiguous_is_a_tuple_so_callers_must_isinstance_first():
+    """Regression guard for the trap this shape creates: AmbiguousAuthorFolder
+    is a NamedTuple, so `if result:` is TRUE for it and a 2-way unpack of its
+    3 fields raises. Any caller that truthiness-checks before isinstance is
+    broken; this pins the property so the risk stays visible."""
+    amb = sync.AmbiguousAuthorFolder("A", "B", 85)
+    assert isinstance(amb, tuple) and bool(amb) is True
+    with pytest.raises(ValueError):
+        _name, _id = amb
 
 
 # ---------------------------------------------------------------------------

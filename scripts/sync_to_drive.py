@@ -28,6 +28,7 @@ import sys
 import tempfile
 import time
 from dataclasses import dataclass, field
+from typing import NamedTuple
 
 # Fix Windows console encoding for non-ASCII filenames
 if sys.stdout.encoding != 'utf-8':
@@ -108,6 +109,74 @@ CLAUDE_API_KEY: str | None = os.getenv("Claude-llm")
 
 # Google Drive parent folder ID for all audiobook author folders.
 DRIVE_PARENT_FOLDER_ID: str = "1yZHU_UryCZkuhg9zFzu5uOadx3NI0FJv"
+
+# ---------------------------------------------------------------------------
+# F2 — "is there a human at the console?" (2026-08-26)
+#
+# The one place this pipeline ever waits for a person is the ambiguous-author
+# confirm in resolve_author_to_drive_folder(). A scheduled run has no stdin, so
+# a prompt there either EOFErrors out of the whole upload batch or blocks until
+# the 4h stale-lock rule reclaims the lock — silently, hours later.
+#
+# `sys.stdin.isatty()` is the automatic signal and covers the scheduled task on
+# its own. NON_INTERACTIVE is the EXPLICIT override on top of it, because
+# isatty() is an inference and inferences are wrong in the cases nobody
+# anticipated (a console handle that exists but nothing reads, a wrapper that
+# fakes a tty, a container). It is set by --non-interactive or by
+# SYNC_NON_INTERACTIVE=1 in the environment, which is what the scheduled .bat
+# sets — see docs/access/PIPELINE.md.
+#
+# ⚠️ One-way only, on purpose: this flag can only ever REMOVE the prompt. There
+# is deliberately no --interactive that forces a prompt back on when stdin is
+# not a tty, because that is the exact hang this exists to prevent.
+# ---------------------------------------------------------------------------
+NON_INTERACTIVE: bool = os.getenv("SYNC_NON_INTERACTIVE", "").strip().lower() in (
+    "1", "true", "yes", "on",
+)
+
+
+def is_interactive() -> bool:
+    """True only when it is safe to block on input(): a real TTY AND no
+    explicit non-interactive override."""
+    if NON_INTERACTIVE:
+        return False
+    try:
+        return bool(sys.stdin.isatty())
+    except Exception:
+        # A closed/detached stdin can raise on some Windows hosts. Anything
+        # that is not a confident "yes" is a no.
+        return False
+
+
+class AmbiguousAuthorFolder(NamedTuple):
+    """A fuzzy author→Drive-folder match nobody may resolve unattended.
+
+    Returned by resolve_author_to_drive_folder() instead of a (name, id) pair
+    when the best match lands in the mid band (FUZZY_THRESHOLD..91), Claude
+    could not settle it, and there is no human to ask.
+
+    ⚠️ It is deliberately NOT ``None``. ``None`` means "genuinely new author,
+    create a folder", which is the right answer for an unknown name and the
+    WRONG one for an 87% match: creating "Robert Jordan" beside an existing
+    "Robert Jordamn" splits one author across two Drive folders, and per-folder
+    dedup then cannot see the duplicate — the same defeat-the-dedup shape as
+    the F5 re-sort. The file is left un-uploaded and un-manifested, so the next
+    run re-detects it; nothing is lost, and the decision waits for a person.
+
+    ⚠️ It IS a tuple (NamedTuple), so ``if result:`` is truthy — every caller
+    must isinstance-check it BEFORE unpacking.
+    """
+
+    author: str
+    best_name: str
+    score: int
+
+    def detail(self) -> str:
+        """The named line the step detail and the /status warnings carry."""
+        return (
+            f"author folder ambiguous: {self.author} ~ {self.best_name} "
+            f"({self.score}) - not uploaded, decide by hand"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -576,12 +645,17 @@ def resolve_author_to_drive_folder(
     author_name: str,
     drive_folders: dict[str, str],
     dry_run: bool = False,
-) -> tuple[str, str] | None:
+) -> tuple[str, str] | AmbiguousAuthorFolder | None:
     """
     Resolve a local author name to an existing Drive folder.
     Uses: exact match -> fuzzy match -> Claude LLM -> user prompt -> create new.
 
-    Returns (folder_name, folder_id) or None on failure.
+    Three outcomes, and the caller must tell them apart:
+      * ``(folder_name, folder_id)`` — resolved, upload there.
+      * ``AmbiguousAuthorFolder``    — a mid-band fuzzy match with no human to
+        confirm it (F2). NOT resolvable unattended; the caller SKIPS the file
+        and names it. ⚠️ isinstance-check this first: it is also a tuple.
+      * ``None``                     — genuinely no match; create a new folder.
     """
     # 1. Exact match (case-insensitive)
     for folder_name, folder_id in drive_folders.items():
@@ -647,7 +721,8 @@ def resolve_author_to_drive_folder(
             return (claude_match, drive_folders[claude_match])
 
     # 6. If we have a decent fuzzy match, confirm with a HUMAN — but only when
-    # one is actually at the console. (F2, 2026-08-24)
+    # one is actually at the console. (F2, 2026-08-24; outcome corrected
+    # 2026-08-26.)
     #
     # The scheduled pipeline runs headless (wscript -> .vbs -> .bat, no
     # console), so stdin is not a TTY. Calling input() there does NOT pause for
@@ -660,21 +735,36 @@ def resolve_author_to_drive_folder(
     # whenever the Claude key is dead (ask_claude_for_match returns None on any
     # API error), which is exactly the state commit db62d65 flags.
     #
-    # So: only prompt when sys.stdin.isatty(). Otherwise skip the guess and fall
-    # through to "no match" (return None), which creates a fresh tag-named
-    # folder — the safe, already-idempotent path — and log it LOUDLY for later
-    # human review (add an author_shelf_aliases.json entry to collapse the two).
+    # So: only prompt when is_interactive() (a real TTY and no explicit
+    # --non-interactive / SYNC_NON_INTERACTIVE override).
+    #
+    # ⚠️ What the unattended path DOES changed on 2026-08-26. It used to return
+    # None, which means "new author" and creates a fresh tag-named Drive folder.
+    # That is the right answer for an unknown name and the wrong one for an 87%
+    # match: it splits one author across two folders, and Drive dedup is
+    # PER-FOLDER, so the same book can then upload twice and neither copy sees
+    # the other — the F5 duplicate shape reached by a different road. It also
+    # made an unresolved judgement call look like a completed one.
+    #
+    # It now returns AmbiguousAuthorFolder: the file is SKIPPED and NAMED
+    # (step detail + /status warnings), and because a skipped file never
+    # enters upload_manifest.json the next run re-detects it. Nothing is lost,
+    # nothing is guessed, and the decision waits for a person — who resolves it
+    # for good with an author_shelf_aliases.json entry, or by running this
+    # script by hand at a terminal and answering the prompt below.
     if scored:
         best_name = scored[0][0]
         best_score = scored[0][1]
-        if not sys.stdin.isatty():
+        if not is_interactive():
             print(
                 f"  [REVIEW] '{author_name}' ~ '{best_name}' (score: {best_score}) "
-                "is ambiguous and no human is attached to confirm. Creating a new "
-                "folder rather than guessing or blocking the batch. If they are the "
-                "same author, add an author_shelf_aliases.json entry."
+                "is ambiguous and no human is attached to confirm. NOT uploading "
+                "this file and NOT creating a second folder for the same author — "
+                "it is left for the next run. If they are the same author, add an "
+                "author_shelf_aliases.json entry; if they are not, run this script "
+                "at a terminal and answer the prompt."
             )
-            return None
+            return AmbiguousAuthorFolder(author_name, best_name, int(best_score))
         print(f"\n  [FUZZY] '{author_name}' ~ '{best_name}' (score: {best_score})")
         response = input(f"  Use '{best_name}'? (y/n): ").strip().lower()
         if response in ("y", "yes", ""):
@@ -892,6 +982,11 @@ class UploadOutcome:
     already_on_drive: list[str] = field(default_factory=list)
     misplaced: list[str] = field(default_factory=list)
     failed: list[str] = field(default_factory=list)
+    # F2: files skipped because their author folder could not be resolved
+    # unattended. Each entry is the AmbiguousAuthorFolder.detail() line with
+    # the file it belongs to, so the /status panel names the book AND the two
+    # candidate folders without anyone opening a log.
+    ambiguous: list[str] = field(default_factory=list)
 
     @property
     def uploaded_count(self) -> int:
@@ -909,15 +1004,30 @@ class UploadOutcome:
     def failed_count(self) -> int:
         return len(self.failed)
 
+    @property
+    def ambiguous_count(self) -> int:
+        return len(self.ambiguous)
+
     def warnings(self) -> list[str]:
         """Human-readable lines for pipeline_status's 'warnings' field."""
-        return [f"Not in author folder: {name}" for name in self.misplaced]
+        return (
+            [f"Not in author folder: {name}" for name in self.misplaced]
+            + list(self.ambiguous)
+        )
 
     def run_state(self) -> str:
         """'success' unless a REAL failure occurred. Misplaced files are
         warnings, not failures — a run that only found misplaced/already/
         uploaded files (the morning-of-2026-08-15 scenario: 9 misplaced
-        epubs, 0 uploaded, 0 failed) is a full success."""
+        epubs, 0 uploaded, 0 failed) is a full success.
+
+        ⚠️ Ambiguous-author skips (F2) are warnings for the SAME reason and it
+        is a deliberate call, not an oversight: the run did everything it
+        legitimately could, the file is named in `warnings` and in the step
+        detail, and it is left un-manifested so the next run re-offers it. A
+        judgement call nobody has made yet is not a pipeline failure. What
+        stops it becoming a silent one is that the name is on the panel every
+        run until a human resolves it."""
         return "success" if self.failed_count == 0 else "partial"
 
 
@@ -985,6 +1095,17 @@ def _upload_new_files(
         else:
             # Resolve author to a Drive folder
             result = resolve_author_to_drive_folder(canonical_author, drive_folders, dry_run=dry_run)
+
+            # ⚠️ isinstance BEFORE truthiness: AmbiguousAuthorFolder is a
+            # NamedTuple, so `if result:` is true for it and the 2-way unpack
+            # below would raise. F2: an unattended mid-band fuzzy match is a
+            # NAMED SKIP, never a guess and never a second folder for the same
+            # author. The file stays out of the manifest, so the next run
+            # re-detects it and a human has until then to decide.
+            if isinstance(result, AmbiguousAuthorFolder):
+                print(f"  [SKIP] {result.detail()}")
+                outcome.ambiguous.append(f"{rel}: {result.detail()}")
+                continue
 
             if result:
                 folder_name, folder_id = result
@@ -1400,13 +1521,15 @@ def _run_pipeline_body(
     print("\n" + "=" * 60)
     print(
         f"  COMPLETE: {uploaded_count} uploaded, {skipped_count} already on Drive, "
-        f"{outcome.misplaced_count} misplaced, {failed_count} failed"
+        f"{outcome.misplaced_count} misplaced, {outcome.ambiguous_count} ambiguous author, "
+        f"{failed_count} failed"
     )
     print(f"  Time: {elapsed:.1f}s")
     pstatus.step_detail(
         "upload",
         f"{uploaded_count} uploaded, {skipped_count} already there, "
-        f"{outcome.misplaced_count} misplaced, {failed_count} failed",
+        f"{outcome.misplaced_count} misplaced, "
+        f"{outcome.ambiguous_count} ambiguous author, {failed_count} failed",
     )
     # `warnings` is new: misplaced files are named here but never move the
     # run out of success (see UploadOutcome.run_state()). skipped/uploaded/
@@ -1415,6 +1538,8 @@ def _run_pipeline_body(
     pstatus.set_summary(
         uploaded=uploaded_count, skipped=skipped_count,
         misplaced=outcome.misplaced_count, misplacedFiles=outcome.misplaced,
+        ambiguousAuthor=outcome.ambiguous_count,
+        ambiguousAuthorFiles=outcome.ambiguous,
         failed=failed_count, warnings=outcome.warnings(),
         uploadSec=round(elapsed),
     )
@@ -1440,6 +1565,21 @@ def _run_pipeline_body(
         print()
         print("  Not moved automatically. File each into an <Author>/ folder")
         print("  and the next run will pick it up.")
+
+    # F2: ambiguous author folders — a human decision the run refused to make
+    # for them. Named here AND on /status, every run, until somebody resolves
+    # it; that repetition is what stops a named skip becoming a silent one.
+    if outcome.ambiguous:
+        print(f"\n  AMBIGUOUS AUTHOR ({outcome.ambiguous_count}) — not uploaded, left for the next run:")
+        print("  " + "-" * 40)
+        for line in outcome.ambiguous:
+            print(f"    - {line}")
+        print()
+        print("  No human was attached to confirm the fuzzy match, and creating")
+        print("  a second folder for the same author would defeat Drive's")
+        print("  per-folder dedup. Resolve for good with a scripts/")
+        print("  author_shelf_aliases.json entry, or run this script at a")
+        print("  terminal and answer the prompt.")
 
     print("=" * 60)
 
@@ -2040,11 +2180,14 @@ def _step_upload() -> None:
     pstatus.step_detail(
         "upload",
         f"{outcome.uploaded_count} uploaded, {outcome.already_count} already there, "
-        f"{outcome.misplaced_count} misplaced, {outcome.failed_count} failed",
+        f"{outcome.misplaced_count} misplaced, "
+        f"{outcome.ambiguous_count} ambiguous author, {outcome.failed_count} failed",
     )
     pstatus.set_summary(
         uploaded=outcome.uploaded_count, skipped=outcome.already_count,
         misplaced=outcome.misplaced_count, misplacedFiles=outcome.misplaced,
+        ambiguousAuthor=outcome.ambiguous_count,
+        ambiguousAuthorFiles=outcome.ambiguous,
         failed=outcome.failed_count, warnings=outcome.warnings(),
     )
     if outcome.failed_count:
@@ -3255,6 +3398,20 @@ def main():
         help="Force refresh of Drive folder cache",
     )
     parser.add_argument(
+        "--non-interactive",
+        action="store_true",
+        help=(
+            "Never prompt, for any reason (F2). An ambiguous author->Drive "
+            "folder match becomes a NAMED SKIP instead of a question: the file "
+            "is not uploaded, not given a second folder, and is left for the "
+            "next run, with the two candidates named in the step detail. "
+            "Unattended runs already behave this way via stdin.isatty(); this "
+            "flag (and SYNC_NON_INTERACTIVE=1, which the scheduled .bat sets) "
+            "is the EXPLICIT belt to that inference's braces. There is "
+            "deliberately no inverse flag."
+        ),
+    )
+    parser.add_argument(
         "--rebuild-only",
         action="store_true",
         help=(
@@ -3282,6 +3439,11 @@ def main():
         ),
     )
     args = parser.parse_args()
+
+    # F2: one-way latch — the flag can turn prompting OFF, never back on.
+    if args.non_interactive:
+        global NON_INTERACTIVE
+        NON_INTERACTIVE = True
 
     if args.sort_only and args.upload_only:
         print("ERROR: Cannot use --sort-only and --upload-only together.")
