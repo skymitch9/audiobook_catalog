@@ -10426,6 +10426,15 @@ Alex Tate - Production, Editing, Mastering" data-library-work-id="" data-library
         <option value="duration_hhmm|txt">Sort by Duration</option>
         <option value="rating|num">Sort by Rating</option>
         <option value="_mytbr|filter">My TBR List</option>
+        <!-- The SECOND read state, 2026-08-26. Owner: "can we also add a filter
+             in each of the search bars for tbr and other read states". The
+             shared readingLists collection holds exactly two, measured that day
+             (555 documents: 393 tbr, 162 read, nothing else), so this option and
+             the one above it are the whole vocabulary - and the library
+             catalogue's collection search grew the same pair, spelled the same
+             way, on the same day. The key -> status mapping lives once, in
+             reviews.js's readingListStatusFor. -->
+        <option value="_myread|filter">My Read List</option>
         <option value="_myreviews|filter">My Reviews</option>
         <!-- Universe filter options — server-rendered per build from the
              universes actually present (see _universe_filter_options() in
@@ -41922,15 +41931,60 @@ function wireAppearance(container){
      *                        Naming them is the difference between "my list is
      *                        gone" and "ah, that book isn't here".
      */
-    async function filterByReadingList(filterKey, forUser) {
+    async function filterByReadingList(filterKey, forUser, labelSearchBox) {
       var session = null;
       try { var identityMod = await import('./identity.js'); session = identityMod.getSession(); } catch(e) {}
       var targetUser = forUser || (session ? session.displayName : null);
       var isReviews = (filterKey === '_myreviews');
       if (!targetUser) { alert(isReviews ? 'Sign in to see reviews.' : 'Sign in to see reading lists.'); return; }
 
-      var _listLabel = isReviews ? 'reviews' : 'TBR list';
+      // The reading-list STATUS this filter is asking for, 2026-08-26. Owner:
+      // "can we also add a filter in each of the search bars for tbr and other
+      // read states."
+      //
+      // The mapping lives once, in reviews.js, because three things need to
+      // agree about it: the dropdown's <option value>, the #list= deep link,
+      // and this function. It is loaded eagerly rather than inside the else
+      // branch below, because the STATUS is needed for the wording before
+      // either branch runs -- a 'read' filter that comes back empty must not
+      // say "TBR list" at the person.
+      var revMod = null;
+      try { revMod = await import('./reviews.js'); } catch(e) {}
+      if (!revMod) {
+        // ⚠️ A MODULE THAT WOULD NOT LOAD IS AN OUTAGE, and is worded as one.
+        // It is not an empty list and it is not a bad filter key — the two
+        // other ways this function can stop early — and telling them apart is
+        // the whole reason this function has four sentences instead of one.
+        setListNotice(
+          'Couldn’t load the reading-list code — this page did not finish '
+          + 'loading. Your list is safe; reload and try again.');
+        renderPage();
+        return;
+      }
+      var listStatus = isReviews ? null : revMod.readingListStatusFor(filterKey);
+      if (!isReviews && !listStatus) {
+        // An unknown key. `readingListStatusFor` refuses to default to 'tbr' on
+        // purpose — a typo in a deep link showing the wrong list silently is
+        // the class of wrong that looks right — so say so rather than guessing.
+        setListNotice(
+          'That reading list does not exist. The two lists are To Be Read and Read.');
+        renderPage();
+        return;
+      }
+
+      var _listLabel = isReviews ? 'reviews' : revMod.readingListLabel(listStatus);
       var _whose = forUser ? (forUser + "'s") : 'this account\u2019s';
+
+      // ⚠️ A DEEP LINK PUTS ITS SUBJECT IN THE SEARCH BOX; the dropdown does
+      // not. That difference is load-bearing and was a bug once: the dropdown
+      // sets no search text, so `qVal` was empty, the generic #ab-empty state
+      // stayed hidden, and an empty list rendered a blank catalogue with no
+      // explanation at all. The four worded notices fixed that; the box text
+      // stays, because a link somebody sent you should say whose list it is.
+      //
+      // ⚠️ Written from `_listLabel`, which is `readingListLabel`'s answer, so
+      // the box and the notices cannot come to call the same list two things.
+      if (labelSearchBox && search) search.value = (forUser || '') + "'s " + _listLabel;
       setListNotice(null);
       setListMedia(null);
 
@@ -41956,7 +42010,10 @@ function wireAppearance(container){
 
         if (isReviews) {
           // Reviews — books this user has reviewed (keyed by bookId)
-          var revMod = await import('./reviews.js');
+          // ⚠️ The module is the one hoisted above, not a second import: the
+          // status mapping and the wording already needed it before either
+          // branch, and two imports of one module is two places for the path
+          // to drift.
           bookIdFromTitle = revMod.bookIdFromTitle;
           var revSnap = await getDocs(collection(firestore, fbEnv.col('reviews')));
           revSnap.docs.forEach(function(d) {
@@ -41988,7 +42045,7 @@ function wireAppearance(container){
           //     write or delete the other's. Closing it needs a listable
           //     name->account directory, which is a separate ask.
           var rlSnap = await getDocs(collection(firestore, fbEnv.col('readingLists')));
-          var revMod2 = await import('./reviews.js');
+          var revMod2 = revMod;
           var me = null;
           if (!forUser) {
             // ⚠️ `getApp()`, not the module block's `app`. This function lives
@@ -42024,7 +42081,10 @@ function wireAppearance(container){
           var mineDocs = [];
           rlSnap.docs.forEach(function(d) {
             var data = d.data();
-            if (data.status !== 'tbr') return;
+            // ⚠️ The status the person ASKED for, not a hard-coded 'tbr'
+            // (2026-08-26). Anything else is dropped, unchanged in spirit: a
+            // value this site does not know is not guessed at.
+            if (data.status !== listStatus) return;
             var mine = me
               ? revMod2.ownsReadingListDoc(data, me)
               : !!data.displayName && data.displayName.toLowerCase() === targetUser.toLowerCase();
@@ -42140,21 +42200,40 @@ function wireAppearance(container){
 
     var hashState=_parseHash();
 
-    // Check for list filter from URL hash (e.g. #list=tbr&user=Skylar or
-    // #list=reviews&user=Skylar)
+    // Check for list filter from URL hash (e.g. #list=tbr&user=Skylar,
+    // #list=read&user=Skylar or #list=reviews&user=Skylar)
+    //
+    // ⚠️ `#list=read` is the 2026-08-26 addition — owner: *"can we also add a
+    // filter in each of the search bars for tbr and other read states"*. The
+    // library catalogue's collection search spells the same thing `?list=read`
+    // in a query string; the vocabulary is shared on purpose, so a link from
+    // either site reads the same way.
+    //
+    // ⚠️ The set of valid statuses comes from `reviews.js`, not from a second
+    // comparison written here. This block used to test `listType === 'tbr'`
+    // inline, which is exactly the third copy of the mapping that
+    // `readingListStatusFor` exists to prevent.
     var _listFilterActive = false;
     (function() {
       var h = (location.hash || '').replace(/^#/, '');
       var sp = new URLSearchParams(h);
       var listType = sp.get('list');
       var listUser = sp.get('user');
-      if ((listType === 'tbr' || listType === 'reviews') && listUser) {
-        _listFilterActive = true;
-        var isReviews = (listType === 'reviews');
-        var label = decodeURIComponent(listUser) + (isReviews ? "'s reviews" : "'s TBR list");
-        if (search) search.value = label;
-        filterByReadingList(isReviews ? '_myreviews' : '_mytbr', decodeURIComponent(listUser));
-      }
+      if (!listUser || !listType) return;
+      var isReviews = (listType === 'reviews');
+      // ⚠️ THE LIST NAME IS NOT VALIDATED HERE, on purpose.
+      // `filterByReadingList` owns the vocabulary (reviews.js's
+      // `readingListStatusFor`) and answers an unknown list with a sentence
+      // rather than a blank catalogue. The comparison this block used to make
+      // — `listType === 'tbr'` — was the third copy of a two-entry mapping,
+      // which is exactly what that function exists to stop.
+      //
+      // ⚠️ Synchronous, so the `if (!_listFilterActive)` block below is skipped
+      // and the page does not render the whole unfiltered catalogue for a beat
+      // before the filter lands.
+      _listFilterActive = true;
+      filterByReadingList(
+        isReviews ? '_myreviews' : '_my' + listType, decodeURIComponent(listUser), true);
     })();
 
     if (!_listFilterActive) {

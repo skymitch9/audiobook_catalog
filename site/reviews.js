@@ -109,6 +109,92 @@ export function ownsReadingListDoc(data, me) {
   return !!docUid && !!myUid && docUid === myUid;
 }
 
+/* ── THE READ-STATE VOCABULARY — 2026-08-26 ───────────────────────── */
+
+/**
+ * Every `status` the shared `readingLists` collection actually holds.
+ *
+ * Owner, 2026-08-26: *"can we also add a filter in each of the search bars for
+ * tbr and other read states"*. This site's search bar and the library
+ * catalogue's collection search both grew the same two options on the same day,
+ * and this is the list they share.
+ *
+ * ⚠️ **MEASURED, not assumed.** Counted read-only against the live collection
+ * through the service account on **2026-08-26 ~15:55 Phoenix**:
+ *
+ *     readingLists       555 documents
+ *       status 'tbr'     393
+ *       status 'read'    162
+ *       anything else      0
+ *     readingLists_dev     0   -- still never written to
+ *
+ * So the answer is two, not an open set. Re-measure before adding a third.
+ *
+ * ⚠️ **ONE VOCABULARY ACROSS THE ESTATE.** The library catalogue's
+ * `READING_LIST_STATUSES` in its `@lc/core` is this list, and its `?list=tbr`
+ * query parameter is this site's `#list=tbr` hash — chosen that way rather than
+ * each site inventing a spelling, the same rule `READING_LIST_MEDIA` below
+ * follows for the format emoji. A person who reads "TBR" on one site and "Want
+ * to read" on the other has to work out whether they are the same list.
+ *
+ * ⚠️ **`'read'` here is a field on a Firestore document**, not any catalogue's
+ * own read-state column. The library has one of those as well, with five
+ * values and its own separate filter; the two genuinely disagree, because that
+ * catalogue has never written a `status: 'read'` reading-list document — it
+ * DELETES the entry instead. All 162 above were written here.
+ */
+export const READING_LIST_STATUSES = ['tbr', 'read'];
+
+/** Is this one of the statuses the store actually holds? */
+export function isReadingListStatus(value) {
+  return READING_LIST_STATUSES.indexOf(value) !== -1;
+}
+
+/**
+ * The status behind a filter key, or `null` for anything that is not a reading
+ * list at all.
+ *
+ * ⚠️ **ONE mapping, in one place.** The dropdown's `<option value>`, the
+ * `#list=` hash reader and the filter function itself all need to agree about
+ * which key means which status, and three copies of a two-entry table is how
+ * they come to disagree. `'_myreviews'` answers `null` because reviews are a
+ * different collection with a different key — the caller branches on that
+ * before it ever reaches a status.
+ *
+ * ⚠️ An UNKNOWN key answers `null` rather than defaulting to `'tbr'`. A
+ * default here would make a typo in a deep link quietly show the wrong list,
+ * which is the class of wrong that looks right.
+ */
+export function readingListStatusFor(filterKey) {
+  if (filterKey === '_mytbr') return 'tbr';
+  if (filterKey === '_myread') return 'read';
+  return null;
+}
+
+/**
+ * The status a `#list=` deep link asks for, or `null`.
+ *
+ * `#list=tbr&user=Skylar` has worked since long before this; `#list=read` is
+ * the 2026-08-26 addition. `#list=reviews` is handled by the caller and is
+ * deliberately not a status — see `readingListStatusFor`.
+ */
+export function readingListStatusFromHash(value) {
+  return isReadingListStatus(value) ? value : null;
+}
+
+/**
+ * What to call the list in a sentence a person reads.
+ *
+ * ⚠️ Used in every one of the four worded outcomes `filterByReadingList`
+ * distinguishes (couldn't read / no account / genuinely empty / on the list but
+ * not in this catalogue), so a `'read'` filter that came back empty never says
+ * "TBR list" at them.
+ */
+export function readingListLabel(status) {
+  return status === 'read' ? 'read list' : 'TBR list';
+}
+
+
 /* ── ONE BOOK, ONE COUNT — the media fold, 2026-08-26 ─────────────────────── */
 
 /**
