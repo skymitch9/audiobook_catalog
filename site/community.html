@@ -68,6 +68,11 @@ h1{
 .user-name{font-weight:700;font-size:1.2em;color:var(--neon-cyan);text-transform:var(--et-title-case);letter-spacing:.5px}
 .user-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin:10px 0}
 .stat-box{background:var(--bg);border:1px solid var(--border);padding:8px;text-align:center}
+/* The TBR media split (2026-08-26). Chips, deliberately NOT a stat box:
+   the two numbers do not sum to the TBR count beside them, and a box
+   would read as another total. */
+.tbr-media{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
+.tbr-media-chip{font-size:.78em;padding:2px 9px;border-radius:999px;border:1px solid var(--border);background:var(--bg);color:var(--muted);white-space:nowrap}
 .stat-val{font-size:1.3em;font-weight:700;color:var(--neon-yellow);font-family:var(--et-font-mono)}
 .stat-lbl{font-size:.7em;color:var(--muted);text-transform:var(--et-title-case)}
 .user-reading{font-size:.9em;color:var(--muted);margin-top:10px;display:flex;align-items:center;gap:8px}
@@ -223,7 +228,39 @@ html[data-theme="cyberpunk"] .um-name{letter-spacing:1px}
   // ⚠️ The ONE fold — see `foldReadingList` in reviews.js. The TBR number on
   // these cards and the number index.html's filter reports must agree, so both
   // read it from the same function rather than each counting documents.
-  import { foldReadingList } from './reviews.js';
+  // ⚠️ `readingListMediaCounts` rides the SAME fold (2026-08-26, owner: "I
+  // don't see the tag for what type of media a book is"). It counts folded
+  // BOOKS, and its two numbers deliberately do not sum to the total — a book on
+  // the list in two media is counted in both, which is what it is.
+  import { foldReadingList, readingListMediaCounts } from './reviews.js';
+
+  /**
+   * The media split behind a TBR number - owner, 2026-08-26: *"I don't see the
+   * tag for what type of media a book is."*
+   *
+   * WARNING: ONLY NUMBERS ARE INTERPOLATED. `readingListMediaCounts` returns
+   * integers this page computed; no Firestore string reaches this markup, which
+   * is the rule `community-escaping.test.js` exists to keep.
+   *
+   * WARNING: the two numbers do NOT sum to the TBR count and are not meant to:
+   * a book on the list in both media is counted in both. Rendered as chips,
+   * never as a split of a whole.
+   *
+   * There is no ebook chip, and its absence is deliberate - see
+   * `readingListMediaTags` in reviews.js. The ebook shelf is permission-gated,
+   * so a public page cannot honestly say what is on it.
+   */
+  function tbrMediaChips(media) {
+    const m = media || { library: 0, audiobook: 0 };
+    const lib = Number(m.library) || 0;
+    const aud = Number(m.audiobook) || 0;
+    if (!lib && !aud) return '';
+    const chips = [];
+    if (lib) chips.push(`<span class="tbr-media-chip">\u{1F4D5} ${lib} Library</span>`);
+    if (aud) chips.push(`<span class="tbr-media-chip">\u{1F3A7} ${aud} Audiobook</span>`);
+    return `<div class="tbr-media">${chips.join('')}</div>`;
+  }
+
 
   // "N new" on the Clubs banner: unread club posts for the signed-in user
   // setTimeout defers past the module body so initializeApp below has run.
@@ -336,7 +373,11 @@ html[data-theme="cyberpunk"] .um-name{letter-spacing:1px}
       });
       const readingStats = {};
       Object.keys(tbrByUser).forEach(name => {
-        readingStats[name] = { tbr: foldReadingList(tbrByUser[name]).length };
+        // ⚠️ Folded ONCE and reused. The count and the media split below must
+        // be two readings of one fold, not two folds — a breakdown that added
+        // up to something other than the number beside it is worse than none.
+        const groups = foldReadingList(tbrByUser[name]);
+        readingStats[name] = { tbr: groups.length, media: readingListMediaCounts(groups) };
       });
 
       // Build review stats per user (+ distinct books reviewed per year)
@@ -383,6 +424,7 @@ html[data-theme="cyberpunk"] .um-name{letter-spacing:1px}
           gameBestStreak: data.gameBestStreak || 0,
           gameAccuracy: data.gameAccuracy || 0,
           booksTbr: (readingStats[nameLower] || {}).tbr || 0,
+          tbrMedia: (readingStats[nameLower] || {}).media || { library: 0, audiobook: 0 },
         });
       });
 
@@ -407,6 +449,7 @@ html[data-theme="cyberpunk"] .um-name{letter-spacing:1px}
             gameBestStreak: 0,
             gameAccuracy: 0,
             booksTbr: (readingStats[nameLower] || {}).tbr || 0,
+          tbrMedia: (readingStats[nameLower] || {}).media || { library: 0, audiobook: 0 },
           });
         }
       });
@@ -462,6 +505,7 @@ html[data-theme="cyberpunk"] .um-name{letter-spacing:1px}
             <div class="stat-box"><div class="stat-val">${u.clubs.length}</div><div class="stat-lbl">Clubs</div></div>
             <div class="stat-box"><div class="stat-val">${u.readThisYear}</div><div class="stat-lbl">Read ${String(new Date().getFullYear()).slice(2)}'</div></div>
           </div>
+          ${tbrMediaChips(u.tbrMedia)}
           ${reading}
           ${favs}
           ${estateAdminLink}
@@ -528,6 +572,7 @@ html[data-theme="cyberpunk"] .um-name{letter-spacing:1px}
         <div class="um-stat"><a href="index.html#list=tbr&user=${encodeURIComponent(user.displayName)}" style="text-decoration:none"><div class="um-stat-val">${user.booksTbr}</div><div class="um-stat-lbl">TBR</div></a></div>
         <div class="um-stat"><div class="um-stat-val">${user.clubs.length}</div><div class="um-stat-lbl">Clubs</div></div>
       </div>
+      ${tbrMediaChips(user.tbrMedia)}
       ${user.readYears.length ? `
         <div class="um-section">
           <div class="um-section-title">Books Read by Year</div>

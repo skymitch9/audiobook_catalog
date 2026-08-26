@@ -200,14 +200,125 @@ export function foldReadingList(docs) {
 
     let group = groups.get(key);
     if (!group) {
-      group = { key: key, titles: [], docIds: [] };
+      // ⚠️ `docs` (2026-08-26, the media tag) is the group's raw FIELDS, in
+      // arrival order. It exists because `readingListMediaTags` has to look at
+      // every document in the group — a book on paper AND on audio is two
+      // documents and carries two tags — and `titles`/`docIds` throw the
+      // fields away. Additive: no existing caller reads it.
+      group = { key: key, titles: [], docIds: [], docs: [] };
       groups.set(key, group);
     }
     if (docId) group.docIds.push(docId);
+    group.docs.push(data);
     const title = typeof data.bookTitle === 'string' ? data.bookTitle.trim() : '';
     if (title && group.titles.indexOf(title) === -1) group.titles.push(title);
   }
   return Array.from(groups.values());
+}
+
+/**
+ * ⚠️ Which shelf each of these tags names. ONE vocabulary across the estate —
+ * the library catalogue's `/tbr` draws the same three emoji on its formats row
+ * (`apps/web/src/pages/TbrPage.tsx`), and two vocabularies for one idea is the
+ * drift `readingListFoldKey` already argues against for keys.
+ */
+export const READING_LIST_MEDIA = {
+  library: { emoji: '📕', label: 'Library' },
+  audiobook: { emoji: '🎧', label: 'Audiobook' },
+};
+
+/**
+ * What KIND of book is this, as far as this site can honestly tell?
+ *
+ * Owner, 2026-08-26: *"I don't see the tag for what type of media a book is."*
+ *
+ * ## ⚠️ THE TAG IS PROVENANCE, AND THAT IS THE STRONGEST THING AVAILABLE HERE
+ *
+ * A `readingLists` document says nothing about media directly. What it does say
+ * is **which catalogue recorded the intention**, and each of those catalogues
+ * only offers the button on its own books:
+ *
+ *   - `workKey` (a composite, `title|author`) is written by ONE thing in this
+ *     estate — `tbrDocFor` in the library catalogue's `@lc/core`. So a document
+ *     carrying one names a book on the **library** shelves. 📕
+ *   - A document with no composite key was written HERE, from the audiobook
+ *     catalogue's own modal (`renderReadingListButtons`) or a club page, both
+ *     of which only ever show books this site holds. So it names an
+ *     **audiobook**. 🎧
+ *
+ * Both can be true at once, and that is the point: a book on the list in two
+ * media is one folded group carrying two tags.
+ *
+ * ## 🔴 THERE IS NO 📖 EBOOK TAG, AND IT IS NOT AN OVERSIGHT
+ *
+ * The ebook shelf is **permission-gated by owner directive** (2026-08-17: *"I
+ * don't want people scraping my books"*). `site/ebooks.json` is gitignored AND
+ * left the deployment; the manifest is served only by
+ * `GET audiobook-api.heygabi.ai/api/ebooks/manifest` behind a Firebase token
+ * and the estate's `ebooks` grant. Publishing a title list to a public page so
+ * a chip could light up is **access-increasing**, and access-increasing changes
+ * are the owner's call, never a side effect of a chip.
+ *
+ * ⚠️ **Do not "fix" this by fetching the gated manifest here either** — this
+ * function runs on `community.html`, which anyone can load. The route that
+ * closes it properly is the LIBRARY writing its formats onto the document it
+ * already writes; that is a new field on a shared store, and its own ask. See
+ * `KNOWN_ISSUES.md` KI-7.
+ *
+ * ⚠️ **No matcher, no title similarity, no catalogue lookup.** Every rung is a
+ * field that is either there or not, for the same reason `readingListFoldKey`
+ * refuses a title-only rung: a wrong tag is silent, and a person who reads
+ * "Audiobook" on a book they only own on paper stops trusting every other chip
+ * on the page.
+ *
+ * @param {Array<Object>} datas the group's documents' fields — `group.docs`.
+ * @returns {Array<{emoji: string, label: string}>} in a FIXED order (library,
+ *   then audiobook), so two groups never draw the same pair of chips in two
+ *   orders. Empty for an empty group, which renders nothing at all.
+ */
+export function readingListMediaTags(datas) {
+  let library = false;
+  let audiobook = false;
+
+  for (const data of datas || []) {
+    if (!data) continue;
+    const workKey = typeof data.workKey === 'string' ? data.workKey.trim() : '';
+    // The same guard the fold key applies: `workKeyFor` always joins a folded
+    // title to a folded author, so a value with no '|' is not one of ours and
+    // must not be read as a library provenance stamp.
+    if (workKey.indexOf('|') !== -1) library = true;
+    else audiobook = true;
+  }
+
+  const tags = [];
+  if (library) tags.push(READING_LIST_MEDIA.library);
+  if (audiobook) tags.push(READING_LIST_MEDIA.audiobook);
+  return tags;
+}
+
+/**
+ * The per-person media split behind a TBR count — `{ library, audiobook }`,
+ * counted in BOOKS.
+ *
+ * ⚠️ **Counted over FOLDED groups, never over documents.** Counting documents
+ * is the bug the 2026-08-26 fold exists to remove, and a breakdown that added
+ * up to more than the count beside it would be worse than no breakdown.
+ *
+ * ⚠️ **The two numbers deliberately do NOT sum to the total.** A book on the
+ * list in both media is counted in both, because that is what it is. The
+ * caller renders them as chips, never as a pie.
+ *
+ * @param {Array<{docs?: Array<Object>}>} groups `foldReadingList`'s answer.
+ */
+export function readingListMediaCounts(groups) {
+  const counts = { library: 0, audiobook: 0 };
+  for (const group of groups || []) {
+    for (const tag of readingListMediaTags((group && group.docs) || [])) {
+      if (tag === READING_LIST_MEDIA.library) counts.library++;
+      else if (tag === READING_LIST_MEDIA.audiobook) counts.audiobook++;
+    }
+  }
+  return counts;
 }
 
 /**

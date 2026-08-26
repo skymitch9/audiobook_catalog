@@ -211,6 +211,35 @@ button.cover-btn:focus{ outline:2px solid var(--neon-cyan); outline-offset:2px }
   margin-top:10px;
 }
 
+/* The media-tagged TBR list (#ab-list-media) — 2026-08-26.
+   Same card shell as the notice above it, but LEFT-aligned: this is a list to
+   read down, not a sentence to read across. Every colour is an estate token —
+   `info/estate-theme.md` is the reason nothing here is a hex value. */
+#ab-list-media{
+  border:1px dashed var(--border);
+  border-radius:14px;
+  padding:18px;
+  background:var(--bg-2);
+  color:var(--muted);
+  margin-top:10px;
+}
+#ab-list-media .lm-head{ font-weight:600; margin-bottom:10px; color:var(--fg); }
+#ab-list-media .lm-list{ list-style:none; margin:0; padding:0; }
+#ab-list-media .lm-list li{
+  display:flex; flex-wrap:wrap; align-items:center; gap:8px;
+  padding:6px 0; border-bottom:1px solid var(--border);
+}
+#ab-list-media .lm-list li:last-child{ border-bottom:0; }
+#ab-list-media .lm-title{ color:var(--fg); flex:1 1 220px; min-width:0; }
+#ab-list-media .lm-chip{
+  font-size:.85em; padding:2px 9px; border-radius:999px;
+  border:1px solid var(--border); background:var(--bg); white-space:nowrap;
+}
+/* ⚠️ Not styled as an error. A book this catalogue has no row for is the
+   ordinary case, not a fault — see setListMedia's comment. */
+#ab-list-media .lm-absent{ font-size:.85em; font-style:italic; opacity:.75; white-space:nowrap; }
+#ab-list-media .lm-note{ margin-top:12px; font-size:.85em; opacity:.8; }
+
 /* Modal viewer — cyberpunk panel */
 #modal{
   position:fixed; inset:0; display:none; align-items:center; justify-content:center;
@@ -40998,6 +41027,21 @@ A Macmillan Audio production from Tor Books" data-library-work-id="504" data-lib
        still holds a reference to. -->
   <div id="ab-list-notice"></div>
 
+  <!-- ⚠️ THE WHOLE TBR LIST, WITH ITS MEDIA TAGS — owner, 2026-08-26: *"I don't
+       see the tag for what type of media a book is."*
+
+       A separate element from #ab-list-notice on purpose. That one is a
+       SENTENCE and is set with textContent; this is a LIST of elements, and
+       sharing the node would mean one of the two had to be built by innerHTML
+       out of Firestore strings. Every text node below is still set with
+       textContent — a book title is somebody else's input.
+
+       It is also the answer to the OTHER half of the same report ("not all have
+       sync'd"): this list holds every book on the person's TBR, including the
+       ones this catalogue has no row for, so a shorter filtered table stops
+       looking like lost data. -->
+  <div id="ab-list-media" style="display:none"></div>
+
   <!-- Bottom pagination -->
   <div class="controls-row pagination" style="margin-top:14px;margin-bottom:40px">
     <button id="ab-page-first-bottom" class="btn">« First</button>
@@ -41212,6 +41256,89 @@ function wireAppearance(container){
       listNoticeEl.style.display = _listNotice ? 'block' : 'none';
     }
   }
+
+  /**
+   * Draw the whole TBR list with a media tag on every book — owner, 2026-08-26:
+   * *"I don't see the tag for what type of media a book is."*
+   *
+   * ⚠️ EVERY STRING FROM FIRESTORE GOES IN AS A TEXT NODE. Titles are other
+   * people's input and this collection is world-writable by design
+   * (`firestore.rules`'s own header says so). `community-escaping.test.js`
+   * exists because that lesson was learned the expensive way on the sibling
+   * surface; nothing here builds markup out of a title.
+   *
+   * ⚠️ It renders the WHOLE list, not just the rows the filter matched. That is
+   * the second half of the same report — *"not all have sync'd"* — and a book
+   * with no row in this catalogue is exactly the one a person cannot otherwise
+   * see. It is marked, in words, rather than left out.
+   *
+   * @param {Array} groups foldReadingList's answer, or null to hide the panel.
+   * @param {Function} tagsFor readingListMediaTags, passed in because this
+   *   function lives in the page's plain <script> and cannot import.
+   * @param {Function} inCatalogue (title) => boolean — the SAME `_matches` the
+   *   filter uses, so the panel and the table can never disagree about which
+   *   books this catalogue holds.
+   */
+  var listMediaEl = null;
+  function setListMedia(groups, tagsFor, inCatalogue){
+    if (!listMediaEl) return;
+    listMediaEl.textContent = '';
+    if (!groups || !groups.length) { listMediaEl.style.display = 'none'; return; }
+
+    var head = document.createElement('div');
+    head.className = 'lm-head';
+    head.textContent = groups.length + (groups.length === 1 ? ' book on the list' : ' books on the list')
+      + ' — every one of them, with where it lives:';
+    listMediaEl.appendChild(head);
+
+    var ul = document.createElement('ul');
+    ul.className = 'lm-list';
+    groups.forEach(function(g){
+      var li = document.createElement('li');
+
+      var name = document.createElement('span');
+      name.className = 'lm-title';
+      name.textContent = (g.titles && g.titles[0]) || '';
+      li.appendChild(name);
+
+      (tagsFor(g.docs || []) || []).forEach(function(tag){
+        var chip = document.createElement('span');
+        chip.className = 'lm-chip';
+        chip.textContent = tag.emoji + ' ' + tag.label;
+        li.appendChild(chip);
+      });
+
+      // ⚠️ Said, not hidden. A book on the list that this catalogue has no row
+      // for is the ordinary case (the library catalogue's docs/info/tbr.md
+      // measured 53 of Samantha's 358 on 2026-08-26, none of them a defect) —
+      // and it is precisely the book a person scanning a filtered table cannot
+      // find. Naming it turns "my list lost books" into "that one is not here".
+      var anyHere = (g.titles || []).some(function(t){ return inCatalogue(t); });
+      if (!anyHere) {
+        var absent = document.createElement('span');
+        absent.className = 'lm-absent';
+        absent.textContent = 'not in this catalogue';
+        li.appendChild(absent);
+      }
+
+      ul.appendChild(li);
+    });
+    listMediaEl.appendChild(ul);
+
+    // 🔴 The honest footnote. There is no 📖 Ebook chip and a person who owns
+    // ebooks would otherwise read its absence as "I have none". See
+    // readingListMediaTags in reviews.js: the ebook manifest is permission
+    // gated and publishing a title list here would be access-increasing.
+    var note = document.createElement('div');
+    note.className = 'lm-note';
+    note.textContent = 'Ebooks are not tagged here — the ebook shelf is permission-gated, '
+      + 'so this page cannot see what is on it. Your library catalogue’s own To-Be-Read '
+      + 'page shows the ebook link.';
+    listMediaEl.appendChild(note);
+
+    listMediaEl.style.display = 'block';
+  }
+
   var currentPage=1;
   function pageSize(){ var v=pageSizeEl?pageSizeEl.value:"100"; if(v==="All") return Infinity; var n=parseInt(v,10); return isNaN(n)?100:n; }
   function renderPage(){
@@ -41653,6 +41780,7 @@ function wireAppearance(container){
     emptyEl=document.getElementById("ab-empty");
     emptyQEl=document.getElementById("ab-empty-q");
     listNoticeEl=document.getElementById("ab-list-notice");
+    listMediaEl=document.getElementById("ab-list-media");
 
     if(table) makeTableSortable(table);
 
@@ -41729,6 +41857,10 @@ function wireAppearance(container){
       // The notice belongs to the filter; dropping the filter drops it too,
       // or "your list is empty" would sit above an ordinary sorted catalogue.
       setListNotice(null);
+      // ⚠️ And so does the media-tagged list, for the same reason and with the
+      // same failure if it is forgotten: somebody's TBR left hanging above the
+      // whole unfiltered catalogue.
+      setListMedia(null);
     }
 
     // Universe filter — reuses the exact same choke point as My TBR List /
@@ -41800,6 +41932,7 @@ function wireAppearance(container){
       var _listLabel = isReviews ? 'reviews' : 'TBR list';
       var _whose = forUser ? (forUser + "'s") : 'this account\u2019s';
       setListNotice(null);
+      setListMedia(null);
 
       try {
         var { collection, getDocs } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
@@ -41922,6 +42055,28 @@ function wireAppearance(container){
           c.dataset.searchMatch = _matches(title) ? "1" : "0";
         });
 
+        // ⚠️ THE MEDIA-TAGGED LIST — owner, 2026-08-26: *"I don't see the tag
+        // for what type of media a book is."* Rendered for the TBR lane only;
+        // "media" means nothing for a list of reviews.
+        //
+        // ⚠️ The catalogue's own titles, read off the SAME table the filter
+        // just marked, so the panel's "not in this catalogue" and the table's
+        // hidden rows are two views of one fact rather than two computations of
+        // it. `_matches` cannot be reused directly: it asks "is this CATALOGUE
+        // row on the list", and the panel asks the reverse.
+        if (!isReviews) {
+          var _catalogueTitles = new Set();
+          document.querySelectorAll("#ab-table tbody tr").forEach(function(r) {
+            var cell = r.cells[1];
+            if (cell) _catalogueTitles.add(cell.textContent.trim());
+          });
+          setListMedia(tbrGroups, revMod2.readingListMediaTags, function(t) {
+            return _catalogueTitles.has(t);
+          });
+        } else {
+          setListMedia(null);
+        }
+
         // ⚠️ Said BEFORE renderPage(), because renderPage is what paints the
         // (possibly empty) result and the notice has to arrive with it.
         var _shownCount = document.querySelectorAll('#ab-table tbody tr[data-search-match="1"]').length;
@@ -41967,6 +42122,10 @@ function wireAppearance(container){
         // failed. Say what happened, in words, and never in the vocabulary of
         // "you have nothing" — the person's list is fine; the read was not.
         console.warn(isReviews ? '[Reviews] Filter failed:' : '[ReadingList] Filter failed:', e);
+        // ⚠️ A half-drawn list is worse than none on the outage path: it would
+        // read as "these are all the books you have", which is the vocabulary
+        // of "you have nothing" the sentence below refuses to use.
+        setListMedia(null);
         setListNotice(
           'Couldn\u2019t load ' + _whose + ' ' + _listLabel + ' \u2014 the reviews database '
           + 'did not answer. Your list is safe; this is a connection problem. Try again.');
