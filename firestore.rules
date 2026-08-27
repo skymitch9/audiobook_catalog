@@ -46,13 +46,27 @@ rules_version = '2';
 //
 // Deletes that a normal member action performs (members, club content,
 // reading lists, cw_requests) stay open because no rule can bind a display
-// name to a person. Accepted, documented residual risk.
+// name to a person. Accepted, documented residual risk. ⚠️ For cw_requests the
+// open DELETE now has a second, stronger reason as well — the fulfiller clears
+// it with the public web API key — while its CREATE/UPDATE stopped being open
+// on 2026-08-26; see the fourth exception below.
 //
 // ⚠️ ONE EXCEPTION, 2026-08-17 (owner-approved): user_content_warnings
 // delete is no longer open. It is author-or-moderator, bound by an
 // `authorUid` field the client now stamps at write time — see
 // canDeleteUserWarning() below for the whole story, including what it
 // deliberately does NOT protect.
+//
+// ⚠️ A FOURTH EXCEPTION, 2026-08-26 — and the only one made for MONEY rather
+// than for privacy: /cw_requests (+ _dev) CREATE and UPDATE now require
+// `request.auth != null`. A request document is a work order the hourly
+// `cw-fulfill.yml` Action pays Anthropic to answer, so an anonymous write here
+// spent the household's LLM budget from a public page. ⚠️ DELETE and READ stay
+// wide open on purpose — the fulfiller lists and clears with the public web
+// API key and holds no account — which is exactly why the block splits
+// create/update out instead of tightening `write`. See that block for the
+// whole story. (Numbered fourth by date; it is listed last because the three
+// below are the older, privacy-shaped ones.)
 //
 // ⚠️ A SECOND EXCEPTION, 2026-08-17 (owner: "for reading ebooks we also need
 // to have it save your spot"): /readingPositions (+ _dev) is OWNER-ONLY —
@@ -849,14 +863,42 @@ service cloud.firestore {
       allow delete: if canDeleteUserWarning();
     }
 
-    // ⚠️ `allow delete: if true` is LOAD-BEARING and must stay.
+    // 🔴 CREATE/UPDATE REQUIRE AN ACCOUNT SINCE 2026-08-26. This block used to
+    // read `allow write: if validCwRequest()` — shape-only, no auth — and that
+    // made it the one place in this file where an ANONYMOUS write SPENDS
+    // MONEY. A cw_requests doc is a work order: the hourly GitHub Action
+    // `cw-fulfill.yml` picks it up and pays Anthropic to answer it. Anyone on
+    // the internet could enqueue paid work from a public page, one book per
+    // click, with no account and a `requestedBy` they typed themselves.
+    // (A3 in catalog-platform/docs/info/llm-billing-control-design.md.)
+    //
+    // The gate is `request.auth != null` and deliberately nothing more. It is
+    // the same mechanism /readingLists uses — a verified Firebase ID token
+    // from this project, Google SSO only, no anonymous or password sign-up —
+    // and NOT a new one. ⚠️ A site_roles check was considered and refused:
+    // site_roles holds admin/moderator only, so requiring it would lock out
+    // every ordinary member of the household to fix a problem they are not
+    // causing.
+    //
+    // ⚠️ `allow delete: if true` is LOAD-BEARING and must stay — it is why
+    // create/update are split out rather than tightened as one `write`.
     // app/tools/fetch_content_warnings.py clears fulfilled requests with a REST
     // DELETE authenticated by the *public web API key* (_fs_delete), not by the
     // service account — so it is gated by these rules like any browser. Closing
-    // delete here would silently strand every fulfilled request.
+    // delete here would silently strand every fulfilled request. The fulfiller
+    // only ever LISTS and DELETES; it never writes, which is what makes this
+    // tightening safe for it (checked in fetch_content_warnings.py, not
+    // assumed).
+    //
+    // ⚠️ `allow read: if true` also stays: the fulfiller LISTS this collection
+    // with the same public key, and refusing list strands every request with
+    // no error anywhere — the same seam /audio_requests documents at length.
+    //
+    // Smoked live against the deployed rules by
+    // scripts/smoke_cw_request_rules.py. Prod and _dev must stay in step.
     match /cw_requests/{docId} {
       allow read: if true;
-      allow write: if validCwRequest();
+      allow create, update: if request.auth != null && validCwRequest();
       allow delete: if true;
     }
 
@@ -1107,10 +1149,13 @@ service cloud.firestore {
       allow delete: if canDeleteUserWarning();                            // keep in step
     }
 
-    // delete stays open — fetch_content_warnings.py clears this lane too.
+    // Mirrors /cw_requests exactly — read every note there, especially why the
+    // create/update gate exists (an anonymous write here SPENDS MONEY) and why
+    // delete stays open (fetch_content_warnings.py clears this lane too, with
+    // the public web API key and no account).
     match /cw_requests_dev/{docId} {
       allow read: if true;
-      allow write: if validCwRequest();
+      allow create, update: if request.auth != null && validCwRequest();
       allow delete: if true;
     }
 

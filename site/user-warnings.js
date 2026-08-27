@@ -94,14 +94,65 @@ export async function getUserWarnings(db, bookTitle) {
 }
 
 /**
- * Flag a book for the AI content-warning lookup (open to everyone, no
- * sign-in needed). One request doc per book — repeat clicks just overwrite.
- * Fulfilled by `python -m app.tools.fetch_content_warnings --requests`
- * (also runs automatically during library sync).
+ * The sentence a signed-out reader sees where the button used to be.
+ *
+ * ⚠️ Exported so the page and the test say the SAME words — a refusal
+ * duplicated in an HTML template is a refusal that drifts.
+ */
+export const SIGN_IN_TO_REQUEST_WARNING = 'Sign in to request a content warning.';
+
+/**
+ * What to render in the AI-check slot: a working button, or a sentence.
+ *
+ * ⚠️ Keyed on the LIVE uid, never on `getSession()`. A legacy passphrase
+ * session has a `displayName` and no Firebase uid at all (KI-4), so it looks
+ * signed in to every display-name check in this file and holds no
+ * `request.auth` whatsoever — it would get a button that always fails. The
+ * gate below and firestore.rules ask the same question of the same thing.
+ *
+ * The estate rule is that a person never sees a dead control OR a bare
+ * status: prefer not rendering a control nobody can use, but never hide so
+ * much the page looks broken — so the slot keeps its space and says why.
+ */
+export async function warningRequestAffordance() {
+  const uid = await liveUid();
+  return uid
+    ? { kind: 'button', label: '🔎 Request AI warning check' }
+    : { kind: 'sentence', label: SIGN_IN_TO_REQUEST_WARNING };
+}
+
+/**
+ * Flag a book for the AI content-warning lookup. One request doc per book —
+ * repeat clicks just overwrite. Fulfilled by
+ * `python -m app.tools.fetch_content_warnings --requests` (also runs
+ * automatically during library sync).
+ *
+ * 🔴 SIGN-IN REQUIRED SINCE 2026-08-26, and this was a MONEY defect, not a
+ * tidiness one. This was *"open to everyone, no sign-in needed"* — a public,
+ * anonymous button on a public page that enqueued work the hourly GitHub
+ * Action `cw-fulfill.yml` pays Anthropic for. Anyone on the internet could
+ * spend the household's LLM budget by clicking it, one book at a time, with
+ * no account and no trace beyond a display name they chose themselves.
+ * Written up as A3 in `catalog-platform/docs/info/llm-billing-control-design.md`.
+ *
+ * ⚠️ The gate is `firestore.rules` (`cw_requests` create/update now require
+ * `request.auth != null`); everything here is UX, deciding WHICH worded
+ * refusal to show. It fails closed either way — a caller that skips this
+ * function is refused by the rules with a PERMISSION_DENIED that
+ * `describeActionError` turns into words.
+ *
+ * ⚠️ `allow delete: if true` on that same rules block is LOAD-BEARING and
+ * deliberately untouched: the fulfiller clears a finished request over the
+ * REST API using the *public web API key*, holding no account at all. Gating
+ * delete would strand every request with no error anywhere.
  */
 export async function requestWarningCheck(db, bookTitle, session) {
   const bookId = bookIdFromTitle(bookTitle);
   if (!bookId) return { success: false, error: 'Bad book title.' };
+  // Asked BEFORE the write, so a signed-out reader gets the sentence rather
+  // than a round-trip that comes back PERMISSION_DENIED.
+  const uid = await liveUid();
+  if (!uid) return { success: false, error: SIGN_IN_TO_REQUEST_WARNING, signedOut: true };
   try {
     await setDoc(doc(db, col('cw_requests'), bookId), {
       bookTitle,

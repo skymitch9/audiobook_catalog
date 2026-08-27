@@ -38,8 +38,15 @@ vi.mock('../identity.js', () => ({
 // fetch is attempted. Its own contract is pinned in gate-shadow.test.js.
 vi.mock('../gate-shadow.js', () => ({ reportGate: vi.fn() }));
 
-const { addUserWarning, getUserWarnings, deleteUserWarning, MAX_WARNING_LABEL } =
-  await import('../user-warnings.js');
+const {
+  addUserWarning,
+  getUserWarnings,
+  deleteUserWarning,
+  requestWarningCheck,
+  warningRequestAffordance,
+  SIGN_IN_TO_REQUEST_WARNING,
+  MAX_WARNING_LABEL,
+} = await import('../user-warnings.js');
 const { reportGate } = await import('../gate-shadow.js');
 
 const fakeDb = {};
@@ -181,5 +188,81 @@ describe('shadow instrumentation — the action split', () => {
     reportGate.mockClear();
     await deleteUserWarning(fakeDb, w, bob);
     expect(reportGate).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 🔴 A3 — the public, no-sign-in button that SPENT MONEY (2026-08-26)
+//
+// `requestWarningCheck` was documented "open to everyone, no sign-in needed",
+// and a cw_requests document is a WORK ORDER: the hourly cw-fulfill.yml Action
+// picks it up and pays Anthropic to answer it. Anyone on the internet could
+// enqueue paid work from a public page, one book per click.
+// (A3 in catalog-platform/docs/info/llm-billing-control-design.md.)
+//
+// ⚠️ These tests steer `liveUid`, NOT the `session` argument, and that is the
+// whole point of the fix. A legacy passphrase session has a displayName and no
+// Firebase uid at all (KI-4) — it satisfies every display-name check on the
+// page while holding no request.auth whatsoever, so a session-keyed gate would
+// hand it a button that always fails.
+// ---------------------------------------------------------------------------
+describe('requestWarningCheck — signed-in only, because it spends money', () => {
+  it('a live account enqueues the request', async () => {
+    liveUid = 'uid-jane';
+    const r = await requestWarningCheck(fakeDb, TITLE, jane);
+    expect(r.success).toBe(true);
+    expect(mockStore['cw_requests_dev/dungeon-crawler-carl-book-1'].bookTitle).toBe(TITLE);
+  });
+
+  it('🔴 a signed-out caller is refused, and NOTHING is written', async () => {
+    liveUid = null;
+    const r = await requestWarningCheck(fakeDb, TITLE, null);
+    expect(r.success).toBe(false);
+    expect(r.signedOut).toBe(true);
+    expect(r.error).toBe(SIGN_IN_TO_REQUEST_WARNING);
+    expect(Object.keys(mockStore)).toHaveLength(0);
+  });
+
+  it('⚠️ a LEGACY session — a display name with no uid — is refused too', async () => {
+    // The case a `session &&`-shaped gate would have let straight through: it
+    // looks signed in and holds no request.auth, so firestore.rules refuses it
+    // anyway. Better a sentence than a round-trip that comes back denied.
+    liveUid = null;
+    const r = await requestWarningCheck(fakeDb, TITLE, jane);
+    expect(r.success).toBe(false);
+    expect(r.error).toBe(SIGN_IN_TO_REQUEST_WARNING);
+    expect(Object.keys(mockStore)).toHaveLength(0);
+  });
+
+  it('a bad title is still refused first — that check is not about identity', async () => {
+    liveUid = 'uid-jane';
+    expect((await requestWarningCheck(fakeDb, '', jane)).success).toBe(false);
+  });
+});
+
+describe('warningRequestAffordance — a sentence, never a dead button', () => {
+  it('a live account gets the button', async () => {
+    liveUid = 'uid-jane';
+    expect(await warningRequestAffordance()).toEqual({
+      kind: 'button',
+      label: '🔎 Request AI warning check',
+    });
+  });
+
+  it('signed out gets a sentence, and it is the SAME words the refusal uses', async () => {
+    liveUid = null;
+    const a = await warningRequestAffordance();
+    expect(a.kind).toBe('sentence');
+    expect(a.label).toBe(SIGN_IN_TO_REQUEST_WARNING);
+    // A refusal duplicated in an HTML template is a refusal that drifts, which
+    // is why the sentence is exported rather than typed twice.
+    expect((await requestWarningCheck(fakeDb, TITLE, null)).error).toBe(a.label);
+  });
+
+  it('the sentence says what to DO, not what went wrong', async () => {
+    liveUid = null;
+    const { label } = await warningRequestAffordance();
+    expect(label).toMatch(/^Sign in/);
+    expect(label).not.toMatch(/denied|permission|403|error/i);
   });
 });

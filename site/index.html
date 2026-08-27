@@ -42475,7 +42475,7 @@ function wireAppearance(container){
   import { coverUrl } from './covers-base.js';
   import { getSession, getLiveUser, signInWithGoogle, signOutGoogle, whenAdmin, handleRedirectResult, renderDevSiteLink, getSiteRole, resolveSiteAccess } from './identity.js';
   import { submitReview, getReviews, renderStars, bookIdFromTitle, computeAverageRating, formatDate, deleteReview, readingListDocId, ownsReadingListDoc } from './reviews.js';
-  import { addUserWarning, getUserWarnings, deleteUserWarning, requestWarningCheck, getWarningRequest } from './user-warnings.js';
+  import { addUserWarning, getUserWarnings, deleteUserWarning, requestWarningCheck, getWarningRequest, warningRequestAffordance } from './user-warnings.js';
   // Audio streaming imports removed — shelf handles playback now (2026-08-21).
   import { col, FIREBASE_CONFIG } from './fb-env.js';
   import { mountEstateSearch } from './estate-search-mount.js';
@@ -43209,25 +43209,50 @@ function wireAppearance(container){
       actions.appendChild(btn);
     }
 
-    // AI-check request (anyone) — only when nothing is known yet
+    // AI-check request — SIGNED-IN ONLY since 2026-08-26.
+    //
+    // 🔴 It said "(anyone)" here, and that was the defect: this button queues
+    // work the hourly cw-fulfill.yml Action pays Anthropic for, and the page
+    // it sits on is public. The gate is firestore.rules (cw_requests
+    // create/update now need request.auth); this is the UX half.
+    //
+    // ⚠️ A signed-out reader gets the SENTENCE, not a disabled button and not
+    // an empty space. A dead control that answers PERMISSION_DENIED on click
+    // is exactly what the estate rule forbids, and hiding the slot entirely
+    // makes the panel look broken to the people who could act on it.
+    //
+    // ⚠️ warningRequestAffordance() asks about the LIVE uid, not getSession().
+    // A legacy passphrase session has a displayName and no Firebase uid at all
+    // (KI-4), so it looks signed in to every display-name check on this page
+    // while holding no request.auth whatsoever — it would get a button that
+    // always fails.
     if (box.dataset.hasWarnings !== '1' && !warnings.length) {
-      const reqBtn = document.createElement('button');
-      reqBtn.id = 'm-cw-request';
-      reqBtn.style.cssText = 'margin:8px 0 2px;padding:4px 10px;background:none;border:1px solid var(--border,#555);color:var(--muted,#888);cursor:pointer;font-family:inherit;font-size:.8em;';
-      const markRequested = () => {
-        reqBtn.textContent = 'AI check requested ✓ — lands after the next library sync';
-        reqBtn.disabled = true;
-        reqBtn.style.cursor = 'default';
-      };
-      reqBtn.textContent = '🔎 Request AI warning check';
-      reqBtn.addEventListener('click', async () => {
-        reqBtn.disabled = true;
-        const r = await requestWarningCheck(db, bookTitle, getSession());
-        if (r.success) markRequested();
-        else { reqBtn.disabled = false; alert(r.error); }
-      });
-      actions.appendChild(reqBtn);
-      getWarningRequest(db, bookTitle).then(existing => { if (existing) markRequested(); }).catch(() => {});
+      const affordance = await warningRequestAffordance();
+      if (affordance.kind === 'sentence') {
+        const note = document.createElement('p');
+        note.id = 'm-cw-signin';
+        note.textContent = affordance.label;
+        note.style.cssText = 'margin:8px 0 2px;color:var(--muted,#888);font-size:.8em;';
+        actions.appendChild(note);
+      } else {
+        const reqBtn = document.createElement('button');
+        reqBtn.id = 'm-cw-request';
+        reqBtn.style.cssText = 'margin:8px 0 2px;padding:4px 10px;background:none;border:1px solid var(--border,#555);color:var(--muted,#888);cursor:pointer;font-family:inherit;font-size:.8em;';
+        const markRequested = () => {
+          reqBtn.textContent = 'AI check requested ✓ — lands after the next library sync';
+          reqBtn.disabled = true;
+          reqBtn.style.cursor = 'default';
+        };
+        reqBtn.textContent = affordance.label;
+        reqBtn.addEventListener('click', async () => {
+          reqBtn.disabled = true;
+          const r = await requestWarningCheck(db, bookTitle, getSession());
+          if (r.success) markRequested();
+          else { reqBtn.disabled = false; alert(r.error); }
+        });
+        actions.appendChild(reqBtn);
+        getWarningRequest(db, bookTitle).then(existing => { if (existing) markRequested(); }).catch(() => {});
+      }
     }
 
     if (warnings.length || session || box.dataset.hasWarnings !== '1') box.style.display = 'block';
