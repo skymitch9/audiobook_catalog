@@ -206,7 +206,7 @@ def test_normalisation_folds_case_whitespace_and_quotes():
 
 
 @requires_platform
-def test_sixteen_universes_in_the_order_the_owner_approved():
+def test_seventeen_universes_in_the_order_the_owner_approved():
     # ⚠️ Willverse added 2026-08-12 was the SEVENTH. Marvel and Disney added
     # 2026-08-15 (owner/coordinator: separate universes). Same day, revised
     # again: Star Wars split OUT of Disney on the owner's crossover-potential
@@ -219,7 +219,15 @@ def test_sixteen_universes_in_the_order_the_owner_approved():
     # (13th) were created later the same day during the estate-wide orphan
     # sweep, both owner-approved and both "human"-decided. Middle-earth (14th),
     # Dungeon Crawler Carl (15th) and Innworld (16th) followed within the hour,
-    # when the owner ruled on that sweep's verdict table.
+    # when the owner ruled on that sweep's verdict table. DotHack is the 17th,
+    # added 2026-08-24 by direct edit ("change .hack to DotHack as the verse
+    # name" — a leading-dot name reads oddly as a chip, and the CLI cannot
+    # create a universe at all). Reconciled here 2026-08-26, mirroring
+    # library_catalog/packages/core/test/universes.test.ts, which had already
+    # been updated: ⚠️ this test failing for TWO DAYS is exactly the mechanism
+    # working — a universe cannot appear in catalog-platform without a decision
+    # landing in both catalogs — but it also means the audiobook suite was red
+    # for two days, which is how a real regression hides.
     assert uv.universe_names() == [
         "The Cosmere",
         "Runnerverse",
@@ -237,6 +245,7 @@ def test_sixteen_universes_in_the_order_the_owner_approved():
         "Middle-earth",
         "Dungeon Crawler Carl",
         "Innworld",
+        "DotHack",
     ]
 
 
@@ -275,7 +284,13 @@ def test_the_counts_the_owner_signed_off():
         # CAL Verse.
         "CAL Verse": (9, 1, 0),
         "Maasverse": (3, 0, 0),
-        "Riordanverse": (6, 0, 0),
+        # 6 -> 9 on 2026-08-24, in the same owner edit that created DotHack:
+        # catalog-platform completed the Riordanverse to his ruling that ALL
+        # Rick Riordan books belong in it. The three added series are Magnus
+        # Chase and the Gods of Asgard, The Kane Chronicles, and the ampersand
+        # spelling "Percy Jackson & the Olympians" (a spelling, not a new
+        # membership — normaliseUniverseText keeps "and"/"&" distinct).
+        "Riordanverse": (9, 0, 0),
         "Solaria": (2, 0, 0),
         # Cradle and The Last Horizon are owned; The Elder Empire and The
         # Traveler's Gate are listed so a future purchase files itself.
@@ -347,6 +362,13 @@ def test_the_counts_the_owner_signed_off():
         # (Solaria's naming rule). Singer of Terandria is set on a continent of
         # the same world; the household owns Gravesong and Huntsong.
         "Innworld": (2, 0, 0),
+        # New 2026-08-24, renamed from ".hack" to "DotHack" at the owner's
+        # request ("change .hack to DotHack as the verse name") — a leading-dot
+        # name reads oddly as a chip. 4 series (.hack//Another Birth /
+        # G.U.+ / Legend of the Twilight / XXXX), no overrides or exclusions.
+        # ⚠️ The SERIES values keep their real leading-dot spellings; only the
+        # UNIVERSE was renamed, and confusing the two would unclaim all four.
+        "DotHack": (4, 0, 0),
     }
 
 
