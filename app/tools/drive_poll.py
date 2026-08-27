@@ -110,6 +110,10 @@ _EMPTY_STATE: dict = {
     "last_poll": 0.0,
     "last_pull_at": None,
     "last_pulled": 0,
+    # The `last_poll` value whose throttled window has already been announced.
+    # See _log_throttle(). Absent in state files written before 2026-08-26 —
+    # _load_state() only copies keys it knows, so an old file simply defaults.
+    "throttle_logged_for": None,
 }
 
 
@@ -163,6 +167,47 @@ def _save_state(state: dict) -> None:
     tmp = STATE_PATH.with_suffix(".json.tmp")
     tmp.write_text(json.dumps(state), encoding="utf-8")
     os.replace(tmp, STATE_PATH)
+
+
+def _log_throttle(state: dict, elapsed_min: float) -> None:
+    """Say that a tick was throttled, ONCE per throttled window.
+
+    ⚠️ The estate rule is that a tick which does nothing must say WHY. The
+    self-throttle branch was the one silent exit in this file: every other
+    do-nothing path (`DRIVE_POLL_ENABLED=0`, `DRIVE_PULL_ENABLED=0`, Drive auth
+    missing, nothing changed, pulled 0) already names itself, and this one
+    returned 0 with no output at all. A reader watching the log could not tell
+    "throttled, 11 minutes to go" from "the task is not running" — and those
+    have completely different fixes.
+
+    ⚠️ RATE-LIMITED, and NOT by the `_notice()` clock. A throttled window is
+    the gap between two real polls, so the line is keyed on the `last_poll`
+    value it belongs to: the FIRST throttled tick after a real poll speaks, and
+    every later tick inside that same window is silent. `_notice()`'s 6-hour
+    file clock would be wrong twice over here — it is a SHARED marker file, so
+    a throttle line and an "idle, kill switch" line would suppress each other,
+    and a 6-hour window on a 15-minute cadence would hide most windows entirely
+    while occasionally printing one at random.
+
+    Never raises. A state file that cannot be written must not take down a
+    tick, and this is only bookkeeping for a log line — the worst case is the
+    line repeating, which is still better than the silence it replaces.
+    """
+    marker = float(state.get("last_poll") or 0.0)
+    try:
+        if float(state.get("throttle_logged_for") or -1.0) == marker:
+            return
+    except (TypeError, ValueError):
+        pass  # unreadable marker — speak, then rewrite it
+    remaining = max(0.0, POLL_MINUTES - elapsed_min)
+    _log(f"throttled — self-throttle floor is {POLL_MINUTES} min "
+         f"(DRIVE_POLL_MINUTES), last poll {elapsed_min:.1f} min ago, "
+         f"next in {remaining:.1f} min. Nothing was checked.")
+    try:
+        state["throttle_logged_for"] = marker
+        _save_state(state)
+    except Exception:
+        pass
 
 
 def _tick_lock_held() -> bool:
@@ -372,6 +417,7 @@ def _tick(dry_run: bool = False) -> int:
 
     elapsed_min = (_now() - float(state.get("last_poll") or 0.0)) / 60.0
     if elapsed_min < POLL_MINUTES:
+        _log_throttle(state, elapsed_min)
         return 0
 
     service = drive_service()

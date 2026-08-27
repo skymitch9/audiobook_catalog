@@ -346,6 +346,89 @@ def test_the_cadence_throttles_a_too_frequent_task(poll, monkeypatch):
     assert called["n"] == 0, "inside the interval the tick returns before touching Drive"
 
 
+def test_a_throttled_tick_SAYS_it_was_throttled(poll, monkeypatch, capsys):
+    """A tick that does nothing must say why.
+
+    ⚠️ This was the ONE silent exit in the module. Every other do-nothing path
+    already names itself — both kill switches, missing Drive auth, no changes,
+    pulled 0 — and the self-throttle returned 0 with no output at all. Reading
+    the log, "throttled, 11 minutes to go" was indistinguishable from "the Task
+    Scheduler entry is not running", and those have completely different fixes.
+    """
+    dp._save_state({**dp._EMPTY_STATE, "page_token": "tok-start", "last_poll": dp._now()})
+    monkeypatch.setattr(dp, "drive_service", lambda: _FakeService())
+
+    assert dp.poll_once() == 0
+    out = capsys.readouterr().out
+    assert "throttled" in out
+    # The two numbers a reader needs: the floor, and how long until the next
+    # real tick. A bare "throttled" would not tell them whether to wait or fix.
+    assert str(dp.POLL_MINUTES) in out
+    assert "next in" in out
+
+
+def test_the_throttle_line_speaks_ONCE_PER_WINDOW_and_not_every_tick(poll, monkeypatch, capsys):
+    """⚠️ The rate limit is the whole reason this is safe to log at all.
+
+    Task Scheduler runs this ~96 times a day. A line on every throttled tick
+    would be the "unconfigured machine writes 96 identical lines" problem
+    _notice() already exists to prevent — and the fix for that would be to make
+    it silent again.
+    """
+    dp._save_state({**dp._EMPTY_STATE, "page_token": "tok-start", "last_poll": dp._now()})
+    monkeypatch.setattr(dp, "drive_service", lambda: _FakeService())
+
+    dp.poll_once()
+    capsys.readouterr()                      # drop the first, expected line
+    for _ in range(5):
+        assert dp.poll_once() == 0
+    assert "throttled" not in capsys.readouterr().out
+
+
+def test_a_NEW_throttled_window_speaks_again(poll, monkeypatch, capsys):
+    """Silence must not become permanent. The marker is keyed on `last_poll`,
+    so the next real poll re-arms the line — otherwise a machine that throttled
+    once would never mention it again."""
+    dp._save_state({**dp._EMPTY_STATE, "page_token": "tok-start", "last_poll": dp._now()})
+    monkeypatch.setattr(dp, "drive_service", lambda: _FakeService())
+    dp.poll_once()
+    capsys.readouterr()
+
+    # A real poll happened: same shape the tick writes, a fresh `last_poll`.
+    state = _state(poll)
+    state["last_poll"] = dp._now() + 1
+    dp._save_state(state)
+
+    assert dp.poll_once() == 0
+    assert "throttled" in capsys.readouterr().out
+
+
+def test_the_throttle_line_NEVER_advances_the_page_token(poll, monkeypatch):
+    """Property 1 of this file's docstring, applied to the new branch: the
+    throttle now WRITES state, which it never did before, so the token has to
+    be asserted intact. Advancing past changes nobody acted on drops books
+    permanently and silently."""
+    dp._save_state({**dp._EMPTY_STATE, "page_token": "tok-start", "last_poll": dp._now()})
+    monkeypatch.setattr(dp, "drive_service", lambda: _FakeService())
+
+    assert dp.poll_once() == 0
+    assert _state(poll)["page_token"] == "tok-start"
+
+
+def test_an_old_state_file_without_the_marker_still_works(poll, monkeypatch, capsys):
+    """`throttle_logged_for` did not exist before 2026-08-26. A state file
+    written by the old version must not crash the tick or stay silent."""
+    dp.STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    dp.STATE_PATH.write_text(
+        json.dumps({"page_token": "tok-start", "last_poll": dp._now(), "last_pulled": 0}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(dp, "drive_service", lambda: _FakeService())
+
+    assert dp.poll_once() == 0
+    assert "throttled" in capsys.readouterr().out
+
+
 def test_a_tick_already_in_flight_is_skipped(poll, monkeypatch):
     """A tick that pulls a 400 MB book can outlive the poll interval."""
     dp.TICK_LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
