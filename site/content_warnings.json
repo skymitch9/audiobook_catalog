@@ -7733,5 +7733,51 @@
   "warnings": [],
   "source": "none",
   "checked_at": 1787699976
+ },
+ "The 7 1/2 Deaths of Evelyn Hardcastle": {
+  "warnings": [
+   {
+    "label": "Death",
+    "source_url": "https://hardcover.app/books/the-7-1-2-deaths-of-evelyn-hardcastle"
+   },
+   {
+    "label": "Rape",
+    "source_url": "https://hardcover.app/books/the-7-1-2-deaths-of-evelyn-hardcastle"
+   },
+   {
+    "label": "Violence",
+    "source_url": "https://hardcover.app/books/the-7-1-2-deaths-of-evelyn-hardcastle"
+   },
+   {
+    "label": "Murder",
+    "source_url": "https://hardcover.app/books/the-7-1-2-deaths-of-evelyn-hardcastle"
+   },
+   {
+    "label": "Fatphobia",
+    "source_url": "https://hardcover.app/books/the-7-1-2-deaths-of-evelyn-hardcastle"
+   },
+   {
+    "label": "Torture",
+    "source_url": "https://hardcover.app/books/the-7-1-2-deaths-of-evelyn-hardcastle"
+   },
+   {
+    "label": "Homophobia",
+    "source_url": "https://hardcover.app/books/the-7-1-2-deaths-of-evelyn-hardcastle"
+   },
+   {
+    "label": "suicide",
+    "source_url": "https://hardcover.app/books/the-7-1-2-deaths-of-evelyn-hardcastle"
+   },
+   {
+    "label": "misogyny",
+    "source_url": "https://hardcover.app/books/the-7-1-2-deaths-of-evelyn-hardcastle"
+   },
+   {
+    "label": "Ableism",
+    "source_url": "https://hardcover.app/books/the-7-1-2-deaths-of-evelyn-hardcastle"
+   }
+  ],
+  "source": "hardcover",
+  "checked_at": 1787843308
  }
 }
