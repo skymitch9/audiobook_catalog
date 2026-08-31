@@ -1382,6 +1382,34 @@ class TestTranscriptIndex:
         monkeypatch.setattr(ib, "_transcript_index", None)
         assert ib._transcript_for("Some Entirely Different Book - Nope, Book 9") is None
 
+    def test_lookup_finds_the_file_the_transcriber_itself_named(self, tmp_path, monkeypatch):
+        """⚠️ Regression, 2026-08-27 (the night the ingester was disabled mid-
+        queue): 'Bunny Girl Evolution 2: A Monster Evolution LitRPG' — the m4b
+        is named WITHOUT the ':' subtitle, so the index key is 'bunny girl
+        evolution 2' while the lookup key carries the subtitle, and the
+        " - " tail-strip never fires on a ':' subtitle. transcribe() exited 0
+        with "already have ...; nothing to do" (the transcript IS on disk,
+        named by title), the pack raised "no transcript on disk", and every
+        retry failed in under a second — 378 such log lines. The lookup's
+        last rung now probes the exact filename the transcriber writes,
+        via the SHARED transcript_filename_stem formula."""
+        import app.tools.ingest_books as ib
+        from app.core.ingest_queue import transcript_filename_stem
+
+        title = "Bunny Girl Evolution 2: A Monster Evolution LitRPG"
+        path = tmp_path / f"{transcript_filename_stem(title)}.json"
+        payload = json.dumps(
+            {"meta": {"source_m4b": "C:\\books\\Bunny Girl Evolution 2.m4b"},
+             "segments": []})
+        path.write_text(payload, encoding="utf-8")
+        monkeypatch.setattr(ib, "TRANSCRIPTS_DIR", tmp_path)
+        monkeypatch.setattr(ib, "_transcript_index", None)
+        assert ib._transcript_for(title) == path
+        # And a title nobody transcribed still misses — the probe must not
+        # turn "no transcript" into a false hit.
+        monkeypatch.setattr(ib, "_transcript_index", None)
+        assert ib._transcript_for("A Book Never Transcribed: At All") is None
+
     def test_non_ascii_path_survives_the_head_read(self, tmp_path):
         """⚠️ Regression, 2026-08-18 first daytime run: the head-read decoded
         the captured JSON string with `.encode().decode("unicode_escape")`,

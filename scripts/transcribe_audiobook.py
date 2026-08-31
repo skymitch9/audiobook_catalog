@@ -62,9 +62,10 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
-from app.core.ingest_queue import TRANSCRIPTS_DIR, load_catalog  # noqa: E402
+from app.core.ingest_queue import (  # noqa: E402
+    TRANSCRIPTS_DIR, load_catalog, transcript_filename_stem,
+)
 from app.core.m4b_resolver import resolve_book_file  # noqa: E402
-from app.core.review_join import normalise_title  # noqa: E402
 
 TRAINING_ROOT = Path(os.getenv("ESTATE_TRAINING_ROOT", r"C:\Users\nbasl\estate-training-data"))
 WHISPER_PYTHON = Path(os.getenv(
@@ -372,7 +373,9 @@ def remove(path: Path, tries: int = 5) -> bool:
 
 def transcribe(title: str, m4b: Path, batch_size: int, dry_run: bool = False) -> int:
     TRANSCRIPTS_DIR.mkdir(parents=True, exist_ok=True)
-    stem = normalise_title(title).replace(" ", "_")[:120] or m4b.stem
+    # ⚠️ The stem comes from the SHARED formula so the packer's lookup can
+    # probe for exactly this file — see transcript_filename_stem's docstring.
+    stem = transcript_filename_stem(title) or m4b.stem
     out_json = TRANSCRIPTS_DIR / f"{stem}.json"
     out_txt = TRANSCRIPTS_DIR / f"{stem}.txt"
     if out_json.exists():

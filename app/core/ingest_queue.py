@@ -73,6 +73,25 @@ STATUS_PENDING = "pending"
 STATUS_NEEDS_OCR = "needs-ocr"
 STATUS_FAILED = "failed"
 
+
+def transcript_filename_stem(title: str) -> str:
+    """The exact filename stem `scripts/transcribe_audiobook.py` writes for a
+    title. ⚠️ ONE FORMULA, TWO CALLERS — the transcriber names its output with
+    this, and `_transcript_for`'s last rung probes with it, so it must stay a
+    single function. Until 2026-08-31 it was two hand-copies that agreed only
+    by luck: a title whose m4b filename drops the ':' subtitle (e.g. 'Bunny
+    Girl Evolution 2: A Monster Evolution LitRPG' from 'Bunny Girl Evolution
+    2.m4b') transcribed fine, then failed EVERY pack with "no transcript on
+    disk" — instantly and forever, because the transcript index keys on the
+    m4b stem while the file on disk is named by title, and the transcriber's
+    "already have it" check made every retry a sub-second no-op. 378 such
+    error lines on 2026-08-27, the night the ingester was disabled.
+
+    Empty when the title normalises to nothing; the WRITER falls back to the
+    m4b stem there, which a title-only reader cannot reproduce — callers must
+    treat '' as "no probe possible", never as a filename."""
+    return normalise_title(title).replace(" ", "_")[:120]
+
 TIER_EPUB = 1
 TIER_PDF_TEXT = 2
 TIER_TWIN = 3

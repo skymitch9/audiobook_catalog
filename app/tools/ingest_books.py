@@ -61,7 +61,7 @@ from app.core.ingest_queue import (
     PACKS_DIR, RECEIPTS_DIR, STATUS_DONE, STATUS_FAILED, STATUS_NEEDS_OCR,
     STATE_PATH, TIER_NEEDS_OCR, TRANSCRIPTS_DIR, QueueItem, apply_requeue,
     build_queue, count_reviews_by_book_id, load_chapters, load_state, mark,
-    save_state,
+    save_state, transcript_filename_stem,
 )
 from app.core.ingest_queue_summary import build_queue_summary, write_queue_summary
 from app.core.ingest_transcripts import (
@@ -302,6 +302,21 @@ def _transcript_for(title: str) -> Optional[Path]:
         hit = _transcript_index.get(key)
         if hit:
             return hit
+    # ⚠️ LAST RUNG (regression 2026-08-27): the file the TRANSCRIBER ITSELF
+    # would have written for this title. The index keys on each transcript's
+    # source-m4b stem, but transcripts are NAMED by queue title — and when the
+    # m4b filename drops a ':' subtitle the two keys never meet: transcribe()
+    # exits 0 with "already have ...; nothing to do" while this function
+    # raised "no transcript on disk", instantly, on every retry (378 log
+    # lines the night the ingester was disabled). The tail-strip above only
+    # handles " - " tails. Probing with the writer's own shared formula
+    # (transcript_filename_stem) closes the loop for exactly the titles the
+    # writer would satisfy; an empty stem means no probe is possible.
+    stem = transcript_filename_stem(title)
+    if stem:
+        direct = TRANSCRIPTS_DIR / f"{stem}.json"
+        if direct.exists():
+            return direct
     return None
 
 
