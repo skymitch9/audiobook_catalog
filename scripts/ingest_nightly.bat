@@ -48,6 +48,20 @@ rem transcribing pushes nothing for hours. The dedicated 15-minute task
 rem "EstateProcessingBoardPush" covers that gap. Both are documented in
 rem catalog-platform\docs\access\agent-board.md.
 set INGEST_RC=%ERRORLEVEL%
+
+rem ================= PACK-INDEX PUBLISH (added 2026-09-01) =================
+rem Found 2026-09-01: the served pack index was 14 DAYS STALE - 190 books
+rem listed while 991 were packed - because nothing ever ran --publish-index
+rem after the 2026-08-18 pilot did it once by hand. GABI's list/search tools
+rem see only what this index names, so a stale index quietly hides most of
+rem the library from her while every individual pack sits in the bucket.
+rem !! SOFT-FAIL, same contract as the status push below: it must never cost
+rem the run's result. Under a live run it self-refuses on the single-flight
+rem lock with one log line, and the first tick after a finished run publishes.
+rem Placed BEFORE the status push so the board reads the fresh index.
+python -m app.tools.ingest_books --publish-index >> output_files\ingest_nightly.log 2>&1
+if errorlevel 1 echo [WARN] index publish failed - see the lines above - the ingest run is unaffected >> output_files\ingest_nightly.log
+
 node "C:\Users\nbasl\OneDrive\Documents\vs-code-repos\catalog-platform\scripts\push-processing-board.mjs" --by "ingest-nightly@home-pc" >> output_files\processing_push.log 2>&1
 if errorlevel 1 echo [WARN] status push failed - see output_files\processing_push.log - the ingest run above is unaffected >> output_files\ingest_nightly.log
 exit /b %INGEST_RC%
