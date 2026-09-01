@@ -461,6 +461,81 @@ class TestRequeueOcr:
         assert applied == [{"dry_run": True, "book_ids": None}]
 
 
+class TestTheRunLoopWiring:
+    """⚠️ The one thing every other test here cannot see: whether `run()`
+    actually LETS an armed tier-6 book through to the pack path, and still
+    holds an unarmed one. Until 2026-09-01 that branch short-circuited every
+    tier-6 item to a needs-ocr row and `continue`d."""
+
+    def _args(self, **kw):
+        import argparse
+
+        base = dict(ignore_control=True, dry_run=False, no_reviews=True,
+                    cpu_only=False, limit=0, now=True, opportunistic=False,
+                    no_transcribe=False)
+        base.update(kw)
+        return argparse.Namespace(**base)
+
+    def _drive(self, monkeypatch, state, packed):
+        from app.tools import ingest_books as ib
+
+        item = QueueItem("scan-1", "A Scan", TIER_NEEDS_OCR, SOURCE_PDF_OCR, "x.pdf")
+        monkeypatch.setattr(ib, "load_state", lambda *a, **k: state)
+        monkeypatch.setattr(ib, "save_state", lambda *a, **k: None)
+        monkeypatch.setattr(ib, "load_chapters", lambda *a, **k: {})
+        monkeypatch.setattr(ib, "build_queue", lambda **k: [item])
+        monkeypatch.setattr(ib, "write_queue_summary", lambda *a, **k: None)
+        monkeypatch.setattr(ib, "build_queue_summary", lambda *a, **k: {})
+        monkeypatch.setattr(ib, "_write_receipt", lambda *a, **k: None)
+        monkeypatch.setattr(ib, "ocr_available", lambda: (True, "stub-engine"))
+        monkeypatch.setattr(ib, "pack_one",
+                            lambda *a, **k: packed.append(a[0].book_id) or {"chunks": 1})
+        return ib
+
+    def test_an_unarmed_scan_is_held_and_never_read(self, monkeypatch):
+        packed = []
+        state = {"books": {"scan-1": {"status": STATUS_NEEDS_OCR}}}
+        ib = self._drive(monkeypatch, state, packed)
+        assert ib.run(self._args()) == 0
+        assert packed == [], "an unarmed needs-ocr book must never be read"
+        entry = state["books"]["scan-1"]
+        assert entry["status"] == STATUS_NEEDS_OCR
+        assert "--requeue-ocr" in entry["blocker"]
+
+    def test_an_armed_scan_reaches_the_pack_path(self, monkeypatch):
+        packed = []
+        state = {"books": {"scan-1": {"status": STATUS_PENDING}}}
+        ib = self._drive(monkeypatch, state, packed)
+        assert ib.run(self._args()) == 0
+        assert packed == ["scan-1"]
+
+    def test_a_missing_engine_holds_with_its_own_blocker_not_the_old_lie(self, monkeypatch):
+        # ⚠️ "OCR processor not built" would be false now that it is built, and
+        # a wrong blocker sends somebody to fix the wrong thing.
+        packed = []
+        state = {"books": {"scan-1": {"status": STATUS_PENDING}}}
+        ib = self._drive(monkeypatch, state, packed)
+        monkeypatch.setattr(ib, "ocr_available", lambda: (False, "no OCR engine; install with `pip install x`"))
+        assert ib.run(self._args()) == 0
+        assert packed == []
+        assert "install" in state["books"]["scan-1"]["blocker"]
+
+    def test_ocr_work_never_asks_for_the_gpu(self, monkeypatch):
+        # ⚠️ CPU-tier by construction: tier 6 items carry needs_gpu=False, so an
+        # OCR book must never poll the graphics card or compete with a
+        # transcription for the owner's GPU window.
+        packed = []
+        state = {"books": {"scan-1": {"status": STATUS_PENDING}}}
+        ib = self._drive(monkeypatch, state, packed)
+
+        def _boom(*a, **k):
+            raise AssertionError("OCR work must never poll the GPU")
+
+        monkeypatch.setattr(ib, "gpu_utilisation", _boom)
+        assert ib.run(self._args()) == 0
+        assert packed == ["scan-1"]
+
+
 # --------------------------------------------------------------------------
 # the real engine
 # --------------------------------------------------------------------------
