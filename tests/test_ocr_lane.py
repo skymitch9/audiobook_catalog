@@ -152,7 +152,61 @@ class TestChapterAnchors:
             path, "b", "Book", engine=_stub_engine([_prose("alpha"), _prose("beta")]))
         assert [c.title for c in book.chapters] == ["Front Matter", "The Tower"]
         assert [c.page for c in book.chapters] == [1, 2]
-        assert "outline-based chapter anchors" in book.notes
+        assert any(n.startswith("outline-based chapter anchors") for n in book.notes)
+
+    def test_a_filename_shaped_outline_title_becomes_page_n(self, tmp_path):
+        # 🔴 MEASURED 2026-09-01: `Jake's Magical Market 3` carries an outline
+        # reading `JMM3 1.9.pdf`, `card1.pdf`, `card2.pdf` — files on somebody's
+        # desktop, left by whatever merged the pages. A citation reading
+        # "chapter: card1.pdf" LOOKS like a real title and is not; `Page 2` is
+        # honest.
+        path = _image_scan_pdf(tmp_path / "scan.pdf",
+                               toc=[[1, "card1.pdf", 1], [1, "The Tower", 2]])
+        book, _ = extract_pdf_ocr(
+            path, "b", "Book", engine=_stub_engine([_prose("alpha"), _prose("beta")]))
+        # ⚠️ The mixed case keeps its GOOD title rather than losing it to one
+        # bad neighbour.
+        assert [c.title for c in book.chapters] == ["Page 1", "The Tower"]
+        assert any(n.startswith("outline-based chapter anchors") for n in book.notes)
+
+    def test_an_outline_that_is_really_page_numbering_is_rejected_whole(self, tmp_path):
+        # 🔴 MEASURED: `Fae and Fare` carries eleven entries reading
+        # `The Last Tide_For Review_2_Page_01` … `_Page_11`. No single entry
+        # looks wrong on its own; it is only obviously a scanner's naming once
+        # you have seen the others — so this judgement is whole-document.
+        path = _image_scan_pdf(
+            tmp_path / "scan.pdf",
+            toc=[[1, "The Last Tide_For Review_2_Page_01", 1],
+                 [1, "The Last Tide_For Review_2_Page_02", 2]])
+        book, _ = extract_pdf_ocr(
+            path, "b", "Book", engine=_stub_engine([_prose("alpha"), _prose("beta")]))
+        assert [c.title for c in book.chapters] == ["Page 1", "Page 2"]
+        assert "page-based chapter anchors" in book.notes
+
+    def test_a_single_real_outline_entry_survives(self, tmp_path):
+        # MEASURED: `The Storm Before the Storm`'s one entry is `TIMELINE`, a
+        # genuine title. The page-numbering rule must not eat a 1-entry outline.
+        path = _image_scan_pdf(tmp_path / "scan.pdf", toc=[[1, "TIMELINE", 1]])
+        book, _ = extract_pdf_ocr(
+            path, "b", "Book", engine=_stub_engine([_prose("alpha"), _prose("beta")]))
+        assert [c.title for c in book.chapters] == ["TIMELINE"]
+
+    def test_the_two_outline_judgements_in_isolation(self):
+        assert book_ocr._looks_like_a_filename("card1.PDF") is True
+        assert book_ocr._looks_like_a_filename("Wate.pdf") is True
+        assert book_ocr._looks_like_a_filename("Ravenwood") is False
+        assert book_ocr._outline_is_page_numbering(["A_Page_01", "A_Page_02"]) is True
+        assert book_ocr._outline_is_page_numbering(["Scan 1", "Scan 2"]) is True
+        assert book_ocr._outline_is_page_numbering(["TIMELINE"]) is False
+        assert book_ocr._outline_is_page_numbering(["Prologue", "The Tower"]) is False
+        # 🔴 THE FALSE POSITIVE THIS RULE MUST NEVER HAVE. `Chapter 1, Chapter
+        # 2, …` is the same "stem plus a number" shape as the scanner artifact
+        # and is the most common REAL table of contents there is — rejecting it
+        # would throw away good titles on exactly the file type §5a says should
+        # use its outline: a true scanned novel.
+        assert book_ocr._outline_is_page_numbering(["Chapter 1", "Chapter 2"]) is False
+        assert book_ocr._outline_is_page_numbering(["Part 1", "Part 2"]) is False
+        assert book_ocr._outline_is_page_numbering(["Book 1", "Book 2"]) is False
 
     def test_a_blank_page_starts_no_chapter(self, tmp_path):
         path = _image_scan_pdf(tmp_path / "scan.pdf")

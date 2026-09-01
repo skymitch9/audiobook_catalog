@@ -37,9 +37,10 @@
 
 from __future__ import annotations
 
+import re
 import time
 from dataclasses import dataclass, field
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, List, Optional, Sequence, Tuple
 
 from app.core.book_text import ExtractedBook, ExtractedChapter, clean_text
 
@@ -322,8 +323,64 @@ def ocr_pages(path: str, engine: Optional[OcrEngine] = None, dpi: int = OCR_DPI,
     return pages, quality
 
 
+# 🔴 AN OUTLINE ENTRY IS OFTEN THE SOURCE FILENAME, NOT A CHAPTER TITLE.
+# MEASURED 2026-09-01 across the estate's 16 scan PDFs: four carry an outline
+# and THREE of those four are assembly artifacts left by whatever merged the
+# pages - `JMM3 1.9.pdf` / `card1.pdf` / `card2.pdf`, `Wate.pdf`, and eleven
+# entries reading `The Last Tide_For Review_2_Page_01` … `_Page_11`.
+#
+# ⚠️ That is worse than having no outline at all, because a citation would then
+# read "chapter: card1.pdf" - which LOOKS like a real chapter title and is a
+# working file on somebody's desktop. `Page 2` is honest; `card1.pdf` is not.
+_FILENAME_EXTS = (".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".gif",
+                  ".psd", ".ai", ".indd", ".eps", ".webp", ".bmp")
+
+_TRAILING_INDEX_RE = re.compile(r"[\s_\-.#]*\d+\s*$")
+
+# The words a SCANNER numbers by. ⚠️ `chapter`, `part`, `book` and `section` are
+# deliberately absent - those are what an AUTHOR numbers by, and rejecting them
+# would throw away a real table of contents.
+_PAGE_WORD_RE = re.compile(r"(?:^|[\s_\-.])(page|pg|img|image|scan|slide|sheet|plate)$",
+                           re.IGNORECASE)
+
+
+def _looks_like_a_filename(title: str) -> bool:
+    """One entry that is a file on somebody's disk rather than a chapter."""
+    return str(title or "").strip().lower().endswith(_FILENAME_EXTS)
+
+
+def _outline_is_page_numbering(titles: Sequence[str]) -> bool:
+    """⚠️ WHOLE-OUTLINE judgement: a scanner's page naming, not a contents list.
+
+    It has to be judged across the document because no single entry looks wrong
+    on its own - `The Last Tide_For Review_2_Page_07` is only obviously not a
+    chapter title once you have seen the other ten.
+
+    🔴 TWO CONDITIONS, AND THE SECOND ONE IS THE WHOLE CARE OF THIS FUNCTION.
+    "Every entry is the same stem plus a number" is NOT enough on its own -
+    `Chapter 1`, `Chapter 2`, `Chapter 3` is exactly that shape and is the most
+    common REAL table of contents there is. Rejecting it would throw away good
+    titles on precisely the file type section 5a says should use its outline: a
+    true scanned novel. So the stem must ALSO end in a page-ish word, which is
+    what separates a scanner from an author.
+    """
+    if len(titles) < 2:
+        return False
+    stems = {_TRAILING_INDEX_RE.sub("", str(t or "").strip()) for t in titles}
+    if len(stems) != 1:
+        return False
+    return bool(_PAGE_WORD_RE.search(stems.pop()))
+
+
 def _outline_bounds(path: str, page_count: int) -> List[Tuple[int, int, str]]:
-    """(first_page, last_page, title) runs from the PDF outline, or []."""
+    """(first_page, last_page, title) runs from the PDF outline, or [].
+
+    Returns [] when the outline is really a scanner's page numbering, and
+    replaces any single filename-shaped title with '' so the caller falls back
+    to `Page N` for that entry alone - a mixed outline (measured: *Beautiful
+    Creatures* reads `Wate.pdf`, `Duchannes`, `Ravenwood`) keeps its two real
+    titles instead of losing them to one bad neighbour.
+    """
     import fitz
 
     doc = fitz.open(path)
@@ -341,6 +398,10 @@ def _outline_bounds(path: str, page_count: int) -> List[Tuple[int, int, str]]:
     )
     if not starts:
         return []
+    if _outline_is_page_numbering([name for _, name in starts]):
+        return []
+    starts = [(page, "" if _looks_like_a_filename(name) else name)
+              for page, name in starts]
     bounds = []
     for i, (first, name) in enumerate(starts):
         last = starts[i + 1][0] - 1 if i + 1 < len(starts) else page_count
@@ -356,9 +417,12 @@ def extract_pdf_ocr(path: str, book_id: str, title: str,
                     engine_name: str = "rapidocr-onnxruntime") -> Tuple[ExtractedBook, OcrQuality]:
     """Image-scan PDF -> `ExtractedBook(source="pdf-ocr")` + its measurement.
 
-    ⚠️ CHAPTER ANCHORS: THE OUTLINE IF THE FILE HAS ONE, ELSE ONE CHAPTER PER
-    PAGE - and which one shipped is recorded in the pack's `notes`, so a reader
-    never has to guess. Page-per-chapter is the right shape for what is
+    ⚠️ CHAPTER ANCHORS: THE OUTLINE IF THE FILE HAS A TRUSTWORTHY ONE, ELSE ONE
+    CHAPTER PER PAGE - and which one shipped is recorded in the pack's `notes`,
+    so a reader never has to guess. 🔴 "Trustworthy" is doing real work there:
+    three of the four outlines on this shelf are PDF-assembly artifacts
+    (`card1.pdf`, `_Page_07`) and are rejected - see `_outline_bounds`.
+    Page-per-chapter is the right shape for what is
     ACTUALLY on this shelf (2-39 page supplements where each page is a discrete
     unit - one ability card, one map, one family tree) and it gives every chunk
     an EXACT `page`, which is the only anchor an image scan can honestly supply.
@@ -378,6 +442,12 @@ def extract_pdf_ocr(path: str, book_id: str, title: str,
 
     book = ExtractedBook(book_id=book_id, title=title, source=SOURCE_PDF_OCR)
     bounds = _outline_bounds(path, len(pages))
+    # ⚠️ Say how many outline titles were THROWN AWAY, not just that an outline
+    # was used. `Jake's Magical Market 3` keeps its outline's page boundaries
+    # while every one of its 15 titles is a discarded filename - a note reading
+    # only "outline-based" would let a reader think those titles came from the
+    # book.
+    replaced = sum(1 for _, _, name in bounds if not name)
     anchor_words = "outline" if bounds else "page"
     if not bounds:
         bounds = [(p.number, p.number, f"Page {p.number}") for p in pages]
@@ -400,7 +470,11 @@ def extract_pdf_ocr(path: str, book_id: str, title: str,
     book.notes.append(
         f"ocr: {engine_name} at {dpi} dpi - text READ OFF PAGE IMAGES, not a text layer")
     book.notes.append(f"ocr measured: {quality.words()}")
-    book.notes.append(f"{anchor_words}-based chapter anchors")
+    book.notes.append(
+        f"{anchor_words}-based chapter anchors"
+        + (f" ({replaced} filename-shaped outline title"
+           f"{'' if replaced == 1 else 's'} replaced with page numbers)"
+           if replaced else ""))
     # ⚠️ THE MEASUREMENT TRAVELS WITH THE BOOK, BY CONSTRUCTION. It is also the
     # second return value, but a caller that only keeps the book must not
     # thereby lose the numbers the quality gate judges on - an earlier draft
