@@ -25,6 +25,23 @@ thefuzz>=0.22.1
 # CI, however, must actually run the downscale tests.
 Pillow>=10.0.0
 
+# ⚠️ THE OCR LANE'S ENGINE, AND IT IS DELIBERATELY NOT INSTALLED FROM HERE:
+#     pip install rapidocr-onnxruntime==1.4.4
+# app/core/book_ocr.py reads image-scan PDFs with it (built 2026-09-01, owner
+# "yes do it"). Left commented on purpose — the wheel chain is ~75 MB
+# (onnxruntime + opencv) and CI never runs OCR, so paying that on every CI
+# install would buy nothing. tests/test_ocr_lane.py runs its stub-engine half
+# everywhere and SKIPS its real-engine half with a named reason when absent.
+# (PyMuPDF, which rasterises the pages, is likewise an ambient install here.)
+#
+# ⚠️ WHERE IT MUST ACTUALLY BE INSTALLED, AND IT IS TWO PLACES:
+#   * `.venv\Scripts\python.exe`  — what the test suite runs on
+#   * the bare `python` on PATH   — what scripts/ingest_nightly.bat runs, i.e.
+#     the Store build under %LOCALAPPDATA%\Microsoft\WindowsApps
+# Installing into only one of them works in exactly one of the two places, and
+# the nightly is the one that matters. See docs/access/PIPELINE.md.
+# rapidocr-onnxruntime==1.4.4
+
 # Development dependencies
 pre-commit>=3.6.0
 black>=24.1.1

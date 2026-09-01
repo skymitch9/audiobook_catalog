@@ -28,9 +28,18 @@
 #
 # ⚠️ TIER 6 IS RE-QUEUED, NOT ABSENT. Design decision 7 said the 25 image-scan
 # PDFs were "deliberately absent". The owner amended that on 2026-08-18 - they
-# are last in line and marked `needs-ocr`, and the OCR processor that would
-# clear them is NOT built. Recording them as a queued state with a named blocker
-# is what stops a future session concluding the shelf simply lacks them.
+# are last in line and marked `needs-ocr`. Recording them as a queued state with
+# a named blocker is what stops a future session concluding the shelf simply
+# lacks them.
+#
+# ✅ THE OCR PROCESSOR EXISTS AS OF 2026-09-01 (owner: "yes do it"), and tier 6
+# is still LAST - OCR is CPU-only, so it rides the CPU lane outside the GPU
+# window and never competes with transcription. ⚠️ It is OPT-IN PER BOOK: a
+# tier-6 item is read only once its state row has been moved out of `needs-ocr`
+# by `apply_requeue` (`--requeue-ocr`, or the dashboard's `requeue` list). A
+# scan PDF that lands on the shelf tomorrow is still RECORDED with a named
+# blocker and never read unattended - app/core/book_ocr.py has the reasoning
+# (OCR quality varies enormously by what is on the page, and it fails silently).
 #
 # THE TWIN SKIP - THE SINGLE BIGGEST CUT
 # --------------------------------------
@@ -483,7 +492,9 @@ def build_queue(state: Optional[dict] = None, review_counts: Optional[Dict[str, 
     ⚠️ It does NOT waive a single gate. A prioritised book still faces the
     window, the pause, the GPU and CPU guards and the deadline; priority decides
     what is asked first, never what is allowed. A prioritised needs-OCR PDF
-    stays blocked, because nothing can read it.
+    stays blocked until it is ARMED - the OCR lane exists as of 2026-09-01 but
+    is opt-in per book, so priority moves such a book to the head of a queue in
+    which it still refuses to start, and says so in words.
     """
     state = state if state is not None else load_state()
     review_counts = review_counts if review_counts is not None else {}

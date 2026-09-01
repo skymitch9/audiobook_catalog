@@ -24,6 +24,8 @@ USAGE
     python -m app.tools.ingest_books --pack-transcripts  # pack what is on disk
     python -m app.tools.ingest_books --requeue-failed --dry-run   # what would go back
     python -m app.tools.ingest_books --requeue-failed             # put them back
+    python -m app.tools.ingest_books --requeue-ocr --dry-run      # what would be armed
+    python -m app.tools.ingest_books --requeue-ocr                # arm the OCR lane
     python -m app.tools.ingest_books --dry-run ...     # build, never upload
     python -m app.tools.ingest_books --limit N
 
@@ -57,11 +59,12 @@ from app.core.ingest_pack import (
     INGESTER_VERSION, PackRefused, build_index, build_pack, pack_stats,
     upload_pack, write_pack_gz,
 )
+from app.core.book_ocr import SOURCE_PDF_OCR, ocr_available, quality_refusal
 from app.core.ingest_queue import (
     PACKS_DIR, RECEIPTS_DIR, STATUS_DONE, STATUS_FAILED, STATUS_NEEDS_OCR,
-    STATE_PATH, TIER_NEEDS_OCR, TRANSCRIPTS_DIR, QueueItem, apply_requeue,
-    build_queue, count_reviews_by_book_id, load_chapters, load_state, mark,
-    save_state, transcript_filename_stem,
+    STATUS_PENDING, STATE_PATH, TIER_NEEDS_OCR, TRANSCRIPTS_DIR, QueueItem,
+    apply_requeue, build_queue, count_reviews_by_book_id, load_chapters,
+    load_state, mark, save_state, transcript_filename_stem,
 )
 from app.core.ingest_queue_summary import build_queue_summary, write_queue_summary
 from app.core.ingest_transcripts import (
@@ -325,6 +328,20 @@ def extract_for(item: QueueItem, chapters: dict) -> book_text.ExtractedBook:
         return book_text.extract_epub(item.path, item.book_id, item.title)
     if item.source == "pdf-text":
         return book_text.extract_pdf(item.path, item.book_id, item.title)
+    if item.source == SOURCE_PDF_OCR:
+        # ⚠️ Imported HERE, not at module scope. The OCR engine drags
+        # onnxruntime and ~60 MB of shared libraries into the process, and the
+        # overwhelming majority of runs never meet an OCR book. A top-level
+        # import would tax every EPUB start for a lane that is usually idle.
+        from app.core.book_ocr import extract_pdf_ocr
+
+        # ⚠️ The quality measurement rides ON the book (`book.ocr_quality`, set
+        # by extract_pdf_ocr itself), rather than being threaded back as a
+        # second return value: `extract_for` has ONE shape for four sources and
+        # adding a tuple to it would push the OCR special case into every
+        # caller. `pack_one` is what reads it, refuses on it, and records it.
+        book, _quality = extract_pdf_ocr(item.path, item.book_id, item.title)
+        return book
     if item.source == "transcript":
         path = _transcript_for(item.title)
         if not path:
@@ -347,6 +364,23 @@ def pack_one(item: QueueItem, chapters: dict, state: dict,
         mark(state, item.book_id, STATUS_FAILED, reason="no text extracted",
              title=item.title, source=item.source)
         return None
+
+    # ⚠️ THE OCR QUALITY GATE, AND IT REFUSES BEFORE ANYTHING IS UPLOADED.
+    # A bad transcript is audibly bad; bad OCR reads as confident prose that
+    # says nothing true, with a citation that looks correct - so the ONLY place
+    # this can be caught is here, before a pack exists. The measured numbers are
+    # logged whether it passes or fails, because "it looked fine" is not a
+    # report.
+    quality = getattr(book, "ocr_quality", None)
+    if quality is not None:
+        log(f"  ocr {item.title!r}: {quality.words()}")
+        refusal = quality_refusal(quality)
+        if refusal:
+            log(f"  OCR REFUSED {item.title!r}: {refusal}")
+            mark(state, item.book_id, STATUS_FAILED,
+                 reason=f"OCR quality gate: {refusal}"[:300],
+                 title=item.title, source=item.source, **quality.to_dict())
+            return None
 
     chunks, refs = chunk_book(book)
     extra = {"twin_of": item.twin_of} if item.twin_of else None
@@ -380,7 +414,12 @@ def pack_one(item: QueueItem, chapters: dict, state: dict,
          chunks=stats["chunks"], chapters=stats["chapters"],
          text_bytes=stats["text_bytes"], gz_bytes=stats["gz_bytes"],
          key=key, ingester_version=INGESTER_VERSION,
-         twin_of=item.twin_of)
+         twin_of=item.twin_of,
+         # ⚠️ The OCR numbers ride the state row, so `publish_index` serves them
+         # and the serving layer can see at a glance that a pack was READ OFF
+         # IMAGES and how well. `source: "pdf-ocr"` alone says the origin;
+         # these say the error rate.
+         **(quality.to_dict() if quality is not None else {}))
     log(f"  OK {item.title}  {stats['chunks']} chunks  {stats['gz_bytes']:,}B gz "
         f"(ratio {stats['gzip_ratio']})  -> {key}")
     _back_up_transcript(item, book)
@@ -582,6 +621,57 @@ def requeue_failed(dry_run: bool = False, rows=None, root=None) -> dict:
     return outcome
 
 
+def requeue_ocr(dry_run: bool = False, book_ids=None, state=None) -> dict:
+    """`--requeue-ocr`: ARM image-scan PDFs so the OCR lane may read them.
+
+    ⚠️ WHY A FLAG AND NOT A HAND EDIT - the same reason `--requeue-failed` is
+    one. `ingest_state.json` lives outside every repo and is written by a
+    RUNNING pipeline; editing it by hand is the "establish who wrote it"
+    incident waiting to happen. This goes through the SAME primitive
+    (`ingest_queue.apply_requeue`), so `done` stays untouchable, the previous
+    status and reason are preserved, and one function owns every status
+    transition into `pending`.
+
+    ⚠️ IT REFUSES WHEN NO OCR ENGINE IS INSTALLED. Arming 16 books for a lane
+    that cannot run them turns a clear "held, here is the blocker" row into a
+    book that looks queued and never moves - which is the state this whole
+    needs-ocr marker exists to avoid.
+
+    Read-only with `--dry-run`: nothing is written and the report says so.
+    """
+    ok, words = ocr_available()
+    if not ok:
+        log(f"requeue-ocr: REFUSED - {words}. Nothing was armed; arming books "
+            f"for a lane that cannot read them would turn a named blocker into "
+            f"a book that looks queued and never moves.")
+        return {"requeued": [], "unknown": [], "skipped_done": [],
+                "skipped_other": [], "refused": words}
+
+    state = load_state() if state is None else state
+    books = state.get("books") or {}
+    if book_ids:
+        wanted = [str(b).strip() for b in book_ids if str(b).strip()]
+    else:
+        wanted = sorted(bid for bid, e in books.items()
+                        if (e or {}).get("status") == STATUS_NEEDS_OCR)
+
+    outcome = apply_requeue(state, wanted)
+    if outcome["requeued"] and not dry_run:
+        save_state(state)
+    log(f"requeue-ocr: {len(outcome['requeued'])} of {len(wanted)} needs-ocr book"
+        f"{'' if len(wanted) == 1 else 's'} armed to pending (engine: {words})")
+    for book_id in outcome["requeued"]:
+        log(f"  armed {book_id}")
+    for bucket, said in (("unknown", "not in the state file"),
+                         ("skipped_done", "already done and left alone"),
+                         ("skipped_other", "not in a requeueable status")):
+        if outcome[bucket]:
+            log(f"  {len(outcome[bucket])} {said}: {outcome[bucket][:5]}")
+    if dry_run:
+        log("  --dry-run, so nothing was written; the state file is unchanged")
+    return outcome
+
+
 def run(args) -> int:
     state = load_state()
     chapters = load_chapters()
@@ -624,14 +714,17 @@ def run(args) -> int:
     done = failed = skipped = 0
     for item in queue:
         if item.tier == TIER_NEEDS_OCR:
-            # ⚠️ Recorded, not attempted. OCR is not built (owner, 2026-08-18);
-            # this row is what stops the shelf looking as though the book is
-            # simply missing.
-            mark(state, item.book_id, STATUS_NEEDS_OCR, source="pdf-ocr",
-                 title=item.title,
-                 reason=item.note or "image-scan PDF", blocker="OCR processor not built")
-            save_state(state)
-            continue
+            hold = _ocr_hold_reason(state, item)
+            if hold:
+                mark(state, item.book_id, STATUS_NEEDS_OCR, source=SOURCE_PDF_OCR,
+                     title=item.title,
+                     reason=item.note or "image-scan PDF", blocker=hold)
+                save_state(state)
+                continue
+            # ARMED: fall through to the ordinary gate + pack path below. OCR is
+            # CPU work, so `needs_gpu` is False and it rides the CPU lane - the
+            # window, the pause, the do-not-disturb guard and the CPU guard all
+            # apply, and the GPU is never polled for it.
 
         # ⚠️ Re-read the control document before EVERY book - that is the
         # documented contract (info/book-ingestion.md section 1), and until
@@ -683,6 +776,41 @@ def run(args) -> int:
     _write_receipt(state, done, failed, args.dry_run)
     log(f"run complete: {done} packed, {failed} failed")
     return 0
+
+
+OCR_HOLD_NOT_ARMED = ("held: OCR is built but this book has not been armed - "
+                      "run `--requeue-ocr` to put it back to pending")
+
+
+def _ocr_hold_reason(state: dict, item: QueueItem) -> Optional[str]:
+    """Why this needs-OCR book must NOT be read now, or None to proceed.
+
+    ⚠️ OCR IS OPT-IN PER BOOK, AND THAT IS THE SAFETY PROPERTY OF THIS LANE.
+    A book is read only once somebody has moved it out of `needs-ocr` through
+    `apply_requeue` (the `--requeue-ocr` flag, or the dashboard's `requeue`
+    list) - so a scan PDF that appears on the shelf tomorrow is RECORDED with a
+    named blocker exactly as it was before this build, and nothing OCRs it
+    unattended.
+
+    The reason that is not "be conservative for its own sake": OCR quality
+    varies enormously by what is on the page, and the failure is silent. The
+    same engine that reads an ability card at 0.99 confidence turns a hand-drawn
+    map's curved labels into `Uindrwmner R.` (measured, 2026-09-01). The
+    per-book quality gate in `pack_one` catches the worst of it, but a HUMAN
+    deciding which files are worth reading is the cheaper guard, and arming
+    costs one command.
+
+    ⚠️ A missing engine is a DIFFERENT hold from an unarmed book, and both say
+    so in their own words - `blocker` is what the dashboard renders, and "OCR
+    processor not built" would be a lie now that it is.
+    """
+    ok, words = ocr_available()
+    if not ok:
+        return words
+    status = ((state.get("books") or {}).get(item.book_id) or {}).get("status")
+    if status != STATUS_PENDING:
+        return OCR_HOLD_NOT_ARMED
+    return None
 
 
 MAX_ITEM_SKIPS = 25
@@ -877,6 +1005,16 @@ def status(args) -> int:
             "priority_front": control.priority_front,
             "readable": control.readable, "error": control.error,
         },
+        # ⚠️ Two DIFFERENT facts, and a needs-ocr row means different things
+        # under each: with no engine it is blocked on an install, with an engine
+        # it is blocked on somebody running --requeue-ocr. `--status` says which.
+        "ocr": {
+            "engine_available": ocr_available()[0],
+            "engine": ocr_available()[1],
+            "armed_books": sum(1 for b in state.get("books", {}).values()
+                               if b.get("source") == SOURCE_PDF_OCR
+                               and b.get("status") == STATUS_PENDING),
+        },
         "state_path": str(STATE_PATH),
         "books_done": sum(1 for b in state.get("books", {}).values()
                           if b.get("status") == STATUS_DONE),
@@ -908,6 +1046,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     p.add_argument("--requeue-failed", action="store_true",
                    help="put back every `failed` book whose file NOW resolves, and "
                         "only those; combine with --dry-run to see the list first")
+    p.add_argument("--requeue-ocr", action="store_true",
+                   help="arm every `needs-ocr` image-scan PDF so the OCR lane may "
+                        "read it; combine with --dry-run to see the list first")
+    p.add_argument("--ocr-book", action="append", default=None,
+                   help="with --requeue-ocr, arm only these book ids (repeatable)")
     args = p.parse_args(argv)
 
     # Before every GATE (window, GPU, pause, CPU, deadline) — this transcribes
@@ -932,6 +1075,25 @@ def main(argv: Optional[List[str]] = None) -> int:
                     "save_state. Re-run when it finishes, or use --dry-run to look.")
                 return 1
             requeue_failed(dry_run=False)
+        return 0
+
+    # ⚠️ SAME LOCK DISCIPLINE AS --requeue-failed, and for the same measured
+    # reason: a live run holds `state` in memory all night and calls
+    # `save_state` after every book, so an arming written underneath it is
+    # silently overwritten by the next book that finishes - the change looks
+    # applied and the file disagrees an hour later. `--dry-run` writes nothing
+    # and needs no lock, and is the form to reach for while a run is in flight.
+    if args.requeue_ocr:
+        if args.dry_run:
+            requeue_ocr(dry_run=True, book_ids=args.ocr_book)
+            return 0
+        with _Lock() as lock:
+            if not lock.acquired:
+                log("requeue-ocr: NOT APPLIED — an ingest run holds the lock, and an "
+                    "arming written under a live run is overwritten by its next "
+                    "save_state. Re-run when it finishes, or use --dry-run to look.")
+                return 1
+            requeue_ocr(dry_run=False, book_ids=args.ocr_book)
         return 0
 
     if args.status or not (args.run or args.publish_index):
