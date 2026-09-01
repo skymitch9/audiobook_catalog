@@ -741,17 +741,26 @@ def _control_or_guard(control: ControlState, needs_gpu: bool,
                       audio_seconds: Optional[float] = None) -> Optional[str]:
     """The gates that still bind under `--now` (which waives only the window).
 
-    ⚠️ FOUR OF THE FIVE STILL BIND, and the two added 2026-08-18 are among them.
+    ⚠️ FIVE OF THE SIX STILL BIND, and the two added 2026-08-18 are among them.
     `--now` waives the WINDOW, because the window protects the owner's daytime
     and a hand-run is a deliberate daytime act. It does not waive the machine
     guards (they protect the PC he is sitting at) and it does not waive the
     DEADLINE, because outside the window the deadline is the dashboard's next
     pause window - i.e. the owner's evening, which is exactly what `--now` must
     not walk into.
+
+    ⚠️ THIS IS A SECOND GATE CHAIN, NOT A CALL INTO `decide_start`, so every
+    new gate has to be added HERE TOO or it silently does not exist on the
+    `--now` path. The PRESENCE guard (2026-09-01) is the third one to learn
+    that: the design's rule is "any listed process running means no new book
+    starts of ANY kind", and a hand-run is a kind. The escape hatch is the one
+    that already exists - `--ignore-control` skips this whole function - so a
+    deliberate "yes, I know the game is open, run anyway" costs one flag rather
+    than editing the list.
     """
     from app.core.ingest_control import (
         GPU_BUSY_PCT, control_blocks_start, control_defers_check, cpu_busy_words,
-        cpu_guard, deadline_blocks_start,
+        cpu_guard, deadline_blocks_start, process_blocks_start,
     )
 
     # ⚠️ `window_ok=False` IS DELIBERATE AND IS THE POINT OF THIS CALL SITE
@@ -764,6 +773,9 @@ def _control_or_guard(control: ControlState, needs_gpu: bool,
     blocked = control_defers_check(control) or control_blocks_start(control, window_ok=False)
     if blocked:
         return blocked
+    in_use = process_blocks_start(control)
+    if in_use:
+        return in_use
     if not needs_gpu:
         cpu = cpu_guard()
         return cpu_busy_words(cpu) if cpu.busy else None
