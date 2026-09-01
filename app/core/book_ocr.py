@@ -55,9 +55,10 @@ OCR_DPI = 300
 
 # ⚠️ A HARD CEILING ON ONE BOOK, because mid-book work always completes and an
 # OCR job that has decided to take four hours would take them inside the owner's
-# morning. 45 min at the measured ~1.7 s/page is ~1,500 pages, i.e. far beyond
-# anything on this shelf (the largest scan here is 39 pages / ~70 s). It is a
-# runaway guard, not a scheduling policy - it has never fired.
+# morning. 45 min at the MEASURED 2.0 s/page (568 s over 288 pages, 2026-09-01)
+# is ~1,350 pages, i.e. far beyond anything on this shelf - the largest file
+# here is 39 pages and took 41 s. It is a runaway guard for a future true
+# scanned novel, not a scheduling policy, and it has never fired.
 OCR_BOOK_BUDGET_SECONDS = 45 * 60
 
 # --------------------------------------------------------------------------
