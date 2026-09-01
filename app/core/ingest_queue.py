@@ -129,6 +129,15 @@ class QueueItem:
     # is minutes short of the runtime on every book, and a short duration is an
     # optimistic estimate, which is the one direction that gate must not lean.
     duration_sec: Optional[float] = None
+    # ⚠️ WHERE THIS ITEM SORTS, when that is not the same as WHAT IT IS.
+    # `tier` is the item's IDENTITY - the run loop branches on it, and
+    # ingest_queue_summary maps it to a lane label the sibling repo's status
+    # page reads. `sort_tier` is the item's PLACE IN THE NIGHT. They are equal
+    # for every item except an ARMED needs-OCR PDF (see build_queue), and
+    # keeping them as one field is what forced the choice between "renumber six
+    # tiers and break a cross-repo lane contract" and "leave ten minutes of CPU
+    # work stranded behind 231 GPU books".
+    sort_tier: Optional[float] = None
 
     def to_dict(self) -> dict:
         return {k: v for k, v in asdict(self).items() if v is not None}
@@ -470,6 +479,40 @@ def build_twin_index(ebooks: List[dict]) -> Dict[str, dict]:
 # the queue
 # --------------------------------------------------------------------------
 
+# Where an ARMED needs-OCR PDF sorts: after the twins (tier 3) and ahead of the
+# reviewed audiobooks (tier 4), i.e. exactly where the other cheap CPU work
+# already sits. A fraction rather than a new integer tier because the tier
+# integers are a cross-repo contract (ingest_queue_summary's lane labels).
+OCR_ARMED_SORT_TIER = 3.5
+
+
+def _ocr_sort_tier(state: dict, book_id: str) -> Optional[float]:
+    """`3.5` for an ARMED needs-OCR PDF, `None` (= sort at tier 6) otherwise.
+
+    🔴 THE DEFECT THIS FIXES, MEASURED 2026-09-01. Tier 6 is the back of the
+    queue, and `run()` walks the queue in order taking one book at a time. With
+    **231 GPU audiobooks ahead of them**, sixteen armed OCR books - about TEN
+    MINUTES of CPU in total - would not have been reached for weeks, and most
+    runs would never get near them at all: a GPU refusal (busy card, closed
+    window) is GLOBAL, so the run stops long before the tail. Arming them and
+    leaving them at tier 6 would have looked exactly like the feature working.
+
+    ⚠️ ONLY AN ARMED BOOK IS PROMOTED. An unarmed `needs-ocr` row stays at the
+    back where it belongs - it does nothing when reached, so moving it would
+    only push real work down the list.
+
+    ⚠️ 3.5 is not a hedge, it is the same argument tiers 1-3 already make: this
+    is seconds-to-a-minute of CPU with no GPU, so it clears out of the way
+    instead of queueing behind hours of transcription. The owner's original
+    *"delay it until after we finish all the audiobooks with a review"*
+    (2026-08-18) was made when OCR was unbuilt and assumed expensive; he lifted
+    the QUEUED-LAST ordering on 2026-09-01, and the measured cost is ~35 s a
+    book against ~20-40 min for one audiobook.
+    """
+    status = ((state.get("books") or {}).get(book_id) or {}).get("status")
+    return OCR_ARMED_SORT_TIER if status == STATUS_PENDING else None
+
+
 def build_queue(state: Optional[dict] = None, review_counts: Optional[Dict[str, int]] = None,
                 pdf_classifier=None,
                 priority_front: Optional[List[str]] = None) -> List[QueueItem]:
@@ -522,7 +565,8 @@ def build_queue(state: Optional[dict] = None, review_counts: Optional[Dict[str, 
                                        note=verdict.get("reason")))
             else:
                 items.append(QueueItem(bid, title, TIER_NEEDS_OCR, "pdf-ocr", path,
-                                       note=verdict.get("reason")))
+                                       note=verdict.get("reason"),
+                                       sort_tier=_ocr_sort_tier(state, bid)))
 
     # --- tiers 3, 4, 5: the audio shelf ------------------------------------
     twins = build_twin_index(ebooks)
@@ -622,11 +666,12 @@ def _sort_key(item: QueueItem):
     # Within tier 4: most-reviewed first. Within tier 5: most recently added
     # first, with unknown-date books last (an unknown date must not masquerade
     # as either new or old - it sorts to the back and says so by position).
+    rank = item.sort_tier if item.sort_tier is not None else item.tier
     if item.tier == TIER_REVIEWED_AUDIO:
-        return (item.tier, -item.review_count, 0.0, item.title)
+        return (rank, -item.review_count, 0.0, item.title)
     if item.tier == TIER_REST_AUDIO:
-        return (item.tier, 0, _added_rank(item.added_at), item.title)
-    return (item.tier, 0, 0.0, item.title)
+        return (rank, 0, _added_rank(item.added_at), item.title)
+    return (rank, 0, 0.0, item.title)
 
 
 def priority_sort_key(matches=None):

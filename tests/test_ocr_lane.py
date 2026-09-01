@@ -461,6 +461,60 @@ class TestRequeueOcr:
         assert applied == [{"dry_run": True, "book_ids": None}]
 
 
+class TestArmedOcrIsPromotedOutOfTheTail:
+    """🔴 MEASURED 2026-09-01: tier 6 is the back of a queue whose head is 231
+    GPU audiobooks. Sixteen armed OCR books — TEN MINUTES of CPU — would not
+    have been reached for weeks, and a GPU refusal is global so most runs stop
+    long before the tail. Arming them and leaving them at tier 6 would have
+    looked exactly like the feature working."""
+
+    def _item(self, state, book_id="scan-1"):
+        from app.core.ingest_queue import _ocr_sort_tier
+
+        return QueueItem(book_id, "A Scan", TIER_NEEDS_OCR, SOURCE_PDF_OCR,
+                         "x.pdf", sort_tier=_ocr_sort_tier(state, book_id))
+
+    def test_an_armed_scan_sorts_ahead_of_the_gpu_tiers(self):
+        from app.core.ingest_queue import (
+            TIER_REVIEWED_AUDIO, TIER_TWIN, _sort_key,
+        )
+
+        armed = self._item({"books": {"scan-1": {"status": STATUS_PENDING}}})
+        twin = QueueItem("t", "Twin", TIER_TWIN, "epub", "t.epub")
+        audio = QueueItem("a", "Audio", TIER_REVIEWED_AUDIO, "transcript",
+                          review_count=9, needs_gpu=True)
+        order = [i.book_id for i in sorted([audio, armed, twin], key=_sort_key)]
+        assert order == ["t", "scan-1", "a"]
+
+    def test_an_unarmed_scan_stays_at_the_back(self):
+        from app.core.ingest_queue import TIER_REST_AUDIO, _sort_key
+
+        held = self._item({"books": {"scan-1": {"status": STATUS_NEEDS_OCR}}})
+        audio = QueueItem("a", "Audio", TIER_REST_AUDIO, "transcript", needs_gpu=True)
+        assert [i.book_id for i in sorted([held, audio], key=_sort_key)] == ["a", "scan-1"]
+
+    def test_a_book_with_no_state_row_stays_at_the_back(self):
+        assert self._item({"books": {}}).sort_tier is None
+
+    def test_the_identity_tier_is_untouched_so_the_lane_label_is_stable(self):
+        # ⚠️ `tier` is a cross-repo contract (ingest_queue_summary's lane
+        # labels, read by the sibling repo's status page). Promotion changes
+        # WHERE an item sorts, never WHAT it is.
+        from app.core.ingest_queue_summary import LANE_BY_TIER
+
+        armed = self._item({"books": {"scan-1": {"status": STATUS_PENDING}}})
+        assert armed.tier == TIER_NEEDS_OCR
+        assert LANE_BY_TIER[armed.tier] == "deferred-pdf"
+
+    def test_nothing_else_gains_a_sort_tier(self):
+        # A feature nobody switched on must not be able to move the queue.
+        from app.core.ingest_queue import TIER_EPUB, _sort_key
+
+        plain = QueueItem("e", "An EPUB", TIER_EPUB, "epub", "e.epub")
+        assert plain.sort_tier is None
+        assert _sort_key(plain)[0] == TIER_EPUB
+
+
 class TestTheRunLoopWiring:
     """⚠️ The one thing every other test here cannot see: whether `run()`
     actually LETS an armed tier-6 book through to the pack path, and still
