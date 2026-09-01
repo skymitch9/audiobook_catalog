@@ -764,6 +764,633 @@ class TestPauseMode:
             assert blocked and "paused" in blocked.lower()
 
 
+class TestRecurringBlockers:
+    """Standing weekly quiet hours (owner ask 2026-08-31, verbatim: *"then i can
+    set blocker times that are reoccuring. for instance MTW 630-1015 I want
+    ingestion paused."*).
+
+    ⚠️ THESE ARE WALL-CLOCK, NOT INSTANTS, and that is what every test here is
+    really pinning. `pause_windows` carry a full dated ISO instant at each end
+    and happen once; a recurring blocker is a weekday set plus two "HH:MM"
+    readings and means the same thing every week. Getting that wrong is not a
+    crash - it is the GPU running through hours the owner reserved, silently.
+
+    ⚠️ 2026-08-18 IS A TUESDAY (ISO weekday 2), which is what `phx()` returns
+    by default and what the MTW `[1, 2, 3]` fixture below is aimed at.
+    """
+
+    MTW_EVENING = [{"days": [1, 2, 3], "from": "18:30", "until": "22:15"}]
+
+    # -- parsing "HH:MM" -----------------------------------------------------
+    @pytest.mark.parametrize("raw,minutes", [
+        ("00:00", 0), ("6:30", 390), ("06:30", 390), ("18:30", 1110),
+        ("23:59", 1439),
+    ])
+    def test_hhmm_parses_to_minutes_past_midnight(self, raw, minutes):
+        assert ic.parse_hhmm(raw) == minutes
+
+    @pytest.mark.parametrize("bad", [
+        None, "", "  ", "6:30pm", "18:60", "24:00", "1830", "18:3", 1830,
+        "18:30:00", "-1:00", ["18:30"],
+    ])
+    def test_an_unparseable_time_is_none_not_midnight(self, bad):
+        """⚠️ None means UNUSABLE and the whole row is dropped. Re-basing a
+        failed parse to 00:00 would move a 6:30 PM blocker to the top of the day
+        and block the nightly window instead of the owner's evening."""
+        assert ic.parse_hhmm(bad) is None
+
+    # -- validation, in `clean_id_list`'s posture ----------------------------
+    def test_a_good_row_is_kept_and_normalised(self):
+        kept, bad = ic.clean_recurring_windows([{"days": [3, 1, 1], "from": "6:30",
+                                                 "until": "10:15"}])
+        assert bad == []
+        assert kept == [{"days": [1, 3], "from": "06:30", "until": "10:15"}]
+
+    @pytest.mark.parametrize("row", [
+        "not a dict", None, 7, [],
+        {"days": [], "from": "18:30", "until": "22:15"},          # no days
+        {"days": [0], "from": "18:30", "until": "22:15"},         # 0 is not ISO
+        {"days": [8], "from": "18:30", "until": "22:15"},
+        {"days": [True], "from": "18:30", "until": "22:15"},      # bool is not a day
+        {"days": ["1"], "from": "18:30", "until": "22:15"},
+        {"days": [1], "from": "6:30pm", "until": "22:15"},
+        {"days": [1], "until": "22:15"},                          # no `from`
+        {"days": [1], "from": "18:30"},                           # no `until`
+        {"days": [1], "from": "18:30", "until": "18:30"},         # zero-length
+    ])
+    def test_a_malformed_row_is_dropped_and_carried_not_crashed(self, row):
+        """⚠️ Another repo's Worker writes this, so its shape is somebody else's
+        promise. A bad row must never crash the guard - and must never be
+        dropped SILENTLY either, because an invisible blocker is the GPU running
+        through hours the owner blocked."""
+        kept, bad = ic.clean_recurring_windows([row])
+        assert kept == [] and bad == [row]
+
+    def test_a_non_list_is_no_windows_not_a_crash(self):
+        for raw in (None, "18:30", {"days": [1]}, 7):
+            assert ic.clean_recurring_windows(raw) == ([], [])
+
+    def test_the_bound_is_enforced_and_the_excess_is_reported(self):
+        rows = [{"days": [1], "from": "01:00", "until": "02:00"}
+                for _ in range(ic.MAX_RECURRING_WINDOWS + 3)]
+        kept, bad = ic.clean_recurring_windows(rows)
+        assert len(kept) == ic.MAX_RECURRING_WINDOWS and len(bad) == 3
+
+    def test_rejects_are_carried_on_the_state_for_the_board(self):
+        """⚠️ The `requeue_rejected` lesson, applied to a guard: an entry this
+        reader refused survives every sweep and re-warns once per book unless
+        the consumer can see it and remove it."""
+        state = ic.ControlState(recurring_windows=[{"days": [1], "from": "x", "until": "y"},
+                                                   {"days": [2], "from": "01:00",
+                                                    "until": "02:00"}])
+        assert len(state.recurring_windows) == 1
+        assert state.recurring_rejected == [{"days": [1], "from": "x", "until": "y"}]
+
+    # -- evaluation ----------------------------------------------------------
+    def test_it_blocks_inside_the_hours_on_a_named_day(self):
+        state = ic.ControlState(recurring_windows=self.MTW_EVENING)
+        reason = ic.control_blocks_start(state, phx(19, 0, day=18))   # Tue 7pm
+        assert reason and "recurring blocker" in reason
+
+    def test_the_refusal_names_the_window_in_words(self):
+        """One machine, several rows, none of them visible from the log. A
+        refusal that did not name the row leaves him deleting blockers at
+        random to find the one that bit."""
+        state = ic.ControlState(recurring_windows=self.MTW_EVENING)
+        reason = ic.control_blocks_start(state, phx(19, 0, day=18))
+        assert "Mon Tue Wed" in reason
+        assert "6:30 PM-10:15 PM" in reason and "Phoenix" in reason
+
+    @pytest.mark.parametrize("hour,minute,blocked", [
+        (18, 29, False), (18, 30, True), (22, 14, True), (22, 15, False),
+    ])
+    def test_the_edges_are_inclusive_start_exclusive_end(self, hour, minute, blocked):
+        state = ic.ControlState(recurring_windows=self.MTW_EVENING)
+        got = ic.control_blocks_start(state, phx(hour, minute, day=18)) is not None
+        assert got is blocked
+
+    def test_the_wrong_weekday_is_not_blocked(self):
+        """Thursday is not in MTW, and 7pm Thursday must run."""
+        state = ic.ControlState(recurring_windows=self.MTW_EVENING)
+        assert ic.control_blocks_start(state, phx(19, 0, day=20)) is None
+
+    # -- the midnight crossing, which is a test and not a footnote -----------
+    CROSSES = [{"days": [5], "from": "22:00", "until": "02:00"}]   # Fri 10pm -> Sat 2am
+
+    def test_a_crossing_window_blocks_the_tail_of_the_named_day(self):
+        assert ic.control_blocks_start(
+            ic.ControlState(recurring_windows=self.CROSSES), phx(23, 0, day=21)) is not None
+
+    def test_a_crossing_window_blocks_the_head_of_the_following_day(self):
+        """⚠️ THE LINE THAT IS EASY TO GET WRONG. Saturday 01:00 is inside a
+        FRIDAY blocker, because a window belongs to the day it STARTS. Testing
+        Saturday's own membership would read this row as "Saturday 10pm to
+        Saturday 2am" - i.e. nothing, or 22 hours, depending on the reading."""
+        assert ic.control_blocks_start(
+            ic.ControlState(recurring_windows=self.CROSSES), phx(1, 0, day=22)) is not None
+
+    def test_a_crossing_window_lapses_at_its_until(self):
+        assert ic.control_blocks_start(
+            ic.ControlState(recurring_windows=self.CROSSES), phx(2, 0, day=22)) is None
+
+    def test_a_crossing_window_does_not_block_the_named_days_own_morning(self):
+        """Friday 01:00 is NOT inside "Friday 22:00 -> 02:00"; Thursday's row
+        would have to exist for that."""
+        assert ic.control_blocks_start(
+            ic.ControlState(recurring_windows=self.CROSSES), phx(1, 0, day=21)) is None
+
+    # -- Phoenix pinning -----------------------------------------------------
+    def test_the_clock_is_phoenix_even_when_the_caller_hands_over_utc(self):
+        """⚠️ 2026-08-19 02:00 UTC is 2026-08-18 19:00 PHOENIX - a different day
+        AND a different hour. Evaluating the weekday in UTC would move every
+        evening blocker onto the wrong row of the week."""
+        state = ic.ControlState(recurring_windows=self.MTW_EVENING)
+        utc = datetime(2026, 8, 19, 2, 0, tzinfo=timezone.utc)
+        assert ic.control_blocks_start(state, utc) is not None
+
+    def test_a_naive_clock_is_read_as_phoenix(self):
+        state = ic.ControlState(recurring_windows=self.MTW_EVENING)
+        assert ic.recurring_window_in_force(
+            state.recurring_windows, datetime(2026, 8, 18, 19, 0)) is not None
+
+    # -- absolute while in force ---------------------------------------------
+    def test_a_blocker_beats_manual_only_and_the_scheduled_window(self):
+        """⚠️ Same rule as `pause_windows`: a blocker IS a schedule the owner
+        set, so 'let the scheduled window continue' must not override one or
+        blockers would mean nothing at all."""
+        state = ic.ControlState(pause_mode=ic.PAUSE_MODE_MANUAL_ONLY,
+                                recurring_windows=self.MTW_EVENING)
+        assert ic.control_blocks_start(state, phx(19, 0, day=18), window_ok=True) is not None
+
+    def test_a_blocker_that_overlaps_the_nightly_window_eats_the_overlap(self):
+        """⚠️ The consequence the owner was told about and accepted (design §4,
+        2026-08-31: *"pm and your rule is fine"*). A 6:30-10:15 AM blocker takes
+        the window's last 90 minutes on every named day."""
+        state = ic.ControlState(recurring_windows=[
+            {"days": [1, 2, 3], "from": "06:30", "until": "10:15"}])
+        assert ic.control_blocks_start(state, phx(5, 0, day=18)) is None
+        assert ic.control_blocks_start(state, phx(7, 0, day=18)) is not None
+
+    def test_a_blocker_beats_an_idle_gpu_through_decide_start(self, monkeypatch):
+        monkeypatch.setattr(ic, "gpu_utilisation", lambda *a, **k: 0)
+        state = ic.ControlState(recurring_windows=[
+            {"days": [2], "from": "00:00", "until": "08:00"}])
+        decision = ic.decide_start(state, now=phx(2, day=18), needs_gpu=True,
+                                   audio_seconds=3600)
+        assert decision.may_start is False and "recurring blocker" in decision.reason
+
+    def test_no_blockers_is_the_old_behaviour_exactly(self):
+        """⚠️ The regression pin. Every control document written before today
+        lacks the field, and every one of them must decide exactly as it did."""
+        assert ic.ControlState().recurring_windows == []
+        assert ic.control_blocks_start(ic.ControlState(), phx(19, day=18)) is None
+
+
+# ------------------------------------------------- do-not-disturb processes ---
+
+def _fake_tasklist(monkeypatch, *names):
+    """Fake the ONE subprocess boundary, not the guard above it.
+
+    ⚠️ No test may run the real `tasklist`: the answer would be whatever this
+    developer happens to have open, and the POSIX CI runner has no tasklist at
+    all - which correctly reads as UNREADABLE and would fail every start test
+    for the right reason at the wrong time.
+    """
+    rows = "".join(f'"{n}","{4000 + i}","Console","1","12,345 K"\n'
+                   for i, n in enumerate(names))
+    monkeypatch.setattr(ic.subprocess, "run", lambda *a, **k: _Proc(rows))
+    return rows
+
+
+class _Proc:
+    def __init__(self, stdout, returncode=0):
+        self.stdout, self.returncode, self.stderr = stdout, returncode, ""
+
+
+class TestDoNotDisturbProcesses:
+    """🔴 THE 2026-09-01 INCIDENT. The 00:00 window opened, batch-16
+    transcription started, and the owner was playing World of Warcraft on the
+    same PC. Owner, verbatim: *"I was playing wow at midnight and the ingestion
+    didnt pause. is there an alternate check I can add to make sure World of
+    Warcraft is an exemption."*
+
+    ⚠️ NO UTILISATION NUMBER COULD HAVE CAUGHT IT, which is why the fix is a
+    new KIND of check and not a stricter threshold. Inside the window the GPU
+    test is a single lenient poll by design ("at 2am the window IS the
+    guarantee") and this module's own comments already say a game on a menu
+    reads 3%. Process PRESENCE is the signal an idle frame cannot fake.
+    """
+
+    WOW = ["Wow.exe", "WowClassic.exe"]
+
+    def test_the_2026_09_01_wow_incident_is_refused_inside_the_window(self, monkeypatch):
+        """⚠️ THE FAILING-BEFORE TEST. Before this feature every one of the five
+        gates said yes at 00:00 with a game running - the hour was ours, the
+        card was idle between frames, the book fitted - and batch-16 started."""
+        monkeypatch.setattr(ic, "gpu_utilisation", lambda *a, **k: 3)
+        _fake_tasklist(monkeypatch, "explorer.exe", "Wow.exe", "Discord.exe")
+        decision = ic.decide_start(ic.ControlState(exempt_processes=self.WOW),
+                                   now=phx(0, 5, day=18), needs_gpu=True,
+                                   audio_seconds=3600)
+        assert decision.may_start is False
+        assert "Wow.exe is running" in decision.reason
+        assert "the machine is in use" in decision.reason
+
+    def test_it_blocks_the_cpu_lane_too(self, monkeypatch):
+        """Owner, 2026-09-01: *"block everything"*. EPUB packing is cheap, but
+        the CPU guard's 75% bar is a THRESHOLD and thresholds are exactly what
+        this incident proved insufficient."""
+        _fake_tasklist(monkeypatch, "Wow.exe")
+        decision = ic.decide_start(ic.ControlState(exempt_processes=self.WOW),
+                                   now=phx(2), needs_gpu=False, sleep=lambda _s: None)
+        assert decision.may_start is False and "Wow.exe" in decision.reason
+
+    def test_it_blocks_an_opportunistic_daytime_start(self, monkeypatch):
+        monkeypatch.setattr(ic, "gpu_utilisation", lambda *a, **k: 1)
+        _fake_tasklist(monkeypatch, "WowClassic.exe")
+        decision = ic.decide_start(ic.ControlState(exempt_processes=self.WOW),
+                                   now=phx(14), needs_gpu=True, audio_seconds=3600,
+                                   sleep=lambda _s: None)
+        assert decision.may_start is False and "WowClassic.exe" in decision.reason
+
+    def test_the_match_is_case_insensitive(self, monkeypatch):
+        """Windows filenames are case-insensitive, so the same binary can be
+        listed as `WOW.EXE` or `Wow.exe` depending on how it was launched."""
+        _fake_tasklist(monkeypatch, "WOW.EXE")
+        assert ic.machine_in_use(["wow.exe"]) == "WOW.EXE"
+
+    def test_the_match_is_exact_not_a_substring(self, monkeypatch):
+        """⚠️ A substring match would let "wow" fire on `PowerToys.exe`, and a
+        guard that stops the night for the wrong process is one he deletes."""
+        _fake_tasklist(monkeypatch, "WowLauncher.exe", "PowerToys.exe")
+        assert ic.machine_in_use(["Wow.exe"]) is None
+
+    def test_an_unreadable_listing_is_treated_as_in_use(self, monkeypatch):
+        """⚠️ The same fail-toward-not-starting as `gpu_is_free` and the CPU
+        guard. The escape from a permanently broken tasklist is deleting the
+        list on the card, not a silent start beside his game."""
+        monkeypatch.setattr(ic, "running_process_names", lambda *a, **k: None)
+        found = ic.machine_in_use(self.WOW)
+        assert found == ic.TASKLIST_UNREADABLE
+        assert "unreadable" in ic.machine_in_use_words(found)
+        assert "IN USE" in ic.machine_in_use_words(found)
+
+    def test_an_unreadable_listing_refuses_a_start(self, monkeypatch):
+        monkeypatch.setattr(ic, "gpu_utilisation", lambda *a, **k: 3)
+        monkeypatch.setattr(ic.subprocess, "run", lambda *a, **k: _Proc("", returncode=1))
+        decision = ic.decide_start(ic.ControlState(exempt_processes=self.WOW),
+                                   now=phx(2), needs_gpu=True, audio_seconds=3600)
+        assert decision.may_start is False and "IN USE" in decision.reason
+
+    def test_an_empty_list_spawns_no_subprocess(self, monkeypatch):
+        """⚠️ Asked once per book, and the common case is a list nobody filled
+        in. 138 EPUB starts a night must not each pay a subprocess to be told
+        there was nothing to compare against."""
+        def explode(*a, **k):
+            raise AssertionError("tasklist must not run with an empty exempt list")
+
+        monkeypatch.setattr(ic.subprocess, "run", explode)
+        assert ic.machine_in_use([]) is None
+        assert ic.machine_in_use(None) is None
+        assert ic.process_blocks_start(ic.ControlState()) is None
+
+    def test_a_free_machine_lets_the_start_through(self, monkeypatch):
+        monkeypatch.setattr(ic, "gpu_utilisation", lambda *a, **k: 3)
+        _fake_tasklist(monkeypatch, "explorer.exe", "chrome.exe")
+        decision = ic.decide_start(ic.ControlState(exempt_processes=self.WOW),
+                                   now=phx(2), needs_gpu=True, audio_seconds=3600)
+        assert decision.may_start is True
+
+    def test_the_deadline_still_refuses_before_any_tasklist_runs(self, monkeypatch):
+        """Ordering: the deadline is free arithmetic and near a boundary EVERY
+        remaining book refuses. Paying a subprocess per refusal there would
+        spend 25 tasklists to learn what the clock already said."""
+        def explode(*a, **k):
+            raise AssertionError("no subprocess may run after a deadline refusal")
+
+        monkeypatch.setattr(ic.subprocess, "run", explode)
+        monkeypatch.setattr(ic, "gpu_utilisation", explode)
+        decision = ic.decide_start(ic.ControlState(exempt_processes=self.WOW),
+                                   now=phx(7, 40), needs_gpu=True,
+                                   audio_seconds=20 * 3600, factors=[50.0])
+        assert decision.may_start is False and "holding" in decision.reason
+
+    def test_dont_check_until_prevents_the_tasklist_too(self, monkeypatch):
+        """⚠️ A don't-check is a spend-nothing instruction, and spawning a
+        process is spending."""
+        def explode(*a, **k):
+            raise AssertionError("nothing may be polled while dont_check_until is live")
+
+        monkeypatch.setattr(ic.subprocess, "run", explode)
+        monkeypatch.setattr(ic, "gpu_utilisation", explode)
+        state = ic.ControlState(dont_check_until="2026-08-19T00:00:00-07:00",
+                                exempt_processes=self.WOW)
+        assert ic.decide_start(state, now=phx(20), needs_gpu=True).may_start is False
+
+    def test_a_pause_is_not_paid_for_with_a_tasklist(self, monkeypatch):
+        """A hard-blocked tick must not spend anything either."""
+        def explode(*a, **k):
+            raise AssertionError("tasklist must not run while hard-paused")
+
+        monkeypatch.setattr(ic.subprocess, "run", explode)
+        state = ic.ControlState(paused=True, exempt_processes=self.WOW)
+        assert ic.decide_start(state, now=phx(2), needs_gpu=True).may_start is False
+
+    def test_the_now_path_binds_too(self, monkeypatch):
+        """⚠️ `_control_or_guard` is a SECOND gate chain, not a call into
+        `decide_start`, so a new gate has to be added there as well or it
+        silently does not exist on the `--now` path."""
+        from app.tools.ingest_books import _control_or_guard
+
+        _fake_tasklist(monkeypatch, "Wow.exe")
+        blocked = _control_or_guard(ic.ControlState(exempt_processes=self.WOW),
+                                    needs_gpu=True)
+        assert blocked and "Wow.exe" in blocked
+
+    # -- the parser -----------------------------------------------------------
+    def test_parses_a_real_tasklist_csv_row(self):
+        raw = ('"System Idle Process","0","Services","0","8 K"\n'
+               '"Wow.exe","23188","Console","1","3,214,908 K"\n')
+        assert ic.parse_tasklist_names(raw) == ["System Idle Process", "Wow.exe"]
+
+    def test_the_memory_columns_comma_cannot_split_a_row(self):
+        """`"3,214,908 K"` is why this reads quoted fields instead of splitting
+        on the comma - a split would invent process names out of fragments."""
+        raw = '"Wow.exe","23188","Console","1","3,214,908 K"\n'
+        assert ic.parse_tasklist_names(raw) == ["Wow.exe"]
+
+    @pytest.mark.parametrize("raw", ["", "   ", "ERROR: Access is denied.\n", None])
+    def test_an_unparseable_listing_is_empty_and_becomes_none(self, raw, monkeypatch):
+        assert ic.parse_tasklist_names(raw) == []
+        monkeypatch.setattr(ic.subprocess, "run", lambda *a, **k: _Proc(raw or ""))
+        assert ic.running_process_names() is None
+
+    def test_a_failed_tasklist_is_none_not_an_empty_machine(self, monkeypatch):
+        monkeypatch.setattr(ic.subprocess, "run", lambda *a, **k: _Proc('"a.exe","1"\n', 1))
+        assert ic.running_process_names() is None
+
+        def boom(*a, **k):
+            raise OSError("tasklist not found")
+
+        monkeypatch.setattr(ic.subprocess, "run", boom)
+        assert ic.running_process_names() is None
+
+
+class TestSoftPauseRelease:
+    """Owner ask 2026-08-31, verbatim: *"i want any pause thats not the 'until i
+    unpause' to be unpaused by either next scheduled start or the next gpu free
+    availability"*.
+
+    ⚠️ THE ENCODING IS FLAG-OFF PLUS A CONDITION, and it has to be: `paused:
+    true` is unconditional and never consults a timer, so a self-ending pause
+    written flag-ON would still be paused forever at 12:01.
+
+    ⚠️ CLEAR-THEN-START, NEVER START-THEN-CLEAR. Running books while the card
+    still says paused is the dishonest board this whole surface exists to
+    prevent, so a failed clearing write keeps the pause.
+    """
+
+    CEILING = "2026-08-19T00:00:00-07:00"      # midnight tonight, from phx(20)
+
+    def soft(self, **kwargs):
+        fields = dict(paused=False, paused_until=self.CEILING,
+                      pause_until_gpu_free=True)
+        fields.update(kwargs)
+        return ic.ControlState(**fields)
+
+    def test_it_releases_when_the_gpu_is_sustained_free_and_the_machine_is_idle(
+            self, monkeypatch):
+        monkeypatch.setattr(ic, "gpu_utilisation", lambda *a, **k: 4)
+        monkeypatch.setattr(ic, "running_process_names", lambda *a, **k: ["explorer.exe"])
+        written = {}
+        monkeypatch.setattr(ic, "write_control", lambda payload, **k: written.update(payload) or True)
+        state = self.soft()
+        decision = ic.decide_start(state, now=phx(20), needs_gpu=True,
+                                   audio_seconds=3600, sleep=lambda _s: None)
+        assert decision.may_start is True
+        # ⚠️ MASKED: exactly the two fields that changed, and nothing else. A
+        # whole-document write would re-assert `requeue` entries the dashboard
+        # added since this run read the document.
+        assert written == {"paused_until": None, "pause_until_gpu_free": False}
+        # ...and the in-memory state now matches what was written, or the board
+        # would say running while this tick still said paused.
+        assert state.paused_until is None and state.pause_until_gpu_free is False
+
+    def test_a_busy_gpu_refuses_with_the_reading_and_the_ceiling(self, monkeypatch):
+        monkeypatch.setattr(ic, "gpu_utilisation", lambda *a, **k: 84)
+        monkeypatch.setattr(ic, "running_process_names", lambda *a, **k: ["explorer.exe"])
+        monkeypatch.setattr(ic, "write_control", lambda *a, **k: pytest.fail(
+            "nothing may be cleared while the GPU is busy"))
+        decision = ic.decide_start(self.soft(), now=phx(20), needs_gpu=True,
+                                   audio_seconds=3600, sleep=lambda _s: None)
+        assert decision.may_start is False
+        assert "soft-paused" in decision.reason and "84%" in decision.reason
+        assert "at latest 00:00" in decision.reason
+
+    def test_a_menu_dip_cannot_release_it_while_the_game_is_running(self, monkeypatch):
+        """⚠️ THE HALF THAT WOULD RE-CREATE THE INCIDENT IF IT WERE MISSING. A
+        game sitting on a menu reads 3% twice in a row two minutes apart, so the
+        GPU condition ALONE would clear the pause the owner set because he was
+        playing."""
+        monkeypatch.setattr(ic, "gpu_utilisation", lambda *a, **k: 3)
+        monkeypatch.setattr(ic, "running_process_names", lambda *a, **k: ["Wow.exe"])
+        monkeypatch.setattr(ic, "write_control", lambda *a, **k: pytest.fail(
+            "a soft pause must not release while a do-not-disturb process runs"))
+        decision = ic.decide_start(self.soft(exempt_processes=["Wow.exe"]),
+                                   now=phx(20), needs_gpu=True, audio_seconds=3600,
+                                   sleep=lambda _s: None)
+        assert decision.may_start is False
+        assert "soft-paused" in decision.reason and "Wow.exe is running" in decision.reason
+
+    def test_a_failed_clearing_write_keeps_the_pause(self, monkeypatch):
+        """⚠️ CLEAR-THEN-START. If the document still says paused, this tick
+        stays paused and says why - a start here would leave the card lying."""
+        monkeypatch.setattr(ic, "gpu_utilisation", lambda *a, **k: 2)
+        monkeypatch.setattr(ic, "running_process_names", lambda *a, **k: ["explorer.exe"])
+        monkeypatch.setattr(ic, "write_control", lambda *a, **k: False)
+        state = self.soft()
+        decision = ic.decide_start(state, now=phx(20), needs_gpu=True,
+                                   audio_seconds=3600, sleep=lambda _s: None)
+        assert decision.may_start is False
+        assert "FAILED" in decision.reason and "staying paused" in decision.reason
+        assert state.paused_until == self.CEILING, "the state must not pretend it cleared"
+
+    def test_a_sustained_check_that_fails_the_second_poll_does_not_release(self, monkeypatch):
+        readings = iter([3, 3, 90])          # the cheap poll, then two sustained
+        monkeypatch.setattr(ic, "gpu_utilisation", lambda *a, **k: next(readings))
+        monkeypatch.setattr(ic, "running_process_names", lambda *a, **k: ["explorer.exe"])
+        monkeypatch.setattr(ic, "write_control", lambda *a, **k: pytest.fail(
+            "a single free poll is not sustained-free"))
+        decision = ic.decide_start(self.soft(), now=phx(20), needs_gpu=True,
+                                   audio_seconds=3600, sleep=lambda _s: None)
+        assert decision.may_start is False and "did not stay under" in decision.reason
+
+    def test_an_unreadable_gpu_does_not_release_it(self, monkeypatch):
+        monkeypatch.setattr(ic, "gpu_utilisation", lambda *a, **k: None)
+        monkeypatch.setattr(ic, "running_process_names", lambda *a, **k: ["explorer.exe"])
+        monkeypatch.setattr(ic, "write_control", lambda *a, **k: pytest.fail(
+            "an unreadable GPU is busy, not free"))
+        decision = ic.decide_start(self.soft(), now=phx(20), needs_gpu=True,
+                                   audio_seconds=3600, sleep=lambda _s: None)
+        assert decision.may_start is False and "unreadable" in decision.reason
+
+    # -- what may NOT be released -------------------------------------------
+    def test_a_hard_pause_is_never_released_and_is_never_probed(self, monkeypatch):
+        """⚠️ `paused: true` is the owner's 'until I unpause'. A release path
+        that out-ranked it would make every other guard advisory."""
+        def explode(*a, **k):
+            raise AssertionError("a hard pause must not be probed at")
+
+        monkeypatch.setattr(ic, "gpu_utilisation", explode)
+        monkeypatch.setattr(ic.subprocess, "run", explode)
+        monkeypatch.setattr(ic, "write_control", explode)
+        state = ic.ControlState(paused=True, paused_until=self.CEILING,
+                                pause_until_gpu_free=True)
+        assert ic.decide_start(state, now=phx(20), needs_gpu=True).may_start is False
+
+    def test_a_recurring_blocker_is_never_released_and_is_never_probed(self, monkeypatch):
+        """⚠️ The refusal here still reads "paused until ...", because the soft
+        ceiling is checked before the blockers and it is the first thing that
+        refuses. That is the correct wording for what the owner did most
+        recently, and it is not the point of this test: the point is that
+        NOTHING WAS POLLED and the pause was NOT cleared. A release path that
+        out-ranked a blocker would make every other guard in this module
+        advisory - and it would clear the pause at 20:00 only for the blocker to
+        refuse the start anyway, leaving the card unpaused during hours the
+        owner blocked."""
+        def explode(*a, **k):
+            raise AssertionError("a blocker is absolute; nothing may be probed")
+
+        monkeypatch.setattr(ic, "gpu_utilisation", explode)
+        monkeypatch.setattr(ic.subprocess, "run", explode)
+        monkeypatch.setattr(ic, "write_control", explode)
+        state = self.soft(recurring_windows=[{"days": [2], "from": "18:00",
+                                              "until": "23:00"}])
+        decision = ic.decide_start(state, now=phx(20, day=18), needs_gpu=True)
+        assert decision.may_start is False
+        assert state.paused_until == self.CEILING and state.pause_until_gpu_free is True
+        # ...and with no soft ceiling in the way the blocker refuses in words.
+        assert "recurring blocker" in ic.decide_start(
+            ic.ControlState(recurring_windows=state.recurring_windows),
+            now=phx(20, day=18), needs_gpu=True).reason
+
+    def test_a_one_shot_pause_window_is_never_released(self, monkeypatch):
+        def explode(*a, **k):
+            raise AssertionError("a pause window is absolute; nothing may be probed")
+
+        monkeypatch.setattr(ic, "gpu_utilisation", explode)
+        monkeypatch.setattr(ic, "write_control", explode)
+        state = self.soft(pause_windows=[{"from": "2026-08-18T19:00:00-07:00",
+                                          "until": "2026-08-19T00:00:00-07:00"}])
+        assert ic.decide_start(state, now=phx(20), needs_gpu=True).may_start is False
+
+    def test_dont_check_until_prevents_every_poll_including_the_release(self, monkeypatch):
+        """⚠️ A don't-check is a spend-nothing instruction and polling is
+        spending - so it outranks even the one probe this module makes while a
+        pause is nominally in force."""
+        def explode(*a, **k):
+            raise AssertionError("nothing may be polled while dont_check_until is live")
+
+        monkeypatch.setattr(ic, "gpu_utilisation", explode)
+        monkeypatch.setattr(ic.subprocess, "run", explode)
+        monkeypatch.setattr(ic, "write_control", explode)
+        state = self.soft(dont_check_until="2026-08-19T00:00:00-07:00")
+        decision = ic.decide_start(state, now=phx(20), needs_gpu=True)
+        assert decision.may_start is False and "not checking until" in decision.reason
+
+    # -- the regression pin --------------------------------------------------
+    def test_an_old_shape_timed_pause_behaves_exactly_as_before(self, monkeypatch):
+        """⚠️ THE PIN. Every control document written before today has a
+        `paused_until` and NO `pause_until_gpu_free`, and every one of them must
+        keep meaning "no starts until that instant, full stop" - no probe, no
+        release, no new subprocess."""
+        def explode(*a, **k):
+            raise AssertionError("an old-shape timed pause must poll nothing")
+
+        monkeypatch.setattr(ic, "gpu_utilisation", explode)
+        monkeypatch.setattr(ic.subprocess, "run", explode)
+        monkeypatch.setattr(ic, "write_control", explode)
+        state = ic.ControlState(paused_until=self.CEILING)   # no new field at all
+        decision = ic.decide_start(state, now=phx(20), needs_gpu=True)
+        assert decision.may_start is False and "paused until" in decision.reason
+
+    def test_an_expired_ceiling_needs_no_release_at_all(self, monkeypatch):
+        """The timer expiring is still the primary exit; the GPU condition only
+        ever ends it EARLY."""
+        monkeypatch.setattr(ic, "gpu_utilisation", lambda *a, **k: 3)
+        monkeypatch.setattr(ic, "write_control", lambda *a, **k: pytest.fail(
+            "an expired ceiling needs no write"))
+        decision = ic.decide_start(self.soft(), now=phx(1, day=19), needs_gpu=True,
+                                   audio_seconds=3600, sleep=lambda _s: None)
+        assert decision.may_start is True
+
+    def test_soft_pause_in_force_is_only_true_when_nothing_else_refuses(self):
+        assert ic.soft_pause_in_force(self.soft(), phx(20)) is True
+        assert ic.soft_pause_in_force(ic.ControlState(paused_until=self.CEILING),
+                                      phx(20)) is False, "no flag, no release"
+        assert ic.soft_pause_in_force(self.soft(paused=True), phx(20)) is False
+        assert ic.soft_pause_in_force(
+            ic.ControlState(readable=False, error="timeout",
+                            paused_until=self.CEILING,
+                            pause_until_gpu_free=True), phx(20)) is False
+
+
+class TestNewControlFieldCoercion:
+    """⚠️ EVERY ONE OF THESE FIELDS IS WRITTEN BY A DIFFERENT REPO'S WORKER, so
+    its shape is somebody else's promise and its content is somebody else's
+    typing. Junk must fail CLOSED in every case - and for these three, "closed"
+    means: never release a pause by accident, never lose a blocker silently,
+    never carry a process name this reader cannot match."""
+
+    @pytest.mark.parametrize("junk", ["true", "false", 1, 0, "yes", [], None,
+                                      {"a": 1}, "True"])
+    def test_only_the_literal_boolean_unlocks_the_release(self, junk):
+        """⚠️ `bool("false")` is True. A permissive coercion here would hand
+        this processor permission to end the owner's pause on a string that
+        says the opposite."""
+        assert ic.ControlState(pause_until_gpu_free=junk).pause_until_gpu_free is False
+
+    def test_the_literal_true_is_honoured(self):
+        assert ic.ControlState(pause_until_gpu_free=True).pause_until_gpu_free is True
+
+    @pytest.mark.parametrize("junk", [None, "MTW 6:30", 7, {"days": [1]},
+                                      [{"days": [1]}], ["18:30"]])
+    def test_junk_recurring_windows_never_reach_the_evaluator(self, junk):
+        state = ic.ControlState(recurring_windows=junk)
+        assert state.recurring_windows == []
+        assert ic.control_blocks_start(state, phx(19, day=18)) is None
+
+    @pytest.mark.parametrize("junk", [None, "Wow.exe", 7, [None], [1], [""],
+                                      ["x" * (ic.MAX_CONTROL_ENTRY_CHARS + 1)]])
+    def test_junk_exempt_processes_never_reach_tasklist(self, junk, monkeypatch):
+        def explode(*a, **k):
+            raise AssertionError("an unusable exempt list must spawn nothing")
+
+        monkeypatch.setattr(ic.subprocess, "run", explode)
+        state = ic.ControlState(exempt_processes=junk)
+        assert state.exempt_processes == []
+        assert ic.process_blocks_start(state) is None
+
+    def test_exempt_rejects_are_carried_for_the_board(self):
+        state = ic.ControlState(exempt_processes=["Wow.exe", 7, None])
+        assert state.exempt_processes == ["Wow.exe"]
+        assert state.exempt_rejected == [7, None]
+
+    def test_the_exempt_bound_is_enforced(self):
+        state = ic.ControlState(
+            exempt_processes=[f"game{i}.exe" for i in range(ic.MAX_EXEMPT_PROCESSES + 4)])
+        assert len(state.exempt_processes) == ic.MAX_EXEMPT_PROCESSES
+        assert len(state.exempt_rejected) == 4
+
+    def test_a_hand_built_default_state_carries_none_of_it(self):
+        """The no-credential path and every test build a bare ControlState; it
+        must be exactly as permissive as it was before today."""
+        state = ic.ControlState()
+        assert state.pause_until_gpu_free is False
+        assert state.recurring_windows == [] and state.exempt_processes == []
+        assert state.recurring_rejected == [] and state.exempt_rejected == []
+
+
 class TestDecideStart:
     def test_cpu_work_is_gpu_guard_exempt(self, monkeypatch):
         """⚠️ CHANGED 2026-08-18 and the old assertion was the BUG. This used to
