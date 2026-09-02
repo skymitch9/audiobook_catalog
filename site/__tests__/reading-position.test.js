@@ -118,6 +118,42 @@ describe('the stored row', () => {
     expect(p(NaN)).toBeUndefined();
     expect(p(undefined)).toBeUndefined();
   });
+
+  // AUDIO PLAYER PHASE 3 (design §9.2 #2) — per-book playback speed rides the
+  // position document, so it follows a person between devices.
+  it('carries a playback rate when there is one, and no field when there is not', () => {
+    const withRate = makePosition({
+      uid: 'u', bookId: 'b', anchor: '', format: 'audio',
+      pos: { kind: 'audio', value: { chapter: 7, offsetSec: 812.4 } }, rate: 1.5,
+    });
+    expect(withRate.rate).toBe(1.5);
+
+    // ⚠️ THE EBOOK READER MUST BE UNCHANGED. It has no rate and passes none,
+    // and a document that gained `rate: 1` would be asserting something
+    // nobody measured.
+    const ebook = makePosition({
+      uid: 'u', bookId: 'b', anchor: '', format: 'pdf',
+      pos: { kind: 'page', value: 3 },
+    });
+    expect('rate' in ebook).toBe(false);
+    for (const bad of [0, -1, NaN, Infinity, '1.5', null]) {
+      const row = makePosition({
+        uid: 'u', bookId: 'b', anchor: '', format: 'audio',
+        pos: { kind: 'audio', value: { chapter: 0, offsetSec: 0 } }, rate: bad,
+      });
+      expect('rate' in row).toBe(false);
+    }
+  });
+
+  it('keeps an AUDIO locator as a map, atomically with its kind', () => {
+    const row = makePosition({
+      uid: 'u', bookId: 'skyward', anchor: 'b-4754c8e4548e', format: 'audio',
+      pos: { kind: 'audio', value: { chapter: 7, offsetSec: 812.4, seconds: 5312.9 } },
+    });
+    // 🔴 Design §7.4: a chapter and an offset, never a single absolute second.
+    expect(row.pos.kind).toBe('audio');
+    expect(row.pos.value).toEqual({ chapter: 7, offsetSec: 812.4, seconds: 5312.9 });
+  });
 });
 
 describe('which row wins', () => {
@@ -157,6 +193,38 @@ describe('whether to ask', () => {
       { pos: { kind: 'cfi', value: 7 } },
     )).toBe(false);
     expect(samePlace(null, { pos: { kind: 'page', value: 7 } })).toBe(false);
+  });
+
+  // 🔴 AUDIO PLAYER PHASE 3 — THE ONE THAT WOULD HAVE KILLED THE OFFER
+  // ENTIRELY. An audio locator is a MAP, and `String()` folds every map to
+  // "[object Object]": the original one-line comparison would have called two
+  // completely different audio positions the same place and suppressed the
+  // resume bar for ever, with nothing to notice.
+  it('compares AUDIO locators by chapter and offset, not by String()', () => {
+    const a = { pos: { kind: 'audio', value: { chapter: 7, offsetSec: 812.4 } } };
+    const b = { pos: { kind: 'audio', value: { chapter: 40, offsetSec: 3.2 } } };
+    expect(String(a.pos.value)).toBe(String(b.pos.value));   // the trap itself
+    expect(samePlace(a, b)).toBe(false);
+  });
+
+  it('treats audio positions within a few seconds as the same place', () => {
+    // ⚠️ A playhead is continuous where a page number is discrete. An offer
+    // that appears because two devices differ by half a second is noise, and
+    // noise trains people to dismiss the bar without reading it.
+    const at = (s) => ({ pos: { kind: 'audio', value: { chapter: 7, offsetSec: s } } });
+    expect(samePlace(at(812.4), at(813.9))).toBe(true);
+    expect(samePlace(at(812.4), at(900))).toBe(false);
+    // A different chapter is never the same place, however close the offsets.
+    expect(samePlace(
+      { pos: { kind: 'audio', value: { chapter: 7, offsetSec: 1 } } },
+      { pos: { kind: 'audio', value: { chapter: 8, offsetSec: 1 } } },
+    )).toBe(false);
+  });
+
+  it('refuses to call an unreadable audio locator the same place as anything', () => {
+    const good = { pos: { kind: 'audio', value: { chapter: 7, offsetSec: 812.4 } } };
+    const bad = { pos: { kind: 'audio', value: { chapter: 7, offsetSec: NaN } } };
+    expect(samePlace(good, bad)).toBe(false);
   });
 });
 

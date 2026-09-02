@@ -1,5 +1,5 @@
 /**
- * listen.js — the audiobook player's whole brain (audio player PHASE 2).
+ * listen.js — the audiobook player's whole brain (audio player PHASES 2 + 3).
  *
  * Loaded as a module by `listen.html`. ⚠️ IT IS AN EXTERNAL FILE ON PURPOSE:
  * /listen's Content-Security-Policy (site/_headers) is `script-src 'self'`
@@ -45,8 +45,10 @@
  * `seekto`, and the lock screen's own skip actions. Design §8 records this
  * exact defect shipping in the ebook reader (`reader-page.md` §7.6): a second
  * page-turn path bypassed the position keeper and stopped saving the spot,
- * silently. Phase 3 hangs position writes off `seekTo`; a path that bypasses
- * it will look exactly like that bug.
+ * silently. 🔴 **Phase 3 now hangs the position write off the bottom of
+ * `seekTo`**, so an eighth seek path inherits it for free and a path that
+ * bypasses it will look exactly like that bug. A test fails if
+ * `audio.currentTime =` appears more than once in this file.
  *
  * **3. `playbackRate` RESETS TO 1.0 WHEN `src` CHANGES** (§6). Anything that
  * reloads the element must re-apply it. `applyRate()` exists so there is one
@@ -64,11 +66,24 @@
  * production behaviour. `audio-seam.js`'s `swPaths()` derives both the script
  * URL and the scope from this page's own directory, so each lane gets its own
  * worker — and this file must always pass it `location.pathname`.
+ *
+ * **6. THE POSITION STORE IS `reading-position.js`, NOT SOMETHING NEW.**
+ * Design §7.4: *"one new `kind`, not a new store"*. The doc id, the two
+ * stores, last-write-wins and the offer-never-apply manners are all its; what
+ * lives in `audio-position.js` is the audio-shaped locator — `{chapter,
+ * offsetSec}`, which survives a re-encode where an absolute second does not.
+ * ⚠️ There is a SECOND, much smaller write — `audio_positions/{anchor}`, an
+ * opaque anchor and a timestamp — and it is NOT a duplicate of the position:
+ * it is the eviction pass's MID-BOOK SHIELD, which cannot read the real store
+ * because that store is deliberately unlistable. §4 of `audio-position.js`
+ * carries the whole argument, and the firestore.rules block repeats it.
  */
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
-import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
-import { FIREBASE_CONFIG } from './fb-env.js';
+import {
+  getFirestore, doc as fsDoc, setDoc,
+} from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+import { FIREBASE_CONFIG, col } from './fb-env.js';
 import { mountAccountModal } from './account-modal.js';
 // ⚠️ `identity.getIdToken(app)`, NEVER `user.getIdToken()`. getLiveUser()
 // answers a flat SNAPSHOT with no such method, and the ebook reader shipped
@@ -82,8 +97,20 @@ import {
 } from './audio-chapters.js';
 import {
   SPEEDS, SKIP_INTERVALS, SLEEP_PRESETS_MIN,
-  getBookRate, setBookRate, getSkipSec, setSkipSec,
+  getBookRate, setBookRate, getSkipSec, setSkipSec, nearestSpeed,
 } from './audio-prefs.js';
+// ⚠️ PHASE 3 REUSES THE EBOOK READER'S POSITION STORE WHOLESALE (design §7.4:
+// "one new `kind`, not a new store"). The doc id, the two stores, the
+// last-write-wins reconcile and the offer-never-apply manners are all its; the
+// only audio-shaped part is the locator, which lives in audio-position.js.
+import {
+  createPositionKeeper, describeDevice, describePosition,
+  loadLocal, loadRemote, newerOf, samePlace,
+} from './reading-position.js';
+import {
+  RECORD_INTERVAL_MS, STAMP_COLLECTION,
+  toLocator, resolveLocator, progressFor, positionLabel, shouldStamp, stampBody,
+} from './audio-position.js';
 import * as ms from './media-session.js';
 // ⚠️ THE AUTH SEAM LIVES IN ITS OWN MODULE and its header explains why at
 // length: it is the one genuine unknown the feasibility study named, its
@@ -108,6 +135,7 @@ const el = (id) => document.getElementById(id);
 const state = {
   anchor: '',
   bookId: '',
+  uid: '',
   title: '',
   author: '',
   coverUrl: '',
@@ -120,6 +148,17 @@ const state = {
   sleepTimer: null,
   fadeTimer: null,
   positionTimer: null,
+  /**
+   * PHASE 3 — the reading-position keeper, or null.
+   * ⚠️ NULL UNTIL A BOOK HAS ACTUALLY OPENED, and unARMED until it has
+   * actually loaded: reader.js uses the same two-stage guard for the same
+   * reason, so a book that would not play can never overwrite the position it
+   * failed to play at.
+   */
+  keeper: null,
+  restored: false,
+  lastRecordMs: 0,
+  lastStampMs: 0,
 };
 
 let app = null;
@@ -185,10 +224,18 @@ async function pushToken() {
 /**
  * ⚠️ THE ONLY WAY THE PLAYER MOVES. See header note 2.
  *
- * `reason` is carried for the same purpose it serves in `reading-position.js`:
- * it is what a future phase hangs behaviour off (position writes in phase 3,
- * the sleep timer's smart-resume in phase 5) without any caller having to
- * learn about it.
+ * 🔴 **PHASE 3 HANGS THE POSITION WRITE OFF THE BOTTOM OF THIS FUNCTION, AND
+ * THAT IS WHAT THE FUNNEL WAS FOR.** Design §8 and `reader-page.md` §7.6
+ * record the ebook reader shipping the opposite: a second page-turn path that
+ * bypassed the position keeper and stopped saving the spot, silently. There
+ * are seven ways to move here — the bar, ±skip, chapter prev/next, the chapter
+ * list, the lock screen's `seekto` and its skip actions — and an eighth added
+ * later inherits the write for free. `tests/test_listen_page.py` fails if
+ * `audio.currentTime =` appears more than once in this file.
+ *
+ * `reason` is carried the way `reading-position.js` carries one, and phase 3
+ * is the first caller to actually READ it: a restore must not record the
+ * position it just restored.
  */
 function seekTo(seconds, reason) {
   if (!audio) return;
@@ -204,6 +251,205 @@ function seekTo(seconds, reason) {
     return;
   }
   render();
+  // ⚠️ NOT on a restore. Writing the position we have just read back would be
+  // harmless in itself, but it would also stamp this device's clock onto a row
+  // that came from another one — turning "you were here on your phone" into
+  // "you were here on this laptop" and losing the sentence the resume bar is
+  // built from.
+  if (reason !== 'restore-local' && reason !== 'restore-remote') recordPosition(true);
+}
+
+/* ── §2b — save your spot (PHASE 3) ──────────────────────────────────────── */
+
+/**
+ * Record where we are. `force` skips the ~15 s throttle.
+ *
+ * ⚠️ Design §8 #1, verbatim: *"write on pause, on chapter change, on
+ * `pagehide`/`visibilitychange`, and every ~15 s while playing (throttled)"*.
+ * The throttle here governs the LOCAL write; `reading-position.js` debounces
+ * the remote one on top of it, which is why a scrub across a chapter costs one
+ * Firestore write and not thirty.
+ *
+ * ⚠️ Silent on every failure path. A bookkeeping write must never put a
+ * sentence in front of somebody whose book is playing perfectly — and the
+ * keeper itself already answers false rather than throwing.
+ */
+function recordPosition(force) {
+  if (!state.keeper || !audio) return;
+  const locator = toLocator(state.chapters, audio.currentTime);
+  if (!locator) return;
+  const now = Date.now();
+  if (!force && now - state.lastRecordMs < RECORD_INTERVAL_MS) return;
+  state.lastRecordMs = now;
+  const d = isFinite(audio.duration) && audio.duration > 0 ? audio.duration : null;
+  state.keeper.record({ kind: 'audio', value: locator }, {
+    progress: progressFor(locator.seconds, d),
+    // ⚠️ The label is what the resume bar SAYS, and `describePosition()`
+    // prefers a stored label over anything it could invent — "never invented;
+    // it is only ever what the renderer already reported". Only the player
+    // knows what chapter 7 is called.
+    label: positionLabel(state.chapters, locator, formatTime),
+    // Design §9.2 #2 — per-book speed follows the person, not the device.
+    rate: state.rate,
+  });
+  stampAnchor(now);
+}
+
+/**
+ * 🔴 THE MID-BOOK SHIELD. `audio_positions/{anchor}` = `{ anchor,
+ * lastPositionAt }`, epoch MILLISECONDS — read by
+ * `app/tools/fulfill_audio_requests.py` as `last_position_at`, and the entire
+ * reason the eviction threshold is 30 days rather than the owner's 7.
+ *
+ * ⚠️ WHY A SECOND WRITE AND NOT JUST THE POSITION DOCUMENT: `readingPositions`
+ * is `allow list: if false` in both lanes on purpose, and the evictor lists
+ * collections with the public web API key. The whole argument is in
+ * `audio-position.js` §4 and in the rules block itself.
+ *
+ * ⚠️ FIRE AND FORGET, AND NEVER SURFACED. A refused or failed stamp costs one
+ * session's worth of shield; interrupting playback to report it would cost the
+ * listening. `scripts/smoke_audio_position_rules.py` is the instrument that
+ * proves the deployed rule accepts it — not a message to a person.
+ */
+function stampAnchor(nowMs) {
+  if (!db || !state.anchor) return;
+  if (!shouldStamp(state.lastStampMs, nowMs)) return;
+  state.lastStampMs = nowMs;
+  try {
+    void setDoc(
+      fsDoc(db, col(STAMP_COLLECTION), state.anchor),
+      stampBody(state.anchor, nowMs),
+    ).catch((e) => console.warn('[listen] eviction shield not stamped:', e));
+  } catch (e) {
+    console.warn('[listen] eviction shield not stamped:', e);
+  }
+}
+
+/**
+ * Seek to a stored row, or REFUSE in words.
+ *
+ * ⚠️ `resolveLocator` answers null when the saved chapter is not in this
+ * book's table any more, and a null is a refusal, NOT a zero. Silently
+ * restarting a 30-hour book from the beginning is the failure this whole
+ * phase exists to prevent, so the person is told what happened, what it means
+ * and that nothing was lost.
+ */
+function seekToStored(row, reason) {
+  const target = resolveLocator(state.chapters, row && row.pos && row.pos.value);
+  if (target === null) {
+    showError('Your saved spot names a chapter this recording no longer has, so the player '
+      + 'left it at the start rather than guessing at a place. Nothing was lost — your spot is '
+      + 'still saved. If this book was re-recorded, tell Mitch.');
+    return false;
+  }
+  seekTo(target, reason);
+  return true;
+}
+
+/**
+ * Per-book speed off the position document (design §9.2 #2).
+ *
+ * ⚠️ Applied only when the POSITION is applied — never on its own. Changing
+ * somebody's playback speed without asking, because another device once used
+ * a different one, reads as "the narrator sounds wrong"; `audio-prefs.js`'s
+ * header says that in those words. So it rides the same Jump the person
+ * agreed to, and the localStorage copy is kept in step as the first-paint
+ * cache it now is.
+ */
+function applyStoredRate(row) {
+  const raw = row && row.rate;
+  if (typeof raw !== 'number' || !isFinite(raw) || raw <= 0) return;
+  const snapped = nearestSpeed(raw);
+  if (snapped === state.rate) return;
+  state.rate = snapped;
+  el('ls-speed').value = String(snapped);
+  applyRate();
+  setBookRate(state.bookId, snapped);
+}
+
+/**
+ * Offer the remote position rather than taking it.
+ *
+ * ⚠️ `reading-position.js` §4: *"cross-device sync that relocates a reader
+ * without asking is the single most common complaint about every reader that
+ * has ever shipped one"* — and a player is worse, because it moves while
+ * somebody is listening to it. Non-blocking, dismissible, and "Stay" is the
+ * same outcome as ignoring it, said out loud.
+ */
+function offerResume(row, jump) {
+  const bar = el('ls-resume');
+  if (!bar || !row) return;
+  const where = describePosition(row);
+  const device = (row.device || '').trim();
+  el('ls-resume-why').textContent = device
+    ? `You were at ${where} on ${device}.`
+    : `You were at ${where} on another device.`;
+  bar.hidden = false;
+  const close = () => { bar.hidden = true; };
+  el('ls-resume-jump').onclick = () => { close(); jump(); };
+  el('ls-resume-stay').onclick = close;
+}
+
+/**
+ * Start tracking. Called once the book has opened, BEFORE the media element
+ * exists, so the local row is in hand when `loadedmetadata` fires.
+ *
+ * @returns {object|null} the local row, read synchronously — the network is
+ *          never on the critical path of "start my book".
+ */
+function beginPositionTracking() {
+  if (!db || !state.uid || !state.bookId) return null;
+  state.keeper = createPositionKeeper({
+    db,
+    uid: state.uid,
+    bookId: state.bookId,
+    // ⚠️ A HINT FIELD, NEVER THE KEY (reading-position.js §1). The doc id is
+    // `${uid}_${bookId}`; an anchor is a path hash, and re-filing the file
+    // would orphan every position on it.
+    anchor: state.anchor,
+    format: 'audio',
+    title: state.title,
+    device: describeDevice(typeof navigator !== 'undefined' ? navigator.userAgent : ''),
+  });
+  return loadLocal(state.bookId);
+}
+
+/**
+ * Restore, once — the local row is APPLIED, the remote one is OFFERED.
+ *
+ * ⚠️ The ORDER is the design (reader.js's `beginPositionTracking` does the
+ * same three steps for the same reasons):
+ *   1. the local row goes in immediately: no await, no network, no spinner;
+ *   2. the keeper is ARMED only now, after the restore, so the restore itself
+ *      records nothing and cannot make the local row look newer than the
+ *      remote one it is about to be compared against;
+ *   3. Firestore answers in the background — newer and elsewhere is OFFERED,
+ *      and with no local row at all there is nothing to conflict with, so it
+ *      is simply applied.
+ */
+function restorePosition(local) {
+  if (!state.keeper) return;
+  if (local && local.pos && local.pos.kind === 'audio') {
+    seekToStored(local, 'restore-local');
+  }
+  state.keeper.arm();
+
+  loadRemote(db, state.uid, state.bookId).then((remote) => {
+    if (!remote || !remote.pos || remote.pos.kind !== 'audio') return;
+    if (newerOf(local, remote) !== remote) return;   // ours is at least as new
+    if (samePlace(local, remote)) return;            // the same place, silently
+    if (!local) {
+      applyStoredRate(remote);
+      seekToStored(remote, 'restore-remote');
+      return;
+    }
+    offerResume(remote, () => {
+      applyStoredRate(remote);
+      // ⚠️ `resume-jump`, not `restore-*`: the person CHOSE this place, so it
+      // is now this device's position and is recorded as one.
+      seekToStored(remote, 'resume-jump');
+    });
+  }).catch(() => { /* no answer is "no saved position" */ });
 }
 
 /* ── §3 — rendering ──────────────────────────────────────────────────────── */
@@ -242,6 +488,10 @@ function render() {
     state.chapterIndex = index;
     highlightChapter(index);
     publishMeta();
+    // Design §8 #1 — "on chapter change". A chapter boundary is the one moment
+    // a saved spot is worth more than the 15-second throttle would give it:
+    // it is where somebody stops, and it is where a re-open should land.
+    recordPosition(true);
   }
   el('ls-chapter-title').textContent = chapter ? chapter.title : 'Playing';
   el('ls-chapter-where').textContent = state.chapters.length
@@ -524,7 +774,12 @@ function wireControls() {
   el('ls-speed').addEventListener('change', () => {
     state.rate = parseFloat(el('ls-speed').value) || 1;
     applyRate();
+    // ⚠️ BOTH STORES, and the local one is not vestigial: it is read
+    // SYNCHRONOUSLY at open so the first chapter starts at the right speed,
+    // while the document is what carries the choice to another device. Same
+    // asymmetry `reading-position.js` uses for the position itself.
     setBookRate(state.bookId, state.rate);
+    recordPosition(true);
     // ⚠️ An armed "end of chapter" timer is now wrong: the same audio at a new
     // rate is a different amount of wall-clock time. Re-arm rather than let it
     // fire at the old moment.
@@ -685,12 +940,19 @@ async function openBook(anchor) {
   el('ls-title').textContent = state.title;
   el('ls-author').textContent = state.author ? `· ${state.author}` : '';
   el('ls-note').textContent =
-    'This player does not save your spot yet, and does not work offline — both are the next '
-    + 'two pieces of work. Speed and skip settings are remembered on this device.';
+    'Your spot is saved as you listen — per book, per person, and it follows you to another '
+    + 'device, where the player offers to jump rather than moving you. Playback speed follows '
+    + 'the book the same way. This player does not work offline yet; that is the next piece '
+    + 'of work. The skip interval stays on this device, because it is a thumb habit.';
 
   buildSelects();
   labelSkipButtons();
   renderChapterList();
+
+  // ⚠️ BEFORE the media element exists, so the local row is in hand the moment
+  // `loadedmetadata` fires. Reading it is synchronous by design: the network
+  // must never be on the critical path of "start my book".
+  const localRow = beginPositionTracking();
 
   audio = document.createElement('audio');
   audio.preload = 'metadata';
@@ -706,11 +968,25 @@ async function openBook(anchor) {
     state.chapters = withDuration(state.chapters, audio.duration);
     renderChapterList();
     applyRate();          // header note 3: a load resets the rate
+    // ⚠️ ONCE. `loadedmetadata` fires again on any reload of the element, and
+    // a second restore would yank somebody back to where they opened the book
+    // — a cross-device jump they never asked for, from their own device.
+    if (!state.restored) {
+      state.restored = true;
+      // ⚠️ HERE AND NOT EARLIER: a seek before metadata throws in some
+      // browsers, and the chapter table has no last-chapter end until now, so
+      // a locator naming the final chapter could not be clamped.
+      restorePosition(localRow);
+    }
     render();
     publishPos();
   });
 
-  audio.addEventListener('timeupdate', render);
+  audio.addEventListener('timeupdate', () => {
+    render();
+    // Design §8 #1 — "every ~15 s while playing (throttled)".
+    recordPosition(false);
+  });
   audio.addEventListener('seeked', render);
   audio.addEventListener('ratechange', publishPos);
 
@@ -725,6 +1001,11 @@ async function openBook(anchor) {
     el('ls-play').innerHTML = '&#x25B6; Play';
     ms.publishPlaybackState('paused');
     if (state.positionTimer) { clearInterval(state.positionTimer); state.positionTimer = null; }
+    // Design §8 #1 — "on pause". ⚠️ And FLUSHED, not merely recorded: a pause
+    // is very often the last thing that happens before a tab is closed or a
+    // phone is pocketed, and the debounce would not survive either.
+    recordPosition(true);
+    void state.keeper?.flush();
     // ⚠️ Design §8 #8: the sleep timer "must survive a chapter change but must
     // be cancelled on manual pause". `fadeAndPause` clears it itself, so a
     // timer still armed here is a person pressing pause — and an alarm that
@@ -739,6 +1020,12 @@ async function openBook(anchor) {
     el('ls-play').innerHTML = '&#x25B6; Play';
     ms.publishPlaybackState('paused');
     if (state.positionTimer) { clearInterval(state.positionTimer); state.positionTimer = null; }
+    // ⚠️ The END is a position too, and an honest one. Design §9.1 leaves
+    // "mark as finished" to a later phase, deliberately, because its join to
+    // the TBR is a persisted-key decision nobody has made — so this records
+    // where the listener actually got to and claims nothing more.
+    recordPosition(true);
+    void state.keeper?.flush();
   });
 
   audio.addEventListener('error', () => {
@@ -768,8 +1055,23 @@ async function openBook(anchor) {
   // ⚠️ `pagehide`, not `beforeunload` — the pattern reading-position.js
   // already uses, and the one iOS actually delivers.
   window.addEventListener('pagehide', () => {
+    // Design §8 #1 — "on pagehide". ⚠️ RECORD BEFORE PAUSING: `pause` fires
+    // its own handler, but a page that is going away may never run it.
+    recordPosition(true);
+    void state.keeper?.flush();
     try { audio.pause(); } catch { /* leaving anyway */ }
     ms.teardown();
+  });
+
+  // ⚠️ AND `visibilitychange`, because a mobile browser routinely kills a
+  // BACKGROUNDED tab without ever firing an unload event — which is precisely
+  // the life this player lives (a phone in a pocket, screen off). reader.js
+  // binds both for the same reason. Fire-and-forget: nothing here may delay
+  // the page going away.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'hidden') return;
+    recordPosition(true);
+    void state.keeper?.flush();
   });
 }
 
@@ -826,6 +1128,10 @@ async function boot() {
       { signIn: true, back: true });
     return;
   }
+
+  // ⚠️ PHASE 3 — the position document's id is `${uid}_${bookId}`, and the
+  // rules read the uid back out of it, so nothing can be saved without this.
+  state.uid = user.uid;
 
   if (!anchor) {
     closed('No book was named',

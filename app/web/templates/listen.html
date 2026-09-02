@@ -40,14 +40,18 @@
   because an <audio> element reports a 401 as a bare `error` event with no
   status and the result is a play button that does nothing.
 
-  ⚠️ WHAT THIS PAGE DELIBERATELY DOES NOT DO — phase boundaries, not gaps:
-    * it does not SAVE YOUR SPOT. Positions are phase 3 and are gated on a
-      firestore.rules deploy plus a live smoke test; a position written against
-      rules that refuse it fails silently and looks exactly like "the player
-      does not save your spot" (design §1.4, §7.4).
+  ⚠️ WHAT THIS PAGE DELIBERATELY DOES NOT DO — a phase boundary, not a gap:
     * it is not a PWA and caches nothing offline. That is phase 4, and it is
       gated on a real iPhone test (design §4.1, §10).
-  Both are stated on the page itself rather than left for someone to discover.
+  It is stated on the page itself rather than left for someone to discover.
+
+  ✅ SINCE PHASE 3 (2026-09-02) IT DOES SAVE YOUR SPOT — per person, per book,
+  across devices, with the per-book playback speed riding the same document.
+  🔴 THAT HALF IS GATED ON A `firebase deploy --only firestore:rules`, and the
+  failure if it is missed is SILENT: a position written against rules that
+  refuse it looks exactly like "the player does not save your spot" (design
+  §1.4, §7.4). `scripts/smoke_reading_position_rules.py` and
+  `scripts/smoke_audio_position_rules.py` are the instruments that answer it.
 -->
 <title>Listen — The Household Library</title>
 <!-- A data: URI, exactly as read.html does it: /listen's CSP is
@@ -131,6 +135,22 @@
                     padding: 3px 6px; font-size: .85rem; }
   #ls-sleep-left { color: var(--neon-cyan, #35d6e0); font-variant-numeric: tabular-nums; }
 
+  /* The resume offer — audio player phase 3. ⚠️ AN OFFER, NEVER A JUMP.
+     reading-position.js §4: cross-device sync that relocates somebody without
+     asking is the single most common complaint about every reader that has
+     ever shipped one, and a player is worse because it moves while you are
+     listening to it. So it sits ABOVE the transport, never covers it, and
+     ignoring it entirely is a valid answer. */
+  #ls-resume { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+               margin: 12px 0 0; padding: 10px 12px; border-radius: 6px;
+               border: 1px solid var(--neon-cyan, #35d6e0);
+               background: var(--bg, #0b0b13); font-size: .85rem; }
+  #ls-resume-why { color: var(--text, #e8e8f0); }
+  #ls-resume button { border: 1px solid var(--border, #2a2a3c); border-radius: 6px;
+                      background: var(--bg-2, #14141f); color: var(--text, #e8e8f0);
+                      cursor: pointer; padding: 4px 12px; font-size: .82rem; }
+  #ls-resume-jump { border-color: var(--neon-cyan, #35d6e0) !important; }
+
   #ls-chapters { margin-top: 16px; }
   #ls-chapters summary { cursor: pointer; color: var(--muted, #9a9ab0); font-size: .9rem; }
   #ls-chapter-list { list-style: none; margin: 10px 0 0; padding: 0;
@@ -205,6 +225,17 @@
     <div id="ls-book-progress" aria-hidden="true"><div id="ls-book-fill"></div></div>
     <div class="ls-booktimes"><span id="ls-book-times">--:-- / --:--</span> of the book</div>
 
+    <!-- ⚠️ SAVE YOUR SPOT, PHASE 3 — an OFFER. It appears only when another
+         device left a NEWER position somewhere ELSE; "Stay" is the same
+         outcome as ignoring it, said out loud so the bar can be dismissed.
+         The sentence is built from the position document's own `label`, which
+         the player wrote — never invented here. -->
+    <div id="ls-resume" role="status" hidden>
+      <span id="ls-resume-why"></span>
+      <button type="button" id="ls-resume-jump">Jump there</button>
+      <button type="button" id="ls-resume-stay">Stay here</button>
+    </div>
+
     <div class="ls-transport">
       <button type="button" id="ls-prev-ch" title="Previous chapter (restarts this one if you are more than 3 seconds in)">&#x23EE; Chapter</button>
       <button type="button" id="ls-back" title="Back">&#x2212;15s</button>
@@ -242,11 +273,13 @@
   </div>
 
   <div class="ls-footer">
-    <!-- ⚠️ A DISCLOSURE, not a description of the implementation: this page
-         streams and stores nothing on the device, and phase 4 (the PWA, with
-         offline downloads) is the phase that changes that. Saying so here
-         keeps the claim true for exactly as long as it is true. -->
-    Streamed from the household library. Nothing is downloaded to this device.
+    <!-- ⚠️ A DISCLOSURE, not a description of the implementation, and it was
+         NARROWED in phase 3 rather than left to quietly become untrue: no BOOK
+         FILES are cached, which is the claim that matters, but the page does
+         now keep your place — on this device and in your account. Phase 4 (the
+         PWA, with offline downloads) is what changes the first half. -->
+    Streamed from the household library — no book files are kept on this device.
+    Your place in the book is saved to your account.
     Back to the <a href=".">catalogue</a>.
   </div>
 </div>

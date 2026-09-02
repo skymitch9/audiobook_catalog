@@ -158,6 +158,16 @@ export function makePosition(p) {
   }
   if (p.label) row.label = String(p.label);
   if (p.title) row.title = String(p.title);
+  // ⚠️ AUDIO PLAYER PHASE 3, design §9.2 #2: per-book playback speed rides the
+  // position document so it follows a person between devices, instead of
+  // living in one device's localStorage. WRITTEN ONLY WHEN THERE IS SOMETHING
+  // TRUE TO SAY — the ebook reader has no rate and never passes one, so its
+  // documents are unchanged rather than gaining a field meaning "1.0, we
+  // think". `site/audio-prefs.js` keeps the localStorage copy as the
+  // first-paint cache, exactly as this file keeps one for the position.
+  if (typeof p.rate === 'number' && isFinite(p.rate) && p.rate > 0) {
+    row.rate = p.rate;
+  }
   return row;
 }
 
@@ -175,10 +185,35 @@ export function newerOf(a, b) {
   return bt > at ? b : a;
 }
 
+/**
+ * How close two AUDIO locators must be to count as the same place, in seconds.
+ *
+ * ⚠️ A resume offer that appears because two devices differ by half a second
+ * is noise, and noise trains people to dismiss the bar without reading it —
+ * which is exactly the moment it will matter. A page number and a CFI are
+ * discrete and need no such tolerance; a playhead is continuous.
+ */
+export const SAME_PLACE_TOLERANCE_SEC = 5;
+
 /** Do two rows point at the same place? Used to decide whether to ASK (§4). */
 export function samePlace(a, b) {
   if (!a || !b || !a.pos || !b.pos) return false;
-  return a.pos.kind === b.pos.kind && String(a.pos.value) === String(b.pos.value);
+  if (a.pos.kind !== b.pos.kind) return false;
+  const av = a.pos.value;
+  const bv = b.pos.value;
+  // 🔴 AN AUDIO LOCATOR IS A MAP (`{chapter, offsetSec}`, audio-position.js
+  // §1), AND `String()` FOLDS EVERY MAP TO "[object Object]". Left alone, the
+  // line below would call two completely different audio positions the same
+  // place and suppress the resume offer for ever, silently — the exact class
+  // of failure this file's §4 exists to prevent, wearing the opposite mask.
+  if (av && bv && typeof av === 'object' && typeof bv === 'object') {
+    if (av.chapter !== bv.chapter) return false;
+    const ao = Number(av.offsetSec);
+    const bo = Number(bv.offsetSec);
+    if (!isFinite(ao) || !isFinite(bo)) return false;
+    return Math.abs(ao - bo) <= SAME_PLACE_TOLERANCE_SEC;
+  }
+  return String(av) === String(bv);
 }
 
 /**
@@ -311,6 +346,9 @@ export function createPositionKeeper(cfg) {
       pos,
       progress: extra && extra.progress,
       label: extra && extra.label,
+      // Phase 3: the player passes its per-book speed here; the ebook reader
+      // has none and passes nothing. See makePosition.
+      rate: extra && extra.rate,
       at: now(),
     });
   }

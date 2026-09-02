@@ -4,19 +4,24 @@
 // AUDIO PLAYER PHASE 2, 2026-09-02.
 // Design: catalog-platform/docs/info/audio-player-design.md §6, §8 #4, §9.2 #2
 //
-// ⚠️ THIS IS LOCAL-ONLY ON PURPOSE, AND IT IS A PHASE BOUNDARY, NOT AN
-// OVERSIGHT. Design §9.2 #2 wants the playback rate stored on the POSITION
-// document so it follows a person between devices — and the position document
-// is **phase 3**, gated on a `firestore.rules` deploy plus a live smoke test
-// (§1.4, §7.4). The sequencing rule the whole plan is built on is *"every
-// persisted-key decision lands before anything writes against it"*, so phase 2
-// writes NOTHING to Firestore. `localStorage` is the store that costs no rules
-// change and cannot fail silently against a rule that refuses it.
+// ✅ PHASE 3 (2026-09-02) MOVED `rate` ONTO THE POSITION DOCUMENT, and this
+// file's copy of it is now a CACHE rather than the store. Design §9.2 #2
+// wanted the playback rate to follow a person between devices; the position
+// document is what does that, and `site/listen.js` writes both.
 //
-// ⚠️ When phase 3 lands, `rate` moves to the position doc and this file keeps
-// only the device-shaped preferences (the skip interval). That is a migration
-// of one key, not a rewrite — and reading here first, then the doc, is how it
-// stays a migration.
+// ⚠️ THE LOCAL COPY IS NOT VESTIGIAL AND MUST NOT BE DELETED. It is read
+// SYNCHRONOUSLY when a book opens, which is what makes the first chapter start
+// at the right speed — exactly the asymmetry `reading-position.js` §3 draws
+// for the position itself: *"the network must never be on the critical path"*.
+// The document reconciles afterwards, and only when the LISTENER agrees to
+// take another device's place (listen.js `applyStoredRate`), because changing
+// somebody's speed unasked reads as "the narrator sounds wrong".
+//
+// ⚠️ It was local-ONLY through phase 2, on purpose: the sequencing rule the
+// whole plan is built on is *"every persisted-key decision lands before
+// anything writes against it"*, and the position document was gated on a
+// `firestore.rules` deploy plus a live smoke test (§1.4, §7.4). That was a
+// phase boundary, not an oversight, and the migration was one key.
 //
 // ⚠️ SPEED IS REMEMBERED PER BOOK, NEVER GLOBALLY (§6). Narrator pace varies
 // enormously, so one global rate means every new book opens at the speed that

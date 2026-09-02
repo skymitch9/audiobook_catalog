@@ -1,5 +1,5 @@
 """
-The player's wiring guard — audio player phase 2 (2026-09-02).
+The player's wiring guard — audio player phases 2 + 3 (2026-09-02).
 
 WHY IT EXISTS, and it is `test_reader_page.py`'s reason word for word:
 everything the browser player depends on is a CONVENTION rather than an
@@ -303,25 +303,157 @@ def test_the_probe_runs_before_a_play_button_exists():
     assert probe_at < src_at, "the HEAD probe must answer before <audio> gets a src"
 
 
-def test_the_player_does_not_write_a_reading_position():
-    """⚠️ A PHASE BOUNDARY, NOT AN OVERSIGHT. Positions are phase 3 and are
-    gated on a firestore.rules deploy plus a live smoke test. A position
-    written against rules that refuse it fails SILENTLY and looks exactly like
-    "the player does not save your spot" (design §1.4, §7.4)."""
+# ---------------------------------------------------------------------------
+# PHASE 3 — save your spot
+#
+# ⚠️ THE WHOLE PHASE FAILS SILENTLY OR NOT AT ALL. There is no error state
+# between "the spot is saved" and "the spot is not saved" — a person simply
+# reopens a 30-hour book at the beginning, three weeks later, and concludes the
+# player is bad. So what is pinned here is every seam whose breakage is
+# invisible from inside the browser.
+# ---------------------------------------------------------------------------
+def test_the_player_reuses_the_one_position_store():
+    """Design §7.4: *"one new `kind`, not a new store"*. A second
+    implementation of "save your spot" would be a second doc-id convention, a
+    second reconcile and a second set of manners — and `firestore.rules` reads
+    the uid back out of the ONE id shape `reading-position.js` writes."""
     body = strip_comments(read(LISTEN_JS))
-    for forbidden in ("reading-position.js", "createPositionKeeper", "readingPositions"):
-        assert forbidden not in body, (
-            f"{forbidden} in listen.js — positions are phase 3, and the rules "
-            "must ship and be smoke-tested before the first write"
-        )
+    assert "./reading-position.js" in body
+    assert "createPositionKeeper" in body
+    # ⚠️ The collection name must NOT be re-typed here: `col(POSITION_COLLECTION)`
+    # is what lane-suffixes it, and a literal would write prod's collection
+    # from the dev lane.
+    assert "'readingPositions'" not in body, (
+        "listen.js names the positions collection directly — that bypasses the "
+        "lane suffix and writes prod data from /dev/"
+    )
 
 
-def test_the_page_says_what_it_does_not_do_yet():
-    """The two phase boundaries are stated to the person, not left to be
-    discovered: no saved position, no offline."""
+def test_the_stored_locator_is_a_chapter_and_an_offset():
+    """🔴 Design §7.4: store `{chapter, offsetSec}`, NEVER a single absolute
+    second. An absolute offset is a position in the FILE, and a re-encode or a
+    boundary correction moves it silently."""
     body = strip_comments(read(LISTEN_JS))
-    assert "does not save your spot yet" in body
+    assert "toLocator(" in body and "resolveLocator(" in body
+    assert "kind: 'audio'" in body, "the locator's kind must travel with its value"
+
+
+def test_the_position_write_hangs_off_the_seek_funnel():
+    """⚠️ The reason `seekTo` exists at all (design §8, reader-page.md §7.6).
+    The write must be INSIDE the one function every seek path calls, so an
+    eighth path added later inherits it instead of silently skipping it."""
+    body = strip_comments(read(LISTEN_JS))
+    fn = body.split("function seekTo(", 1)[1].split("\nfunction ", 1)[0]
+    assert "recordPosition(" in fn, (
+        "seekTo() no longer records the position — a new seek path would stop "
+        "saving the spot, silently, which is the exact bug reader-page.md §7.6 "
+        "records shipping in the ebook reader"
+    )
+
+
+def test_the_position_is_written_at_every_moment_the_design_names():
+    """Design §8 #1, verbatim: *"write on pause, on chapter change, on
+    `pagehide`/`visibilitychange`, and every ~15 s while playing
+    (throttled)"*. ⚠️ `visibilitychange` is the one that is easy to leave out
+    and the one that matters most on a phone: a backgrounded tab is routinely
+    killed without ever firing an unload event."""
+    body = strip_comments(read(LISTEN_JS))
+    for moment in ("'pause'", "'timeupdate'", "'pagehide'", "'visibilitychange'"):
+        assert moment in body, f"nothing saves the spot on {moment}"
+    assert "RECORD_INTERVAL_MS" in body, "the ~15 s throttle is not applied"
+
+
+def test_a_remote_position_is_OFFERED_and_never_applied_over_a_local_one():
+    """⚠️ `reading-position.js` §4 — cross-device sync that relocates somebody
+    without asking is the single most common complaint about every reader ever
+    shipped, and a player is worse because it moves while you are listening."""
+    body = strip_comments(read(LISTEN_JS))
+    assert "offerResume(" in body
+    for piece in ("newerOf(", "samePlace("):
+        assert piece in body, f"{piece} missing — the reconcile is not the one in §4"
+    page = strip_comments(read(TEMPLATE))
+    assert 'id="ls-resume"' in page and 'id="ls-resume-jump"' in page
+    assert 'id="ls-resume-stay"' in page, "'Stay' must be said out loud, not implied"
+
+
+def test_the_keeper_is_armed_only_after_the_book_has_loaded():
+    """⚠️ The guard that stops a failed open overwriting a good position —
+    reader.js arms only once a page has genuinely rendered, for the same
+    reason. A book that would not play must cost nobody their place in it."""
+    body = strip_comments(read(LISTEN_JS))
+    fn = body.split("function restorePosition(", 1)[1].split("\n/**", 1)[0]
+    assert "arm()" in fn
+    assert fn.index("seekToStored(local") < fn.index("arm()"), (
+        "the keeper is armed before the restore — the restore would then record "
+        "itself and make the local row look newer than the remote one"
+    )
+
+
+def test_an_unresolvable_saved_spot_is_refused_in_words_not_silently_zeroed():
+    """🔴 `resolveLocator` answers null when the saved chapter is gone, and a
+    null is a REFUSAL, not a zero. Silently restarting a 30-hour book from the
+    beginning is the failure this phase exists to prevent, and the estate's
+    rule is that a person never meets a silent one."""
+    body = strip_comments(read(LISTEN_JS))
+    fn = body.split("function seekToStored(", 1)[1].split("\n/**", 1)[0]
+    assert "showError(" in fn, "an unresolvable position is swallowed"
+    assert "Nothing was lost" in body, "the refusal must say the spot is still saved"
+
+
+def test_the_per_book_speed_now_rides_the_position_document():
+    """Design §9.2 #2 and the TODO's phase-3 item 4. ⚠️ The localStorage copy
+    STAYS as the first-paint cache — deleting it would put the network on the
+    critical path of "start my book at the right speed"."""
+    body = strip_comments(read(LISTEN_JS))
+    assert "rate: state.rate" in body, "the speed never reaches the document"
+    assert "applyStoredRate(" in body
+    assert "setBookRate(" in body, "the local first-paint cache was dropped"
+    prefs = read(PREFS_JS)
+    assert "getBookRate" in prefs and "setBookRate" in prefs
+
+
+def test_the_eviction_shield_is_stamped_and_is_not_the_ping_that_was_rejected():
+    """🔴 THE MID-BOOK SHIELD — `audio_positions/{anchor}`, epoch
+    MILLISECONDS, read by fulfill_audio_requests as `last_position_at`.
+
+    ⚠️ IT LOOKS LIKE THE `stream-ping` THE PHASE-2 WIP WAS REJECTED FOR, AND
+    THE DIFFERENCE IS WORTH STATING RATHER THAN LEAVING TO BE RE-ARGUED. That
+    one was a client-driven Worker route claiming *"somebody streamed bytes"* —
+    a fact the Worker itself holds and can therefore stamp truthfully, which is
+    what design §10.1 has it do. A saved POSITION is the opposite: no Worker
+    ever sees it, so the browser is the only party with anything true to say.
+    It is throttled far coarser than a ping (one write per anchor per ten
+    minutes against a 30-DAY question), it carries no title, path or uid, and
+    the rules refuse the two forgeries that are not benign — a stamp dragged
+    backwards, and a stamp parked in the future."""
+    body = strip_comments(read(LISTEN_JS))
+    assert "stampBody(" in body and "STAMP_COLLECTION" in body
+    assert "shouldStamp(" in body, "the stamp is not throttled"
+    assert "stream-ping" not in body
+    # ⚠️ The lane suffix, again: a dev-lane stamp landing in prod's collection
+    # would shield the wrong lane's objects.
+    assert "col(STAMP_COLLECTION)" in body
+
+
+def test_the_page_still_says_what_it_does_not_do_yet():
+    """Offline is still a phase boundary and is still stated to the person.
+    ⚠️ And the SAVED-SPOT sentence has been replaced rather than deleted: the
+    page should now say it saves, not go quiet about it."""
+    body = strip_comments(read(LISTEN_JS))
     assert "does not work offline" in body
+    assert "does not save your spot yet" not in body, (
+        "the page still tells people their spot is not saved, and it now is"
+    )
+    assert "Your spot is saved" in body
+
+
+def test_the_footer_disclosure_was_narrowed_rather_than_left_to_go_stale():
+    """⚠️ It used to read "Nothing is downloaded to this device", which stopped
+    being the whole truth the moment a position was cached locally. The claim
+    that MATTERS — no book files — is kept, and the rest is said."""
+    page = read(TEMPLATE)
+    assert "no book files are kept on this device" in page
+    assert "Nothing is downloaded to this device." not in page
 
 
 def test_no_invented_worker_route_is_called():
