@@ -349,19 +349,58 @@ def test_the_modal_links_to_the_player_relatively():
     assert "/listen?b=" not in body
 
 
-def test_the_modal_keeps_the_shelf_link():
-    """⚠️ The player link is ADDITIVE. Another session routed playback to the
-    Audiobookshelf shelf on 2026-08-21; this phase does not revert that, and
-    which of the two surfaces survives is the owner's call.
+def test_the_modal_offers_only_the_estate_player():
+    """🔴 INVERTED 2026-09-02 ON THE OWNER'S ORDER, and renamed with it.
 
-    ⚠️ The shelf link MOVED on 2026-09-02 — out of the `m-audio` row and into
-    the modal's action row as `#m-book-shelf`, where the owner asked for it.
-    That is the opposite of reverting it: the two offers now sit in different
-    places instead of stacked in one row, and "Listen here" keeps `m-audio` to
-    itself. This test still guards the thing it was written to guard — that the
-    shelf link is not deleted in favour of the estate's own player."""
-    body = read(INDEX_TEMPLATE)
-    assert 'id="m-book-shelf"' in body
-    assert "renderShelfButton" in body
-    # …and the audio row still offers the estate player beside it.
+    This test used to be `test_the_modal_keeps_the_shelf_link`, and it existed
+    because phase 2's player was deliberately ADDITIVE: it guarded the ABS
+    "Open on the shelf" link against being deleted in favour of the estate's
+    own player, while recording in its own docstring that *which of the two
+    surfaces survives is the owner's call*.
+
+    He called it, verbatim: *"for now we want to use only the listen/download
+    here button in the audiobook catalog."* So the guard flips — the modal's
+    one play control is ▶ Listen here, and the ABS button must stay off this
+    page until he says otherwise.
+
+    ⚠️ PRESENTATION ONLY. `site/shelf-link.js` is NOT deleted; it is the
+    canonical catalog→shelf join, still exercised by
+    `site/__tests__/shelf-link.test.js` and `tests/test_shelf_map.py`, and the
+    reader port (docs/TODO.md) is built on it. This test is about what the
+    catalogue modal PAINTS, not about whether the join exists."""
+    body = strip_comments(read(INDEX_TEMPLATE))
+    assert 'id="m-book-shelf"' not in body, (
+        "the ABS shelf button is back in the modal — owner, 2026-09-02: only "
+        "the listen/download here button"
+    )
+    assert "renderShelfButton" not in body
+    assert "shelf-link.js" not in body, "the modal re-imported the shelf join"
+    # …and the estate player is what stands in its place.
     assert "renderAudioRow" in body
+    assert "'▶ Listen here'" in body
+
+
+def test_removing_the_button_did_not_remove_the_join():
+    """⚠️ The other half of the test above, and the reason it is a SEPARATE
+    test: "presentation only" is a claim, and a claim about a deletion is worth
+    exactly as much as the guard under it.
+
+    The owner said *"for now"*. If a later session reads the button's removal
+    as permission to delete the join it called, the reader port
+    (docs/TODO.md — "Port the EPUB + PDF readers to the SHELF") loses the one
+    canonical implementation it is designed around, and the next person writes
+    a second one that emits `/audiobookshelf/item/<uuid>` links — the exact
+    shape that 404'd for 1,077 books after the hardlink reshape."""
+    module = REPO / "site" / "shelf-link.js"
+    assert module.exists(), (
+        "site/shelf-link.js is gone — the modal button was removed, the "
+        "canonical catalog→shelf join was NOT meant to be"
+    )
+    src = read(module)
+    for fn in ("shelfLinkFor", "normalizeShelfMap", "shelfSearchUrl"):
+        assert f"export function {fn}" in src or f"export {{" in src, (
+            f"shelf-link.js no longer exports {fn}"
+        )
+    # The ebooks page registers the join through its own seam and is a
+    # DIFFERENT surface — the owner's order named the audiobook catalog only.
+    assert "useShelfJoin" in read(REPO / "app" / "web" / "templates" / "ebooks.html")

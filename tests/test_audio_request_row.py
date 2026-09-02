@@ -114,33 +114,55 @@ def test_the_service_worker_exists():
 
 def test_the_player_is_rendered_for_streamable_books():
     """
-    Shelf button replaced the in-browser player (2026-08-21).
+    🔴 THE PLAY CONTROL IS THE ESTATE'S OWN PLAYER, AND ONLY IT (2026-09-02).
 
-    ⚠️ MOVED 2026-09-02, not removed. It used to live in the `m-audio` row and
-    is now the fourth button of the modal's ACTION ROW (`#m-book-shelf`), which
-    is where the owner asked for it — "another link next to the go to author
-    folder". Two surfaces were answering one question; there is now one.
+    History, because this one test has now pinned three different answers to
+    the same question and the last one is the owner's:
+
+    * 2026-08-18 — the modal offered a "request this audiobook" flow.
+    * 2026-08-21 — an ABS "Open on the shelf" link replaced it.
+    * 2026-09-02 (morning) — that link MOVED into the action row as the fourth
+      button, `#m-book-shelf`, and the estate's own ▶ Listen here joined it in
+      `#m-audio`. Two surfaces then answered "play this book", which this
+      repo's own comments flagged by name as the owner's call to make.
+    * 2026-09-02 (afternoon) — HE MADE IT, verbatim: *"for now we want to use
+      only the listen/download here button in the audiobook catalog."*
+
+    So the ABS button is off this page and `renderAudioRow` is the whole answer.
+    ⚠️ PRESENTATION ONLY: `site/shelf-link.js` is untouched and still tested
+    (`site/__tests__/shelf-link.test.js`, `tests/test_shelf_map.py`), and the
+    ebooks page's Shelf link is a different surface, also untouched.
     """
     src = strip_comments(read(TEMPLATE))
-    assert 'id="m-book-shelf"' in src
-    assert "renderShelfButton" in src
+    assert 'id="m-book-shelf"' not in src, (
+        "the ABS shelf button is back in the modal — the owner asked for only "
+        "the listen/download here button (2026-09-02)"
+    )
+    assert "renderShelfButton" not in src
+    # …and the one surviving play control is still wired.
+    assert 'id="m-audio"' in src
+    assert "renderAudioRow" in src
 
 
 # --------------------------------------------------------------------------- #
-# ⚠️ THE COPY — streaming UI replaced by shelf button (2026-08-21)
+# ⚠️ THE COPY — the request queue is gone, and so is the shelf button
 # --------------------------------------------------------------------------- #
 def test_the_wait_is_described_honestly():
-    """Streaming UI has been replaced by the shelf button (2026-08-21).
-    The old wait-time copy is gone — there is no request queue anymore."""
+    """No request queue, so no wait-time copy — and, since 2026-09-02, no ABS
+    button either. What remains is ▶ Listen here, which renders only when the
+    book is genuinely streamable right now."""
     src = strip_comments(read(TEMPLATE))
-    assert 'id="m-book-shelf"' in src
+    assert "renderAudioRow" in src
     assert "Not streamable yet" not in src
+    assert 'id="m-book-shelf"' not in src
 
 
 def test_the_first_rung_is_the_designs_words():
-    """The shelf button is the new first rung — no more request flow."""
-    src = read(TEMPLATE)
-    assert 'id="m-book-shelf"' in src
+    """The estate player is the first and only rung — no request flow, and no
+    shelf hand-off (owner, 2026-09-02)."""
+    src = strip_comments(read(TEMPLATE))
+    assert "'▶ Listen here'" in src
+    assert 'id="m-book-shelf"' not in src
 
 
 # --------------------------------------------------------------------------- #
@@ -233,16 +255,20 @@ def test_an_outage_is_never_reported_as_a_refusal():
 
 
 def test_nothing_renders_without_the_grant():
-    """The streaming UI is replaced by the shelf link (K8/K12, 2026-08-21).
-    The shelf button renders for everyone — ABS's own Cloudflare Access gate
-    handles who can actually open it.
+    """⚠️ REPOINTED 2026-09-02 — the ABS button this used to describe is gone
+    (owner: *"for now we want to use only the listen/download here button in
+    the audiobook catalog"*), so the thing worth guarding is the estate
+    player's own refusal posture, which is stricter than ABS's was.
 
-    ⚠️ "Renders for everyone" is about the GRANT, not about the book: since
-    2026-09-02 the button is also hidden for a book the shelf does not hold
-    (5 of 1,087, measured), because a link into an empty search is a dead link
-    with extra steps. What must never gate it is who is signed in here."""
+    ▶ Listen here draws NOTHING unless the book is streamable right now. The
+    three outcomes are deliberately kept apart and only one of them is a link:
+    streamable → a link; signed out or no `vis_ebooks` grant → nothing,
+    quietly; an OUTAGE → nothing, quietly. ⚠️ A refusing button is worse than
+    an absent one, and mislabelling an outage as a permission fact sends people
+    asking for access they already hold."""
     src = strip_comments(read(TEMPLATE))
-    # The shelf button is wired unconditionally; auth is on ABS's side.
-    assert 'id="m-book-shelf"' in src
-    # ⚠️ And it says so, because everyone who clicks meets Cloudflare Access.
-    assert "renderShelfButton" in src
+    assert 'id="m-book-shelf"' not in src
+    assert "renderShelfButton" not in src
+    # The link is created only AFTER the gated status call resolves an anchor.
+    assert "var anchor = getAnchorForBook(status, bookTitle);" in src
+    assert "if (!anchor) return;" in src
