@@ -22,6 +22,7 @@ from app.config import (
     SITE_DIR,
     SITE_INDEX_NAME,
 )
+from app.core.catalog_twins import apply_catalog_twins
 from app.core.file_dedupe import dedupe_library
 from app.metadata import extract_metadata, walk_library
 from app.writers import render_output_html, stage_site_files, write_csv
@@ -56,6 +57,27 @@ def main() -> None:
         print(f"[INFO] Removed {dedupe.numbered} numbered duplicates (e.g., 'Title (1).m4b')")
     if dedupe.duplicates:
         print(f"[INFO] Deduplicated {dedupe.duplicates} duplicate files (same book in multiple folders)")
+
+    # The CURATED twin table — two audio editions of one work, where a person
+    # has written down which edition keeps the catalogue identity. Runs AFTER
+    # the two filename passes above and never overlaps them: those fold files
+    # that share a name, this folds files that share a BOOK. See
+    # app/core/catalog_twins.py for why the join is written down instead of
+    # computed, and scripts/catalog_twins.json for the table itself.
+    #
+    # 🔴 NO FILE IS TOUCHED. The retired edition keeps its bytes, its Drive
+    # copy, its R2 archive key and its upload_manifest entry; it stops
+    # producing a ROW. Owner, 2026-09-02: "Keep the audible one but make sure
+    # all source files stay."
+    #
+    # ⚠️ Every refusal is printed. An entry that refuses leaves the duplicate
+    # on the site, so a silent refusal is a defect that hides itself.
+    deduped_files, twins = apply_catalog_twins(deduped_files, Path(ROOT_DIR))
+    if twins.applied:
+        print(f"[INFO] Retired {twins.applied} duplicate catalog row(s) via the twin table "
+              f"(files untouched): {', '.join(twins.dropped)}")
+    for label, why in twins.refused:
+        print(f"[WARN] catalog twin refused — {label}: {why}", file=sys.stderr)
 
     rows = []
     for p in deduped_files:

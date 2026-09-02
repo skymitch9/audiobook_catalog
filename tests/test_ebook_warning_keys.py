@@ -160,10 +160,21 @@ def test_every_scanned_row_carries_the_key_even_when_it_is_null(tmp_path):
 
 
 def test_scan_publishes_the_audio_edition_count(tmp_path):
-    # ⚠️ The "N audiobooks" feature end to end, shaped like the ONE real case
-    # in this library's catalog.csv: "Isles of the Emberdark" (Brandon
-    # Sanderson) has two audio editions with two different covers. A book with
-    # a single edition counts 1; an ebook with no sibling counts 0.
+    # ⚠️ The "N audiobooks" feature end to end.
+    #
+    # ⚠️ THE FIXTURE IS SYNTHETIC AND, SINCE 2026-09-02, NO LONGER MIRRORS A
+    # LIVE ROW. It was shaped after the one real case in this library's
+    # catalog.csv — "Isles of the Emberdark" (Brandon Sanderson) had two audio
+    # editions with two different covers — and the owner then picked one of them
+    # ("Keep the audible one but make sure all source files stay"), so that
+    # title now MEASURES 1. Verified the same day against the rebuilt
+    # site/catalog.csv: `sibling_catalog_match` answered 2 before and 1 after.
+    # See scripts/catalog_twins.json and docs/info/catalog-twins.md.
+    #
+    # The fixture stays at two because the SHAPE is still real and still has to
+    # work: the household can own two editions of a book, and only the pairs
+    # somebody has written down in the twin table are folded. A book with a
+    # single edition counts 1; an ebook with no sibling counts 0.
     root = tmp_path / "books"
     _touch(root, "Brandon Sanderson/Isles of the Emberdark.epub")  # two audio editions
     _touch(root, "Suzanne Collins/Sunrise on the Reaping.epub")    # one edition

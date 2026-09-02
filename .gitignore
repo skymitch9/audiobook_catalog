@@ -21,6 +21,16 @@ docs/
 # stops a shelving alias becoming an authorship claim does not run in CI at all.
 # Names and ABS record ids only — never a credential.
 !scripts/abs_author_merges.json
+# The hand-written CATALOG TWIN table (app/core/catalog_twins.py) — which of two
+# AUDIO EDITIONS of one book keeps the catalogue identity. MUST be tracked, for
+# both of the usual reasons at once: it is BUILD INPUT (an untracked copy means
+# this machine catalogues 1,087 books and CI catalogues 1,088, and the site that
+# ships is built from a checkout), and tests/test_catalog_twins.py loads THIS
+# FILE to assert every entry is complete and evidenced, so an untracked copy is
+# a guard that never runs in CI. It retires ROWS, never files, and holds titles,
+# narrators and durations the public catalogue already serves — never a
+# credential.
+!scripts/catalog_twins.json
 # Hand-placed ebook covers (scripts/build_ebook_manifest cover source 3). MUST
 # be tracked: it is build input, so an untracked copy would give this machine
 # covers that CI and every other checkout silently lack.

@@ -1,0 +1,42 @@
+{
+  "_what": "The explicit twin table for app/core/catalog_twins.py. One entry per pair of AUDIO EDITIONS of a single work that the household owns twice. Each entry names which edition keeps the catalogue identity and which one stops producing a row. Every row is a decision somebody wrote down; nothing here is derived, fuzzy-matched or inferred at run time.",
+
+  "_the_absolute_constraint": "🔴 ZERO FILE DELETION OR MOVES, ANYWHERE. This table retires a CATALOGUE ROW, never a file. The retired edition keeps its bytes on local disk, its copy on Google Drive, its key under the R2 estate-audio archive/ prefix (which is THE BACKUP — see docs/access/AUDIO_ARCHIVE.md) and its entry in scripts/upload_manifest.json. Owner, 2026-09-02: 'Keep the audible one but make sure all source files stay.' Nothing in the code path this table feeds can open a file for writing; app/core/catalog_twins.py takes a list of paths and returns a shorter list of paths.",
+
+  "_why_this_file_exists_instead_of_a_rule": "app/core/file_dedupe.py already folds duplicates, and it deliberately cannot fold these: it keys on the FILENAME (a 'Title (1).m4b' beside its original, or the same filename in two author folders), and two editions of one book share no string a machine should be allowed to fold. A rule loose enough to catch 'Isles of the Emberdark - A Cosmere Novel Secret Projects, Book 5.m4b' and 'Isles_of_the_Emberdark_by_Brandon_Sanderson.mp4' would fold real books. This estate has paid for that twice: the twin join that folded five Space Knight volumes onto one key (docs/info/book-ingestion.md §4), and the title fold in app/library_link.py where 'Space Knight' and this very title were the two measured collisions. So the join is not computed. It is written down.",
+
+  "_what_is_asserted_before_anything_is_dropped": "Both files must be present in the walked library, exactly one path each, and each must still read back its recorded title, author, narrator and duration. A row whose live state has drifted is REFUSED BY NAME and BOTH editions stay in the catalogue. duration is in the list because it is the field that catches a SUBSTITUTION — a re-download or a path reused for another book — which a retag check would sail past. The failure direction is chosen: a wrong refusal shows a book twice, which is visible; a wrong drop makes an owned book vanish from its own catalogue, which is not.",
+
+  "_how_to_edit_this_file": "python -m app.tools.catalog_twins            # DRY RUN, the default: asserts every row against the live library and prints what would be dropped\npython -m app.tools.catalog_twins --commit   # assert, then rebuild the catalogue so the drop reaches site/catalog.csv",
+
+  "_not_in_this_table": [
+    "Multi-part dramatised adaptations ('A Court of Thorns and Roses (Part 1 of 2)'). Those are genuinely two files of one recording and the catalogue is right to list them; docs/info/catalog-corrections.md §8.2 records the DUPLICATE_VOLUME survey code reading worse than it is for exactly this reason.",
+    "The same book under a pen name and a real name. file_dedupe's longest-parent-path tie-break already handles that shape, and it is one file, not two editions.",
+    "Amber the Cursed Berserker books 1-3, which §8.2 of the same doc records as genuinely duplicated FILES on disk with identical names. That is file_dedupe's job, not this one."
+  ],
+
+  "twins": [
+    {
+      "book": "Isles of the Emberdark - Brandon Sanderson",
+      "added": "2026-09-02",
+      "owner": "2026-09-02, verbatim: \"Keep the audible one but make sure all source files stay.\"",
+      "why": "The household owns this book twice on audio: the Audible edition (dual narration by Kaleo Griffith and Jennifer Jill Araya, released 2025-07-10, jpg cover) and the Kickstarter/backer edition read by Brandon Sanderson himself (png cover). Both are 16:53 and both resolve to the same catalogue identity 'Isles of the Emberdark', so the site showed two cards for one book and app/core/m4b_resolver.resolve_book_file raised AmbiguousBookFile on the title — MEASURED 2026-09-02: \"title 'Isles of the Emberdark' matches 2 files by the catalog index (cover_href) - refusing to guess\". That refusal is the resolver working correctly; this entry removes its cause rather than loosening it.",
+      "survivor": {
+        "file": "Brandon Sanderson/Isles of the Emberdark - A Cosmere Novel Secret Projects, Book 5.m4b",
+        "title": "Isles of the Emberdark",
+        "author": "Brandon Sanderson",
+        "narrator": "Kaleo Griffith, Jennifer Jill Araya",
+        "duration_hhmm": "16:53",
+        "note": "The owner's pick. Also the better-tagged of the two: it carries SRNM/SRSQ (Secret Projects 5), a dated release (2025-07-10) and the full Audible genre path, all of which the catalogue row keeps."
+      },
+      "retire": {
+        "file": "Brandon Sanderson/Isles_of_the_Emberdark_by_Brandon_Sanderson.mp4",
+        "title": "Isles of the Emberdark",
+        "author": "Brandon Sanderson",
+        "narrator": "Brandon Sanderson",
+        "duration_hhmm": "16:53",
+        "note": "🔴 THE FILE STAYS. It remains on disk, on Drive, in the R2 archive and in upload_manifest.json; its two catalog_overrides.json entries are left in place, unused but correct, so restoring this row is deleting one line here. Its companion epub (Isles_of_the_Emberdark_by_Brandon_Sanderson_for_Kindle.epub) is untouched and is what the knowledge pack 'isles-of-the-emberdark' was already built from on 2026-08-18."
+      }
+    }
+  ]
+}
