@@ -1,0 +1,43 @@
+{
+  "_comment": [
+    "THE CROSS-LANGUAGE PIN for the book slug.",
+    "",
+    "The slug exists twice on purpose — once per language:",
+    "  JS     site/reviews.js          bookIdFromTitle    (re-exported by site/shelf-link.js)",
+    "  Python scripts/build_shelf_map.py  book_id_from_title",
+    "",
+    "They MUST agree exactly. The Python one writes the keys of",
+    "site/shelf_book_map.json; the JS one computes the key it looks up. If they",
+    "drift by one character the lookup misses, shelfLinkFor() returns null, and",
+    "EVERY shelf button silently disappears — no error, no console warning, just",
+    "1,082 books that quietly stop offering the shelf.",
+    "",
+    "Both test suites read this file:",
+    "  tests/test_shelf_map.py            (pytest)",
+    "  site/__tests__/shelf-link.test.js  (vitest)",
+    "",
+    "Add a case here and BOTH languages are held to it."
+  ],
+  "cases": [
+    { "title": "A Brief History of Time", "slug": "a-brief-history-of-time" },
+    { "title": "10 Things I Hate About Christmas", "slug": "10-things-i-hate-about-christmas" },
+    { "title": "1% Lifesteal", "slug": "1-lifesteal" },
+
+    { "title": "  Leading and trailing  ", "slug": "leading-and-trailing" },
+    { "title": "Hyphen-Already-Here", "slug": "hyphen-already-here" },
+    { "title": "Double  spaces   collapse", "slug": "double-spaces-collapse" },
+    { "title": "Trailing punctuation!!!", "slug": "trailing-punctuation" },
+    { "title": "---leading hyphens", "slug": "leading-hyphens" },
+    { "title": "UPPERCASE TITLE", "slug": "uppercase-title" },
+
+    { "title": "Miss Peregrine's Home for Peculiar Children", "slug": "miss-peregrine-s-home-for-peculiar-children" },
+    { "title": "He Who Fights with Monsters 12- A LitRPG Adventure", "slug": "he-who-fights-with-monsters-12-a-litrpg-adventure" },
+    { "title": "Is It Wrong to Try to Pick Up Girls in a Dungeon, Vol. 1", "slug": "is-it-wrong-to-try-to-pick-up-girls-in-a-dungeon-vol-1" },
+    { "title": "The Greatest Story Ever Told - So Far - Why Are We Here", "slug": "the-greatest-story-ever-told-so-far-why-are-we-here" },
+    { "title": "Cradle #1 & Co / \"quoted\"", "slug": "cradle-1-co-quoted" },
+
+    { "title": "", "slug": "" },
+    { "title": "!!!", "slug": "" },
+    { "title": "123", "slug": "123" }
+  ]
+}

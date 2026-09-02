@@ -17,11 +17,17 @@
 //     ebook-only items got a button that searched a library for a title it
 //     does not hold. `null` is the required answer.
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 
 import {
   SHELF_ORIGIN, SHELF_APP, AUDIO_LIBRARY_ID, ACCESS_NOTE,
   bookIdFromTitle, shelfSearchUrl, normalizeShelfMap, shelfLinkFor,
 } from '../shelf-link.js';
+
+/** Shared with pytest — see tests/fixtures/slug_cases.json's own header. */
+const SLUG_CASES = JSON.parse(
+  readFileSync(new URL('../../tests/fixtures/slug_cases.json', import.meta.url), 'utf8'),
+).cases;
 
 /** The current map shape, as `scripts/build_shelf_map.py` now writes it. */
 const CURRENT = {
@@ -185,9 +191,16 @@ describe('the slug is the estate-wide one, not a fourth copy of it', () => {
     expect(bookIdFromTitle).toBe(reviews.bookIdFromTitle);
   });
 
-  it('slugifies the way the map keys are written', () => {
-    expect(bookIdFromTitle('A Brief History of Time')).toBe('a-brief-history-of-time');
-    expect(bookIdFromTitle('10 Things I Hate About Christmas'))
-      .toBe('10-things-i-hate-about-christmas');
-  });
+  // ⚠️ THE CROSS-LANGUAGE PIN. The same table drives tests/test_shelf_map.py
+  // against `book_id_from_title` in scripts/build_shelf_map.py, which writes
+  // the KEYS of shelf_book_map.json. If the two implementations drift, every
+  // lookup here misses, shelfLinkFor() returns null for all 1,082 books, and
+  // the buttons vanish with no error anywhere. Verified 2026-09-02: 17/17
+  // cases agree in both languages.
+  it.each(SLUG_CASES.map((c) => [c.title, c.slug]))(
+    'slugifies %j to %j — the same answer Python gives',
+    (title, slug) => {
+      expect(bookIdFromTitle(title)).toBe(slug);
+    },
+  );
 });
