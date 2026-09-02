@@ -489,9 +489,9 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     books, stats = build_books_block(catalog_rows, audio_items, ebook_items, args.verbose)
 
+    now = _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0)
     payload = {
-        "generatedAt": _dt.datetime.now(_dt.timezone.utc)
-            .replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        "generatedAt": now.isoformat().replace("+00:00", "Z"),
         "libraryId": ABS_LIBRARY_ID,
         "ebookLibraryId": ABS_EBOOK_LIBRARY_ID or None,
         "books": dict(sorted(books.items())),

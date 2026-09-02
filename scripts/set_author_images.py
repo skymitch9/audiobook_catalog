@@ -307,8 +307,8 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     say("Fetching ABS author list...")
     abs_authors = abs_get_authors(session)
-    say(f"  {len(abs_authors)} authors in ABS "
-          f"({sum(1 for a in abs_authors if a.get('imagePath'))} already have an image)")
+    already = sum(1 for a in abs_authors if a.get("imagePath"))
+    say(f"  {len(abs_authors)} authors in ABS ({already} already have an image)")
 
     abs_map: Dict[str, Dict] = {}
     for a in abs_authors:
