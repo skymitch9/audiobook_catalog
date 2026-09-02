@@ -672,18 +672,30 @@ h1 .tail{color:var(--accent)}
   var activeFormats = {};   // format -> true while its chip is toggled on
   var lastFocused = null;   // focus returns to the tapped tile on close
 
-  // Shelf book map: audiobook bookId slug -> ABS item ID (K12/K13, 2026-08-18).
-  // Loaded from shelf_book_map.json (the same file the audiobook site uses).
-  // Ebooks whose `audiobook_title` resolves to a slug present in this map get
-  // a "Shelf" button linking to ABS's item page for the sibling audiobook.
-  var _shelfMap = null;
-  fetch('shelf_book_map.json').then(function (r) { return r.ok ? r.json() : null; })
-    .then(function (d) { if (d) _shelfMap = d; })
-    .catch(function () {});
+  // ── the shelf join, as an EXTENSION POINT ────────────────────────────────
+  //
+  // ⚠️ This page used to fetch shelf_book_map.json itself, carry its own copy
+  // of bookIdFromTitle (the second of four), and build
+  // `/audiobookshelf/item/<uuid>` links from the raw map. ABS item ids are not
+  // stable — every id from the 2026-08-20 flat layout 404'd after the hardlink
+  // reshape — and docs/TODO.md says the join must exist exactly once. It now
+  // lives in site/shelf-link.js.
+  //
+  // Registered by the AUTH module below, exactly like `cardHook`, and for the
+  // same reason this whole page is split in two: THIS half is a plain script
+  // that cannot fail on a module hiccup. If the module never loads, this stays
+  // the null-returning default and a card simply loses its Shelf button —
+  // which is also the correct answer for a book the shelf does not hold, so
+  // there is one behaviour to reason about instead of two.
+  var shelfJoin = null;
 
-  // bookIdFromTitle — mirrors site/reviews.js (same logic as the audiobook site)
-  function _bookIdFromTitle(title) {
-    return (title || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-{2,}/g, '-').replace(/^-|-$/g, '');
+  /** null when there is no counterpart on the shelf, or no join registered. */
+  function shelfLinkForBook(b) {
+    if (!shelfJoin) return null;
+    // The audiobook catalogue's spelling first — it is what the map is keyed
+    // on — then the ebook's own title.
+    return (b.audiobook_title ? shelfJoin(b.audiobook_title) : null)
+        || (b.title ? shelfJoin(b.title) : null);
   }
 
   // The reading card's one extension point. The AUTH module below registers a
@@ -1079,25 +1091,18 @@ h1 .tail{color:var(--accent)}
     var fmt = String(b.format || '').toLowerCase();
     var read = '';
     if ((fmt === 'pdf' || fmt === 'epub') && b.anchor) {
-      // Look up the shelf map via the audiobook_title first (the audiobook catalog's
-      // spelling of this book), then fall back to the ebook's own title. ABS items
-      // can hold both an audiobook AND an ebook (same item ID), so matching on
-      // either title finds the right ABS item. (K12/K13, 2026-08-21).
-      var shelfAbsId = null;
-      if (_shelfMap) {
-        if (b.audiobook_title) {
-          shelfAbsId = _shelfMap[_bookIdFromTitle(b.audiobook_title)] || null;
-        }
-        if (!shelfAbsId && b.title) {
-          shelfAbsId = _shelfMap[_bookIdFromTitle(b.title)] || null;
-        }
-      }
-      if (shelfAbsId) {
-        var shelfHref = 'https://shelf.heygabi.ai/audiobookshelf/item/' + encodeURIComponent(shelfAbsId);
+      var shelfLink = shelfLinkForBook(b);
+      if (shelfLink) {
+        // ⚠️ The title attribute is where the Cloudflare Access warning lands
+        // on this page. The button is one word inside a "Read:" group, so
+        // there is no room for a sentence — but a person must never meet an
+        // unexplained Google sign-in, so the hover text says it, and "Native"
+        // sitting beside it is the door that needs no second sign-in.
         read = '<span class="eb-read-group">' +
           '<span class="eb-read-label">Read:</span>' +
           '<a class="eb-read-native" href="read?b=' + encodeURIComponent(b.anchor) + '">Native</a>' +
-          '<a class="eb-read-shelf" href="' + esc(shelfHref) + '" target="_blank" rel="noopener">Shelf</a>' +
+          '<a class="eb-read-shelf" href="' + esc(shelfLink.href) + '" target="_blank"' +
+          ' rel="noopener" title="' + esc(shelfLink.title) + '">Shelf</a>' +
         '</span>';
       } else {
         read = '<a class="eb-read" href="read?b=' + encodeURIComponent(b.anchor) + '">Read &#x2192;</a>';
@@ -1198,6 +1203,21 @@ h1 .tail{color:var(--accent)}
       if (!applyQueryHash()) {
         goToAnchor();
       }
+    },
+    /**
+     * Register the canonical catalog->shelf join (site/shelf-link.js).
+     *
+     * ⚠️ Same extension-point shape as `onCard`, and the same reason: this
+     * plain script must not import a module. `fn(title)` returns the link
+     * object or null; until it is registered, every card falls back to the
+     * plain "Read →" link, which is the same thing a book with no shelf
+     * counterpart gets.
+     */
+    useShelfJoin: function (fn) {
+      shelfJoin = typeof fn === 'function' ? fn : null;
+      // Cards already on screen were painted without it — repaint so the
+      // Shelf button appears on this load rather than the next one.
+      if (shelfJoin && allBooks.length) render();
     },
     /** The honest failure state for a reader who IS allowed in. */
     failed: function (sentence) {
@@ -1306,6 +1326,11 @@ h1 .tail{color:var(--accent)}
   import { getLiveUser, getIdToken, signInWithGoogle, handleRedirectResult, getSession, resolveSiteAccess } from './identity.js';
   import { renderEbookNotes } from './ebook-notes.js';
   import { bookIdFromTitle, readingListDocId } from './reviews.js';
+  // ⚠️ THE canonical catalog->Audiobookshelf join — one implementation for this
+  // page, the audiobook modal, and the reader port after them. See its header
+  // for the three constraints it enforces (no item ids, name the Access
+  // sign-in, no link without a real counterpart).
+  import { normalizeShelfMap, shelfLinkFor } from './shelf-link.js';
   // ⚠️ CURTAIN, NOT LOCK. That module's header carries the whole argument; this
   // page takes no view of its own. The books stay gated by the estate's
   // `vis_ebooks` grant, server-side, on the manifest and on every range — on
@@ -1317,6 +1342,25 @@ h1 .tail{color:var(--accent)}
    *  audiobooks.heygabi.ai; both are named in audiobook-worker's
    *  SITE_ORIGINS, which is what makes the cross-origin call legal. */
   const MANIFEST_URL = 'https://audiobook-api.heygabi.ai/api/ebooks/manifest';
+
+  // ── hand the plain script the canonical shelf join ───────────────────────
+  //
+  // Started here at module load rather than inside the gated manifest flow,
+  // because the map is PUBLIC (titles only, no permission question) and the
+  // sooner it lands the sooner the Shelf buttons appear. `useShelfJoin`
+  // repaints any cards already on screen, so arriving late is a non-event.
+  //
+  // ⚠️ A failed fetch registers NOTHING, which leaves every card with the plain
+  // "Read →" link. That is the intended failure: the same thing a book with no
+  // shelf counterpart gets, rather than a button into an empty search.
+  fetch('shelf_book_map.json')
+    .then((r) => (r.ok ? r.json() : null))
+    .then((raw) => {
+      const map = normalizeShelfMap(raw);
+      if (!Object.keys(map.books).length) return;
+      window.ebooksShelf.useShelfJoin((title) => shelfLinkFor(title, map));
+    })
+    .catch(() => {});
 
   const gateEl = document.getElementById('eb-gate');
   const gateTitle = document.getElementById('eb-gate-title');

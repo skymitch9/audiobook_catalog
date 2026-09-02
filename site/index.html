@@ -41069,7 +41069,22 @@ A Macmillan Audio production from Tor Books" data-library-work-id="504" data-lib
         <a id="m-author-folder" class="link-btn" href="#" target="_blank" rel="noopener" style="display:none">Open author folder</a>
         <a id="m-author-drive" class="link-btn" href="#" target="_blank" rel="noopener" style="display:none">Search author in Drive</a>
         <a id="m-book-drive"   class="link-btn" href="#" target="_blank" rel="noopener" style="display:none">Search book in Drive</a>
+        <!-- The FOURTH button (owner ask, 2026-08-21): "another link next to
+             the go to author folder, for going to the book page on the server
+             for download." Filled by renderShelfButton() in the module script
+             below, which owns all three recorded constraints:
+               * it is an ABS SEARCH, never /item/<uuid> — ids rot on rebuild;
+               * it STAYS HIDDEN when the book has no shelf counterpart, so
+                 there is never a dead link (5 of 1,087 as measured 2026-09-02);
+               * its own line says the click meets the family sign-in, because
+                 everyone who clicks meets Cloudflare Access.
+             Note the two siblings above are also "Search …" rather than deep
+             links, for exactly the same reason. -->
+        <a id="m-book-shelf"   class="link-btn" href="#" target="_blank" rel="noopener" style="display:none">Open on the shelf</a>
       </div>
+      <!-- ⚠️ Sits OUTSIDE the flex row so it reads as a caption for the shelf
+           button rather than a fourth chip. Hidden with the button. -->
+      <div id="m-book-shelf-note" style="display:none; font-size:12px; opacity:.75; margin:-2px 0 6px;"></div>
 
       <div class="meta-grid" style="margin-top:6px">
         <div class="label">Series</div><div id="m-series"></div>
@@ -42476,14 +42491,23 @@ function wireAppearance(container){
   import { col, FIREBASE_CONFIG } from './fb-env.js';
   import { mountEstateSearch } from './estate-search-mount.js';
 
-  // Shelf book map: loaded once for the Play/Download in Shelf button
-  let _moduleShelfMap = null;
+  // ── the shelf join ────────────────────────────────────────────────────────
+  // ⚠️ ONE canonical implementation, in site/shelf-link.js. It used to be
+  // inlined here (a private `_moduleBookIdFromTitle` that was the third of four
+  // copies of the same five lines, plus a raw map lookup that produced
+  // `/audiobookshelf/item/<uuid>` links for 1,077 books). ABS item ids are not
+  // stable — every id from the 2026-08-20 flat layout 404'd after the hardlink
+  // reshape — and docs/TODO.md says the join must not be duplicated, because
+  // the reader port needs the same one.
+  import { normalizeShelfMap, shelfLinkFor } from './shelf-link.js';
+
+  let _shelfMap = normalizeShelfMap(null);   // empty until the fetch lands
   fetch('shelf_book_map.json').then(r => r.ok ? r.json() : null)
-    .then(d => { if (d) _moduleShelfMap = d; })
+    .then(d => { _shelfMap = normalizeShelfMap(d); renderShelfButton(_lastModalTitle); })
+    // ⚠️ An outage leaves the map EMPTY, which renders NO button. That is the
+    // intended failure: a missing button is honest, a button into an empty
+    // search is not.
     .catch(() => {});
-  function _moduleBookIdFromTitle(title) {
-    return (title || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-{2,}/g, '-').replace(/^-|-$/g, '');
-  }
 
   // Production Firebase config — canonical copy lives in site/fb-env.js
   const firebaseConfig = FIREBASE_CONFIG;
@@ -43252,35 +43276,64 @@ function wireAppearance(container){
   // fact sends people asking for access they already hold.
   const audioContainer = document.getElementById('m-audio');
 
+  // ── the fourth action-row button: "Open on the shelf" ─────────────────────
+  //
+  // Owner ask, 2026-08-21: *"can we now generate links to this site and add a
+  // mapping for it like we do for drive mapping, we want to have another link
+  // next to the go to author folder, for going to the book page on the server
+  // for download."*
+  //
+  // All three recorded constraints live in site/shelf-link.js; this function
+  // only paints what it is handed. The one rule that is VISUAL, and therefore
+  // here: a null link HIDES the anchor rather than disabling it or pointing it
+  // somewhere harmless.
+  const shelfBtn = document.getElementById('m-book-shelf');
+  const shelfNote = document.getElementById('m-book-shelf-note');
+  let _lastModalTitle = '';
+
+  function renderShelfButton(bookTitle) {
+    _lastModalTitle = bookTitle || '';
+    if (!shelfBtn || !shelfNote) return;
+
+    const link = shelfLinkFor(_lastModalTitle, _shelfMap);
+
+    if (!link) {
+      // ⚠️ No counterpart on the shelf (5 of 1,087 as measured 2026-09-02), or
+      // the map has not loaded yet. Either way: no button. A dead link is worse
+      // than an absent one, and a button that searches for a book the shelf
+      // does not hold is a dead link with extra steps.
+      shelfBtn.style.display = 'none';
+      shelfNote.style.display = 'none';
+      return;
+    }
+
+    shelfBtn.href = link.href;
+    shelfBtn.textContent = link.label;
+    shelfBtn.title = link.title;
+    shelfBtn.style.display = '';
+
+    // ⚠️ Constraint 2, and the reason this note exists at all: EVERYONE who
+    // clicks meets Cloudflare Access. The owner confirmed it with a real
+    // person — "shelf cloudflare needs the sign in too, it made Justin sign
+    // in." Someone who is not on the family allowlist must learn that from the
+    // page, not from an unexplained Google sign-in screen.
+    shelfNote.textContent = 'Opens Audiobookshelf in a new tab — ' + link.note + '.';
+    shelfNote.style.display = '';
+  }
+
   async function renderAudioRow(bookTitle) {
-    // Play/Download in Shelf — the ABS shelf link replaces the old streaming UI.
+    // ⚠️ THE SHELF LINK IS NO LONGER RENDERED HERE. It moved to the modal's
+    // ACTION ROW as `#m-book-shelf` (renderShelfButton below), which is where
+    // the owner asked for it — "another link next to the go to author folder" —
+    // and beside the two Drive buttons it belongs with. It was in this row as
+    // well, which made two surfaces answer one question; the estate's rule says
+    // that ends in disagreement, so there is now exactly one.
+    //
+    // What stays here is the estate's OWN player, which is a different offer:
+    // the shelf is Audiobookshelf behind Cloudflare Access, ours is behind
+    // `vis_ebooks` with a chapter-relative scrub bar and a sleep timer.
     if (!audioContainer || !bookTitle) return;
     audioContainer.innerHTML = '';
-
-    // Look up the shelf map to get the ABS item ID for this book
-    var bookId = _moduleBookIdFromTitle(bookTitle);
-    var absId = _moduleShelfMap && _moduleShelfMap[bookId];
-
-    if (absId) {
-      var href = 'https://shelf.heygabi.ai/audiobookshelf/item/' + encodeURIComponent(absId);
-      var btn = document.createElement('a');
-      btn.href = href;
-      btn.target = '_blank';
-      btn.rel = 'noopener';
-      btn.textContent = '🎧 Play / Download in Shelf';
-      btn.className = 'link-btn';
-      audioContainer.appendChild(btn);
-    } else {
-      // Fallback: search link
-      var href = 'https://shelf.heygabi.ai/audiobookshelf/library/69bed7b1-89b1-422d-92de-c27d7c9087db/search?q=' + encodeURIComponent(bookTitle);
-      var btn = document.createElement('a');
-      btn.href = href;
-      btn.target = '_blank';
-      btn.rel = 'noopener';
-      btn.textContent = '🎧 Find in Shelf';
-      btn.className = 'link-btn';
-      audioContainer.appendChild(btn);
-    }
 
     // --- Listen HERE — the estate's own player (audio player PHASE 2) ------
     //
@@ -43384,6 +43437,7 @@ function wireAppearance(container){
       if (!title || title === _modalRenderedFor) return;
       _modalRenderedFor = title;
       // Shelf button renders for everyone — no auth needed.
+      renderShelfButton(title);
       renderAudioRow(title);
       // Reviews + TBR need Firebase auth.
       if (db) {

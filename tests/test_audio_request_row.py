@@ -113,9 +113,17 @@ def test_the_service_worker_exists():
 
 
 def test_the_player_is_rendered_for_streamable_books():
-    """Shelf button replaced the in-browser player (2026-08-21)."""
+    """
+    Shelf button replaced the in-browser player (2026-08-21).
+
+    ⚠️ MOVED 2026-09-02, not removed. It used to live in the `m-audio` row and
+    is now the fourth button of the modal's ACTION ROW (`#m-book-shelf`), which
+    is where the owner asked for it — "another link next to the go to author
+    folder". Two surfaces were answering one question; there is now one.
+    """
     src = strip_comments(read(TEMPLATE))
-    assert "Play / Download in Shelf" in src or "Find in Shelf" in src
+    assert 'id="m-book-shelf"' in src
+    assert "renderShelfButton" in src
 
 
 # --------------------------------------------------------------------------- #
@@ -125,14 +133,14 @@ def test_the_wait_is_described_honestly():
     """Streaming UI has been replaced by the shelf button (2026-08-21).
     The old wait-time copy is gone — there is no request queue anymore."""
     src = strip_comments(read(TEMPLATE))
-    assert "Play / Download in Shelf" in src or "Find in Shelf" in src
+    assert 'id="m-book-shelf"' in src
     assert "Not streamable yet" not in src
 
 
 def test_the_first_rung_is_the_designs_words():
     """The shelf button is the new first rung — no more request flow."""
     src = read(TEMPLATE)
-    assert "Play / Download in Shelf" in src or "Find in Shelf" in src
+    assert 'id="m-book-shelf"' in src
 
 
 # --------------------------------------------------------------------------- #
@@ -227,7 +235,14 @@ def test_an_outage_is_never_reported_as_a_refusal():
 def test_nothing_renders_without_the_grant():
     """The streaming UI is replaced by the shelf link (K8/K12, 2026-08-21).
     The shelf button renders for everyone — ABS's own Cloudflare Access gate
-    handles who can actually open it."""
+    handles who can actually open it.
+
+    ⚠️ "Renders for everyone" is about the GRANT, not about the book: since
+    2026-09-02 the button is also hidden for a book the shelf does not hold
+    (5 of 1,087, measured), because a link into an empty search is a dead link
+    with extra steps. What must never gate it is who is signed in here."""
     src = strip_comments(read(TEMPLATE))
-    # The shelf button renders unconditionally; auth is on ABS's side
-    assert "Play / Download in Shelf" in src or "Find in Shelf" in src
+    # The shelf button is wired unconditionally; auth is on ABS's side.
+    assert 'id="m-book-shelf"' in src
+    # ⚠️ And it says so, because everyone who clicks meets Cloudflare Access.
+    assert "renderShelfButton" in src

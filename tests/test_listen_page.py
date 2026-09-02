@@ -352,7 +352,16 @@ def test_the_modal_links_to_the_player_relatively():
 def test_the_modal_keeps_the_shelf_link():
     """⚠️ The player link is ADDITIVE. Another session routed playback to the
     Audiobookshelf shelf on 2026-08-21; this phase does not revert that, and
-    which of the two surfaces survives is the owner's call."""
+    which of the two surfaces survives is the owner's call.
+
+    ⚠️ The shelf link MOVED on 2026-09-02 — out of the `m-audio` row and into
+    the modal's action row as `#m-book-shelf`, where the owner asked for it.
+    That is the opposite of reverting it: the two offers now sit in different
+    places instead of stacked in one row, and "Listen here" keeps `m-audio` to
+    itself. This test still guards the thing it was written to guard — that the
+    shelf link is not deleted in favour of the estate's own player."""
     body = read(INDEX_TEMPLATE)
-    assert "Play / Download in Shelf" in body
-    assert "Find in Shelf" in body
+    assert 'id="m-book-shelf"' in body
+    assert "renderShelfButton" in body
+    # …and the audio row still offers the estate player beside it.
+    assert "renderAudioRow" in body
