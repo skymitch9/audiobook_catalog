@@ -999,12 +999,46 @@ h1 .tail{color:var(--accent)}
     var provisional = b.source === 'filename'
       ? '<div><span class="eb-provisional" title="Title and author were parsed from the file name, not read from the file&#x27;s own metadata — treat them as provisional.">unverified metadata</span></div>'
       : '';
-    // "Also on audio": the file was filed beside an audiobook, so hand the
-    // reader the audiobook catalog's own search for this title.
-    var audio = b.beside_audiobook
+    // "Also on audio" — rendered ONLY when a real audiobook resolves.
+    //
+    // ⚠️ IT KEYS ON `audiobook_title`, NOT `beside_audiobook`, AND THE
+    // DIFFERENCE IS THE WHOLE FIX (2026-09-02). `beside_audiobook` is merely
+    // the NAME OF THE FOLDER the file sits in — every ebook in an author or
+    // series folder carries one, matched or not — so the old gate drew the
+    // link for rows with no audiobook behind them at all. And it searched the
+    // EBOOK's OWN title, which is a THIRD spelling of the book (this shelf's
+    // manifest header says so: 27 of 92 shared books produce a different key
+    // from the catalog's own), so even a row that DID have a twin could land
+    // on an empty result. Either way the reader pressed a control that went
+    // nowhere — the dead affordance ROLES.md §1e forbids.
+    //
+    // `audiobook_title` is `sibling_catalog_match`'s answer: the raw title of
+    // an actual row in site/catalog.csv. Searching it is guaranteed a row on
+    // the other side, and its absence is guaranteed "there is no audiobook",
+    // so the honest rendering of a miss is NO CONTROL AT ALL, not a link to an
+    // empty search. The "Filed under" meta row below still shows the folder —
+    // that fact is true and is a different claim.
+    var audio = b.audiobook_title
       ? '<a class="eb-audio-link" href="https://audiobooks.heygabi.ai/#' +
-          esc(new URLSearchParams({ q: String(b.title || '') }).toString()) +
+          esc(new URLSearchParams({ q: String(b.audiobook_title) }).toString()) +
         '">Also on audio &#x2192;</a>'
+      : '';
+    // How many DISTINCT audio editions the catalog holds for this exact book —
+    // the ebook echo of the library's "You own N audiobooks". Counted at build
+    // time by `_edition_pick` in scripts/build_ebook_manifest.py, which counts
+    // distinct cover_hrefs among catalog rows that already share this ebook's
+    // normalised title inside one author/series folder. ⚠️ NOTHING IS JOINED
+    // OR GUESSED HERE: the page renders the number the manifest measured, and
+    // an older manifest with no such key renders nothing at all (Number(
+    // undefined) > 1 is false) rather than inventing a 1.
+    //
+    // ⚠️ Only when it EXCEEDS ONE. "1 audiobook" is exactly what the "Also on
+    // audio →" link already says, so a row repeating it is noise; 0 means
+    // there is no sibling and the link is absent too.
+    var editions = Number(b.audio_edition_count);
+    var editionsRow = editions > 1
+      ? '<span class="k">Audio editions</span><span class="v">' +
+          esc(String(Math.floor(editions))) + ' audiobooks</span>'
       : '';
     var meta =
       '<div class="eb-meta">' +
@@ -1012,6 +1046,7 @@ h1 .tail{color:var(--accent)}
         (b.size_bytes ? '<span class="k">Size</span><span class="v mono">' + humanSize(b.size_bytes) + '</span>' : '') +
         (humanDate(b.modified) ? '<span class="k">Updated</span><span class="v">' + esc(humanDate(b.modified)) + '</span>' : '') +
         (b.beside_audiobook ? '<span class="k">Filed under</span><span class="v"><span class="eb-folder">' + esc(b.beside_audiobook) + '</span></span>' : '') +
+        editionsRow +
       '</div>';
     cardMediaEl.innerHTML = coverHtml(b);
     wireImageFallback(cardMediaEl);

@@ -264,14 +264,43 @@ class TestBookshelfContracts:
         assert "unverified metadata" in html
 
     def test_also_on_audio_links_the_audiobook_hash_search(self):
-        # beside_audiobook rows link the audiobook catalog's own #q= search —
-        # the catalog's only book anchor (same contract as index_push's
+        # Matched rows link the audiobook catalog's own #q= search — the
+        # catalog's only book anchor (same contract as index_push's
         # detail_url_for), URLSearchParams-encoded.
         html = _template("ebooks.html")
         assert "Also on audio" in html
         assert "https://audiobooks.heygabi.ai/#" in html
         assert "URLSearchParams" in html
-        assert "b.beside_audiobook" in html  # gated, never unconditional
+
+    def test_also_on_audio_is_gated_on_a_resolved_audiobook_not_a_folder(self):
+        # 🔴 THE DEAD-BUTTON FIX, 2026-09-02. `beside_audiobook` is the name of
+        # the FOLDER the file sits in, which every ebook in an author/series
+        # folder carries whether or not an audiobook was ever matched — gating
+        # on it drew "Also on audio →" for rows with nothing behind them, and
+        # searched the ebook's own (third) spelling of the title so even a
+        # matched row could land on an empty result. `audiobook_title` is the
+        # conservative join's answer: a raw title of a real site/catalog.csv
+        # row. Absent means absent, and the honest rendering of absent is no
+        # control at all (ROLES.md §1e).
+        html = _template("ebooks.html")
+        assert "var audio = b.audiobook_title" in html, (
+            "the Also-on-audio control must be gated on a RESOLVED audiobook"
+        )
+        assert "q: String(b.audiobook_title)" in html, (
+            "it must search the catalog's own spelling, never the ebook's"
+        )
+        assert "q: String(b.title || '')" not in html
+
+    def test_multiple_audio_editions_are_said_out_loud(self):
+        # The ebook echo of the library's "You own N audiobooks", off the
+        # manifest's measured `audio_edition_count` (scripts/
+        # build_ebook_manifest.py::_edition_pick). Rendered only above 1: "1
+        # audiobook" is what the Also-on-audio link already says.
+        html = _template("ebooks.html")
+        assert "Number(b.audio_edition_count)" in html
+        assert "editions > 1" in html
+        assert "audiobooks</span>" in html
+        assert "Audio editions" in html
 
     def test_spine_cloth_tones_exist_in_both_schemes(self):
         # Placeholders must look right in light AND dark — no colour may live
