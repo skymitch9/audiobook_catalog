@@ -35,6 +35,15 @@ docs/
 !site/discussion_prompts.json
 !site/content_warnings.json
 !site/additions_log.json
+# The hand-reviewed cross-catalog joins. MUST be tracked, for three reasons at
+# once: deploy.yml assembles each lane from that branch's COMMITTED site/, so an
+# untracked copy is a 404 and a modal that silently loses its links;
+# tests/test_cross_catalog_overrides.py and site/__tests__/library-link.test.js
+# BOTH read it, so an untracked copy is two suites that pass here and fail in
+# CI; and library_catalog reads it out of this checkout, so a clone without it
+# cannot run `npm run check:cross-links`. Holds book titles and library work
+# ids only — strings the public catalogue already serves.
+!site/cross-catalog-overrides.json
 # ⚠️ site/ebooks.json IS DELIBERATELY NOT NEGATED — it was, until 2026-08-17.
 # Owner directive: "ebooks should be like the other site where we grant
 # permission to view it. I don't want people scraping my books." Two public

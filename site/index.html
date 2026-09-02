@@ -41109,16 +41109,22 @@ A Macmillan Audio production from Tor Books" data-library-work-id="504" data-lib
         <summary style="cursor:pointer; color:var(--neon-cyan); text-transform:var(--et-title-case); font-size:.75em; letter-spacing:.5px;">📎 Companion Files</summary>
         <ul id="m-companions-list" style="margin:8px 0 2px 18px; font-size:.85em; line-height:1.5;"></ul>
       </details>
-      <!-- Other versions available — library_catalog's copy of this same book,
-           stamped by app/library_link.py (join on this book's own title
-           against that catalog's audiobook_holding cache). Every entry names
-           its format, per the owner's cross-catalog spec, and links to
-           https://library.heygabi.ai/work/{id}.
-           ⚠️ That site requires sign-in — the link works for estate members;
-           a stranger clicking it hits the sign-in wall. Correct, not a bug. -->
+      <!-- Other versions available — library_catalog's copy of this same book.
+           Filled by renderLibraryVersions() in the module script; the join
+           itself is site/library-link.js and NOWHERE ELSE. Two sources feed
+           it, both decided before the browser runs: the build-time stamp
+           app/library_link.py writes onto the catalog row, and the
+           hand-reviewed rows in site/cross-catalog-overrides.json (which is
+           what gives The Wandering Inn Book 1 its TWO printed works). Every
+           entry names its format, per the owner's cross-catalog spec.
+           ⚠️ The destination needs a sign-in and the NOTE below says so, in
+           words, on the page. Measured 2026-09-02: /work/229 answers 200 and
+           /api/works/229 answers 401, so a stranger who clicks gets an empty
+           shell — which is a bare refusal wearing a page's clothes. -->
       <details id="m-library-versions" style="display:none; margin-top:8px; padding:6px 10px; background:var(--surface); border:1px solid var(--border); border-radius:4px;">
         <summary style="cursor:pointer; color:var(--neon-cyan); text-transform:var(--et-title-case); font-size:.75em; letter-spacing:.5px;">🔗 Other versions available</summary>
         <ul id="m-library-versions-list" style="margin:8px 0 2px 18px; font-size:.85em; line-height:1.5;"></ul>
+        <div id="m-library-versions-note" style="display:none; margin:6px 0 2px; font-size:.75em; opacity:.75;"></div>
       </details>
       <div class="desc" id="m-desc"></div>
       <!-- Content warnings (only for books already checked via the club pipeline) -->
@@ -41529,8 +41535,11 @@ function wireAppearance(container){
   var mDesc=document.getElementById("m-desc");
   var mCompanions=document.getElementById("m-companions");
   var mCompanionsList=document.getElementById("m-companions-list");
+  // ⚠️ The LIST is deliberately not held here any more — the module script
+  // owns filling it (renderLibraryVersions). This handle exists only so the
+  // pre-module-load path can hide the section; two writers of one element is
+  // how the two ends of a join start disagreeing.
   var mLibraryVersions=document.getElementById("m-library-versions");
-  var mLibraryVersionsList=document.getElementById("m-library-versions-list");
   var mWarnings=document.getElementById("m-warnings");
   var mWarningsList=document.getElementById("m-warnings-list");
 
@@ -41630,29 +41639,23 @@ function wireAppearance(container){
       mCompanions.style.display="none";
     }
 
-    // Other versions available — library_catalog work + formats, stamped by
-    // app/library_link.py. ALWAYS shows the format word per the owner's spec;
-    // renders nothing when this book has no library match.
-    mLibraryVersionsList.innerHTML="";
-    if(payload.libraryWorkId && payload.libraryFormats){
-      var libHref="https://library.heygabi.ai/work/"+encodeURIComponent(payload.libraryWorkId);
-      var libFmts=payload.libraryFormats.split("|").map(function(s){return s.trim();}).filter(Boolean);
-      libFmts.forEach(function(fmt){
-        var li=document.createElement("li");
-        li.appendChild(document.createTextNode(fmt+" — "));
-        var a=document.createElement("a");
-        a.href=libHref; a.target="_blank"; a.rel="noopener noreferrer";
-        a.textContent="View record";
-        li.appendChild(a);
-        mLibraryVersionsList.appendChild(li);
-      });
-      if(libFmts.length){
-        mLibraryVersions.querySelector("summary").textContent="🔗 Other versions available ("+libFmts.length+")";
-        mLibraryVersions.open=false;
-        mLibraryVersions.style.display="block";
-      } else {
-        mLibraryVersions.style.display="none";
-      }
+    // Other versions available — the physical library.
+    //
+    // ⚠️ THE JOIN NO LONGER LIVES HERE. It moved to site/library-link.js, the
+    // one canonical `catalog row → library_catalog` implementation, painted by
+    // renderLibraryVersions() in the module script below — the same shape the
+    // shelf link already uses. What was here hardcoded the origin, never said
+    // that the destination needs a sign-in, and could only ever point at ONE
+    // work, which is why *The Wandering Inn* (one audiobook, two printed
+    // works) had no link at all.
+    //
+    // The `if` is the module-load guard `window.renderUserWarnings` uses a few
+    // lines down: the module script is deferred, so a click in the first
+    // moments of the page finds nothing here. The section stays hidden until
+    // the module lands, which is the same intended failure as an absent
+    // overrides fetch — no section beats a half-built one.
+    if(window.renderLibraryVersions){
+      window.renderLibraryVersions(payload);
     } else {
       mLibraryVersions.style.display="none";
     }
@@ -42509,6 +42512,25 @@ function wireAppearance(container){
     // search is not.
     .catch(() => {});
 
+  // ── the library join ──────────────────────────────────────────────────────
+  // ⚠️ ONE canonical implementation, in site/library-link.js — the same rule
+  // shelf-link.js states above it, arrived at the same way. This join was
+  // twelve inline lines in the non-module script below: it hardcoded the
+  // origin, said nothing about the sign-in every clicker meets, and could not
+  // express the one shape the owner asked for — an audiobook whose printed
+  // counterpart is TWO works (The Wandering Inn, 2026-09-02). All four
+  // recorded constraints live in that file.
+  import { ACCESS_NOTE as LIBRARY_ACCESS_NOTE, libraryLinksFor, normalizeOverrides } from './library-link.js';
+
+  let _libraryOverrides = normalizeOverrides(null);  // empty until the fetch lands
+  fetch('cross-catalog-overrides.json').then(r => r.ok ? r.json() : null)
+    .then(d => { _libraryOverrides = normalizeOverrides(d); renderLibraryVersions(_lastLibraryPayload); })
+    // ⚠️ An outage leaves the overrides EMPTY, so a curated book renders NO
+    // section rather than a half-built one. Same intended failure as the shelf
+    // map: absent is honest, and a link built from data that never arrived is
+    // not absent, it is wrong.
+    .catch(() => {});
+
   // Production Firebase config — canonical copy lives in site/fb-env.js
   const firebaseConfig = FIREBASE_CONFIG;
 
@@ -43320,6 +43342,67 @@ function wireAppearance(container){
     shelfNote.textContent = 'Opens Audiobookshelf in a new tab — ' + link.note + '.';
     shelfNote.style.display = '';
   }
+
+  // ── "Other versions available" — the physical library ─────────────────────
+  //
+  // Owner's cross-catalog spec, 2026-08-14: *"both sites say other versions
+  // available and then have a hyperlink to the record and always say the form
+  // the media is in."* The library side of the same spec is
+  // `library_catalog/apps/web/src/components/OtherVersions.tsx`, which points
+  // back here; this is its mirror.
+  //
+  // Every join decision lives in site/library-link.js — this function only
+  // paints what it is handed. The rules that are VISUAL, and therefore here:
+  //   - an EMPTY list hides the section entirely (constraint 2). No "no
+  //     library copy" placeholder: 960 of 1,088 books would carry it, and a
+  //     line saying nothing on seven books in eight is noise, not honesty;
+  //   - the sign-in note is rendered as TEXT beside the links, not only in the
+  //     hover title, because a hover does not exist on a phone (constraint 3).
+  const mLibraryVersionsEl = document.getElementById('m-library-versions');
+  const mLibraryVersionsListEl = document.getElementById('m-library-versions-list');
+  const mLibraryVersionsNote = document.getElementById('m-library-versions-note');
+  let _lastLibraryPayload = null;
+
+  function renderLibraryVersions(payload) {
+    _lastLibraryPayload = payload || null;
+    if (!mLibraryVersionsEl || !mLibraryVersionsListEl) return;
+
+    mLibraryVersionsListEl.innerHTML = '';
+    const links = libraryLinksFor(_lastLibraryPayload || {}, _libraryOverrides);
+
+    if (links.length === 0) {
+      mLibraryVersionsEl.style.display = 'none';
+      return;
+    }
+
+    for (const l of links) {
+      const li = document.createElement('li');
+      // ALWAYS the format word first — the owner's spec, not a nice-to-have.
+      li.appendChild(document.createTextNode(l.formatLabel + ' — '));
+      const a = document.createElement('a');
+      a.href = l.href;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.title = l.title;
+      a.textContent = l.linkText;
+      li.appendChild(a);
+      mLibraryVersionsListEl.appendChild(li);
+    }
+
+    mLibraryVersionsEl.querySelector('summary').textContent =
+      '🔗 Other versions available (' + links.length + ')';
+    if (mLibraryVersionsNote) {
+      // ⚠️ Constraint 3. Measured 2026-09-02: the work page answers 200 and its
+      // API answers 401, so a stranger who follows this link gets an empty
+      // shell rather than an error he can understand. Say so before the click.
+      mLibraryVersionsNote.textContent =
+        'Opens the physical library in a new tab — ' + LIBRARY_ACCESS_NOTE + '.';
+      mLibraryVersionsNote.style.display = '';
+    }
+    mLibraryVersionsEl.open = false;
+    mLibraryVersionsEl.style.display = 'block';
+  }
+  window.renderLibraryVersions = renderLibraryVersions;
 
   async function renderAudioRow(bookTitle) {
     // ⚠️ THE SHELF LINK IS NO LONGER RENDERED HERE. It moved to the modal's
