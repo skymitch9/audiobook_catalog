@@ -191,12 +191,17 @@ def obj(**kw):
 
 def test_no_access_data_evicts_nothing_and_says_so():
     """🔴 THE GUARD. Two nulls mean "never measured", not "never listened to".
-    Until phase 2 wires access timestamps this must delete nothing at all."""
+    While neither stamp lane is arriving, this must delete nothing at all.
+
+    ⚠️ The refusal's WORDING moved on in phase 3 — it no longer promises that
+    phase 2 will wire the timestamps, because phase 2 did, and phase 3 wired
+    the other half. What is pinned is the DISTINCTION it was always about."""
     files = {f"book-{i}.m4b": obj() for i in range(5)}
     candidates, refusals = fr.evict_candidates(files, now=NOW)
     assert candidates == []
     assert len(refusals) == 5
-    assert all("no access data yet" in r for r in refusals)
+    assert all("nothing has ever MEASURED this object" in r for r in refusals)
+    assert all("last_position_at" in r for r in refusals)
 
 
 def test_a_stream_older_than_thirty_days_is_evictable():
@@ -251,7 +256,7 @@ def test_a_junk_timestamp_is_treated_as_no_data_not_as_ancient():
     files = {"junk.m4b": obj(last_stream_at="whenever")}
     candidates, refusals = fr.evict_candidates(files, now=NOW)
     assert candidates == []
-    assert "no access data yet" in refusals[0]
+    assert "nothing has ever MEASURED this object" in refusals[0]
 
 
 def test_evict_candidates_never_mutates_the_record():
