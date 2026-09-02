@@ -80,12 +80,30 @@ def test_the_row_renders_on_modal_open():
 
 
 # --------------------------------------------------------------------------- #
-# ⚠️ PHASE 2 IS BUILT — the player lives in audio-player.js
+# ⚠️ PHASE 2 IS BUILT — and the player is a PAGE, not a module in this modal
 # --------------------------------------------------------------------------- #
-def test_the_player_module_exists():
-    """Phase 2: audio-player.js provides the renderAudioPlayer function."""
-    player_module = REPO / "site" / "audio-player.js"
-    assert player_module.exists(), "site/audio-player.js is gone; the modal's player import 404s"
+def test_the_player_page_exists():
+    """The player lives at /listen, per design §7.1 and §10's phase table.
+
+    ⚠️ THIS TEST REPLACED ONE THAT PINNED `site/audio-player.js`, and the
+    replacement is the point. That file was WIP committed on the owner's
+    "just commit everything" (`c02ce30`, whose own message says "NOT VERIFIED
+    — nothing here has been run"). It rendered a player INSIDE the catalogue
+    modal, drew a BOOK-relative scrub bar, and called
+    `POST /api/audio/:anchor/stream-ping` — a Worker route that does not
+    exist. The design of record specifies a `/listen?b=<anchor>` page with a
+    CHAPTER-relative bar (requirement 7, the reason the whole feature ships no
+    player library), so phase 2 built that and deleted the WIP rather than
+    leave two players to disagree about which one is real. It is recoverable
+    from git if the in-modal shape is ever preferred.
+    """
+    assert (REPO / "site" / "listen.html").exists(), "the player page is not deployed"
+    assert (REPO / "site" / "listen.js").exists(), "the player's logic module is missing"
+    assert (REPO / "site" / "audio-chapters.js").exists(), "the chapter model is missing"
+    assert not (REPO / "site" / "audio-player.js").exists(), (
+        "site/audio-player.js is back — two players is the split-brain this "
+        "estate forbids; the player is /listen"
+    )
 
 
 def test_the_service_worker_exists():

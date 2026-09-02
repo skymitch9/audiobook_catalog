@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<!--
+  THE PLAYER — audio player phase 2, 2026-09-02. One audiobook at a time, in
+  the browser, behind the same gate as the ebook shelf.
+
+  ⚠️ THIS FILE IS A TEMPLATE. It lives in app/web/templates/ and is copied
+  VERBATIM to site/listen.html by app/writers.py (STATIC_TEMPLATE_PAGES, the
+  same convention read.html, ebooks.html and guess-game.html already use).
+  Edit it HERE — an edit to site/listen.html is wiped by the next catalog build.
+
+  ⚠️ THE LOGIC IS NOT IN THIS FILE, for the same reason it is not in read.html:
+  /listen's Content-Security-Policy (site/_headers) is `script-src 'self'` plus
+  gstatic, with NO 'unsafe-inline'. An inline <script> here would be blocked in
+  production and nowhere else — the worst kind of bug to find. site/listen.js
+  is an external module and must stay one.
+
+  WHERE IT LIVES, and the trailing-slash trap — read.html's header states both
+  at length and they apply here verbatim. The canonical URL is
+  /listen?b=<anchor>, EXTENSIONLESS and with NO trailing slash: Cloudflare
+  Pages 308s /listen.html to /listen, and /listen/ would re-base every relative
+  URL on this page onto /listen/, where none of them exist. The dev lane is a
+  PATH, not a host: /dev/listen?b=<anchor> on audiobooks.heygabi.ai. Every
+  asset reference here is RELATIVE for exactly that reason.
+
+  ⚠️ UNLIKE /read, THIS PAGE LIVES ON THE AUDIOBOOK SITE, NOT THE EBOOK ONE.
+  The way back is the catalogue (`.`), not the ebook shelf. `ebooks-door`
+  proxies /read onto ebooks.heygabi.ai; this page is not part of that lane and
+  should not be linked into it.
+
+  THE GATE IS SERVER-SIDE AND IS NOT HERE. This page decides nothing about who
+  may listen. Every byte of audio is gated by the estate's `vis_ebooks` grant,
+  enforced by the audiobook Worker on EVERY RANGE of
+  /api/audio/:anchor/file — owner decision 1, 2026-08-17: *"MIRROR EBOOK if
+  they can read an ebook they can listen to an audio."* What this page owns is
+  saying so IN WORDS when the answer is no (see listen.js §3, the HEAD probe),
+  because an <audio> element reports a 401 as a bare `error` event with no
+  status and the result is a play button that does nothing.
+
+  ⚠️ WHAT THIS PAGE DELIBERATELY DOES NOT DO — phase boundaries, not gaps:
+    * it does not SAVE YOUR SPOT. Positions are phase 3 and are gated on a
+      firestore.rules deploy plus a live smoke test; a position written against
+      rules that refuse it fails silently and looks exactly like "the player
+      does not save your spot" (design §1.4, §7.4).
+    * it is not a PWA and caches nothing offline. That is phase 4, and it is
+      gated on a real iPhone test (design §4.1, §10).
+  Both are stated on the page itself rather than left for someone to discover.
+-->
+<title>Listen — The Household Library</title>
+<!-- A data: URI, exactly as read.html does it: /listen's CSP is
+     `img-src 'self' data: blob:` and a separate file would be one more asset
+     to keep in step across two lanes. -->
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231b4a5a'/%3E%3Cpath d='M32 14c-9.9 0-18 8.1-18 18v12h8V32a10 10 0 0 1 20 0v12h8V32c0-9.9-8.1-18-18-18z' fill='%23f6f1e6'/%3E%3Crect x='12' y='34' width='9' height='16' rx='4.5' fill='%23f6f1e6'/%3E%3Crect x='43' y='34' width='9' height='16' rx='4.5' fill='%23f6f1e6'/%3E%3C/svg%3E">
+<style>
+  /* ⚠️ INLINE STYLE IS ALLOWED HERE AND INLINE SCRIPT IS NOT. /listen's CSP
+     carries `style-src 'self' 'unsafe-inline'` (the estate's existing posture,
+     copied from /read) but `script-src 'self'` with no 'unsafe-inline'. */
+  :root { color-scheme: dark; }
+  body { margin: 0; background: var(--bg, #0b0b13); color: var(--text, #e8e8f0);
+         font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; }
+  #wrap { max-width: 760px; margin: 0 auto; padding: 16px; }
+  .masthead { display: flex; align-items: center; justify-content: space-between;
+              gap: 12px; margin-bottom: 14px; }
+  .masthead h1 { font-size: 1.4rem; margin: 0; }
+  .eyebrow { font-size: .72rem; letter-spacing: .12em; text-transform: uppercase;
+             color: var(--muted, #9a9ab0); text-decoration: none; display: block; }
+  .tail { color: var(--neon-cyan, #35d6e0); }
+
+  /* The gate card. Ships VISIBLE with a neutral "checking" line — Firebase
+     reads its persisted session asynchronously, so a page that renders "signed
+     out" immediately shows a signed-in listener a flash of the sign-in button.
+     read.html's header records that bug; this is the same shape. */
+  #ls-gate { border: 1px solid var(--border, #2a2a3c); border-radius: 10px;
+             padding: 18px; background: var(--bg-2, #14141f); }
+  #ls-gate h2 { margin: 0 0 6px; font-size: 1.05rem; }
+  #ls-gate p { margin: 0 0 10px; color: var(--muted, #9a9ab0); line-height: 1.5; }
+  .ls-act { display: inline-block; margin-right: 8px; padding: 8px 14px;
+            border: 1px solid var(--border, #2a2a3c); border-radius: 6px;
+            background: var(--bg, #0b0b13); color: var(--text, #e8e8f0);
+            cursor: pointer; text-decoration: none; font-size: .9rem; }
+  .ls-act.quiet { color: var(--muted, #9a9ab0); }
+
+  #ls-shell { border: 1px solid var(--border, #2a2a3c); border-radius: 10px;
+              padding: 16px; background: var(--bg-2, #14141f); }
+  .ls-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+             margin-bottom: 4px; }
+  .ls-back { color: var(--muted, #9a9ab0); text-decoration: none; font-size: .85rem; }
+  #ls-title { font-size: 1.1rem; font-weight: 600; }
+  #ls-author { color: var(--muted, #9a9ab0); font-size: .9rem; }
+
+  /* 🔴 THE CHAPTER-RELATIVE BAR — requirement 7, and the reason this feature
+     ships no player library. Its domain is ONE CHAPTER, never the book. */
+  .ls-chapline { margin: 14px 0 6px; font-size: .95rem; }
+  .ls-part { color: var(--muted, #9a9ab0); font-size: .85rem; }
+  #ls-chapter-bar { width: 100%; margin: 0; cursor: pointer;
+                    accent-color: var(--neon-cyan, #35d6e0); }
+  /* The indeterminate state — the LAST chapter before loadedmetadata has no
+     end, so the bar has no domain. Striped rather than sitting at zero, which
+     would read as "you are at the start" when the truth is "not known yet". */
+  #ls-chapter-bar.ls-unknown { opacity: .4; }
+  .ls-chaptimes { display: flex; justify-content: space-between;
+                  font-variant-numeric: tabular-nums; font-size: .8rem;
+                  color: var(--muted, #9a9ab0); margin-top: 2px; }
+
+  /* The thin BOOK-level line design §8 #7 allows "beneath it for context".
+     Deliberately not interactive: two seekable bars a few pixels apart is a
+     mis-grab waiting to happen, and the chapter bar is the one that was asked
+     for. */
+  #ls-book-progress { height: 3px; background: var(--border, #2a2a3c);
+                      border-radius: 2px; margin: 10px 0 2px; overflow: hidden; }
+  #ls-book-fill { height: 100%; width: 0; background: var(--muted, #6a6a86); }
+  .ls-booktimes { font-size: .75rem; color: var(--muted, #9a9ab0);
+                  font-variant-numeric: tabular-nums; }
+
+  .ls-transport { display: flex; align-items: center; justify-content: center;
+                  gap: 10px; margin: 16px 0 6px; flex-wrap: wrap; }
+  .ls-transport button { border: 1px solid var(--border, #2a2a3c); border-radius: 8px;
+                         background: var(--bg, #0b0b13); color: var(--text, #e8e8f0);
+                         cursor: pointer; padding: 8px 12px; font-size: .9rem; }
+  .ls-transport button:disabled { opacity: .35; cursor: default; }
+  #ls-play { font-size: 1.15rem; padding: 10px 22px; min-width: 108px; }
+
+  .ls-opts { display: flex; gap: 14px; flex-wrap: wrap; align-items: center;
+             justify-content: center; margin-top: 8px; font-size: .85rem;
+             color: var(--muted, #9a9ab0); }
+  .ls-opts select { background: var(--bg, #0b0b13); color: var(--text, #e8e8f0);
+                    border: 1px solid var(--border, #2a2a3c); border-radius: 5px;
+                    padding: 3px 6px; font-size: .85rem; }
+  #ls-sleep-left { color: var(--neon-cyan, #35d6e0); font-variant-numeric: tabular-nums; }
+
+  #ls-chapters { margin-top: 16px; }
+  #ls-chapters summary { cursor: pointer; color: var(--muted, #9a9ab0); font-size: .9rem; }
+  #ls-chapter-list { list-style: none; margin: 10px 0 0; padding: 0;
+                     max-height: 320px; overflow-y: auto; }
+  #ls-chapter-list li { padding: 0; }
+  #ls-chapter-list .ls-part-head { padding: 8px 6px 4px; font-size: .78rem;
+                                   text-transform: uppercase; letter-spacing: .08em;
+                                   color: var(--muted, #6a6a86); }
+  #ls-chapter-list button { display: flex; justify-content: space-between; gap: 10px;
+                            width: 100%; text-align: left; background: none;
+                            border: 0; border-radius: 5px; color: var(--text, #e8e8f0);
+                            padding: 6px 8px; cursor: pointer; font-size: .85rem; }
+  #ls-chapter-list button:hover { background: var(--bg, #0b0b13); }
+  #ls-chapter-list button[aria-current="true"] { background: var(--bg, #0b0b13);
+                            color: var(--neon-cyan, #35d6e0); font-weight: 600; }
+  #ls-chapter-list .ls-ch-len { color: var(--muted, #6a6a86); font-variant-numeric: tabular-nums; }
+
+  /* ⚠️ A PERSON MUST NEVER SEE A BARE HTTP STATUS. Everything that can refuse
+     or fail on this page lands in one of these two, in words. */
+  #ls-error { display: none; margin-top: 12px; padding: 10px 12px; border-radius: 6px;
+              border: 1px solid var(--neon-magenta, #d4409b);
+              color: var(--neon-magenta, #f0a); font-size: .85rem; line-height: 1.5; }
+  #ls-note { margin-top: 14px; color: var(--muted, #6a6a86); font-size: .75rem;
+             line-height: 1.5; }
+  .ls-footer { margin-top: 18px; color: var(--muted, #6a6a86); font-size: .78rem; }
+  .ls-footer a { color: var(--muted, #9a9ab0); }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div class="masthead">
+    <div>
+      <a class="eyebrow" href="https://heygabi.ai">heygabi.ai</a>
+      <h1>Listen<span class="tail">.</span></h1>
+    </div>
+    <div id="identity-bar"></div>
+  </div>
+
+  <!-- Ships VISIBLE with a neutral line. Nothing decisive renders until the
+       auth state resolves, or the 8 s backstop fires for a blocked gstatic. -->
+  <div id="ls-gate">
+    <h2 id="ls-gate-title">Opening the book</h2>
+    <p id="ls-gate-why">Checking your sign-in…</p>
+    <button type="button" class="ls-act" id="ls-gate-signin" hidden>Sign in with Google</button>
+    <a class="ls-act quiet" id="ls-gate-back" href="." hidden>Back to the catalogue</a>
+  </div>
+
+  <div id="ls-shell" hidden>
+    <div class="ls-head">
+      <a class="ls-back" href=".">&#x2190; Catalogue</a>
+      <span id="ls-title"></span>
+      <span id="ls-author"></span>
+    </div>
+
+    <!-- 🔴 REQUIREMENT 7 LIVES HERE. The bar's domain is the CURRENT CHAPTER,
+         `[chapter.startSec, chapter.endSec]` — never `[0, duration]`. Design
+         §8 #7, and the labels read elapsed-in-chapter / remaining-in-chapter
+         to match, because a chapter bar with book times beside it is worse
+         than either done consistently. -->
+    <div class="ls-chapline">
+      <span id="ls-chapter-title">&nbsp;</span>
+      <span class="ls-part" id="ls-chapter-where"></span>
+    </div>
+    <input type="range" id="ls-chapter-bar" min="0" max="1000" value="0" step="1"
+           aria-label="Position in this chapter" />
+    <div class="ls-chaptimes">
+      <span id="ls-chapter-elapsed">--:--</span>
+      <span id="ls-chapter-remaining">--:--</span>
+    </div>
+
+    <!-- The thin book-level line for context. Not interactive, on purpose. -->
+    <div id="ls-book-progress" aria-hidden="true"><div id="ls-book-fill"></div></div>
+    <div class="ls-booktimes"><span id="ls-book-times">--:-- / --:--</span> of the book</div>
+
+    <div class="ls-transport">
+      <button type="button" id="ls-prev-ch" title="Previous chapter (restarts this one if you are more than 3 seconds in)">&#x23EE; Chapter</button>
+      <button type="button" id="ls-back" title="Back">&#x2212;15s</button>
+      <button type="button" id="ls-play">&#x25B6; Play</button>
+      <button type="button" id="ls-fwd" title="Forward">+15s</button>
+      <button type="button" id="ls-next-ch" title="Next chapter">Chapter &#x23ED;</button>
+    </div>
+
+    <div class="ls-opts">
+      <label for="ls-speed">Speed
+        <!-- ⚠️ The <option>s are BUILT by listen.js from audio-prefs.SPEEDS,
+             which is the design's own ladder and goes to 3×. Anything written
+             here is replaced; the page owns the control's place, that module
+             owns its contents. -->
+        <select id="ls-speed" aria-label="Playback speed"></select>
+      </label>
+      <label for="ls-skip">Skip
+        <select id="ls-skip" aria-label="Skip interval"></select>
+      </label>
+      <label for="ls-sleep">Sleep
+        <select id="ls-sleep" aria-label="Sleep timer"></select>
+      </label>
+      <span id="ls-sleep-left"></span>
+      <button type="button" class="ls-act quiet" id="ls-sleep-more" hidden>+5 min</button>
+    </div>
+
+    <details id="ls-chapters">
+      <summary id="ls-chapters-summary">Chapters</summary>
+      <ul id="ls-chapter-list"></ul>
+    </details>
+
+    <div id="ls-error" role="alert"></div>
+
+    <p id="ls-note"></p>
+  </div>
+
+  <div class="ls-footer">
+    <!-- ⚠️ A DISCLOSURE, not a description of the implementation: this page
+         streams and stores nothing on the device, and phase 4 (the PWA, with
+         offline downloads) is the phase that changes that. Saying so here
+         keeps the claim true for exactly as long as it is true. -->
+    Streamed from the household library. Nothing is downloaded to this device.
+    Back to the <a href=".">catalogue</a>.
+  </div>
+</div>
+
+<script type="module" src="listen.js"></script>
+</body>
+</html>

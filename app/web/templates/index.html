@@ -2152,7 +2152,19 @@ function wireAppearance(container){
   import { getSession, getLiveUser, signInWithGoogle, signOutGoogle, whenAdmin, handleRedirectResult, renderDevSiteLink, getSiteRole, resolveSiteAccess } from './identity.js';
   import { submitReview, getReviews, renderStars, bookIdFromTitle, computeAverageRating, formatDate, deleteReview, readingListDocId, ownsReadingListDoc } from './reviews.js';
   import { addUserWarning, getUserWarnings, deleteUserWarning, requestWarningCheck, getWarningRequest } from './user-warnings.js';
-  // Audio streaming imports removed — shelf handles playback now (2026-08-21).
+  // ⚠️ RE-ADDED AT PHASE 2 (2026-09-02), AND THE LINE THAT SAID "removed —
+  // shelf handles playback now (2026-08-21)" IS NOW HALF TRUE. The shelf link
+  // stays exactly as it is; what joins it is the estate's OWN player, which is
+  // what the audio-player design (catalog-platform docs/info/
+  // audio-player-design.md, all six owner decisions settled 2026-08-17) has
+  // always specified and what phase 2 builds. The two are not the same offer:
+  // the shelf is Audiobookshelf behind Cloudflare Access with a family
+  // allowlist, ours is behind the estate's `vis_ebooks` grant with a
+  // chapter-relative scrub bar and a sleep timer. ⚠️ THEY ARE TWO SURFACES
+  // ANSWERING ONE QUESTION and the estate's own rule says that eventually
+  // ends in disagreement — so this is deliberately ADDITIVE and reversible,
+  // and which one survives is the owner's call, not this build's.
+  import { getAudioStatus, getAnchorForBook } from './audio-request.js';
   import { col, FIREBASE_CONFIG } from './fb-env.js';
   import { mountEstateSearch } from './estate-search-mount.js';
 
@@ -2960,6 +2972,56 @@ function wireAppearance(container){
       btn.textContent = '🎧 Find in Shelf';
       btn.className = 'link-btn';
       audioContainer.appendChild(btn);
+    }
+
+    // --- Listen HERE — the estate's own player (audio player PHASE 2) ------
+    //
+    // ⚠️ APPENDED, NEVER INSTEAD OF THE SHELF LINK. See the import block's
+    // note: two surfaces answer "play this book" and choosing between them is
+    // the owner's call.
+    //
+    // ⚠️ NOTHING RENDERS unless the book is genuinely streamable RIGHT NOW.
+    // The three outcomes are kept apart on purpose and only one draws a link:
+    //   * streamable            -> "Listen here"
+    //   * signed out / no grant -> nothing, quietly. A refusing button is
+    //                              worse than an absent one, and the shelf
+    //                              link above is still there for them.
+    //   * an OUTAGE             -> nothing, quietly. Mislabelling an outage as
+    //                              a permission fact sends people asking for
+    //                              access they already hold.
+    // A dead "Listen" is the exact failure the whole phase's HEAD probe exists
+    // to prevent, so it must not be re-introduced here by rendering first and
+    // checking later.
+    var token = (audioContainer.dataset.renderToken =
+      String(Date.now()) + ':' + bookTitle);
+    try {
+      var status = await getAudioStatus(app);
+      // ⚠️ The modal may have been closed or moved to another book while that
+      // gated call was in flight. Without this the link lands in a modal
+      // showing a DIFFERENT book — and it would play that different book.
+      if (audioContainer.dataset.renderToken !== token) return;
+      var anchor = getAnchorForBook(status, bookTitle);
+      if (!anchor) return;
+
+      var play = document.createElement('a');
+      // ⚠️ RELATIVE, so the /dev/ lane opens the /dev/ player. Extensionless
+      // and with no trailing slash — Cloudflare 308s `listen.html` to
+      // `/listen`, and `/listen/` would re-base every asset on that page.
+      // `t`/`a`/`c` are DISPLAY ONLY (title, author, cover); the player's
+      // authority for which book this is remains the anchor plus its own
+      // gated status call.
+      var author = document.getElementById('m-author');
+      var cover = document.getElementById('modal-cover');
+      play.href = 'listen?b=' + encodeURIComponent(anchor)
+        + '&t=' + encodeURIComponent(bookTitle)
+        + (author && author.textContent ? '&a=' + encodeURIComponent(author.textContent.trim()) : '')
+        + (cover && cover.src ? '&c=' + encodeURIComponent(cover.src) : '');
+      play.textContent = '▶ Listen here';
+      play.className = 'link-btn';
+      play.title = 'Play in the browser, with a chapter scrub bar, speed and a sleep timer';
+      audioContainer.appendChild(play);
+    } catch (e) {
+      // An outage is not a verdict. The shelf link above still stands.
     }
   }
   window.renderAudioRow = renderAudioRow;

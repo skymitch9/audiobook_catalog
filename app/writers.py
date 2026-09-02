@@ -180,7 +180,13 @@ def _copy_static_to_site(site_dir: Path) -> None:
 #:     production and nowhere else. reader.js is a hand-written committed file
 #:     in site/, like identity.js and ebook-notes.js; only the PAGE is a
 #:     template. tests/test_reader_page.py pins that this tuple lists it.
-STATIC_TEMPLATE_PAGES = ("guess-game.html", "ebooks.html", "read.html")
+#:   - listen.html: the in-browser audiobook player (audio player phase 2).
+#:     ⚠️ Same shape and the same reason as read.html — its logic is in
+#:     site/listen.js because /listen's CSP forbids inline script. It also
+#:     needs `media-src` and `worker-src` in that CSP, which no other page on
+#:     this site does; site/_headers carries all four rules (two lanes × two
+#:     slash forms). tests/test_listen_page.py pins both.
+STATIC_TEMPLATE_PAGES = ("guess-game.html", "ebooks.html", "read.html", "listen.html")
 
 
 def _copy_template_pages_to_site(site_dir: Path) -> None:

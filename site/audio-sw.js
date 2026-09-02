@@ -26,9 +26,20 @@ const DB_VERSION = 1;
 const STORE_NAME = 'tokens';
 const TOKEN_KEY = 'firebase-id-token';
 
-// The pattern that identifies audio byte requests.
-// Matches: /api/audio/<anchor>/file
+// 🔴 WHICH REQUESTS GET THE TOKEN — AND IT IS AN ORIGIN CHECK, NOT ONLY A PATH.
+//
+// ⚠️ Phase 2 tightened this. The first cut matched on `url.pathname` alone, so
+// ANY origin this page could be made to fetch `/api/audio/<x>/file` from would
+// have received the household's Firebase ID token in an Authorization header.
+// A bearer is only as safe as the list of hosts it is handed to, and a
+// path-only match makes that list "everywhere". The gate is the ORIGIN first.
+const AUDIO_API_ORIGIN = 'https://audiobook-api.heygabi.ai';
 const AUDIO_PATH_RE = /^\/api\/audio\/[^/]+\/file$/;
+
+/** Is this a request we should attach the household's credential to? */
+function isAudioByteRequest(url) {
+  return url.origin === AUDIO_API_ORIGIN && AUDIO_PATH_RE.test(url.pathname);
+}
 
 /**
  * Open (or create) the IndexedDB store used to pass the token from the page.
@@ -106,8 +117,9 @@ self.addEventListener('message', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // Only intercept audio byte requests — leave everything else alone.
-  if (!AUDIO_PATH_RE.test(url.pathname)) return;
+  // Only intercept audio byte requests on the audio API's OWN origin — leave
+  // everything else alone, including same-path URLs on any other host.
+  if (!isAudioByteRequest(url)) return;
 
   event.respondWith(handleAudioFetch(event.request));
 });

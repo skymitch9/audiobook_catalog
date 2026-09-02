@@ -255,3 +255,78 @@
 
 /dev/static/zipjs/*
   Cache-Control: public, max-age=604800
+
+# ---------------------------------------------------------------------------
+# THE PLAYER'S CSP — audio player phase 2, 2026-09-02
+# ---------------------------------------------------------------------------
+# /listen is the second page on this origin to want a Content-Security-Policy,
+# and it wants one for the same reason /read does: it handles a large binary
+# from a CREDENTIALED endpoint, holding a Firebase ID token. The rest of the
+# site still ships no CSP.
+#
+# ⚠️ THIS POLICY IS /read's POLICY PLUS EXACTLY TWO DIRECTIVES, ON PURPOSE.
+# The /read string has been exercised in production against real books and its
+# every token has a reason written above it. Inventing a fresh policy for a
+# page whose first production exercise is also its first exercise ANYWHERE is
+# how the estate ate two silent CSP defects already (the missing connect-src
+# 'self' that rendered CJK pages as boxes; the missing style-src blob: that
+# threw away every typeface the publisher chose). So: copy the proven string,
+# add only what audio genuinely needs, and name why each addition is here.
+#
+#   media-src   ⚠️ THE ONE THAT DECIDES WHETHER ANY SOUND COMES OUT. An
+#               <audio src> is governed by media-src, NOT by connect-src, and
+#               `default-src 'none'` blocks it. The audio host is named; 'self'
+#               is NOT here because nothing on this origin is played.
+#               ⚠️ AND NOTE WHAT IS ABSENT: `blob:`. Phase 4 (the PWA) plays
+#               offline books from OPFS through `URL.createObjectURL`, which is
+#               a blob: URL, and it will need this directive widened. It is
+#               left out today because the phase-1b note in the /read block
+#               above — "present now so the EPUB build does not have to touch
+#               this file" — turned out to be WRONG by exactly two directives,
+#               and guessing a future need is what made it wrong. Phase 4 adds
+#               it and re-verifies it, which is the only way it is ever known
+#               to be right.
+#   worker-src  'self' — the bearer-injecting service worker (site/audio-sw.js)
+#               is registered from this page, and service-worker registration
+#               is governed by worker-src. ⚠️ Blocking it does NOT produce an
+#               error the page can act on: registration rejects, no controller
+#               ever arrives, every range request goes out bare, and the Worker
+#               answers a correct 401 that the media element reports as a bare
+#               `error` event with no status. That is the SILENTLY DEAD PLAY
+#               BUTTON the whole §3.2 mitigation exists to prevent, arriving
+#               through the one door the mitigation does not watch. listen.js
+#               words it ("the browser did not start it"), which is the best a
+#               page can do about its own missing worker.
+#
+# Everything else is /read's string verbatim, including the two lines whose
+# reasons are written out at length up there and which must not be trimmed
+# here without reading them: `connect-src 'self'` (a same-origin fetch is
+# blocked by `default-src 'none'` too — this page fetches chapters.json) and
+# `frame-ancestors 'self'` (NOT 'none': see the P1 blank-reader incident; this
+# page frames no blob: today, but 'self' costs nothing and 'none' is the value
+# somebody would "restore for safety" without reading why it was changed).
+#
+# ⚠️ ALL FOUR RULES, and the reasons are read.html's: `/dev/listen` because the
+# dev lane is a PATH and a `/listen` rule does not cover it, and the
+# trailing-slash form because Cloudflare 308s and a rule matching only the
+# canonical form leaves the redirected request bare. Cloudflare's `*` is a path
+# splat, not a glob, so these are spelled out.
+#
+# 🔴 AND THE HONEST LIMIT, WHICH IS THE SAME ONE THE READER HIT: THIS POLICY
+# CANNOT BE EXERCISED ON THE DEV LANE. deploy.yml assembles `_site/` from
+# prod-src/site/, so the ROOT `_headers` — the only one Cloudflare reads —
+# comes from the PROD branch. Until this file is promoted, /dev/listen ships
+# with NO CSP at all and the page will work there whether this string is right
+# or wrong. Its FIRST real exercise is production. That is why it is a copy of
+# a proven policy plus two named directives rather than a fresh one.
+/listen
+  Content-Security-Policy: default-src 'none'; script-src 'self' https://www.gstatic.com https://apis.google.com; connect-src 'self' https://audiobook-api.heygabi.ai https://auth.heygabi.ai https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://www.googleapis.com; media-src https://audiobook-api.heygabi.ai; img-src 'self' data: blob: https://covers.heygabi.ai; style-src 'self' 'unsafe-inline'; font-src 'self' data:; worker-src 'self'; frame-src 'self' https://audiobook-catalog.firebaseapp.com; child-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'
+
+/listen/
+  Content-Security-Policy: default-src 'none'; script-src 'self' https://www.gstatic.com https://apis.google.com; connect-src 'self' https://audiobook-api.heygabi.ai https://auth.heygabi.ai https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://www.googleapis.com; media-src https://audiobook-api.heygabi.ai; img-src 'self' data: blob: https://covers.heygabi.ai; style-src 'self' 'unsafe-inline'; font-src 'self' data:; worker-src 'self'; frame-src 'self' https://audiobook-catalog.firebaseapp.com; child-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'
+
+/dev/listen
+  Content-Security-Policy: default-src 'none'; script-src 'self' https://www.gstatic.com https://apis.google.com; connect-src 'self' https://audiobook-api.heygabi.ai https://auth.heygabi.ai https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://www.googleapis.com; media-src https://audiobook-api.heygabi.ai; img-src 'self' data: blob: https://covers.heygabi.ai; style-src 'self' 'unsafe-inline'; font-src 'self' data:; worker-src 'self'; frame-src 'self' https://audiobook-catalog.firebaseapp.com; child-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'
+
+/dev/listen/
+  Content-Security-Policy: default-src 'none'; script-src 'self' https://www.gstatic.com https://apis.google.com; connect-src 'self' https://audiobook-api.heygabi.ai https://auth.heygabi.ai https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://www.googleapis.com; media-src https://audiobook-api.heygabi.ai; img-src 'self' data: blob: https://covers.heygabi.ai; style-src 'self' 'unsafe-inline'; font-src 'self' data:; worker-src 'self'; frame-src 'self' https://audiobook-catalog.firebaseapp.com; child-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'
