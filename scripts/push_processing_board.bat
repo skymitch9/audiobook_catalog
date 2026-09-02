@@ -21,6 +21,11 @@ rem would train the owner to ignore the one row that matters. The failure is
 rem visible where a failure belongs: in the log below, and on the page itself,
 rem which says how old its data is.
 cd /d "C:\Users\nbasl\OneDrive\Documents\vs-code-repos\bookbuddy\audiobook_catalog"
+rem KI-3: every scheduled wrapper this repo owns sets this, without exception,
+rem so the rule is "all of them" and not "the python ones". These three pushers
+rem are node today; a python step added below tomorrow would otherwise inherit
+rem a cp1252 pipe and die mid-run on the first non-ASCII book or author name.
+set PYTHONIOENCODING=utf-8
 node "C:\Users\nbasl\OneDrive\Documents\vs-code-repos\catalog-platform\scripts\push-processing-board.mjs" --by "board-push-task@home-pc" >> output_files\processing_push.log 2>&1
 
 rem ---------------------------------------------------------------------------

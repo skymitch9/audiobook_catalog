@@ -1,6 +1,12 @@
 @echo off
 REM Development environment setup script for Windows
 
+REM KI-3: the cp1252 console crash. Every wrapper in this repo that starts a
+REM python process sets this, and this one starts two (pre-commit, run_tests).
+REM It is not only about emoji in our own strings: the LIBRARY'S OWN DATA is a
+REM trigger — a dry run died on an author named 猫子 on 2026-09-02.
+set PYTHONIOENCODING=utf-8
+
 echo 🚀 Setting up audiobook catalog development environment...
 
 REM Check if Python is available

@@ -25,6 +25,19 @@ thefuzz>=0.22.1
 # CI, however, must actually run the downscale tests.
 Pillow>=10.0.0
 
+# ⚠️ REQUIRED BY CI, not optional — and this is the THIRD time this exact shape
+# has broken the build (Pillow above, pytest below, now this one).
+# PyMuPDF is the RASTERISER, not the OCR engine. tests/test_ocr_lane.py's
+# fixture builder renders pages to a pixmap with it, so a bare `import fitz`
+# there made 15 tests ERROR on every CI run — and because deploy.yml gates on
+# the test job it took the /dev/ deploy with it: red from 2026-09-01 21:55 to
+# 2026-09-02 17:09, six pushes. tests/test_ebook_covers.py needs it too.
+# ⚠️ Do NOT read the "~75 MB, deliberately excluded" note below as covering
+# this. That note is about the OCR engine chain (onnxruntime + opencv); PyMuPDF
+# is ~20 MB and its exclusion was collateral, never a decision. (KI-9, closed
+# by fix 2026-09-02 — the skip guard in test_ocr_lane.py is gone with it.)
+PyMuPDF>=1.24.0
+
 # ⚠️ THE OCR LANE'S ENGINE, AND IT IS DELIBERATELY NOT INSTALLED FROM HERE:
 #     pip install rapidocr-onnxruntime==1.4.4
 # app/core/book_ocr.py reads image-scan PDFs with it (built 2026-09-01, owner
@@ -32,7 +45,8 @@ Pillow>=10.0.0
 # (onnxruntime + opencv) and CI never runs OCR, so paying that on every CI
 # install would buy nothing. tests/test_ocr_lane.py runs its stub-engine half
 # everywhere and SKIPS its real-engine half with a named reason when absent.
-# (PyMuPDF, which rasterises the pages, is likewise an ambient install here.)
+# (The RASTERISER, PyMuPDF, is a different dependency and IS pinned above —
+# it used to be an ambient install here, which is what broke CI. KI-9.)
 #
 # ⚠️ WHERE IT MUST ACTUALLY BE INSTALLED, AND IT IS TWO PLACES:
 #   * `.venv\Scripts\python.exe`  — what the test suite runs on

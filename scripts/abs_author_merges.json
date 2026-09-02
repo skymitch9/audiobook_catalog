@@ -1,0 +1,47 @@
+{
+  "_what": "The explicit merge table for scripts/merge_abs_authors.py. Every row is a decision somebody wrote down; nothing here is derived at run time.",
+  "_measured": "2026-09-02, live against the Audiobookshelf 'Audio' library (495 authors). Ids, names and book counts in this file were read off that server and are ASSERTED before any write — a row whose live state has drifted is refused, not adapted to.",
+
+  "_why_these_names_exist": [
+    "Every 'Surname, Given' author below traces to ONE cause, measured file by file: the publisher's <dc:creator> inside an EPUB. 22 of the 132 epubs under ROOT_DIR carry the SORT form there ('Wight, Will', 'English, Miles', 'XX, Mashton', 'the Mad, Sir Bedivere'), and Audiobookshelf reads that OPF verbatim when it scans an ebook-only item.",
+    "Nothing in this repo writes those strings. The m4b side is clean: 'Will Wight/The Captain...m4b' has ©ART='Will Wight', the shelf folder is 'Will Wight' and site/catalog.csv says 'Will Wight'. Only the epub's insides disagree.",
+    "The two 'Mashton X X'/'Mashton X Y' rows are a different, smaller cause: ONE m4b ('Evolution - Arcane Pathfinder, Book 3.m4b') carries ©ART='Mashton X X, Mashton X Y' where its four siblings say 'Mashton XX, Mashton XY'. A vendor typo in a single file, not a lane defect."
+  ],
+
+  "_the_rule_every_row_obeys": "AUTHORSHIP, NEVER SHELVING. The target is the plain un-flip of the source and nothing more. scripts/author_shelf_aliases.json says 'Rik Hoskin' -> 'Brandon Sanderson' and 'Travis Deverell' -> 'Shirtaloon', and those entries are deliberately NOT applied here: that file decides WHERE FILES ARE SHELVED. app/author_names.py's header records the 2026-08-09 incident in which a routing line was executed as an authorship instruction and merged two people's bibliographies. Reading it the other way round would repeat it.",
+
+  "_how_abs_merges": "PATCH /api/authors/<id> {name}. When the new name collides with an existing author ABS merges the two and answers {merged:true}; when it does not, it is a plain rename. Both are wanted — see 'expect_merge_into' per row: an id means a merge is expected, null means a rename.",
+
+  "_not_in_this_table": [
+    "'Janci Patterson' (3 books) and 'Steven Michael Bohls' (1) are NOT malformed. They are real co-authors of Sanderson's Skyward Flight and Texas Reckoners books, correctly split out by ABS. They have no portrait, which is KI-10, not this.",
+    "'Mashton XX' (5) and 'Mashton XY' (5) stay two separate authors. They are a writing DUO — two people — however author_shelf_aliases.json chooses to shelve their files."
+  ],
+
+  "merges": [
+    {"from": "Clayton, Meg Waite", "from_id": "80146c5f-3449-4420-9d30-657298fa51b3", "expect_books": 1, "to": "Meg Waite Clayton", "expect_merge_into": null, "reason": "flipped OPF creator; no canonical record exists, so this is a rename"},
+    {"from": "Colombe, Erik", "from_id": "565dabef-fa69-4531-89c9-ccc541c1c35f", "expect_books": 1, "to": "Erik Colombe", "expect_merge_into": null, "reason": "flipped OPF creator; rename"},
+    {"from": "Deverell, Travis", "from_id": "b237ce88-255e-4b25-b2ac-ffc649bc42b0", "expect_books": 5, "to": "Travis Deverell", "expect_merge_into": null, "reason": "flipped OPF creator; rename. NOT 'Shirtaloon' — that is the shelf alias, and this table is authorship"},
+    {"from": "Durand, Maxime J.", "from_id": "48ada252-47f1-4a2d-8475-4ff40d50f806", "expect_books": 1, "to": "Maxime J. Durand", "expect_merge_into": "056c5def-904d-4916-b387-0f732de3260f", "reason": "flipped OPF creator; the canonical record already holds 1 book, so this reunites 2"},
+    {"from": "English, Miles", "from_id": "5f266484-7b51-4669-93f8-c97e0987c34c", "expect_books": 5, "to": "Miles English", "expect_merge_into": null, "reason": "flipped OPF creator on all 5 Bog Standard Isekai epubs; rename"},
+    {"from": "Hoskin, Rik", "from_id": "dc25436f-56f8-4f5f-9af6-2a878ef9816c", "expect_books": 1, "to": "Rik Hoskin", "expect_merge_into": null, "reason": "flipped OPF creator on the White Sand omnibus; rename. Runs BEFORE the 'Rik Hoskin, Julius Gopez' row, which then merges into it"},
+    {"from": "Javernick, Ellen", "from_id": "386dcc98-df49-42ab-ae30-53513d99327e", "expect_books": 1, "to": "Ellen Javernick", "expect_merge_into": null, "reason": "flipped OPF creator; rename"},
+    {"from": "King, Kerry Anne", "from_id": "0392a299-7d56-4b0e-a75e-e1e1fa1bd5a4", "expect_books": 1, "to": "Kerry Anne King", "expect_merge_into": null, "reason": "flipped OPF creator; rename. Two given names, one surname"},
+    {"from": "Krout, Dakota", "from_id": "921a8aef-422f-4e9f-be04-492b50abd7f0", "expect_books": 1, "to": "Dakota Krout", "expect_merge_into": "a28210f0-b0a0-401d-b943-eca3dc872ed2", "reason": "flipped OPF creator; canonical holds 46 audiobooks, so this reunites the epub with them"},
+    {"from": "Marcum, Diana", "from_id": "8354437d-b108-4d14-9ccb-829c8caf9b4f", "expect_books": 1, "to": "Diana Marcum", "expect_merge_into": null, "reason": "flipped OPF creator; rename"},
+    {"from": "Myth, Selkie", "from_id": "0a617afc-74a0-49a7-a99c-5ac5c3f71deb", "expect_books": 4, "to": "Selkie Myth", "expect_merge_into": "78078474-ae56-489f-a6ee-7dcfc347b396", "reason": "flipped OPF creator; canonical holds 29, reunites 33"},
+    {"from": "Niemitz, David", "from_id": "9f8d3629-c2a0-4e4e-8af5-aa5349308a20", "expect_books": 1, "to": "David Niemitz", "expect_merge_into": null, "reason": "flipped OPF creator; rename"},
+    {"from": "Omer, Mike", "from_id": "21120f52-180f-4994-97b2-522adec2efbe", "expect_books": 1, "to": "Mike Omer", "expect_merge_into": null, "reason": "flipped OPF creator; rename"},
+    {"from": "Rae, Honour", "from_id": "5fb0cf91-102d-4a39-9a23-00c5420e454e", "expect_books": 5, "to": "Honour Rae", "expect_merge_into": "61791710-3d69-49c2-9fdb-b4a3ffb6eb99", "reason": "flipped OPF creator; canonical holds 7, reunites 12"},
+    {"from": "Saileri, J. R.", "from_id": "0e016823-8331-4b9b-9c0f-23a73d2b3ad1", "expect_books": 1, "to": "J. R. Saileri", "expect_merge_into": null, "reason": "flipped OPF creator; rename. Initials with periods survive as written"},
+    {"from": "Sanderson, Brandon", "from_id": "59ca4143-0e78-4585-b21a-a4381f6854a9", "expect_books": 1, "to": "Brandon Sanderson", "expect_merge_into": "02ade8b3-8840-4d90-b14c-a3d429fd585b", "reason": "flipped OPF creator on the White Sand omnibus; canonical holds 55, and this is the pair the owner saw side by side on the Newest Authors row"},
+    {"from": "Swain, James", "from_id": "cd412dfe-242d-4399-8a80-dec2644ed563", "expect_books": 1, "to": "James Swain", "expect_merge_into": null, "reason": "flipped OPF creator; rename"},
+    {"from": "the Mad, Sir Bedivere", "from_id": "70486cdc-ae71-4f49-bbb7-3b911a25d3c5", "expect_books": 1, "to": "Sir Bedivere the Mad", "expect_merge_into": null, "reason": "flipped OPF creator; rename. 'the Mad' is the surname side — a particle opens it, so this is one person, not two"},
+    {"from": "Wight, Will", "from_id": "b44ca2af-ea3d-432c-87a3-29ee1aee9201", "expect_books": 15, "to": "Will Wight", "expect_merge_into": "96c4c3d1-04fa-4b57-a4d5-814c05c08d1f", "reason": "the largest split in the library: 15 Cradle/Last Horizon epubs stranded from the 3 audiobooks under the canonical name"},
+    {"from": "XX, Mashton", "from_id": "93ef8ea2-7566-4017-ba54-84f90bd6e601", "expect_books": 1, "to": "Mashton XX", "expect_merge_into": "2254c4ee-a177-444f-8bd1-f6646cb7b5be", "reason": "flipped OPF creator on the Arcane Pathfinder Book 5 epub; canonical holds 5"},
+    {"from": "Yarros, Rebecca", "from_id": "e3e1c56c-afe4-413d-b698-7367c6bb58cf", "expect_books": 1, "to": "Rebecca Yarros", "expect_merge_into": "3f8d6d8b-f13e-4c87-b50c-8f765aff2125", "reason": "flipped OPF creator; canonical holds 4"},
+    {"variant": true, "from": "Mashton X X", "from_id": "0dd6e159-1145-4d96-8cee-7a46dc93a088", "expect_books": 1, "to": "Mashton XX", "expect_merge_into": "2254c4ee-a177-444f-8bd1-f6646cb7b5be", "reason": "NOT a flip — a spaced-out variant of the pen name in ONE m4b's ©ART tag ('Evolution - Arcane Pathfinder, Book 3'). Its four siblings say 'Mashton XX'"},
+    {"variant": true, "from": "Mashton X Y", "from_id": "ac0697a8-f869-4465-afda-07e785f90933", "expect_books": 1, "to": "Mashton XY", "expect_merge_into": "66cf20aa-bfea-47ce-a751-1d25634114dd", "reason": "the co-author half of the same one-file tag typo"},
+
+    {"from": "Rik Hoskin, Julius Gopez", "from_id": "99418ff8-6042-4952-b2c4-25f7ac43bed8", "expect_books": 1, "to": "Rik Hoskin", "expect_merge_into": null, "judgement": true, "reason": "⚠️ THE ONE ROW THAT IS A DECISION, NOT A DERIVATION. This is not a flipped name, it is a two-person credit string in one <dc:creator> on whitesand.epub: Rik Hoskin wrote the White Sand script, Julius Gopez drew it. ABS's rename API can make it one author or leave it as a fake one; it cannot split it into two. Chosen: the WRITER, which also reunites it with the omnibus renamed two rows above. The cost is stated rather than hidden — Julius Gopez's credit is dropped from the shelf, and he is an illustrator, not an author. Reverse by renaming this author back, or by editing the item's authors in the ABS UI."}
+  ]
+}

@@ -15,6 +15,12 @@ docs/
 !scripts/catalog_overrides.json
 !scripts/bookfunnel_books.json
 !scripts/audit_exclusions.json
+# The hand-written Audiobookshelf author merge table (scripts/merge_abs_authors.py).
+# MUST be tracked: tests/test_abs_author_merges.py loads THIS FILE and asserts
+# every row against the un-flip rule, so an untracked copy means the guard that
+# stops a shelving alias becoming an authorship claim does not run in CI at all.
+# Names and ABS record ids only — never a credential.
+!scripts/abs_author_merges.json
 # Hand-placed ebook covers (scripts/build_ebook_manifest cover source 3). MUST
 # be tracked: it is build input, so an untracked copy would give this machine
 # covers that CI and every other checkout silently lack.
