@@ -38,6 +38,18 @@ from app.core.ingest_queue import (
     TIER_NEEDS_OCR,
 )
 
+import importlib.util
+
+# ⚠️ TWO DIFFERENT ABSENCES, AND THEY ARE NOT THE SAME ONE. `ENGINE_OK` is the
+# OCR recogniser (rapidocr-onnxruntime, ~75 MB of wheels, deliberately absent
+# from requirements.txt). `HAS_PYMUPDF` is the RASTERISER that builds the
+# fixture — needed by every test here that touches a synthetic scan, engine or
+# stub. The header's promise that "the stub half runs everywhere" was written
+# about the first and silently broken by the second: CI has neither, and a bare
+# `import fitz` in the fixture builder turned Tests red on every push from
+# 2026-09-01, taking Deploy with it.
+HAS_PYMUPDF = importlib.util.find_spec("fitz") is not None
+
 ENGINE_OK, ENGINE_WORDS = ocr_available()
 needs_engine = pytest.mark.skipif(
     not ENGINE_OK, reason=f"no OCR engine on this interpreter: {ENGINE_WORDS}")
@@ -49,6 +61,36 @@ PAGE_TWO = "She counted the stairs on the way down."
 
 def _image_scan_pdf(path, pages=(PAGE_ONE, PAGE_TWO), toc=None, dpi=150):
     """Render text -> images -> a PDF with NO text layer. Returns the path."""
+    # 🔴 CI HAS NO PyMuPDF, AND A BARE `import fitz` HERE TURNED IT RED FOR A
+    # DAY (2026-09-01 -> 2026-09-02, every push, 15 errors — and Deploy with
+    # it, because deploy.yml gates on the test job). requirements.txt says so
+    # in as many words — *"PyMuPDF, which rasterises the pages, is likewise an
+    # ambient install here"* — and the header above promises the stub half
+    # "runs everywhere, including a CI box with no OCR wheels". It could not:
+    # the FIXTURE BUILDER needs PyMuPDF whether or not the engine does, so the
+    # promise was about the engine and the failure was about the rasteriser.
+    #
+    # `importorskip` rather than a module-level marker, deliberately: the CLI
+    # and queue-ordering tests in this file need neither, and they are the half
+    # that has been passing in CI all along. Skipping the module to fix the
+    # fixture would throw them away to fix something else.
+    #
+    # ⚠️ THE COST IS REAL AND IS NOT HIDDEN: these 15 cases now run ONLY on a
+    # machine with PyMuPDF (this one), so CI cannot catch an OCR-lane
+    # regression. Same trade `tests/test_ebook_covers.py::requires_pymupdf`
+    # already made. The alternative — putting PyMuPDF in requirements.txt, as
+    # Pillow and pytest were each added after this exact failure — is a real
+    # option somebody should weigh; it is filed in KNOWN_ISSUES.
+    #
+    # ⚠️ `find_spec` + `pytest.skip`, NOT `pytest.importorskip`: importorskip
+    # pre-checks the spec itself, so it reports an ERROR rather than a skip
+    # whenever the lookup raises instead of returning None. Same shape as
+    # `tests/test_ebook_covers.py::requires_pymupdf`, which already does it
+    # this way.
+    if not HAS_PYMUPDF:
+        pytest.skip("PyMuPDF is an ambient install, not in requirements.txt — "
+                    "this fixture rasterises pages and cannot be built without "
+                    "it (see the note in _image_scan_pdf)")
     import fitz
 
     typed = fitz.open()
@@ -101,9 +143,13 @@ class TestTheFixtureIsReallyAScan:
         assert verdict["pages"] == 2
 
     def test_it_carries_no_text_layer_at_all(self, tmp_path):
+        # ⚠️ Build the fixture FIRST: _image_scan_pdf carries the importorskip,
+        # so doing it the other way round would ImportError on CI instead of
+        # skipping.
+        scan = _image_scan_pdf(tmp_path / "scan.pdf")
         import fitz
 
-        doc = fitz.open(_image_scan_pdf(tmp_path / "scan.pdf"))
+        doc = fitz.open(scan)
         try:
             assert sum(len(p.get_text("text") or "") for p in doc) == 0
         finally:
