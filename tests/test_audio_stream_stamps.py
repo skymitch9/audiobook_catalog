@@ -169,7 +169,12 @@ def test_no_stamps_still_means_no_evictions(monkeypatch):
     fr.merge_stream_stamps(files, fr.stream_stamps())
     candidates, refusals = fr.evict_candidates(files)
     assert candidates == []
-    assert any("no access data yet" in r for r in refusals)
+    # ⚠️ The wording moved on in phase 3 (it no longer says "until phase 2
+    # wires access timestamps", because phase 2 did). What is pinned is the
+    # DISTINCTION, which is the load-bearing part: never measured is not the
+    # same fact as nobody listened.
+    assert any("nothing has ever MEASURED this object" in r for r in refusals)
+    assert any("not the same as 'nobody" in r for r in refusals)
 
 
 # ---------------------------------------------------------------------------

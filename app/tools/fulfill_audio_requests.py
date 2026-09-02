@@ -64,25 +64,33 @@ ratified in decision 5):
        reading position for 30 days**, so a club-mate's half-finished book is
        shielded.
 
-🔴 **Neither of those facts was measurable, and as of phase 2 exactly HALF of
-one is.** Streams are stamped by the Worker's byte route into
-`audio_streams/{anchor}` (design §10.1) and merged into the manifest here by
-`stream_stamps()` + `merge_stream_stamps()`; positions still wait for phase 3.
+✅ **AS OF PHASE 3 (2026-09-02) BOTH HALVES ARE BUILT.** Streams are stamped
+by the Worker's byte route into `audio_streams/{anchor}` (design §10.1);
+POSITIONS are stamped by the player into `audio_positions/{anchor}` (phase 3),
+and both are merged into the manifest here — `stream_stamps()` +
+`merge_stream_stamps()`, `position_stamps()` + `merge_position_stamps()`.
 
-⚠️ **So this still deletes nothing, and it still should not.** Two reasons,
-and the second is the one that matters:
+⚠️ **BUILT IS NOT THE SAME AS MEASURING, AND THE DIFFERENCE IS THE WHOLE
+POINT OF THE GUARD BELOW.** Two things must be true before either collection
+can hold anything:
 
-  1. The Worker half is a HANDOFF, not built here — `audiobook-worker` lives
-     in `catalog-platform` and this repo does not touch it. Until that route
-     stamps, `stream_stamps()` correctly answers `{}` and every book reads
-     `never measured`.
-  2. 🔴 **`last_position_at` IS THE MID-BOOK SHIELD**, and it is the whole
-     reason 30 days was chosen over the owner's 7. A book with a stream stamp
-     and no position data goes idle 30 days after the last listen — which is
-     precisely the 30-hour-book-over-a-month-of-commutes case the shield
-     exists for. **Do not run `--evict --commit` until phase 3 lands.**
+  1. `firebase deploy --only firestore:rules` — both the `audio_streams` and
+     `audio_positions` clauses. Until then this tool's listings answer 403,
+     which it reports as a WARN and an empty dict.
+  2. The Worker half of the stream stamp is a HANDOFF, not built here —
+     `audiobook-worker` lives in `catalog-platform` and this repo does not
+     touch it.
 
-Until then `evict_candidates()` refuses on a pair of nulls: no access data, no
+🔴 **`last_position_at` IS THE MID-BOOK SHIELD**, and it is the whole reason
+30 days was chosen over the owner's 7. A book with a stream stamp and NO
+position data goes idle 30 days after the last listen — which is precisely
+the 30-hour-book-over-a-month-of-commutes case the shield exists for. So
+`--evict --commit` now **REFUSES** when the position lane has produced nothing
+at all, because "the shield is empty" and "the shield was never deployed" look
+identical from here and only one of them is safe. The escape hatch is explicit
+(`--evict-without-position-shield`) and it is deliberately ugly to type.
+
+`evict_candidates()` still refuses on a pair of nulls: no access data, no
 deletions, stated out loud rather than silently no-op'd. R2 is a cache and the
 local library deletes nothing, so an over-eager eviction costs an upload
 rather than a book — that is why this can be tuned later without fear, and it
@@ -132,6 +140,21 @@ REQUEST_COLLECTIONS = ("audio_requests", "audio_requests_dev")
 # design §10.1. Both lanes, for the reason REQUEST_COLLECTIONS gives: a book
 # listened to on /dev/ has been listened to.
 STREAM_COLLECTIONS = ("audio_streams", "audio_streams_dev")
+
+# The POSITION stamps the player writes — audio-player PHASE 3, the MID-BOOK
+# SHIELD. Both lanes, and it matters more here than for the streams: the
+# player has only ever run on the /dev/ lane, so today every position anybody
+# saves lands in the `_dev` collection and nowhere else.
+#
+# ⚠️ THIS IS NOT `readingPositions`, AND THAT IS DELIBERATE. The real
+# positions live there and it is `allow list: if false` in both lanes — "what
+# a household reads is not a queryable set" — and this tool lists with the
+# PUBLIC WEB API KEY, so it is gated exactly like a browser. Even holding a
+# service account, reading every person's exact place in every book to answer
+# a yes/no about one opaque anchor is more data than the question needs. This
+# collection carries only `{anchor, lastPositionAt}`: no title, no path, no
+# uid. Full reasoning: site/audio-position.js §4 and the firestore.rules block.
+POSITION_COLLECTIONS = ("audio_positions", "audio_positions_dev")
 
 # ⚠️ The eviction tuning, owner-ratified 2026-08-17. 30 days, not 7 — see the
 # module docstring. Changing this number changes what gets deleted; it is a
@@ -352,30 +375,29 @@ def _parse_stamp(value) -> Optional[float]:
         return None
 
 
-def parse_stream_doc(doc: dict) -> Optional[Tuple[str, str]]:
-    """One `audio_streams` document -> `(anchor, iso_stamp)`, or None.
+def _parse_stamp_doc(doc: dict, field: str) -> Optional[Tuple[str, str]]:
+    """One access-stamp document -> `(anchor, iso_stamp)`, or None.
 
     ⚠️ THE WIRE FORMAT IS DELIBERATELY PERMISSIVE ON THE READ SIDE, and this
-    is the seam where two codebases meet: the audiobook Worker (TypeScript, in
-    catalog-platform) writes these; this file reads them. Firestore's REST
-    encoding gives a different key depending on what the writer used —
-    `integerValue` for a JS `Date.now()`, `doubleValue` if it ever arrives as
-    a float, `timestampValue` for a real server timestamp, `stringValue` for
-    an ISO string. All four are accepted, because the alternative is a stamp
-    silently ignored, which is indistinguishable from "nobody listened" and
-    would let the evictor delete a book somebody is halfway through.
+    is the seam where codebases meet: the audiobook Worker (TypeScript, in
+    catalog-platform) writes the stream stamps and a BROWSER writes the
+    position stamps; this file reads both. Firestore's REST encoding gives a
+    different key depending on what the writer used — `integerValue` for a JS
+    `Date.now()`, `doubleValue` if it ever arrives as a float,
+    `timestampValue` for a real server timestamp, `stringValue` for an ISO
+    string. All four are accepted, because the alternative is a stamp silently
+    ignored, which is indistinguishable from "nobody listened" and would let
+    the evictor delete a book somebody is halfway through.
 
-    🔴 **THE CANONICAL CONTRACT, for whoever builds the Worker half:**
-    `audio_streams/{anchor}` = `{ anchor: string, lastStreamAt: number }`,
-    `lastStreamAt` being **epoch MILLISECONDS**. The document id IS the
-    anchor; `anchor` is carried in the body too so a doc read on its own is
-    self-describing.
+    ⚠️ ONE PARSER, TWO COLLECTIONS. The shapes are identical by design (the
+    position collection was modelled on the stream one), and two copies of a
+    permissive parser is two places for the units to drift.
     """
     fields = doc.get("fields") or {}
     anchor = gv(fields, "anchor") or (doc.get("name") or "").split("/")[-1]
     if not anchor:
         return None
-    raw = fields.get("lastStreamAt") or {}
+    raw = fields.get(field) or {}
     value = (
         raw.get("integerValue")
         or raw.get("doubleValue")
@@ -384,20 +406,56 @@ def parse_stream_doc(doc: dict) -> Optional[Tuple[str, str]]:
     )
     if value is None:
         return None
-    seconds = _parse_stamp(float(value) if str(value).lstrip("-").replace(".", "", 1).isdigit() else value)
+    numeric = str(value).lstrip("-").replace(".", "", 1).isdigit()
+    seconds = _parse_stamp(float(value) if numeric else value)
     if seconds is None:
         return None
     return anchor, datetime.fromtimestamp(seconds, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def stream_stamps() -> Dict[str, str]:
-    """`{anchor: newest ISO-Z stamp}` across both lanes.
+def parse_stream_doc(doc: dict) -> Optional[Tuple[str, str]]:
+    """One `audio_streams` document -> `(anchor, iso_stamp)`, or None.
+
+    🔴 **THE CANONICAL CONTRACT, for whoever builds the Worker half:**
+    `audio_streams/{anchor}` = `{ anchor: string, lastStreamAt: number }`,
+    `lastStreamAt` being **epoch MILLISECONDS**. The document id IS the
+    anchor; `anchor` is carried in the body too so a doc read on its own is
+    self-describing.
+    """
+    return _parse_stamp_doc(doc, "lastStreamAt")
+
+
+def parse_position_doc(doc: dict) -> Optional[Tuple[str, str]]:
+    """One `audio_positions` document -> `(anchor, iso_stamp)`, or None.
+
+    🔴 **THE CANONICAL CONTRACT, honoured by `site/audio-position.js`
+    `stampBody()`:** `audio_positions/{anchor}` = `{ anchor: string,
+    lastPositionAt: number }`, `lastPositionAt` being **epoch MILLISECONDS**.
+
+    ⚠️ THE UNIT IS THE TRAP AND IT IS ASYMMETRIC. `_parse_stamp` reads
+    anything under 1e11 as SECONDS, so a stamp written in seconds decodes to a
+    date in 1970 — older than every cutoff, i.e. "evict this book" about a
+    book somebody is listening to right now. `Date.now()` is already
+    milliseconds and nothing on the writing side divides it.
+    """
+    return _parse_stamp_doc(doc, "lastPositionAt")
+
+
+def _collect_stamps(collections, field: str) -> Tuple[Dict[str, str], List[str]]:
+    """`({anchor: newest ISO-Z stamp}, [lanes that could not be listed])`.
 
     ⚠️ A listing failure is a WARN and an EMPTY dict, never an exception —
     exactly as `_request_rows` does it. But note what that costs and why it is
     still right: an empty answer means `evict_candidates()` sees no access
     data and therefore REFUSES to delete anything. Failing this way round is
     safe (nothing is lost); failing the other way round deletes books.
+
+    🔴 THE FAILED LANES ARE RETURNED, NOT JUST WARNED ABOUT, and that is the
+    phase-3 addition. "Listed cleanly and found nothing" and "could not list
+    it at all" produce the same dict and mean completely different things —
+    the second is what a missing `firebase deploy --only firestore:rules`
+    looks like from here, and it is exactly the silent-staleness trap. The
+    caller words them differently.
 
     ⚠️ `club_books.fetch` asks for `pageSize=300` and does not paginate. That
     is fine while the streaming set is smaller than 300 books — it is 1 today
@@ -408,38 +466,55 @@ def stream_stamps() -> Dict[str, str]:
     is a change with its own blast radius.
     """
     out: Dict[str, str] = {}
-    for collection in STREAM_COLLECTIONS:
+    unreadable: List[str] = []
+    for collection in collections:
         try:
             docs = fs_fetch(collection)
         except Exception as exc:  # noqa: BLE001
             print(f"[WARN] listing {collection} failed: {exc}")
+            unreadable.append(collection)
             continue
         for doc in docs:
-            parsed = parse_stream_doc(doc)
+            parsed = _parse_stamp_doc(doc, field)
             if not parsed:
                 continue
             anchor, stamp = parsed
             # Two lanes can both hold a stamp for one book. Newest wins.
             if anchor not in out or stamp > out[anchor]:
                 out[anchor] = stamp
-    return out
+    return out, unreadable
 
 
-def merge_stream_stamps(files: Dict[str, dict], stamps: Dict[str, str]) -> int:
-    """Write `last_stream_at` onto every recorded object with a stamp.
+def stream_stamps() -> Dict[str, str]:
+    """`{anchor: newest ISO-Z stamp}` for listening, across both lanes."""
+    return _collect_stamps(STREAM_COLLECTIONS, "lastStreamAt")[0]
+
+
+def position_stamps() -> Dict[str, str]:
+    """`{anchor: newest ISO-Z stamp}` for saved positions, across both lanes.
+
+    🔴 THE MID-BOOK SHIELD's data source. See POSITION_COLLECTIONS for why it
+    is not `readingPositions`.
+    """
+    return _collect_stamps(POSITION_COLLECTIONS, "lastPositionAt")[0]
+
+
+def _merge_stamps(files: Dict[str, dict], stamps: Dict[str, str], field: str) -> int:
+    """Write one access-timestamp field onto every recorded object with a stamp.
 
     Joined on the **anchor**, not the key: the record is keyed on the
-    library-relative path, and a path is exactly what the Worker does not have
-    (and must never be sent — the projection withholds it on purpose). The
-    anchor is the shared identity, which is what an anchor is for.
+    library-relative path, and a path is exactly what the writers do not have
+    (and must never be sent — the projection withholds it on purpose, and the
+    stamp collections are world-readable). The anchor is the shared identity,
+    which is what an anchor is for.
 
     Mutates `files` in place and answers how many entries gained a stamp.
 
     ⚠️ NEWEST WINS, never blind overwrite. A record may already carry a stamp
     from an earlier pass; taking the max means a Firestore listing that loses
     a page, or a lane that has not been written recently, can never move a
-    book's last-listened time BACKWARDS — and moving it backwards is what
-    would evict a book somebody is currently reading.
+    book's last-touched time BACKWARDS — and moving it backwards is what would
+    evict a book somebody is currently listening to.
     """
     merged = 0
     for entry in files.values():
@@ -447,12 +522,23 @@ def merge_stream_stamps(files: Dict[str, dict], stamps: Dict[str, str]) -> int:
         if not anchor or anchor not in stamps:
             continue
         incoming = stamps[anchor]
-        existing = entry.get("last_stream_at")
+        existing = entry.get(field)
         if existing and str(existing) >= incoming:
             continue
-        entry["last_stream_at"] = incoming
+        entry[field] = incoming
         merged += 1
     return merged
+
+
+def merge_stream_stamps(files: Dict[str, dict], stamps: Dict[str, str]) -> int:
+    """Write `last_stream_at` onto every recorded object with a stamp."""
+    return _merge_stamps(files, stamps, "last_stream_at")
+
+
+def merge_position_stamps(files: Dict[str, dict], stamps: Dict[str, str]) -> int:
+    """Write `last_position_at` — the MID-BOOK SHIELD — onto every recorded
+    object with a stamp."""
+    return _merge_stamps(files, stamps, "last_position_at")
 
 
 def evict_candidates(files: Dict[str, dict], now: Optional[float] = None,
@@ -479,8 +565,9 @@ def evict_candidates(files: Dict[str, dict], now: Optional[float] = None,
         `last_position_at`). A pair of nulls means "nothing has ever measured
         this", which is NOT the same as "nobody has listened" — and treating
         it as such would evict every book 30 days after upload, mid-listen
-        included. Phase 1 writes the first field, phase 3 the second; until
-        then this branch returns a refusal, in words, for every object.
+        included. Phase 2 writes the first field, phase 3 the second; while
+        neither is arriving this branch returns a refusal, in words, for every
+        object.
       * the newest of those timestamps must be older than `idle_days`.
         ⚠️ `last_position_at` is the MID-BOOK SHIELD: a paused 30-hour book is
         the normal case, not an abandoned one.
@@ -511,8 +598,10 @@ def evict_candidates(files: Dict[str, dict], now: Optional[float] = None,
                               _parse_stamp(entry.get("last_position_at"))) if s is not None]
         if not stamps:
             refusals.append(
-                f"{key}: no access data yet — evicts nothing until phase 2 wires "
-                "access timestamps (last_stream_at / last_position_at are both null)")
+                f"{key}: nothing has ever MEASURED this object — last_stream_at and "
+                "last_position_at are both null, which is not the same as 'nobody "
+                "listened'. Deploy the firestore.rules stamp lanes and check that the "
+                "Worker's byte route is stamping (design §10.1)")
             continue
         newest = max(stamps)
         if newest < cutoff:
@@ -524,33 +613,47 @@ def evict_candidates(files: Dict[str, dict], now: Optional[float] = None,
     return candidates, refusals
 
 
-def run_eviction(commit: bool = False, idle_days: int = EVICT_IDLE_DAYS) -> dict:
-    """Report (and, once BOTH access fields exist, delete) idle objects."""
+def run_eviction(commit: bool = False, idle_days: int = EVICT_IDLE_DAYS,
+                 without_position_shield: bool = False) -> dict:
+    """Report (and, when both access fields are arriving, delete) idle objects."""
     record = up.load_record()
 
-    # ⚠️ PHASE 2's HALF OF THE ACCESS DATA. Design §10.1: the Worker's byte
-    # route stamps `audio_streams/{anchor}`, and this is where those stamps
-    # meet the manifest the evictor actually reads.
-    #
-    # 🔴 IT IS ONLY HALF. `last_position_at` — the MID-BOOK SHIELD, which is
-    # what stops a 30-hour book being deleted out from under somebody who has
-    # been listening to it on the commute for a fortnight — waits for phase 3
-    # and the reading-position store. Until BOTH exist, eviction is still
-    # deliberately toothless: a book with a stream stamp and no position data
-    # can go idle for 30 days and become a candidate, and that is the owner's
-    # ratified rule (decision 3, tuning ii) — but the shield it names is not
-    # built yet, so **nothing should be deleted with --commit until phase 3**.
-    merged = merge_stream_stamps(record, stream_stamps())
+    # ⚠️ THE TWO HALVES OF THE ACCESS DATA, and they answer different
+    # questions. Design §10.1: the Worker's byte route stamps
+    # `audio_streams/{anchor}` — "bytes were served". Phase 3: the player
+    # stamps `audio_positions/{anchor}` — "somebody has a place in this book".
+    # This is where both meet the manifest the evictor actually reads.
+    streams, streams_unreadable = _collect_stamps(STREAM_COLLECTIONS, "lastStreamAt")
+    positions, positions_unreadable = _collect_stamps(POSITION_COLLECTIONS, "lastPositionAt")
+    merged = merge_stream_stamps(record, streams)
+    shielded = merge_position_stamps(record, positions)
+
+    # ⚠️ "Could not list it" and "listed it and found nothing" are DIFFERENT
+    # FACTS that produce the same empty dict, and only one of them is a
+    # problem to fix. Saying which is the difference between "nobody has
+    # listened yet" and "the rules were never deployed".
     if merged:
         print(f"Merged {merged} stream stamp(s) from {'/'.join(STREAM_COLLECTIONS)}.")
-        # ⚠️ Persisted only on --commit. A dry run that rewrites a state file
-        # is a surprise, and this one sits in a tree a scheduled pipeline is
-        # also writing to.
-        if commit:
-            up.write_record(record)
+    elif streams_unreadable:
+        print(f"Could NOT list {', '.join(streams_unreadable)} - the stream stamps are "
+              "unreadable, not absent. Deploy firestore.rules and re-run.")
     else:
-        print(f"No stream stamps found in {'/'.join(STREAM_COLLECTIONS)} — either nobody "
-              "has listened yet, or the Worker's byte route is not stamping (design §10.1).")
+        print(f"No stream stamps found in {'/'.join(STREAM_COLLECTIONS)} - either nobody "
+              "has listened yet, or the Worker's byte route is not stamping (design 10.1).")
+    if shielded:
+        print(f"Merged {shielded} position stamp(s) from {'/'.join(POSITION_COLLECTIONS)} "
+              "- the mid-book shield.")
+    elif positions_unreadable:
+        print(f"Could NOT list {', '.join(positions_unreadable)} - the MID-BOOK SHIELD is "
+              "unreadable, not absent. Deploy firestore.rules and re-run.")
+    else:
+        print(f"No position stamps found in {'/'.join(POSITION_COLLECTIONS)} - either "
+              "nobody has saved a spot yet, or the player is not stamping.")
+    # ⚠️ Persisted only on --commit. A dry run that rewrites a state file is a
+    # surprise, and this one sits in a tree a scheduled pipeline is also
+    # writing to.
+    if commit and (merged or shielded):
+        up.write_record(record)
 
     candidates, refusals = evict_candidates(record, idle_days=idle_days)
     print(f"Eviction pass over {len(record)} recorded object(s), "
@@ -564,6 +667,42 @@ def run_eviction(commit: bool = False, idle_days: int = EVICT_IDLE_DAYS) -> dict
               "removed here is always re-requestable from the local library.")
     elif not commit:
         print("\n  DRY RUN — re-run with --evict --commit to delete these.")
+    elif not positions and not without_position_shield:
+        # 🔴 THE MID-BOOK SHIELD REFUSAL, and it is the reason `--evict
+        # --commit` was unsafe for the whole of phases 0b-2.
+        #
+        # An empty position lane has TWO causes that look identical from here:
+        # nobody has saved a spot yet, or the shield was never deployed / is
+        # not being written. Only the first is safe to act on, and this tool
+        # cannot tell them apart — so it refuses, in words, rather than
+        # deleting a 30-hour book out from under somebody who has been
+        # listening to it on the commute for a fortnight. That case is the
+        # ENTIRE reason the threshold is 30 days rather than the owner's 7.
+        #
+        # ⚠️ The escape hatch is explicit and deliberately ugly to type, per
+        # the estate's "mechanical guards beat written advice" rule. Nothing
+        # is lost by waiting: R2 is a cache, the local library deletes
+        # nothing, and every evicted book costs an upload rather than a book.
+        if positions_unreadable:
+            why = (f"the lane could not be listed at all ({', '.join(positions_unreadable)}) "
+                   "- that is what a missing `firebase deploy --only firestore:rules` "
+                   "looks like from here")
+        else:
+            why = ("the lane listed cleanly and is empty - either nobody has saved a spot "
+                   "yet, or the player is not stamping")
+        # ⚠️ PLAIN ASCII IN EVERY print() HERE. A hand run on this box encodes
+        # stdout as cp1252 and a non-cp1252 character raises mid-run — which
+        # in a REFUSAL path would turn "nothing was deleted, and here is why"
+        # into a traceback. Emoji in comments and docstrings are fine.
+        print(f"\n  REFUSED: {len(candidates)} object(s) look idle, but the MID-BOOK "
+              f"SHIELD has no data at all - {why}.")
+        print("  Nothing was deleted. A book with a stream stamp and no position data goes "
+              f"idle {idle_days} days after the last listen, which is exactly the "
+              "paused-30-hour-book case the shield exists for.")
+        print("  Verify the shield first (scripts/smoke_audio_position_rules.py, then "
+              "--status), or override deliberately with "
+              "`--evict --commit --evict-without-position-shield`.")
+        return {"candidates": len(candidates), "kept": len(refusals), "refused_no_shield": True}
     else:
         client = up.s3_client()
         for key in candidates:
@@ -591,6 +730,7 @@ def print_status() -> None:
     # so a person can see whether the Worker is stamping at all, which is the
     # single question "is eviction ever going to work" reduces to.
     merged = merge_stream_stamps(record, stream_stamps())
+    shielded = merge_position_stamps(record, position_stamps())
     streamable = {k: v for k, v in record.items() if v.get("streamable")}
     print(f"Bucket     : {up.BUCKET}")
     print(f"Record     : {up.RECORD_PATH}")
@@ -598,14 +738,20 @@ def print_status() -> None:
           f"({sum(int(v.get('size') or 0) for v in streamable.values()) / 1e9:.3f} GB)")
     print(f"Streams    : {merged} object(s) carry a stream stamp "
           f"(from {'/'.join(STREAM_COLLECTIONS)})")
+    # 🔴 The MID-BOOK SHIELD's coverage. This line is the single honest answer
+    # to "is --evict --commit safe yet", and a zero here is why it refuses.
+    print(f"Positions  : {shielded} object(s) carry a saved-position stamp "
+          f"(from {'/'.join(POSITION_COLLECTIONS)})")
     for key, entry in sorted(streamable.items()):
-        # ⚠️ "never" is the honest word, and it is NOT the same as "nobody has
-        # listened": it means nothing has ever MEASURED a listen. Until the
-        # Worker stamps, every book reads `never` no matter how much it is
-        # played — which is exactly why evict_candidates() refuses to delete
-        # on a pair of nulls.
+        # ⚠️ "never measured" is the honest phrase, and it is NOT the same as
+        # "nobody has listened": it means nothing has ever MEASURED a listen.
+        # Until the Worker and the player stamp, every book reads `never` no
+        # matter how much it is played — which is exactly why
+        # evict_candidates() refuses to delete on a pair of nulls.
         last = entry.get("last_stream_at") or "never measured"
-        print(f"  {key}  (since {entry.get('since')}, last stream {last})")
+        spot = entry.get("last_position_at") or "never measured"
+        print(f"  {key}  (since {entry.get('since')}, last stream {last}, "
+              f"last saved spot {spot})")
     pending = pending_requests()
     print(f"Pending    : {len(pending)} request(s)")
     for req in pending:
@@ -620,6 +766,13 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--status", action="store_true", help="what is streamable and what is queued")
     ap.add_argument("--idle-days", type=int, default=EVICT_IDLE_DAYS,
                     help=f"eviction idle threshold in days (default {EVICT_IDLE_DAYS})")
+    # ⚠️ DELIBERATELY UGLY TO TYPE, per the estate's "mechanical guards beat
+    # written advice" rule: the guard it lifts is the MID-BOOK SHIELD, and the
+    # thing on the other side of it is somebody's half-finished 30-hour book.
+    ap.add_argument("--evict-without-position-shield", action="store_true",
+                    help="delete idle objects even though NO saved-position stamps exist "
+                         "at all (the mid-book shield is the reason the threshold is 30 "
+                         "days, not 7 - see the module docstring before using this)")
     ap.add_argument("--json", action="store_true", help="print the stats dict as JSON")
     args = ap.parse_args(argv)
 
@@ -627,7 +780,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         print_status()
         return 0
     if args.evict:
-        stats = run_eviction(commit=args.commit, idle_days=args.idle_days)
+        stats = run_eviction(commit=args.commit, idle_days=args.idle_days,
+                             without_position_shield=args.evict_without_position_shield)
     else:
         stats = fulfill_requests(commit=args.commit)
     if args.json:

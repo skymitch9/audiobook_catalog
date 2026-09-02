@@ -26,6 +26,7 @@ somebody is listening to right now.
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 RULES = (Path(__file__).resolve().parents[1] / "firestore.rules").read_text(encoding="utf-8")
@@ -162,3 +163,210 @@ def test_a_smoke_script_exists_for_the_deployed_rules():
     # browser on purpose — so only the service account can, which is also the
     # premise /audio_streams' `allow write: if false` rests on.
     assert "service_account_token" in text
+
+
+# ---------------------------------------------------------------------------
+# The READ side — app/tools/fulfill_audio_requests.py
+# ---------------------------------------------------------------------------
+def _doc(anchor: str, field: dict | None, collection: str = "audio_positions") -> dict:
+    fields = {"anchor": {"stringValue": anchor}}
+    if field is not None:
+        fields["lastPositionAt"] = field
+    return {"name": f"projects/x/databases/(default)/documents/{collection}/{anchor}",
+            "fields": fields}
+
+
+def test_epoch_milliseconds_is_the_canonical_form():
+    """🔴 THE UNIT, AND IT IS ASYMMETRIC. Seconds decode to 1970, which is
+    older than every cutoff — so the wrong unit does not fail, it says "evict
+    this book" about a book being listened to right now."""
+    import app.tools.fulfill_audio_requests as fr
+
+    out = fr.parse_position_doc(_doc("b-abc", {"integerValue": "1788000000000"}))
+    assert out is not None
+    anchor, stamp = out
+    assert anchor == "b-abc"
+    assert stamp.startswith("2026-") and stamp.endswith("Z")
+
+
+def test_every_encoding_firestore_might_use_is_accepted():
+    """⚠️ PERMISSIVE ON PURPOSE, exactly as the stream stamps are. A stamp
+    dropped because the writer used a float is indistinguishable from "nobody
+    saved a spot" — and that is the reading that removes the shield."""
+    import app.tools.fulfill_audio_requests as fr
+
+    for f in ({"integerValue": "1788000000000"},
+              {"doubleValue": 1788000000000.0},
+              {"stringValue": "2026-08-29T12:00:00Z"},
+              {"timestampValue": "2026-08-29T12:00:00Z"}):
+        out = fr.parse_position_doc(_doc("b-abc", f))
+        assert out is not None, f"{f} was dropped"
+
+
+def test_an_unusable_position_document_is_dropped_rather_than_guessed():
+    import app.tools.fulfill_audio_requests as fr
+
+    assert fr.parse_position_doc(_doc("b-abc", None)) is None
+    assert fr.parse_position_doc(_doc("b-abc", {"stringValue": "later"})) is None
+    assert fr.parse_position_doc({}) is None
+
+
+def test_the_two_parsers_read_different_fields_and_do_not_cross_wires():
+    """⚠️ One parser, two field names. A position document must not be read as
+    a stream stamp or vice versa: they answer different questions and the
+    evictor's whole guard is that BOTH are absent before it refuses."""
+    import app.tools.fulfill_audio_requests as fr
+
+    pos = _doc("b-abc", {"integerValue": "1788000000000"})
+    assert fr.parse_position_doc(pos) is not None
+    assert fr.parse_stream_doc(pos) is None
+
+
+def test_the_shield_merges_onto_last_position_at_joined_on_the_anchor():
+    """The record is keyed on the library-relative PATH — which is exactly
+    what a browser does not have and must never be sent. The anchor is the
+    shared identity."""
+    import app.tools.fulfill_audio_requests as fr
+
+    files = {"Brandon Sanderson/Skyward.m4b": {"anchor": "b-4754c8e4548e", "streamable": True},
+             "Other/Book.m4b": {"anchor": "b-999", "streamable": True}}
+    assert fr.merge_position_stamps(files, {"b-4754c8e4548e": "2026-08-29T12:00:00Z"}) == 1
+    assert files["Brandon Sanderson/Skyward.m4b"]["last_position_at"] == "2026-08-29T12:00:00Z"
+    assert "last_position_at" not in files["Other/Book.m4b"]
+
+
+def test_a_position_merge_never_moves_a_stamp_backwards():
+    """🔴 THE ONE THAT PROTECTS A HALF-FINISHED BOOK, on this side too."""
+    import app.tools.fulfill_audio_requests as fr
+
+    files = {"k": {"anchor": "b-1", "streamable": True,
+                   "last_position_at": "2026-08-29T12:00:00Z"}}
+    assert fr.merge_position_stamps(files, {"b-1": "2026-01-01T00:00:00Z"}) == 0
+    assert files["k"]["last_position_at"] == "2026-08-29T12:00:00Z"
+
+
+def test_both_position_lanes_are_read_and_the_newest_wins(monkeypatch):
+    """⚠️ A spot saved on /dev/ is a saved spot. It matters more here than for
+    the streams: the player has only ever run on the dev lane."""
+    import app.tools.fulfill_audio_requests as fr
+
+    calls = []
+
+    def fake_fetch(collection):
+        calls.append(collection)
+        if collection == "audio_positions":
+            return [_doc("b-1", {"stringValue": "2026-08-01T00:00:00Z"})]
+        return [_doc("b-1", {"stringValue": "2026-08-29T12:00:00Z"}, "audio_positions_dev")]
+
+    monkeypatch.setattr(fr, "fs_fetch", fake_fetch)
+    out = fr.position_stamps()
+    assert calls == ["audio_positions", "audio_positions_dev"]
+    assert out["b-1"] == "2026-08-29T12:00:00Z"
+
+
+def test_a_listing_failure_is_told_apart_from_an_empty_listing(monkeypatch, capsys):
+    """🔴 THE SILENT-STALENESS TRAP, named. "Could not list it" and "listed it
+    and found nothing" produce the SAME empty dict and mean completely
+    different things — the first is what a missing rules deploy looks like
+    from here, and it is the one that must never be read as "nobody has saved
+    a spot"."""
+    import app.tools.fulfill_audio_requests as fr
+
+    monkeypatch.setattr(fr, "fs_fetch", lambda _c: [])
+    stamps, unreadable = fr._collect_stamps(fr.POSITION_COLLECTIONS, "lastPositionAt")
+    assert stamps == {} and unreadable == []
+
+    def boom(_c):
+        raise RuntimeError("HTTP Error 403: Forbidden")
+
+    monkeypatch.setattr(fr, "fs_fetch", boom)
+    stamps, unreadable = fr._collect_stamps(fr.POSITION_COLLECTIONS, "lastPositionAt")
+    assert stamps == {}
+    assert unreadable == list(fr.POSITION_COLLECTIONS)
+    assert "[WARN]" in capsys.readouterr().out
+
+
+# ---------------------------------------------------------------------------
+# 🔴 The refusal — the reason --evict --commit was unsafe for three phases
+# ---------------------------------------------------------------------------
+def _idle_record(monkeypatch, fr, positions):
+    """One streamable object, streamed 90 days ago, with `positions` available."""
+    record = {"Brandon Sanderson/Skyward.m4b": {
+        "anchor": "b-4754c8e4548e", "streamable": True, "size": 884_000_000,
+        "since": "2026-08-23T00:00:00Z", "last_stream_at": "2026-05-01T00:00:00Z"}}
+    monkeypatch.setattr(fr.up, "load_record", lambda: dict(record))
+    monkeypatch.setattr(fr.up, "write_record", lambda _r: None)
+    monkeypatch.setattr(fr, "fs_fetch", lambda c: positions if "position" in c else [])
+    return record
+
+
+def test_commit_refuses_to_delete_while_the_shield_has_no_data(monkeypatch, capsys):
+    """The whole point. A book with a stream stamp and NO position data goes
+    idle 30 days after the last listen — precisely the paused-30-hour-book
+    case the shield exists for. Refusing costs storage; not refusing costs
+    somebody their place in a book."""
+    import app.tools.fulfill_audio_requests as fr
+
+    _idle_record(monkeypatch, fr, [])
+    deleted = []
+    monkeypatch.setattr(fr.up, "s3_client", lambda: _explode(deleted))
+    stats = fr.run_eviction(commit=True)
+    out = capsys.readouterr().out
+    assert stats.get("refused_no_shield") is True
+    assert stats["candidates"] == 1
+    assert "REFUSED" in out and "MID-BOOK SHIELD" in out
+    assert deleted == [], "an object was deleted with no shield data"
+
+
+def test_the_refusal_says_WHICH_of_the_two_causes_it_is(monkeypatch, capsys):
+    """⚠️ "The lane is empty" and "the lane could not be read" have different
+    fixes, and a refusal that does not say which sends somebody to the wrong
+    one. A person must never meet a bare failure."""
+    import app.tools.fulfill_audio_requests as fr
+
+    _idle_record(monkeypatch, fr, [])
+    monkeypatch.setattr(fr, "fs_fetch", _forbidden)
+    monkeypatch.setattr(fr.up, "s3_client", lambda: _explode([]))
+    fr.run_eviction(commit=True)
+    out = capsys.readouterr().out
+    assert "could not be listed" in out
+    assert "firebase deploy" in out
+
+
+def test_a_shielded_book_is_kept_rather_than_refused_wholesale(monkeypatch, capsys):
+    """The shield WORKING looks different from the shield MISSING: this object
+    is kept because somebody has a place in it, and the run reports a normal
+    keep rather than the guard's refusal."""
+    import app.tools.fulfill_audio_requests as fr
+
+    recent = int(time.time() * 1000) - 86_400_000        # yesterday, in MILLIseconds
+    _idle_record(monkeypatch, fr,
+                 [_doc("b-4754c8e4548e", {"integerValue": str(recent)})])
+    stats = fr.run_eviction(commit=True)
+    out = capsys.readouterr().out
+    assert stats["candidates"] == 0
+    assert "refused_no_shield" not in stats
+    assert "mid-book shield" in out
+    assert "[keep]" in out
+
+
+def test_the_override_exists_and_is_deliberately_ugly_to_type():
+    """Per the estate's "mechanical guards beat written advice" rule: a real
+    guard has a real escape hatch, and the hatch is an explicit flag rather
+    than something anybody types by accident."""
+    import app.tools.fulfill_audio_requests as fr
+
+    src = Path(fr.__file__).read_text(encoding="utf-8")
+    assert "--evict-without-position-shield" in src
+    assert "without_position_shield" in src
+
+
+def _explode(seen):
+    class _Client:
+        def delete_object(self, **kw):
+            seen.append(kw.get("Key"))
+    return _Client()
+
+
+def _forbidden(_collection):
+    raise RuntimeError("HTTP Error 403: Forbidden")
