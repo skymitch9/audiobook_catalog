@@ -26,6 +26,9 @@ USAGE
     python -m app.tools.ingest_books --requeue-failed             # put them back
     python -m app.tools.ingest_books --requeue-ocr --dry-run      # what would be armed
     python -m app.tools.ingest_books --requeue-ocr                # arm the OCR lane
+    python -m app.tools.ingest_books --requeue-ocr --as-supplement  # arm, and name
+                                     # each one "<title> (supplement)" under its
+                                     # own book id (KNOWN_ISSUES KI-8)
     python -m app.tools.ingest_books --dry-run ...     # build, never upload
     python -m app.tools.ingest_books --limit N
 
@@ -62,9 +65,11 @@ from app.core.ingest_pack import (
 from app.core.book_ocr import SOURCE_PDF_OCR, ocr_available, quality_refusal
 from app.core.ingest_queue import (
     PACKS_DIR, RECEIPTS_DIR, STATUS_DONE, STATUS_FAILED, STATUS_NEEDS_OCR,
-    STATUS_PENDING, STATE_PATH, TIER_NEEDS_OCR, TRANSCRIPTS_DIR, QueueItem,
-    apply_requeue, build_queue, count_reviews_by_book_id, load_chapters,
-    load_state, mark, save_state, transcript_filename_stem,
+    STATUS_PENDING, STATUS_SUPERSEDED, STATE_PATH, TIER_NEEDS_OCR,
+    TRANSCRIPTS_DIR, QueueItem,
+    apply_requeue, apply_supplement_requeue, build_queue,
+    count_reviews_by_book_id, load_chapters, load_state, mark, save_state,
+    transcript_filename_stem,
 )
 from app.core.ingest_queue_summary import build_queue_summary, write_queue_summary
 from app.core.ingest_transcripts import (
@@ -621,8 +626,19 @@ def requeue_failed(dry_run: bool = False, rows=None, root=None) -> dict:
     return outcome
 
 
-def requeue_ocr(dry_run: bool = False, book_ids=None, state=None) -> dict:
+def requeue_ocr(dry_run: bool = False, book_ids=None, state=None,
+                as_supplement: bool = False) -> dict:
     """`--requeue-ocr`: ARM image-scan PDFs so the OCR lane may read them.
+
+    With `as_supplement` (`--as-supplement`) the arming ALSO gives each book a
+    disambiguated identity — `"<title> (supplement)"` under its own book_id —
+    through `ingest_queue.apply_supplement_requeue`. See that function and
+    KNOWN_ISSUES KI-8 for why: these files are the PDF supplements OpenAudible
+    downloads beside an audiobook, and they inherit the WORK's title, so a
+    packed one answers to a reader's query about the book itself. It is a
+    per-book decision made here rather than a rule applied to the lane, because
+    "this scan is a supplement" is a measurement of these files, not a property
+    of image-scan PDFs.
 
     ⚠️ WHY A FLAG AND NOT A HAND EDIT - the same reason `--requeue-failed` is
     one. `ingest_state.json` lives outside every repo and is written by a
@@ -644,28 +660,54 @@ def requeue_ocr(dry_run: bool = False, book_ids=None, state=None) -> dict:
         log(f"requeue-ocr: REFUSED - {words}. Nothing was armed; arming books "
             f"for a lane that cannot read them would turn a named blocker into "
             f"a book that looks queued and never moves.")
-        return {"requeued": [], "unknown": [], "skipped_done": [],
-                "skipped_other": [], "refused": words}
+        # ⚠️ BOTH result shapes, empty. A caller written for `--as-supplement`
+        # reads `armed` and one written for the plain arming reads `requeued`;
+        # a refusal that carried only one of them would KeyError on exactly the
+        # path where nothing went wrong.
+        return {"requeued": [], "armed": [], "unknown": [], "skipped_done": [],
+                "skipped_other": [], "skipped_already": [],
+                "skipped_collision": [], "refused": words}
 
     state = load_state() if state is None else state
     books = state.get("books") or {}
     if book_ids:
         wanted = [str(b).strip() for b in book_ids if str(b).strip()]
     else:
+        # ⚠️ `superseded_by` rows are EXCLUDED from the bulk selector. Their
+        # status is `superseded`, not `needs-ocr`, so today this is belt and
+        # braces — but a re-armed old identity would sit `pending` for ever
+        # while `build_queue` looks only at the new one, which is precisely the
+        # invisible-stall failure the sort_tier fix was written to end.
         wanted = sorted(bid for bid, e in books.items()
-                        if (e or {}).get("status") == STATUS_NEEDS_OCR)
+                        if (e or {}).get("status") == STATUS_NEEDS_OCR
+                        and not (e or {}).get("superseded_by"))
 
-    outcome = apply_requeue(state, wanted)
-    if outcome["requeued"] and not dry_run:
+    if as_supplement:
+        outcome = apply_supplement_requeue(state, wanted)
+        armed = outcome["armed"]
+    else:
+        outcome = apply_requeue(state, wanted)
+        armed = outcome["requeued"]
+    if armed and not dry_run:
         save_state(state)
-    log(f"requeue-ocr: {len(outcome['requeued'])} of {len(wanted)} needs-ocr book"
-        f"{'' if len(wanted) == 1 else 's'} armed to pending (engine: {words})")
-    for book_id in outcome["requeued"]:
-        log(f"  armed {book_id}")
+    how = " with a disambiguated supplement identity" if as_supplement else ""
+    log(f"requeue-ocr: {len(armed)} of {len(wanted)} needs-ocr book"
+        f"{'' if len(wanted) == 1 else 's'} armed to pending{how} "
+        f"(engine: {words})")
+    for book_id in armed:
+        if as_supplement:
+            row = (state.get("books") or {}).get(book_id) or {}
+            log(f"  armed {row.get('supplement_of')} -> {book_id} "
+                f"({row.get('title')!r})")
+        else:
+            log(f"  armed {book_id}")
     for bucket, said in (("unknown", "not in the state file"),
                          ("skipped_done", "already done and left alone"),
-                         ("skipped_other", "not in a requeueable status")):
-        if outcome[bucket]:
+                         ("skipped_other", "not in a requeueable status"),
+                         ("skipped_already", "already carry a supplement identity"),
+                         ("skipped_collision", "REFUSED: the supplement id is "
+                                               "already taken — nothing overwritten")):
+        if outcome.get(bucket):
             log(f"  {len(outcome[bucket])} {said}: {outcome[bucket][:5]}")
     if dry_run:
         log("  --dry-run, so nothing was written; the state file is unchanged")
@@ -1014,6 +1056,16 @@ def status(args) -> int:
             "armed_books": sum(1 for b in state.get("books", {}).values()
                                if b.get("source") == SOURCE_PDF_OCR
                                and b.get("status") == STATUS_PENDING),
+            # ⚠️ Rows armed under a DISAMBIGUATED identity (KI-8), and the old
+            # identities they replaced. Reported separately because "16 armed"
+            # and "16 armed, none of them able to answer as the work they sit
+            # beside" are different facts, and only the second one is the
+            # reason this lane was safe to arm at all.
+            "armed_as_supplement": sum(1 for b in state.get("books", {}).values()
+                                       if b.get("supplement_of")
+                                       and b.get("status") == STATUS_PENDING),
+            "superseded_identities": sum(1 for b in state.get("books", {}).values()
+                                         if b.get("status") == STATUS_SUPERSEDED),
         },
         "state_path": str(STATE_PATH),
         "books_done": sum(1 for b in state.get("books", {}).values()
@@ -1051,6 +1103,11 @@ def main(argv: Optional[List[str]] = None) -> int:
                         "read it; combine with --dry-run to see the list first")
     p.add_argument("--ocr-book", action="append", default=None,
                    help="with --requeue-ocr, arm only these book ids (repeatable)")
+    p.add_argument("--as-supplement", action="store_true",
+                   help="with --requeue-ocr, arm each book under a "
+                        "DISAMBIGUATED identity — '<title> (supplement)' and its "
+                        "own book id — so a supplement PDF can never answer a "
+                        "query about the work it accompanies (KNOWN_ISSUES KI-8)")
     args = p.parse_args(argv)
 
     # Before every GATE (window, GPU, pause, CPU, deadline) — this transcribes
@@ -1085,7 +1142,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     # and needs no lock, and is the form to reach for while a run is in flight.
     if args.requeue_ocr:
         if args.dry_run:
-            requeue_ocr(dry_run=True, book_ids=args.ocr_book)
+            requeue_ocr(dry_run=True, book_ids=args.ocr_book,
+                        as_supplement=args.as_supplement)
             return 0
         with _Lock() as lock:
             if not lock.acquired:
@@ -1093,8 +1151,17 @@ def main(argv: Optional[List[str]] = None) -> int:
                     "arming written under a live run is overwritten by its next "
                     "save_state. Re-run when it finishes, or use --dry-run to look.")
                 return 1
-            requeue_ocr(dry_run=False, book_ids=args.ocr_book)
+            requeue_ocr(dry_run=False, book_ids=args.ocr_book,
+                        as_supplement=args.as_supplement)
         return 0
+
+    # ⚠️ `--as-supplement` alone does nothing and must SAY so rather than
+    # falling through to a status print that looks like it worked. It is a
+    # modifier on the arming decision, not a command.
+    if args.as_supplement:
+        log("--as-supplement is a modifier for --requeue-ocr and does nothing "
+            "on its own. Re-run as: --requeue-ocr --as-supplement [--dry-run]")
+        return 1
 
     if args.status or not (args.run or args.publish_index):
         return status(args)

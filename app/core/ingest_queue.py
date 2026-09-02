@@ -81,6 +81,13 @@ STATUS_DONE = "done"
 STATUS_PENDING = "pending"
 STATUS_NEEDS_OCR = "needs-ocr"
 STATUS_FAILED = "failed"
+# ⚠️ A row whose IDENTITY moved. Terminal, and deliberately NOT in
+# REQUEUABLE_STATUSES: the work did not fail and is not held — it is being done
+# under another book_id, named in `superseded_by`. Kept rather than deleted so
+# `publish_index` still serves a row for the old id saying where the content
+# went, which is the difference between "we decided this is a supplement" and
+# "the ingester silently forgot a book". See `apply_supplement_requeue`.
+STATUS_SUPERSEDED = "superseded"
 
 
 def transcript_filename_stem(title: str) -> str:
@@ -232,6 +239,164 @@ def apply_requeue(state: dict, book_ids) -> Dict[str, List[str]]:
              **({"previous_reason": str(previous)[:300]} if previous else {}))
         out["requeued"].append(bid)
     return out
+
+
+# --------------------------------------------------------------------------
+# SUPPLEMENT IDENTITY — KI-8, the title collision (2026-09-02)
+# --------------------------------------------------------------------------
+#
+# 🔴 THE PROBLEM, MEASURED. The 16 `needs-ocr` rows are not books: they are the
+# PDF supplements OpenAudible downloads beside an audiobook — maps, family
+# trees, ability-card decks, glossaries, cover plates, 2 to 39 pages. Their
+# titles and book_ids are derived from the FILE, so they read exactly like the
+# work they accompany, while the work itself is already packed under a longer
+# id built from the catalog's fuller title:
+#
+#     supplement  the-way-of-kings                                (25 pages)
+#     the work    the-way-of-kings-the-stormlight-archive-book-1  (3,163 chunks)
+#
+# 12 of the 16 have such a parent today (measured 2026-09-02 off the live state
+# file), and the four that do not are books whose audio is still queued. The
+# hazard is not the string equality — the two ids differ — it is that a
+# retrieval layer slugging a reader's "The Way of Kings" lands on
+# `the-way-of-kings` EXACTLY, and answers a plot question out of twenty chunks
+# of map labels with a citation that looks perfectly correct.
+#
+# ⚠️ THE RETRIEVAL LAYER IS LIVE. KI-8 filed this as "what must happen the day
+# retrieval is built"; that day was 2026-08-18 and the entry was written on
+# 2026-09-01 believing otherwise. So this is not pre-emptive.
+#
+# THE FIX IS AN IDENTITY, NOT A FILTER. A chunk-count threshold or a
+# `source: pdf-ocr` exclusion hides the supplements from retrieval, which
+# throws away real citable content (ability cards, the Ars Arcanum, emotion
+# charts) to work around a name. Naming them for what they are costs nothing
+# and is true.
+#
+# ⚠️ IT IS A DECISION MADE PER BOOK AT ARM TIME, NOT A RULE APPLIED TO THE
+# LANE. "Every needs-ocr PDF is a supplement" is true of these 16 and is a
+# MEASUREMENT of them, not a property of image-scan PDFs — a scanned novel
+# would be a book, and calling it "(supplement)" would be a lie asserted by a
+# default. Arming is already the human decision point for this lane (a person
+# deciding which files are worth reading is its stated safety property); this
+# adds "and what to call it" to the same decision.
+SUPPLEMENT_SUFFIX = " (supplement)"
+
+# ⚠️ THE SAME STRING AS `app.core.book_ocr.SOURCE_PDF_OCR`, AND DELIBERATELY
+# NOT IMPORTED FROM IT. That module reaches `book_text`, which reaches PyMuPDF,
+# and this one is importable without either on purpose — `build_queue` takes
+# its PDF classifier by INJECTION for exactly that reason, so that the queue
+# (and the status page's summary of it) can be built on a machine or in a test
+# with no OCR stack at all. `tests/test_ocr_supplements.py` asserts the two
+# spellings agree, which is what makes the copy safe.
+SOURCE_PDF_OCR_FALLBACK = "pdf-ocr"
+
+
+def supplement_identity(title: str) -> tuple:
+    """`(title, book_id)` for the SUPPLEMENT of a work called `title`.
+
+    ⚠️ ONE FORMULA, ONE HOME. The arming primitive writes the identity and
+    `build_queue` re-keys the item onto it; both must agree for ever, because
+    `book_id` is a PERSISTED KEY — it names the object in the gated bucket and
+    the row `publish_index` serves. Changing this function is a migration, not
+    an edit.
+
+    The id is derived from the new TITLE through the same `book_id_from_title`
+    every other id in this file comes from, never by string-appending a slug:
+    two ways to build a key is how two keys start disagreeing.
+    """
+    new_title = f"{title}{SUPPLEMENT_SUFFIX}"
+    return new_title, book_id_from_title(new_title)
+
+
+def apply_supplement_requeue(state: dict, book_ids) -> Dict[str, List[str]]:
+    """ARM `needs-ocr` rows under a DISAMBIGUATED identity. Buckets, not a count.
+
+    `{"armed": [...], "unknown": [...], "skipped_done": [...],
+      "skipped_other": [...], "skipped_already": [...],
+      "skipped_collision": [...]}`
+
+    For each id, when and only when its row is `needs-ocr`:
+
+      * a NEW row is created under `supplement_identity()`'s book_id, `pending`
+        (so it is armed — `_ocr_sort_tier` reads exactly this), carrying the new
+        title, `supplement_of` naming where it came from, and the previous
+        status/reason the way `apply_requeue` preserves them;
+      * the OLD row becomes `superseded`, with `superseded_by` naming the new
+        id. It is kept, not deleted: a row that says where the content went is
+        the difference between a decision and an amnesia.
+
+    ⚠️ `done` IS UNTOUCHABLE, exactly as in `apply_requeue`, and for the same
+    reason — an id that has already been packed must never be re-identified by
+    a retry-shaped control. A packed pack would be orphaned in the bucket under
+    a key nothing indexes.
+
+    ⚠️ A COLLIDING NEW ID IS REFUSED, NEVER OVERWRITTEN (`skipped_collision`).
+    Writing over an existing row would silently discard whatever it holds, and
+    the one thing this whole function exists to stop is two books answering
+    under one identity.
+    """
+    out = {"armed": [], "unknown": [], "skipped_done": [], "skipped_other": [],
+           "skipped_already": [], "skipped_collision": []}
+    books = state.setdefault("books", {})
+    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    for raw in book_ids or []:
+        bid = str(raw).strip()
+        if not bid:
+            continue
+        entry = books.get(bid)
+        if not entry:
+            out["unknown"].append(bid)
+            continue
+        if entry.get("superseded_by"):
+            out["skipped_already"].append(bid)
+            continue
+        status = entry.get("status")
+        if status == STATUS_DONE:
+            out["skipped_done"].append(bid)
+            continue
+        if status != STATUS_NEEDS_OCR:
+            out["skipped_other"].append(bid)
+            continue
+        title = entry.get("title") or bid
+        new_title, new_id = supplement_identity(title)
+        if new_id == bid or new_id in books:
+            out["skipped_collision"].append(bid)
+            continue
+        previous = entry.get("reason") or entry.get("blocker")
+        mark(state, new_id, STATUS_PENDING,
+             title=new_title,
+             source=entry.get("source") or SOURCE_PDF_OCR_FALLBACK,
+             supplement_of=bid,
+             armed_at=now,
+             previous_status=status,
+             **({"previous_reason": str(previous)[:300]} if previous else {}))
+        mark(state, bid, STATUS_SUPERSEDED, superseded_by=new_id,
+             superseded_at=now, previous_status=status)
+        out["armed"].append(new_id)
+    return out
+
+
+def supplement_rekey(state: dict, book_id: str, title: str) -> tuple:
+    """`(book_id, title)` this scan PDF answers under — its own, or its
+    supplement identity once one has been armed.
+
+    ⚠️ THE QUEUE IS WHERE THE RE-KEY HAS TO HAPPEN, because `build_queue`
+    derives every id from the ebook manifest's title and knows nothing about
+    the state file's decisions. Everything downstream keys off the QueueItem:
+    `_ocr_hold_reason` reads the row for `item.book_id`, `pack_one` marks it
+    and uploads `text/<item.book_id>.json.gz`, and `publish_index` serves the
+    state key. Re-key here and all four agree; re-key anywhere else and they
+    do not.
+
+    ⚠️ It runs BEFORE the `is_done` check in `build_queue`, so a packed
+    supplement is recognised as done under the id it was actually packed under.
+    """
+    entry = (state.get("books") or {}).get(book_id) or {}
+    new_id = entry.get("superseded_by")
+    if not new_id:
+        return book_id, title
+    new_title = ((state.get("books") or {}).get(new_id) or {}).get("title")
+    return new_id, (new_title or title)
 
 
 def priority_matcher(needles) -> Optional[callable]:
@@ -552,6 +717,15 @@ def build_queue(state: Optional[dict] = None, review_counts: Optional[Dict[str, 
         if not title:
             continue
         bid = book_id_from_title(title)
+        # ⚠️ A SCAN PDF ARMED AS A SUPPLEMENT ANSWERS UNDER ANOTHER IDENTITY.
+        # PDFs only: `superseded_by` is written by `apply_supplement_requeue`,
+        # which accepts `needs-ocr` rows and nothing else, so no other format
+        # can carry one — but saying "PDFs only" here means a future writer of
+        # that key cannot silently re-key an EPUB by accident. It runs BEFORE
+        # the is_done check so a packed supplement is recognised as done under
+        # the id it was actually packed under.
+        if fmt == "pdf":
+            bid, title = supplement_rekey(state, bid, title)
         if is_done(state, bid):
             continue
         path = str(root / e["path"]) if e.get("path") else None

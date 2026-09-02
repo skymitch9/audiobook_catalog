@@ -512,7 +512,14 @@ class TestRequeueOcr:
 
         monkeypatch.setattr(ib, "_Lock", _boom)
         assert ib.main(["--requeue-ocr", "--dry-run"]) == 0
-        assert applied == [{"dry_run": True, "book_ids": None}]
+        # ⚠️ Asserts the DECISION — one call, read-only, no book filter — not
+        # the whole kwargs dict. Pinning the dict broke the day
+        # `--as-supplement` was added, which changed nothing about this
+        # behaviour: the same "locks a spelling, not an outcome" failure the
+        # 2026-08-16 testing audit named against the `git pull` argv test.
+        assert len(applied) == 1
+        assert applied[0]["dry_run"] is True
+        assert applied[0]["book_ids"] is None
 
 
 class TestArmedOcrIsPromotedOutOfTheTail:
