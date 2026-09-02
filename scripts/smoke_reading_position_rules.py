@@ -166,6 +166,49 @@ bad_format['fields']['format'] = {'stringValue': 'mobi'}
 st, _ = call('PATCH', f'{FS}/{doc_a}', bad_format, token=tok_a)
 check('a format this reader cannot open is REFUSED', st, 403)
 
+print('\n-- the AUDIO locator (audio player phase 3, 2026-09-02) --')
+# ⚠️ THE CLAUSE PHASE 3 HANGS OFF. `validReadingPosition()` carries 'audio' in
+# BOTH lists — `format` and `pos.kind` — and until the rules are DEPLOYED the
+# file saying so proves nothing. A position written against rules that refuse
+# it fails silently and looks exactly like "the player does not save your
+# spot" (design §1.4, §7.4). That is why this runs against the live project.
+doc_audio = f'{COL}/{uid_a}_zz-smoke-audio'
+call('DELETE', f'{FS}/{doc_audio}', token=tok_a)
+
+audio = position_fields(uid_a, book='zz-smoke-audio')
+audio['fields']['format'] = {'stringValue': 'audio'}
+# 🔴 {chapter, offsetSec}, NEVER a single absolute second (design §7.4). The
+# `seconds` field rides along for DISPLAY and is never navigated by.
+audio['fields']['pos'] = {'mapValue': {'fields': {
+    'kind': {'stringValue': 'audio'},
+    'value': {'mapValue': {'fields': {
+        'chapter': {'integerValue': '7'},
+        'offsetSec': {'doubleValue': 812.4},
+        'seconds': {'doubleValue': 5312.9},
+    }}},
+}}}
+# Per-book speed moved onto this document in phase 3 (design §9.2 #2), so the
+# rule must accept the extra field rather than being a closed shape.
+audio['fields']['rate'] = {'doubleValue': 1.5}
+st, _ = call('PATCH', f'{FS}/{doc_audio}', audio, token=tok_a)
+check('an AUDIO position with a {chapter, offsetSec} locator is accepted', st, 200)
+
+st, body = call('GET', f'{FS}/{doc_audio}', token=tok_a)
+check('...and reads back', st, 200)
+if st == 200:
+    chapter = (body['fields']['pos']['mapValue']['fields']['value']
+               ['mapValue']['fields']['chapter']['integerValue'])
+    check('...with the chapter it named', chapter, '7')
+    check('...and the remembered speed', body['fields']['rate']['doubleValue'], 1.5)
+
+bad_kind = position_fields(uid_a, book='zz-smoke-audio', kind='timestamp')
+bad_kind['fields']['format'] = {'stringValue': 'audio'}
+st, _ = call('PATCH', f'{FS}/{doc_audio}', bad_kind, token=tok_a)
+check('a locator kind nothing can read is REFUSED', st, 403)
+
+st, _ = call('DELETE', f'{FS}/{doc_audio}', token=tok_a)
+check('the audio scratch document is removed', st, 200)
+
 print('\n-- listing --')
 # ⚠️ `allow list: if false`. What a household reads is not a queryable set,
 # and the doc-id wildcard is not reliably bound for a list operation — an

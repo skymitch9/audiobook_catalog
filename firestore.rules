@@ -259,6 +259,35 @@ service cloud.firestore {
              && request.resource.data.updatedAt is number;
     }
 
+    // ---- The audiobook eviction stamp's shape (audio player phase 3) -------
+    //
+    // See `match /audio_positions/{anchor}` below for what this collection is
+    // and why it is NOT `readingPositions`. This function is the shape half.
+    //
+    // ⚠️ THE TIME WINDOW IS DELIBERATELY GENEROUS — 30 days back, 7 days
+    // forward. `site/reading-position.js` writes a CLIENT-CLOCK epoch on
+    // purpose (§3 there: a server sentinel is unreadable until it round-trips,
+    // and last-write-wins has to compare an offline row against another
+    // device's) and accepts skew as an honest, small cost. A tight window here
+    // would refuse the stamps of anyone whose clock is wrong — and a refused
+    // stamp fails in the HARMFUL direction, because it is the ABSENCE of a
+    // stamp that evicts a book somebody is halfway through. The window exists
+    // only to stop an object being pinned on the bill for ever by a year-3000
+    // value.
+    //
+    // ⚠️ `hasOnly` is what keeps this document the one fact it claims to be.
+    // Anything else written here would be an unverifiable claim riding on a
+    // world-readable document.
+    function validAudioPositionStamp(anchor) {
+      return request.auth != null
+             && anchor.matches('^b-[0-9a-f]{8,32}$')
+             && request.resource.data.keys().hasOnly(['anchor', 'lastPositionAt'])
+             && request.resource.data.anchor == anchor
+             && request.resource.data.lastPositionAt is number
+             && request.resource.data.lastPositionAt <= request.time.toMillis() + 604800000
+             && request.resource.data.lastPositionAt >= request.time.toMillis() - 2592000000;
+    }
+
     function validClub() {
       return request.resource.data.name is string
              && request.resource.data.name.size() >= 3
@@ -963,6 +992,64 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ---- Audiobook POSITION stamps (audio player phase 3, 2026-09-02) -----
+    //
+    // WHAT THIS IS. One document per anchor, `{ anchor, lastPositionAt }`,
+    // epoch MILLISECONDS, the document id IS the anchor — the same shape
+    // /audio_streams established, for the other half of the same predicate.
+    // It is the 🔴 MID-BOOK SHIELD, and it is the entire reason the eviction
+    // threshold is 30 days rather than the owner's 7: a 30-hour book over a
+    // month of commutes is the normal case, not an abandoned one.
+    // `evict_candidates()` in app/tools/fulfill_audio_requests.py reads it as
+    // `last_position_at`.
+    //
+    // ⚠️ WHY IT IS NOT `readingPositions`, WHICH HOLDS THE REAL POSITIONS.
+    // That collection is `allow list: if false` in BOTH lanes, deliberately —
+    // "enumerating what a household reads is not a query any client needs".
+    // The evictor lists collections over the REST API with the PUBLIC web API
+    // key, so it is gated exactly like a browser and would be refused; and
+    // even holding a service account it would be reading every person's exact
+    // place in every book to answer a yes/no about one opaque anchor. This
+    // collection carries that yes/no and nothing else: an opaque 12-hex fold
+    // of a library path, and a timestamp. No title, no path, no uid — the
+    // surface site/audio_manifest.json is gitignored to close is not reopened
+    // from the other end. Full reasoning: site/audio-position.js §4.
+    //
+    // ⚠️ IT DIFFERS FROM /audio_streams IN ONE WAY, AND ON PURPOSE: browsers
+    // may WRITE this one. That one is `allow write: if false` because a
+    // service account bypasses rules and "nobody but the Worker has anything
+    // true to say here". A saved position is the exact opposite — only the
+    // listener's browser holds it and no Worker ever sees it — so the forgery
+    // trade runs the other way, and it is worth stating rather than assuming:
+    //
+    //   * a FORGED stamp keeps a cached object on the bill (~$0.009/mo, and
+    //     R2 is a CACHE — the local library deletes nothing, so an eviction
+    //     costs an upload, never a book);
+    //   * a MISSING stamp evicts a book somebody is halfway through.
+    //
+    // So the two abuses that are NOT benign are refused in the rule itself:
+    //   * a stamp dragged BACKWARDS is what causes an EARLY eviction, so
+    //     `update` requires the value to be non-decreasing;
+    //   * a stamp parked far in the FUTURE would pin an object for ever, so
+    //     it must land in the (generous) window validAudioPositionStamp sets.
+    //
+    // ⚠️ `allow read: if true` is LOAD-BEARING for exactly the reason it is on
+    // /audio_streams and /audio_requests: the evictor LISTS this collection
+    // with the public web API key. Refusing list would strand it with no error
+    // anywhere, and the symptom would be "no book has ever been listened to" —
+    // the one wrong answer that is indistinguishable from the correct day-one
+    // answer.
+    //
+    // ⚠️ `allow delete: if false`. Deleting a stamp REMOVES the shield, which
+    // is the harmful direction; a stale stamp costs one tiny document.
+    match /audio_positions/{anchor} {
+      allow read: if true;
+      allow create: if validAudioPositionStamp(anchor);
+      allow update: if validAudioPositionStamp(anchor)
+                    && request.resource.data.lastPositionAt >= resource.data.lastPositionAt;
+      allow delete: if false;
+    }
+
     match /club_seen/{userId} {
       allow read: if true;
       allow write: if request.resource.data.seen is map;
@@ -1217,6 +1304,23 @@ service cloud.firestore {
     match /audio_streams_dev/{anchor} {
       allow read: if true;
       allow write: if false;
+    }
+
+    // Mirrors /audio_positions — see every note there.
+    //
+    // ⚠️ BOTH LANES, and it matters MORE here than for the stream stamps: the
+    // player has only ever run on the /dev/ lane, so for now EVERY position a
+    // person saves lands in this collection and nowhere else. A shield that
+    // existed only on prod would be a shield nobody has.
+    // ⚠️ Deploying only the prod half is the failure that looks like success:
+    // rules deploy as ONE document, so a missing _dev clause falls through to
+    // the default and is a DENY, silently.
+    match /audio_positions_dev/{anchor} {
+      allow read: if true;
+      allow create: if validAudioPositionStamp(anchor);
+      allow update: if validAudioPositionStamp(anchor)
+                    && request.resource.data.lastPositionAt >= resource.data.lastPositionAt;
+      allow delete: if false;
     }
 
     match /club_seen_dev/{userId} {
