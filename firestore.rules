@@ -927,6 +927,42 @@ service cloud.firestore {
       allow delete: if true;
     }
 
+    // ---- Audiobook stream stamps (audio-player phase 2, 2026-09-02) --------
+    //
+    // WHAT THIS IS. One document per anchor, `{ anchor, lastStreamAt }`,
+    // written by the audiobook Worker's byte route through
+    // FIREBASE_SERVICE_ACCOUNT and throttled to at most one write per anchor
+    // per isolate per hour (design §10.1). It is the ONLY answer to "has
+    // anybody listened to this book", and `evict_candidates()` in
+    // app/tools/fulfill_audio_requests.py refuses to delete anything without
+    // it — so until this collection has data, eviction correctly deletes
+    // nothing, which is the state the estate has been in since phase 0b.
+    //
+    // 🔴 `allow write: if false` — AND THAT IS NOT AN OVERSIGHT. A service
+    // account BYPASSES these rules entirely, so the Worker writes fine while
+    // every browser is refused. Anything a browser could write here would be
+    // a claim about listening that nobody can check: a forged stamp keeps a
+    // dead book on the bill for ever, and a missing one evicts a book
+    // somebody is halfway through. Nobody but the Worker has anything true to
+    // say here.
+    //
+    // ⚠️ `allow read: if true` is LOAD-BEARING and mirrors /audio_requests
+    // exactly: fulfill_audio_requests.py LISTS this collection over the REST
+    // API authenticated by the *public web API key*, not a service account,
+    // so it is gated by these rules like any browser. Refusing list would
+    // strand the evictor with no error anywhere — and it would look exactly
+    // like "no book has ever been streamed", which is the one wrong answer
+    // that is indistinguishable from the correct day-one answer.
+    //
+    // ⚠️ What a reader learns is an OPAQUE ANCHOR (a 12-hex-character fold of
+    // a library path) and a timestamp. No title, no path, no uid — the
+    // surface site/audio_manifest.json is gitignored to close is not reopened
+    // from the other end.
+    match /audio_streams/{anchor} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     match /club_seen/{userId} {
       allow read: if true;
       allow write: if request.resource.data.seen is map;
@@ -1166,6 +1202,21 @@ service cloud.firestore {
       allow create: if validAudioRequest() && audioRequestIsNewPile();
       allow update: if validAudioRequest() && audioRequestJoinsPile();
       allow delete: if true;
+    }
+
+    // Mirrors /audio_streams — see every note there.
+    //
+    // ⚠️ BOTH LANES, AND THE REASON IS THE ONE /audio_requests_dev GIVES: the
+    // evictor reads both in one pass, and a book listened to on /dev/ must
+    // count as listened to. A dev-only stamp that the evictor could not see
+    // would make a book somebody is actually playing look abandoned.
+    // ⚠️ Deploying only the prod half is the failure that looks like success:
+    // rules deploy as ONE document, so a missing _dev clause falls through to
+    // the catch-all and its behaviour is whatever that says, not what this
+    // one does.
+    match /audio_streams_dev/{anchor} {
+      allow read: if true;
+      allow write: if false;
     }
 
     match /club_seen_dev/{userId} {

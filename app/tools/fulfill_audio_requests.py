@@ -64,14 +64,29 @@ ratified in decision 5):
        reading position for 30 days**, so a club-mate's half-finished book is
        shielded.
 
-🔴 **Neither of those facts is measurable yet.** Streams land in phase 1 (the
-gated Worker route) and positions in phase 3. Until something writes
-`last_stream_at` / `last_position_at` into the manifest, "no stream for 30
-days" is indistinguishable from "we have never looked". A date-based delete on
-that evidence would evict every book 30 days after UPLOAD, including one
-somebody is listening to — the exact outcome the mid-book shield exists to
-prevent. So `evict_candidates()` is built, tested, and **refuses**: no access
-data, no deletions, stated out loud rather than silently no-op'd.
+🔴 **Neither of those facts was measurable, and as of phase 2 exactly HALF of
+one is.** Streams are stamped by the Worker's byte route into
+`audio_streams/{anchor}` (design §10.1) and merged into the manifest here by
+`stream_stamps()` + `merge_stream_stamps()`; positions still wait for phase 3.
+
+⚠️ **So this still deletes nothing, and it still should not.** Two reasons,
+and the second is the one that matters:
+
+  1. The Worker half is a HANDOFF, not built here — `audiobook-worker` lives
+     in `catalog-platform` and this repo does not touch it. Until that route
+     stamps, `stream_stamps()` correctly answers `{}` and every book reads
+     `never measured`.
+  2. 🔴 **`last_position_at` IS THE MID-BOOK SHIELD**, and it is the whole
+     reason 30 days was chosen over the owner's 7. A book with a stream stamp
+     and no position data goes idle 30 days after the last listen — which is
+     precisely the 30-hour-book-over-a-month-of-commutes case the shield
+     exists for. **Do not run `--evict --commit` until phase 3 lands.**
+
+Until then `evict_candidates()` refuses on a pair of nulls: no access data, no
+deletions, stated out loud rather than silently no-op'd. R2 is a cache and the
+local library deletes nothing, so an over-eager eviction costs an upload
+rather than a book — that is why this can be tuned later without fear, and it
+is not a reason to guess now.
 
 R2 is a CACHE here, never the archive — the local library deletes nothing, so
 an over-eager eviction costs an upload, not a book. That is the reason this
@@ -112,6 +127,11 @@ from scripts.archive_audio_r2 import ARCHIVE_PREFIX
 # cw_requests_dev: /dev/ and prod share one Firestore project, so a request
 # made while testing must still be fulfillable.
 REQUEST_COLLECTIONS = ("audio_requests", "audio_requests_dev")
+
+# The stream stamps the Worker's byte route writes — audio-player PHASE 2,
+# design §10.1. Both lanes, for the reason REQUEST_COLLECTIONS gives: a book
+# listened to on /dev/ has been listened to.
+STREAM_COLLECTIONS = ("audio_streams", "audio_streams_dev")
 
 # ⚠️ The eviction tuning, owner-ratified 2026-08-17. 30 days, not 7 — see the
 # module docstring. Changing this number changes what gets deleted; it is a
@@ -332,6 +352,109 @@ def _parse_stamp(value) -> Optional[float]:
         return None
 
 
+def parse_stream_doc(doc: dict) -> Optional[Tuple[str, str]]:
+    """One `audio_streams` document -> `(anchor, iso_stamp)`, or None.
+
+    ⚠️ THE WIRE FORMAT IS DELIBERATELY PERMISSIVE ON THE READ SIDE, and this
+    is the seam where two codebases meet: the audiobook Worker (TypeScript, in
+    catalog-platform) writes these; this file reads them. Firestore's REST
+    encoding gives a different key depending on what the writer used —
+    `integerValue` for a JS `Date.now()`, `doubleValue` if it ever arrives as
+    a float, `timestampValue` for a real server timestamp, `stringValue` for
+    an ISO string. All four are accepted, because the alternative is a stamp
+    silently ignored, which is indistinguishable from "nobody listened" and
+    would let the evictor delete a book somebody is halfway through.
+
+    🔴 **THE CANONICAL CONTRACT, for whoever builds the Worker half:**
+    `audio_streams/{anchor}` = `{ anchor: string, lastStreamAt: number }`,
+    `lastStreamAt` being **epoch MILLISECONDS**. The document id IS the
+    anchor; `anchor` is carried in the body too so a doc read on its own is
+    self-describing.
+    """
+    fields = doc.get("fields") or {}
+    anchor = gv(fields, "anchor") or (doc.get("name") or "").split("/")[-1]
+    if not anchor:
+        return None
+    raw = fields.get("lastStreamAt") or {}
+    value = (
+        raw.get("integerValue")
+        or raw.get("doubleValue")
+        or raw.get("timestampValue")
+        or raw.get("stringValue")
+    )
+    if value is None:
+        return None
+    seconds = _parse_stamp(float(value) if str(value).lstrip("-").replace(".", "", 1).isdigit() else value)
+    if seconds is None:
+        return None
+    return anchor, datetime.fromtimestamp(seconds, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def stream_stamps() -> Dict[str, str]:
+    """`{anchor: newest ISO-Z stamp}` across both lanes.
+
+    ⚠️ A listing failure is a WARN and an EMPTY dict, never an exception —
+    exactly as `_request_rows` does it. But note what that costs and why it is
+    still right: an empty answer means `evict_candidates()` sees no access
+    data and therefore REFUSES to delete anything. Failing this way round is
+    safe (nothing is lost); failing the other way round deletes books.
+
+    ⚠️ `club_books.fetch` asks for `pageSize=300` and does not paginate. That
+    is fine while the streaming set is smaller than 300 books — it is 1 today
+    and its ceiling is the 1,073-file library — but a household that streams
+    more than 300 books would silently see only the first page, and the
+    symptom would be old books never being evicted. Noted here rather than
+    solved, because paginating an unpaginated helper used by five other tools
+    is a change with its own blast radius.
+    """
+    out: Dict[str, str] = {}
+    for collection in STREAM_COLLECTIONS:
+        try:
+            docs = fs_fetch(collection)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[WARN] listing {collection} failed: {exc}")
+            continue
+        for doc in docs:
+            parsed = parse_stream_doc(doc)
+            if not parsed:
+                continue
+            anchor, stamp = parsed
+            # Two lanes can both hold a stamp for one book. Newest wins.
+            if anchor not in out or stamp > out[anchor]:
+                out[anchor] = stamp
+    return out
+
+
+def merge_stream_stamps(files: Dict[str, dict], stamps: Dict[str, str]) -> int:
+    """Write `last_stream_at` onto every recorded object with a stamp.
+
+    Joined on the **anchor**, not the key: the record is keyed on the
+    library-relative path, and a path is exactly what the Worker does not have
+    (and must never be sent — the projection withholds it on purpose). The
+    anchor is the shared identity, which is what an anchor is for.
+
+    Mutates `files` in place and answers how many entries gained a stamp.
+
+    ⚠️ NEWEST WINS, never blind overwrite. A record may already carry a stamp
+    from an earlier pass; taking the max means a Firestore listing that loses
+    a page, or a lane that has not been written recently, can never move a
+    book's last-listened time BACKWARDS — and moving it backwards is what
+    would evict a book somebody is currently reading.
+    """
+    merged = 0
+    for entry in files.values():
+        anchor = (entry or {}).get("anchor")
+        if not anchor or anchor not in stamps:
+            continue
+        incoming = stamps[anchor]
+        existing = entry.get("last_stream_at")
+        if existing and str(existing) >= incoming:
+            continue
+        entry["last_stream_at"] = incoming
+        merged += 1
+    return merged
+
+
 def evict_candidates(files: Dict[str, dict], now: Optional[float] = None,
                      idle_days: int = EVICT_IDLE_DAYS) -> Tuple[List[str], List[str]]:
     """Which objects may be deleted -> `(candidates, refusals)`.
@@ -402,8 +525,33 @@ def evict_candidates(files: Dict[str, dict], now: Optional[float] = None,
 
 
 def run_eviction(commit: bool = False, idle_days: int = EVICT_IDLE_DAYS) -> dict:
-    """Report (and, once phase 2 lands, delete) idle objects."""
+    """Report (and, once BOTH access fields exist, delete) idle objects."""
     record = up.load_record()
+
+    # ⚠️ PHASE 2's HALF OF THE ACCESS DATA. Design §10.1: the Worker's byte
+    # route stamps `audio_streams/{anchor}`, and this is where those stamps
+    # meet the manifest the evictor actually reads.
+    #
+    # 🔴 IT IS ONLY HALF. `last_position_at` — the MID-BOOK SHIELD, which is
+    # what stops a 30-hour book being deleted out from under somebody who has
+    # been listening to it on the commute for a fortnight — waits for phase 3
+    # and the reading-position store. Until BOTH exist, eviction is still
+    # deliberately toothless: a book with a stream stamp and no position data
+    # can go idle for 30 days and become a candidate, and that is the owner's
+    # ratified rule (decision 3, tuning ii) — but the shield it names is not
+    # built yet, so **nothing should be deleted with --commit until phase 3**.
+    merged = merge_stream_stamps(record, stream_stamps())
+    if merged:
+        print(f"Merged {merged} stream stamp(s) from {'/'.join(STREAM_COLLECTIONS)}.")
+        # ⚠️ Persisted only on --commit. A dry run that rewrites a state file
+        # is a surprise, and this one sits in a tree a scheduled pipeline is
+        # also writing to.
+        if commit:
+            up.write_record(record)
+    else:
+        print(f"No stream stamps found in {'/'.join(STREAM_COLLECTIONS)} — either nobody "
+              "has listened yet, or the Worker's byte route is not stamping (design §10.1).")
+
     candidates, refusals = evict_candidates(record, idle_days=idle_days)
     print(f"Eviction pass over {len(record)} recorded object(s), "
           f"idle threshold {idle_days} days:")
@@ -439,13 +587,25 @@ def run_eviction(commit: bool = False, idle_days: int = EVICT_IDLE_DAYS) -> dict
 # ---------------------------------------------------------------------------
 def print_status() -> None:
     record = up.load_record()
+    # ⚠️ IN MEMORY ONLY — `--status` must not write files. The merge is shown
+    # so a person can see whether the Worker is stamping at all, which is the
+    # single question "is eviction ever going to work" reduces to.
+    merged = merge_stream_stamps(record, stream_stamps())
     streamable = {k: v for k, v in record.items() if v.get("streamable")}
     print(f"Bucket     : {up.BUCKET}")
     print(f"Record     : {up.RECORD_PATH}")
     print(f"Streamable : {len(streamable)} of {len(record)} recorded "
           f"({sum(int(v.get('size') or 0) for v in streamable.values()) / 1e9:.3f} GB)")
+    print(f"Streams    : {merged} object(s) carry a stream stamp "
+          f"(from {'/'.join(STREAM_COLLECTIONS)})")
     for key, entry in sorted(streamable.items()):
-        print(f"  {key}  (since {entry.get('since')})")
+        # ⚠️ "never" is the honest word, and it is NOT the same as "nobody has
+        # listened": it means nothing has ever MEASURED a listen. Until the
+        # Worker stamps, every book reads `never` no matter how much it is
+        # played — which is exactly why evict_candidates() refuses to delete
+        # on a pair of nulls.
+        last = entry.get("last_stream_at") or "never measured"
+        print(f"  {key}  (since {entry.get('since')}, last stream {last})")
     pending = pending_requests()
     print(f"Pending    : {len(pending)} request(s)")
     for req in pending:
