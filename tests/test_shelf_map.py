@@ -66,19 +66,36 @@ def test_slug_survives_none_and_empty():
 # ---------------------------------------------------------------------------
 # media_kind — read off the LIST endpoint, which has no libraryFiles
 # ---------------------------------------------------------------------------
-def _item(item_id: str, title: str, tracks: int = 0, author: str = "A") -> dict:
-    return {
+def _item(
+    item_id: str,
+    title: str,
+    tracks: int = 0,
+    author: str = "A",
+    ebook: str = "",
+    missing: bool = False,
+) -> dict:
+    item = {
         "id": item_id,
         "media": {
             "numTracks": tracks,
+            "ebookFormat": ebook or None,
             "metadata": {"title": title, "authorName": author},
         },
     }
+    if missing:
+        item["isMissing"] = True
+    return item
 
 
 def test_media_kind_reads_tracks():
     assert media_kind(_item("1", "T", tracks=3)) == "audio"
     assert media_kind(_item("2", "T", tracks=0)) == "ebook"
+
+
+def test_media_kind_sees_an_item_holding_audio_and_an_epub_as_both():
+    """Measured 2026-09-02: 31 live items carry numTracks AND ebookFormat."""
+    assert media_kind(_item("3", "T", tracks=3, ebook="epub")) == "both"
+    assert media_kind(_item("4", "T", tracks=0, ebook="epub")) == "ebook"
 
 
 def test_media_kind_falls_back_to_audio_files_array():
@@ -130,6 +147,72 @@ def test_a_slug_in_both_libraries_becomes_both():
         [_item("b", "Unsouled", tracks=0)],
     )
     assert books["unsouled"]["m"] == "both"
+
+
+def test_same_title_twice_in_one_library_prefers_the_audio_item_and_merges_to_both():
+    """
+    🔴 The Emberdark bug (2026-09-02). ABS held an ebook-only item AND two audio
+    editions under one title; the builder took the first item it saw and the
+    card said "Read on the shelf" for a book with 1.4 GB of audio. The entry
+    must come out 'both', titled from the audio item.
+    """
+    books, stats = build_books_block(
+        _rows("Isles of the Emberdark"),
+        [
+            _item("epub", "Isles of the Emberdark", tracks=0, ebook="epub"),
+            _item("audible", "Isles of the Emberdark", tracks=12),
+            _item("kickstarter", "Isles of the Emberdark", tracks=9),
+        ],
+        [],
+    )
+    assert books["isles-of-the-emberdark"]["m"] == "both"
+    assert stats["exact"] == 1  # one catalog row matched, however many items
+
+
+def test_a_missing_husk_beside_the_real_item_does_not_win():
+    """
+    Arcane Pathfinder 4, measured 2026-09-02: a size-0 `isMissing` husk with no
+    tracks sat next to the real audio item. The husk must neither set the kind
+    to ebook nor promote a plain audio book to 'both'.
+    """
+    books, _ = build_books_block(
+        _rows("Arcane Pathfinder Book 4"),
+        [
+            _item("husk", "Arcane Pathfinder Book 4", tracks=0, missing=True),
+            _item("real", "Arcane Pathfinder Book 4", tracks=20),
+        ],
+        [],
+    )
+    assert books["arcane-pathfinder-book-4"]["m"] == "audio"
+
+
+def test_same_titled_series_volumes_stay_available_to_the_fuzzy_pass():
+    """
+    ⚠️ ABS titles every "Space Knight" volume "Space Knight". The exact pass
+    must claim ONE of them for the row that slugs to it and leave the others
+    for `space-knight-book-3`; the first cut of the Emberdark fix claimed the
+    whole group and 20 rows lost their button (measured 2026-09-02).
+    """
+    rows = [
+        {"title": "Space Knight", "author": "A", "series": "Space Knight", "series_index_sort": "1"},
+        {"title": "Space Knight Book 3", "author": "A", "series": "Space Knight", "series_index_sort": "3"},
+    ]
+    def vol(n):
+        it = _item(f"sk{n}", "Space Knight", tracks=10)
+        it["media"]["metadata"].update({"seriesName": f"Space Knight #{n}", "series": [{"name": "Space Knight", "sequence": str(n)}]})
+        return it
+    books, stats = build_books_block(rows, [vol(1), vol(3)], [])
+    assert "space-knight" in books
+    assert "space-knight-book-3" in books, "second volume was claimed by the exact pass"
+    assert stats["exact"] == 1 and stats["fuzzy"] == 1
+
+
+def test_a_lone_missing_item_still_gets_an_entry():
+    """A husk still answers the shelf's title search; dropping it would hide a book the shelf lists."""
+    books, _ = build_books_block(
+        _rows("Gone Book"), [_item("husk", "Gone Book", tracks=5, missing=True)], []
+    )
+    assert "gone-book" in books
 
 
 def test_ebook_only_library_entry_is_marked_ebook():

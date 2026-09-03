@@ -1,5 +1,5 @@
 {
- "generatedAt": "2026-09-02T18:13:54Z",
+ "generatedAt": "2026-09-03T05:38:02Z",
  "libraryId": "69bed7b1-89b1-422d-92de-c27d7c9087db",
  "ebookLibraryId": null,
  "books": {
@@ -257,7 +257,7 @@
   },
   "arcane-pathfinder-book-4-exploration": {
    "t": "Arcane Pathfinder Book 4: Exploration",
-   "m": "ebook"
+   "m": "audio"
   },
   "arcanum-unbounded-the-cosmere-collection": {
    "t": "Arcanum Unbounded: The Cosmere Collection",
@@ -289,7 +289,7 @@
   },
   "atlas-of-the-heart-mapping-meaningful-connection-and-the-language-of-human-experience": {
    "t": "Atlas of the Heart",
-   "m": "audio"
+   "m": "both"
   },
   "atmosphere-a-gma-book-club-pick-a-love-story": {
    "t": "Atmosphere: A GMA Book Club Pick",
@@ -405,7 +405,7 @@
   },
   "beautiful-creatures-beautiful-creatures-book-1": {
    "t": "Beautiful Creatures",
-   "m": "audio"
+   "m": "both"
   },
   "beautiful-nightmare-scared-sexy-collection": {
    "t": "Beautiful Nightmare",
@@ -761,7 +761,7 @@
   },
   "defiant": {
    "t": "Defiant",
-   "m": "audio"
+   "m": "both"
   },
   "demon-s-ascent-a-progression-fantasy-litrpg-newly-summoned-demoness-book-1": {
    "t": "Demon's Ascent",
@@ -877,7 +877,7 @@
   },
   "dragonsteel-prime": {
    "t": "Dragonsteel Prime",
-   "m": "audio"
+   "m": "both"
   },
   "dune": {
    "t": "Dune",
@@ -1061,7 +1061,7 @@
   },
   "fae-and-fare-the-wandering-inn-book-2": {
    "t": "Fae and Fare",
-   "m": "audio"
+   "m": "both"
   },
   "fairy-tale": {
    "t": "Fairy Tale",
@@ -1213,7 +1213,7 @@
   },
   "get-it-done-how-to-complete-your-dream-project": {
    "t": "Get It Done",
-   "m": "audio"
+   "m": "both"
   },
   "ghost-stories-stephen-fry-s-definitive-collection": {
    "t": "Ghost Stories: Stephen Fry's Definitive Collection",
@@ -1273,7 +1273,7 @@
   },
   "goblin-slayer-vol-1": {
    "t": "Goblin Slayer, Vol. 1",
-   "m": "audio"
+   "m": "both"
   },
   "goblin-summoner-a-deckbuilding-litrpg": {
    "t": "Goblin Summoner",
@@ -1381,7 +1381,7 @@
   },
   "he-who-fights-with-monsters-10-a-litrpg-adventure-he-who-fights-with-monsters-book-10": {
    "t": "He Who Fights with Monsters 10",
-   "m": "audio"
+   "m": "both"
   },
   "he-who-fights-with-monsters-11-a-litrpg-adventure-he-who-fights-with-monsters-book-11": {
    "t": "He Who Fights with Monsters 11: A LitRPG Adventure",
@@ -1389,7 +1389,7 @@
   },
   "he-who-fights-with-monsters-12-a-litrpg-adventure-he-who-fights-with-monsters-book-12": {
    "t": "He Who Fights with Monsters 12: A LitRPG Adventure",
-   "m": "audio"
+   "m": "both"
   },
   "he-who-fights-with-monsters-2-a-litrpg-adventure-he-who-fights-with-monsters-book-2": {
    "t": "He Who Fights with Monsters 2",
@@ -1517,11 +1517,11 @@
   },
   "how-language-began-the-story-of-humanity-s-greatest-invention": {
    "t": "How Language Began",
-   "m": "audio"
+   "m": "both"
   },
   "how-to-become-the-dark-lord-and-die-trying": {
    "t": "How to Become the Dark Lord and Die Trying",
-   "m": "audio"
+   "m": "both"
   },
   "how-to-lose-a-guy-before-christmas": {
    "t": "How to Lose a Guy Before Christmas",
@@ -1541,7 +1541,7 @@
   },
   "i-m-from-the-sun-the-gustafer-yellowgold-story": {
    "t": "I'm from the Sun",
-   "m": "audio"
+   "m": "both"
   },
   "i-m-glad-my-mom-died": {
    "t": "I'm Glad My Mom Died",
@@ -1637,11 +1637,11 @@
   },
   "is-it-wrong-to-try-to-pick-up-girls-in-a-dungeon-vol-1": {
    "t": "Is It Wrong to Try to Pick Up Girls in a Dungeon?, Vol. 1",
-   "m": "audio"
+   "m": "both"
   },
   "isles-of-the-emberdark": {
    "t": "Isles of the Emberdark",
-   "m": "ebook"
+   "m": "both"
   },
   "it-seemed-like-a-good-idea": {
    "t": "It Seemed like a Good Idea",
@@ -1661,7 +1661,7 @@
   },
   "jake-s-magical-market": {
    "t": "Jake's Magical Market",
-   "m": "audio"
+   "m": "both"
   },
   "jake-s-magical-market-2-a-trek-through-time": {
    "t": "Jake's Magical Market 2",
@@ -1669,7 +1669,7 @@
   },
   "jake-s-magical-market-3-home-sweet-home": {
    "t": "Jake's Magical Market 3",
-   "m": "audio"
+   "m": "both"
   },
   "just-mercy-adapted-for-young-adults-a-true-story-of-the-fight-for-justice": {
    "t": "Just Mercy (Adapted for Young Adults)",
@@ -1941,7 +1941,7 @@
   },
   "miss-peregrine-s-home-for-peculiar-children": {
    "t": "Miss Peregrine's Home for Peculiar Children",
-   "m": "audio"
+   "m": "both"
   },
   "missing-molly": {
    "t": "Missing Molly",
@@ -2109,7 +2109,7 @@
   },
   "oathbringer": {
    "t": "Oathbringer",
-   "m": "audio"
+   "m": "both"
   },
   "occultist-saga-online-1-a-litrpg-series": {
    "t": "Occultist: Saga Online #1",
@@ -2473,7 +2473,7 @@
   },
   "rhythm-of-war-book-four-of-the-stormlight-archive": {
    "t": "Rhythm of War",
-   "m": "audio"
+   "m": "both"
   },
   "right-of-retribution": {
    "t": "Right of Retribution",
@@ -2689,7 +2689,7 @@
   },
   "snapshot": {
    "t": "Snapshot",
-   "m": "ebook"
+   "m": "both"
   },
   "snow-x-dwight-damsels-of-distress-book-5": {
    "t": "Snow X Dwight",
@@ -3133,7 +3133,7 @@
   },
   "the-adventures-of-amina-al-sirafi-a-novel": {
    "t": "The Adventures of Amina al-Sirafi",
-   "m": "audio"
+   "m": "both"
   },
   "the-alchemist-the-alchemist-book-1-unabridged": {
    "t": "The Alchemist (Unabridged)",
@@ -3405,7 +3405,7 @@
   },
   "the-frugal-wizard-s-handbook-for-surviving-medieval-england": {
    "t": "The Frugal Wizard’s Handbook for Surviving Medieval England",
-   "m": "audio"
+   "m": "both"
   },
   "the-gate-of-the-feral-gods-dungeon-crawler-carl-book-4": {
    "t": "The Gate of the Feral Gods",
@@ -3473,7 +3473,7 @@
   },
   "the-greatest-story-ever-told-so-far-why-are-we-here": {
    "t": "The Greatest Story Ever Told - So Far",
-   "m": "audio"
+   "m": "both"
   },
   "the-healer-s-way-book-11": {
    "t": "The Healer's Way, Book 11",
@@ -3833,7 +3833,7 @@
   },
   "the-storm-before-the-storm-the-beginning-of-the-end-of-the-roman-republic": {
    "t": "The Storm Before the Storm",
-   "m": "audio"
+   "m": "both"
   },
   "the-strength-of-the-few-hierarchy-book-2": {
    "t": "The Strength of the Few",
@@ -3845,7 +3845,7 @@
   },
   "the-sunlit-man": {
    "t": "The Sunlit Man",
-   "m": "audio"
+   "m": "both"
   },
   "the-survivalist-frontier-justice": {
    "t": "The Survivalist",
@@ -3897,7 +3897,7 @@
   },
   "the-toll": {
    "t": "The Toll",
-   "m": "audio"
+   "m": "both"
   },
   "the-trapped-mind-project-a-science-fiction-fantasy-litrpg-series": {
    "t": "The Trapped Mind Project",
@@ -3917,7 +3917,7 @@
   },
   "the-wandering-inn-the-wandering-inn-book-1": {
    "t": "The Wandering Inn",
-   "m": "audio"
+   "m": "both"
   },
   "the-war-of-flesh-and-steel-a-deckbuilding-litrpg": {
    "t": "The War of Flesh and Steel",
@@ -3925,7 +3925,7 @@
   },
   "the-way-of-kings-the-stormlight-archive-book-1": {
    "t": "The Way of Kings",
-   "m": "audio"
+   "m": "both"
   },
   "the-way-of-the-hunter-eight-book-2": {
    "t": "The Way of the Hunter",
@@ -3941,7 +3941,7 @@
   },
   "the-wicked-sea": {
    "t": "The Wicked Sea",
-   "m": "audio"
+   "m": "both"
   },
   "the-wife-between-us": {
    "t": "The Wife Between Us",
@@ -4045,7 +4045,7 @@
   },
   "tress-of-the-emerald-sea": {
    "t": "Tress of the Emerald Sea",
-   "m": "audio"
+   "m": "both"
   },
   "truestrike-s-treachery": {
    "t": "Truestrike's Treachery",
@@ -4081,7 +4081,7 @@
   },
   "uncapped": {
    "t": "Uncapped",
-   "m": "ebook"
+   "m": "both"
   },
   "under-ashen-skies-beneath-the-dragoneye-moons-book-10": {
    "t": "Under Ashen Skies",
@@ -4165,7 +4165,7 @@
   },
   "when-the-moon-hatched-a-novel": {
    "t": "When the Moon Hatched",
-   "m": "audio"
+   "m": "both"
   },
   "where-the-crawdads-sing": {
    "t": "Where the Crawdads Sing",
@@ -4217,7 +4217,7 @@
   },
   "wind-and-truth-book-five-of-the-stormlight-archive": {
    "t": "Wind and Truth",
-   "m": "audio"
+   "m": "both"
   },
   "wings-of-justice-city-of-light-book-1": {
    "t": "Wings of Justice",
@@ -4297,7 +4297,7 @@
   },
   "yumi-and-the-nightmare-painter": {
    "t": "Yumi and the Nightmare Painter",
-   "m": "audio"
+   "m": "both"
   },
   "zero-g": {
    "t": "Zero G",

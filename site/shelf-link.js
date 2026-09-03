@@ -167,6 +167,21 @@ export function normalizeShelfMap(raw) {
 }
 
 /**
+ * One button, three labels — the verb says what the shelf can DO with the
+ * book. Owner call 2026-09-02: "Play", not "Listen", and a book held as both
+ * audio and ebook says so rather than hiding one behind the other.
+ */
+export const SHELF_LABELS = Object.freeze({
+  audio: '🎧 Play on the shelf',
+  ebook: '📖 Read on the shelf',
+  both: '🎧📖 Play or read on the shelf',
+});
+
+export function shelfLabelFor(media) {
+  return SHELF_LABELS[media] || SHELF_LABELS.audio;
+}
+
+/**
  * The join itself: a catalogue title → the link that opens it on the shelf.
  *
  * @param {string} title  the catalogue's title for the book
@@ -190,7 +205,7 @@ export function shelfLinkFor(title, map) {
   const isEbook = entry.m === 'ebook';
   const lib = isEbook && map.ebookLibraryId ? map.ebookLibraryId : map.libraryId;
 
-  const label = isEbook ? '📖 Read on the shelf' : '🎧 Listen on the shelf';
+  const label = shelfLabelFor(entry.m);
 
   return {
     href: shelfSearchUrl(query, lib),

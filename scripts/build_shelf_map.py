@@ -285,21 +285,41 @@ def run_fuzzy_pass(
 # ---------------------------------------------------------------------------
 def media_kind(abs_item: Dict) -> str:
     """
-    'audio' when the item has audio tracks, else 'ebook'.
+    'audio' when the item has audio tracks, 'ebook' when it has only an ebook
+    file, 'both' when one ABS item carries both.
 
     ⚠️ Read off the LIST endpoint deliberately. `/api/libraries/<id>/items` does
     NOT return `libraryFiles`, so per-file inspection would cost one request per
-    item (1,220 of them). `numTracks` is enough for the split that matters:
-    measured 2026-09-02, 1,086 audio and 132 ebook-only, with 2 items holding
-    neither. 'both' is not decided here — it comes from a slug appearing in the
-    Audio library AND the Ebooks library, which is the only place that fact is
-    real.
+    item (1,220 of them). `numTracks` + `ebookFormat` are enough: measured
+    2026-09-02 on the live shelf, both 31 / audio-only 1,055 / ebook-only 132 /
+    neither 2. 'both' ALSO arises across items — an audio item and an ebook item
+    sharing a title (Isles of the Emberdark holds two audio editions beside an
+    epub) — and `_record` merges those.
     """
     media = abs_item.get("media") or {}
     tracks = media.get("numTracks")
     if not tracks:
         tracks = len(media.get("audioFiles") or [])
+    has_ebook = bool(media.get("ebookFormat") or media.get("ebookFile"))
+    if tracks and has_ebook:
+        return "both"
     return "audio" if tracks else "ebook"
+
+
+def is_missing(abs_item: Dict) -> bool:
+    """
+    A 'Missing' husk: ABS keeps the item after its files vanish (the hardlink
+    shadow tree gets rebuilt, the folder moves). It still answers a title
+    search, but it holds nothing to play — measured 2026-09-02, Arcane
+    Pathfinder 4 had a size-0 husk beside the real audio item.
+    """
+    return bool(abs_item.get("isMissing") or abs_item.get("isInvalid"))
+
+
+def _item_preference(abs_item: Dict) -> Tuple[int, int]:
+    """Sort key: real items before husks, audio before ebook-only."""
+    kind = media_kind(abs_item)
+    return (1 if is_missing(abs_item) else 0, 0 if kind in ("audio", "both") else 1)
 
 
 # ---------------------------------------------------------------------------
@@ -360,12 +380,45 @@ def abs_title_of(abs_item: Dict) -> str:
     return ((abs_item.get("media") or {}).get("metadata") or {}).get("title") or ""
 
 
+def _pick_from_group(group: List[Dict]) -> List[Dict]:
+    """
+    From every ABS item sharing one slug, the one or two worth claiming: the
+    best real item, plus the best real item of the OTHER kind when there is
+    one (audio edition + epub → 'both').
+
+    ⚠️ Claim NO more than that. ABS titles series volumes identically ("Space
+    Knight" ×10, "Soul Gem Collector" ×5) and the fuzzy pass needs the rest of
+    the group to find `space-knight-book-3`; claiming the whole group cost 20
+    rows their button and shifted three fuzzy claims onto the wrong book
+    (measured 2026-09-02 on the first cut of this fix).
+
+    A Missing husk has no tracks, so letting one merge would call an audio
+    book 'both'; it stands in only when nothing real shares the title.
+    """
+    real = sorted([i for i in group if not is_missing(i)], key=_item_preference)
+    if not real:
+        return sorted(group, key=_item_preference)[:1]
+    picked = [real[0]]
+    first_kind = media_kind(real[0])
+    if first_kind != "both":
+        for item in real[1:]:
+            kind = media_kind(item)
+            if kind != first_kind:
+                picked.append(item)
+                break
+    return picked
+
+
 def _record(books: Dict[str, Dict[str, str]], slug: str, item: Dict, stats: Dict[str, int]) -> None:
-    """Write one entry, promoting to 'both' when a slug is in both libraries."""
+    """
+    Write one entry, merging kinds: a second item for the same slug with a
+    different kind (or a 'both' item) promotes the entry to 'both'. That covers
+    a slug in both libraries AND two same-titled items in one library.
+    """
     kind = media_kind(item)
     existing = books.get(slug)
     if existing is not None:
-        if existing["m"] != kind and existing["m"] != "both":
+        if existing["m"] != "both" and (kind == "both" or existing["m"] != kind):
             existing["m"] = "both"
             stats["both"] = stats.get("both", 0) + 1
         return
@@ -373,6 +426,8 @@ def _record(books: Dict[str, Dict[str, str]], slug: str, item: Dict, stats: Dict
     if not title:
         return
     books[slug] = {"t": title, "m": kind}
+    if kind == "both":
+        stats["both"] = stats.get("both", 0) + 1
 
 
 def build_books_block(
@@ -400,21 +455,28 @@ def build_books_block(
             continue
 
         # --- exact pass ------------------------------------------------------
-        abs_by_slug: Dict[str, Dict] = {}
+        # ⚠️ ALL items sharing a slug, not the first one seen. The shelf holds
+        # several items under one title (two audio editions + an epub of Isles
+        # of the Emberdark; a Missing husk beside the real Arcane Pathfinder 4),
+        # and taking the first one labelled Emberdark "Read on the shelf"
+        # (measured 2026-09-02). Real-and-audio items go first so the entry's
+        # title and kind come from the one worth opening; the rest merge in.
+        abs_by_slug: Dict[str, List[Dict]] = {}
         for item in items:
             slug = book_id_from_title(abs_title_of(item))
-            if slug and slug not in abs_by_slug:
-                abs_by_slug[slug] = item
+            if slug:
+                abs_by_slug.setdefault(slug, []).append(item)
 
         matched_abs_ids: set = set()
         matched_slugs: set = set()
         for slug in catalog_row_by_slug:
-            item = abs_by_slug.get(slug)
-            if not item:
+            group = abs_by_slug.get(slug)
+            if not group:
                 continue
             matched_slugs.add(slug)
-            matched_abs_ids.add(item.get("id", ""))
-            _record(books, slug, item, stats)
+            for item in _pick_from_group(group):
+                matched_abs_ids.add(item.get("id", ""))
+                _record(books, slug, item, stats)
             stats["exact"] += 1
 
         # --- fuzzy pass ------------------------------------------------------

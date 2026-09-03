@@ -22,6 +22,7 @@ import { readFileSync } from 'node:fs';
 import {
   SHELF_ORIGIN, SHELF_APP, AUDIO_LIBRARY_ID, ACCESS_NOTE,
   bookIdFromTitle, shelfSearchUrl, normalizeShelfMap, shelfLinkFor,
+  SHELF_LABELS, shelfLabelFor,
 } from '../shelf-link.js';
 
 /** Shared with pytest — see tests/fixtures/slug_cases.json's own header. */
@@ -37,6 +38,7 @@ const CURRENT = {
   books: {
     'a-brief-history-of-time': { t: 'A Brief History of Time', m: 'audio' },
     unsouled: { t: 'Unsouled - Will Wight', m: 'ebook' },
+    'isles-of-the-emberdark': { t: 'Isles of the Emberdark', m: 'both' },
   },
 };
 
@@ -122,8 +124,9 @@ describe('the map reader tolerates both deployed shapes', () => {
   it('reads the current shape with its build stamp', () => {
     const map = normalizeShelfMap(CURRENT);
     expect(map.generatedAt).toBe('2026-09-02T18:00:00Z');
-    expect(Object.keys(map.books)).toHaveLength(2);
+    expect(Object.keys(map.books)).toHaveLength(3);
     expect(map.books.unsouled.m).toBe('ebook');
+    expect(map.books['isles-of-the-emberdark'].m).toBe('both');
   });
 
   it('reads the legacy flat shape, with no stamp and everything audio', () => {
@@ -178,10 +181,33 @@ describe('url construction', () => {
     expect(u).not.toContain(' ');
   });
 
-  it('labels audio and ebook differently', () => {
+  // Owner call 2026-09-02: the verb is what the shelf can DO — "Play" for
+  // audio, "Read" for an ebook, and a book held both ways says both rather
+  // than hiding one (Isles of the Emberdark shipped as "Read" while the shelf
+  // held two audio editions of it).
+  it('labels audio, ebook and both with the verb the shelf can do', () => {
     const map = normalizeShelfMap(CURRENT);
-    expect(shelfLinkFor('A Brief History of Time', map).label).toContain('Listen');
-    expect(shelfLinkFor('Unsouled', map).label).toContain('Read');
+    expect(shelfLinkFor('A Brief History of Time', map).label).toBe('🎧 Play on the shelf');
+    expect(shelfLinkFor('Unsouled', map).label).toBe('📖 Read on the shelf');
+    expect(shelfLinkFor('Isles of the Emberdark', map).label).toBe('🎧📖 Play or read on the shelf');
+    expect(SHELF_LABELS.audio).not.toContain('Listen');
+  });
+
+  it('a legacy flat map — no media kind — still says Play, never Read', () => {
+    const map = normalizeShelfMap(LEGACY);
+    expect(shelfLinkFor('A Brief History of Time', map).label).toBe(SHELF_LABELS.audio);
+  });
+
+  it('an unknown media kind falls back to the audio label rather than blank', () => {
+    expect(shelfLabelFor('hologram')).toBe(SHELF_LABELS.audio);
+    expect(shelfLabelFor(undefined)).toBe(SHELF_LABELS.audio);
+  });
+
+  it('a "both" entry searches the AUDIO library — the one the ebook library id may not exist for', () => {
+    const map = normalizeShelfMap(CURRENT);
+    const link = shelfLinkFor('Isles of the Emberdark', map);
+    expect(link.media).toBe('both');
+    expect(link.href).toContain(AUDIO_LIBRARY_ID);
   });
 });
 
