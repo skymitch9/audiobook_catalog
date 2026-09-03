@@ -197,6 +197,7 @@ def test_same_titled_series_volumes_stay_available_to_the_fuzzy_pass():
         {"title": "Space Knight", "author": "A", "series": "Space Knight", "series_index_sort": "1"},
         {"title": "Space Knight Book 3", "author": "A", "series": "Space Knight", "series_index_sort": "3"},
     ]
+
     def vol(n):
         it = _item(f"sk{n}", "Space Knight", tracks=10)
         it["media"]["metadata"].update({"seriesName": f"Space Knight #{n}", "series": [{"name": "Space Knight", "sequence": str(n)}]})
