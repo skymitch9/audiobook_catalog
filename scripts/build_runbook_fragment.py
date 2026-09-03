@@ -163,10 +163,36 @@ def number_headings(body: str) -> str:
     numbers render as ordinary text and the page loses its spine.
     """
     return re.sub(
-        r"<h2>(\d+)\.\s*",
-        r'<h2><span class="n">\1</span> ',
+        r"<h2([^>]*)>(\d+)\.\s*",
+        r'<h2\1><span class="n">\2</span> ',
         body,
     )
+
+
+def anchor_headings(body: str) -> str:
+    """Give every heading the id GitHub would, so the markdown's own
+    `[§4C](#c-standing-access--so-this-is-the-last-message)` links work on the
+    published page too.
+
+    ⚠️ Measured 2026-09-02: the fragments had NO heading ids at all, so every
+    in-page link Justin's page has carried since 2026-08-20 (Option E, §4C) was
+    dead on heygabi.ai while working fine in a markdown preview. The rule is
+    GitHub's: lowercase, drop everything but letters/digits/spaces/hyphens,
+    spaces to hyphens — which is what the links in the docs were written for.
+    """
+    seen: dict[str, int] = {}
+
+    def _slug(text: str) -> str:
+        plain = html_mod.unescape(re.sub(r"<[^>]+>", "", text)).lower()
+        plain = re.sub(r"[^\w\- ]", "", plain).replace(" ", "-")
+        n = seen.get(plain, 0)
+        seen[plain] = n + 1
+        return plain if n == 0 else f"{plain}-{n}"
+
+    def _tag(m: re.Match) -> str:
+        return f'<{m.group(1)} id="{_slug(m.group(2))}">{m.group(2)}</{m.group(1)}>'
+
+    return re.sub(r"<(h[1-6])>(.*?)</\1>", _tag, body, flags=re.S)
 
 
 def wrap_tables(body: str) -> str:
@@ -206,6 +232,7 @@ def build(md_path: Path, slug: str, style_src: Path | None,
 
     body = render_markdown(md_text)
     body = lift_lead_blockquote(body)
+    body = anchor_headings(body)
     body = number_headings(body)
     body = wrap_tables(body)
 
