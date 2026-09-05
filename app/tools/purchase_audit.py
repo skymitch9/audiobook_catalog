@@ -134,6 +134,22 @@ AUDIT_TIMEOUT_S = _int_env("PURCHASE_AUDIT_TIMEOUT_S", 1800)
 # The 8h task whose acquisition stage this tick must never run beside.
 SYNC_TASK_NAME = os.getenv("PURCHASE_AUDIT_SYNC_TASK", "AudiobookSyncPipeline")
 
+# ⚠️ WHICH INTERPRETER RUNS THE AUDIT — and it is not a free choice.
+# MEASURED 2026-09-05, the first live tick: `audible-cli` **0.3.3 is installed
+# in the Store Python 3.12 ONLY** (…\WindowsApps\PythonSoftwareFoundation
+# .Python.3.12_qbz5n2kfra8p0\python.exe), which is what the 8h .bat's bare
+# `python` resolves to. It is NOT in this repo's `.venv`, and not in the 3.14
+# build on PATH. `audit_new_purchases` shells out as `sys.executable -m
+# audible_cli`, so the interpreter running THIS module decides whether Audible
+# can be asked at all — and when it cannot, the audit falls back to the
+# container's `books.json` and reports "0 missing" with exit code 0. That is
+# the same "⚠️ Which interpreter: BOTH" trap `docs/access/PIPELINE.md` records
+# for the OCR lane, one lane over.
+# The .bat therefore runs this module on that interpreter by ABSOLUTE path
+# (never bare `python` — the run_fs_watcher.bat hang). This env var is the
+# escape hatch for a machine where the two are not the same.
+AUDIT_PYTHON = (os.getenv("PURCHASE_AUDIT_PYTHON") or "").strip() or sys.executable
+
 STATE_PATH: Path = OUTPUT_DIR / "purchase_audit_state.json"
 TICK_LOCK_PATH: Path = OUTPUT_DIR / "purchase_audit.lock"
 NOTICE_PATH: Path = OUTPUT_DIR / "purchase_audit_notice.txt"
@@ -161,6 +177,8 @@ _EMPTY_STATE: dict = {
 # exit 0 having quietly audited a STALE list — which is exactly the condition
 # back-off exists for.
 _CLI_FAILURE_MARKERS = ("[audible-cli] export failed", "[audible-cli] export error")
+# The one CLI failure that back-off cannot fix — see classify().
+_MISSING_CLI_MARKER = "No module named audible_cli"
 
 
 def _now() -> float:
@@ -320,6 +338,24 @@ class TickOutcome:
     titles: tuple[str, ...] = ()
 
 
+def _source_note(lines: list[str]) -> str:
+    """What the audit actually compared against — named IN the log line.
+
+    ⚠️ "0 new" is the tick's most common output and its most dangerous one: it
+    reads identically whether Audible was asked and answered, or never reached
+    and a months-old container list was diffed instead. classify() already
+    refuses to call the second case clean, but a reader should not have to
+    trust that — the line says which list it was.
+    """
+    for ln in lines:
+        if "items across profiles" in ln:
+            count = ln.strip().split(" ", 1)[0]
+            return f"{count} items, fresh from audible-cli"
+        if "books.json vs catalog" in ln:
+            return "⚠️ from the container's books.json, not a fresh Audible export"
+    return "source not named in the audit's output"
+
+
 def classify(rc: int | None, stdout: str) -> TickOutcome:
     """Read auto_acquire's output. Pure, so every branch is testable without
     Audible.
@@ -348,6 +384,21 @@ def classify(rc: int | None, stdout: str) -> TickOutcome:
     cli_failures = [ln.strip() for ln in lines
                     if any(m in ln for m in _CLI_FAILURE_MARKERS)]
     if cli_failures:
+        # ⚠️ Say WHICH kind of failure. Backing off 15 → 30 → 60 is the right
+        # response to a throttle and a useless one for a missing package — an
+        # operator reading "audible-cli said no" would go looking at Audible.
+        # This exact case cost the first live tick (2026-09-05): the .bat ran
+        # the .venv interpreter, which has no audible-cli, so the audit fell
+        # back to a stale books.json and still exited 0.
+        if _MISSING_CLI_MARKER in text:
+            return TickOutcome(
+                False, len(downloaded), len(failed),
+                f"FAILED — audible-cli is NOT INSTALLED for {AUDIT_PYTHON} "
+                "(not a throttle: backing off will not fix it). The audit fell back to "
+                "the container's books.json, so its '0 missing' means 'Audible was never "
+                "asked'. See PURCHASE_AUDIT_PYTHON in docs/access/PIPELINE.md.",
+                tuple(downloaded),
+            )
         return TickOutcome(
             False, len(downloaded), len(failed),
             "FAILED — audible-cli could not export a library list "
@@ -382,7 +433,7 @@ def classify(rc: int | None, stdout: str) -> TickOutcome:
         return TickOutcome(True, 0, 0,
                            f"{len(missing)} new purchase(s) NOT downloaded (report-only): {shown}")
 
-    return TickOutcome(True, 0, 0, "0 new — library is current")
+    return TickOutcome(True, 0, 0, f"0 new — library is current ({_source_note(lines)})")
 
 
 def run_purchase_audit(download: bool = True) -> TickOutcome:
@@ -394,7 +445,7 @@ def run_purchase_audit(download: bool = True) -> TickOutcome:
     running the same audit with different flags would be two behaviours wearing
     one name.
     """
-    cmd = [sys.executable, "-m", "app.tools.auto_acquire", "--notify", "--stop-after"]
+    cmd = [AUDIT_PYTHON, "-m", "app.tools.auto_acquire", "--notify", "--stop-after"]
     if not download:
         cmd.append("--no-download")
     env = dict(os.environ, PYTHONIOENCODING="utf-8")
@@ -519,6 +570,23 @@ def _tick(dry_run: bool = False) -> int:
 # ---------------------------------------------------------------------------
 
 
+def audible_cli_available() -> bool | None:
+    """Can the interpreter that will run the audit import ``audible_cli``?
+
+    ⚠️ Status-only, and it exists because the alternative is finding out from a
+    log line after a tick has already audited a stale list. None when the probe
+    itself could not run.
+    """
+    try:
+        proc = subprocess.run(
+            [AUDIT_PYTHON, "-c", "import audible_cli"],
+            capture_output=True, text=True, timeout=120,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return proc.returncode == 0
+
+
 def _print_status() -> None:
     state = _load_state()
     interval = interval_minutes(state)
@@ -535,6 +603,12 @@ def _print_status() -> None:
     print(f"  last error     : {state.get('last_error') or 'none'}")
     print(f"  last download  : {state.get('last_download_at') or 'never'} "
           f"({state.get('last_downloaded', 0)} book(s); {state.get('total_downloaded', 0)} all-time)")
+    have_cli = audible_cli_available()
+    cli_says = ("importable" if have_cli else
+                ("NOT INSTALLED for that interpreter — every tick would audit a STALE list"
+                 if have_cli is False else "could not probe"))
+    print(f"  audit python   : {AUDIT_PYTHON}")
+    print(f"  audible-cli    : {cli_says}")
     print(f"  8h task        : {SYNC_TASK_NAME} "
           f"{'RUNNING' if running else ('not running' if running is False else 'status unreadable')}")
     print(f"  pipeline lock  : {holder.describe() if holder else ('held (unreadable)' if pipeline_lock.LOCK_PATH.exists() else 'free')}")

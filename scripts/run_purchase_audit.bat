@@ -37,4 +37,19 @@ rem name resolved to the WindowsApps Store stub and the first tick HUNG
 rem invisibly forever - every later tick was then refused with 0x800710E0
 rem ("instance already running"), which reads as a conditions problem and is
 rem not one. Found 2026-08-16 on run_fs_watcher.bat, the day it was registered.
-"C:\Users\nbasl\OneDrive\Documents\vs-code-repos\bookbuddy\audiobook_catalog\.venv\Scripts\python.exe" -m app.tools.purchase_audit >> output_files\purchase_audit.log 2>&1
+rem
+rem !! AND IT IS THE STORE 3.12, NOT .venv - MEASURED, NOT PREFERRED.
+rem The first live tick (2026-09-05 14:07) ran the .venv interpreter, like
+rem run_drive_poll.bat does, and audible-cli IS NOT INSTALLED THERE:
+rem   [audible-cli] export failed for skylar: ...\.venv\Scripts\python.exe:
+rem   No module named audible_cli
+rem audible-cli 0.3.3 lives in the Store Python 3.12 below - the same one the
+rem 8h sync_pipeline_8h.bat's bare "python" resolves to - and audit_new_
+rem purchases shells out as "sys.executable -m audible_cli", so the
+rem interpreter running this module decides whether Audible can be asked at
+rem all. When it cannot, the audit silently falls back to the container's
+rem books.json and reports "0 missing" WITH EXIT CODE 0. Same "which
+rem interpreter: BOTH" trap docs/access/PIPELINE.md records for the OCR lane.
+rem The tick classifies that fallback as a FAILING tick and says so by name,
+rem but the fix is this line. Escape hatch: PURCHASE_AUDIT_PYTHON.
+"C:\Users\nbasl\AppData\Local\Microsoft\WindowsApps\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\python.exe" -m app.tools.purchase_audit >> output_files\purchase_audit.log 2>&1

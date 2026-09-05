@@ -90,6 +90,14 @@ def test_classify_clean_run_is_ok_and_says_nothing_was_new():
     got = pa.classify(0, out)
     assert got.ok and got.downloaded == 0 and got.failed == 0
     assert "0 new" in got.summary
+    # ⚠️ "0 new" reads the same whether Audible answered or was never reached,
+    # so the line names the list it diffed.
+    assert "1042 items, fresh from audible-cli" in got.summary
+
+
+def test_a_clean_looking_tick_off_the_container_list_says_which_list_it_was():
+    lines = ["newest 50 purchases in C:\\...\\runtime\\openaudible\\books.json vs catalog: 0 missing"]
+    assert "container's books.json" in pa._source_note(lines)
 
 
 def test_classify_counts_downloads_and_keeps_the_titles():
@@ -117,6 +125,29 @@ def test_classify_treats_an_audible_cli_export_failure_as_a_FAILING_tick_on_exit
     got = pa.classify(0, out)
     assert got.ok is False
     assert "audible-cli" in got.summary and "stale" in got.summary
+
+
+def test_classify_names_a_MISSING_audible_cli_apart_from_a_throttle():
+    """⚠️ THE ONE THE FIRST LIVE TICK ACTUALLY HIT (2026-09-05 14:07).
+
+    The .bat ran the .venv interpreter — following run_drive_poll.bat — and
+    audible-cli 0.3.3 is installed in the Store Python 3.12 ONLY. The audit
+    fell back to the container's books.json and exited 0 with "0 missing".
+
+    Backing off 15 → 30 → 60 is the right answer to a throttle and a useless
+    one here, so the two must not read the same in the log: an operator told
+    "audible-cli said no" goes and looks at Audible, which is fine and
+    innocent.
+    """
+    out = ("  [audible-cli] export failed for skylar: "
+           "C:\\...\\.venv\\Scripts\\python.exe: No module named audible_cli\n"
+           "newest 50 purchases in ...\\runtime\\openaudible\\books.json vs catalog: 0 missing\n"
+           "RESULT: library is current - nothing to download.\n")
+    got = pa.classify(0, out)
+    assert got.ok is False
+    assert "NOT INSTALLED" in got.summary
+    assert "not a throttle" in got.summary
+    assert "Audible was never" in got.summary, "it must say what the '0 missing' really meant"
 
 
 def test_classify_treats_a_failed_download_as_failing():
@@ -315,6 +346,9 @@ def test_run_purchase_audit_passes_the_8h_pipelines_own_flags(monkeypatch):
     got = pa.run_purchase_audit()
     assert got.ok
     assert seen["cmd"][1:] == ["-m", "app.tools.auto_acquire", "--notify", "--stop-after"]
+    # ⚠️ Not sys.executable: the audit runs on the interpreter that HAS
+    # audible-cli, which on this machine is not the one running the tests.
+    assert seen["cmd"][0] == pa.AUDIT_PYTHON
 
     pa.run_purchase_audit(download=False)
     assert seen["cmd"][-1] == "--no-download"
