@@ -78,7 +78,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from app.config import OUTPUT_DIR, PROJECT_ROOT
-from app.core import pipeline_lock
+from app.core import pipeline_lock, pipeline_requests
 from app.core.drive_pull import ALL_EXTS, is_copy_name
 
 # ---------------------------------------------------------------------------
@@ -361,27 +361,17 @@ def enqueue_run_now(reason: str) -> bool:
     ``requestedBy`` so the run's origin is legible on the panel afterwards.
     Returns False (having said why) when Firestore or the token is
     unavailable; the caller treats that as "did not act".
+
+    ⚠️ The body moved to ``app/core/pipeline_requests.py`` on 2026-09-05, when
+    ``app/tools/purchase_audit.py`` became the second watcher needing the same
+    door. This function is kept as the name this module (and its tests) already
+    use; the ``drive-poll:`` prefix on ``requestedBy`` and the log/notice
+    routing are unchanged. Only the *wording* of the "no token" notice is now
+    shared and therefore generic.
     """
-    from app.pipeline_status import _client, _lane_suffix
-
-    token = (os.getenv("PIPELINE_TRIGGER_TOKEN") or "").strip()
-    db = _client() if token else None
-    if not token or db is None:
-        why = "PIPELINE_TRIGGER_TOKEN not set in .env" if not token else "no Firestore credentials"
-        _notice(f"pulled books but CANNOT request a run — {why} (see docs/access/FIREBASE.md)")
-        return False
-
-    try:
-        db.collection(f"pipeline_requests{_lane_suffix()}").add({
-            "token": token,
-            "requestedAt": datetime.now(timezone.utc).isoformat(),
-            "requestedBy": f"drive-poll: {reason}",
-        })
-    except Exception as e:
-        _log(f"could not enqueue a run request: {type(e).__name__}: {e}")
-        return False
-    _log(f"queued a pipeline run — {reason}")
-    return True
+    return pipeline_requests.request_run(
+        reason, source="drive-poll", log=_log, notice=_notice,
+    )
 
 
 # ---------------------------------------------------------------------------
