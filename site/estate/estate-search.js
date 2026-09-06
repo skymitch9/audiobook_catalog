@@ -1,9 +1,10 @@
-// ⚠️ DO NOT EDIT — VENDORED COPY. Upstream owns this file:
+// ⚠️ DO NOT EDIT — GENERATED COPY. Upstream owns this file:
 //   catalog-platform/sites/heygabi-home/public/assets/estate-search.js
-// Vendored 2026-08-17 (includes the .es-scan-row[hidden] fix of 2026-08-16).
-// This site has no sync-from-sibling build step (unlike library/games), so
-// refresh is manual: see site/estate/SOURCE-estate-search.txt for the exact
-// command. Everything below this banner is upstream, verbatim.
+// Refresh it with: python scripts/sync_estate_search.py
+// A fix or a new feature goes THERE and reaches every estate site; an
+// edit here dies at this repo and is overwritten on the next sync.
+// tests/test_estate_search_vendor.py fails while this is stale.
+// Everything below this banner is upstream, verbatim.
 /**
  * estate-search.js — <estate-search>: the ONE reusable cross-catalog search
  * component (search-normalization phase 1, docs/TODO.md item 0, owner-
@@ -230,11 +231,159 @@ export function groupBySeries(rows) {
   const DEFAULT_DEBOUNCE_MS = 250;
   const DEFAULT_MIN_CHARS = 2;
   const AUTH_BACKSTOP_MS = 8000;
-  const FULL_SCOPE_SIZE = 3;
+  /* ================================================================== *
+   * THE CATALOG REGISTRY — who owns each shelf, from GET /api/catalogs
+   * ================================================================== *
+   *
+   * Owner ask 2026-09-05, confirmed 15:58: *"Make sure everything we have
+   * that's in the estate connects to multiple libraries and make sure that the
+   * libraries are designated by who owns the physical or shared with digital
+   * works."*
+   *
+   * ⚠️ WHAT WAS HERE UNTIL TODAY, AND WHY IT WAS THE WORST CODE IN THE ESTATE —
+   * three constants: `FULL_SCOPE_SIZE` (the number 3), `SOURCE_LABELS` (four
+   * hand-typed shelf names, one of them just "library") and `SCOPE_LABELS`
+   * (three keys of five).
+   *
+   * ⚠️ Their declarations are quoted NOWHERE in this file, deliberately:
+   * predeploy.checks.json refuses each of their declaration lines on the LIVE
+   * host, and a comment that quoted one would trip its own regression check.
+   * The story belongs here; the syntax does not.
+   *
+   * The estate has FIVE catalogs. The default grant from migration 0002 is
+   * exactly three — `vis_library2` (0007) and `vis_ebooks` (0008) are
+   * `DEFAULT 0` — so `scope.length >= 3` was true for every ordinary member,
+   * and this component told all of them their search covered **"on any
+   * shelf"** while two shelves were never consulted. The same constant
+   * SUPPRESSED `_scopeNote()`, the one sentence written to say otherwise. A
+   * confident false statement about whose shelves were searched, on the
+   * estate's front door, in the two places a person would look. Survey finding
+   * F1.
+   *
+   * `SCOPE_LABELS` had three keys of five, so `_scopePhrase()` fell through to
+   * the raw value and printed the database word **"library2"** in an English
+   * sentence to the person holding that grant (F2). Between them the estate
+   * kept SEVEN disagreeing spellings of two libraries.
+   *
+   * All of it now comes from the registry, which is the one place that knows.
+   *
+   * ## ⚠️ WHY THIS IS INLINE AND NOT AN IMPORT — DO NOT "FIX" IT
+   *
+   * `assets/catalog-registry.js` is the apex's module for exactly this, and
+   * this component deliberately does NOT import it. This file is synced
+   * VERBATIM AND ALONE into `library_catalog/apps/web/public/estate/` and
+   * `Board_Game_Catalog/apps/web/public/estate/` by each repo's
+   * `scripts/sync-estate-search.mjs`, which copies one file. A sibling import
+   * would 404 on both of those sites and take their search box down with it.
+   * (The two optional siblings this component DOES import — estate-auth.js,
+   * estate-scan.js — are reached only on attributes those apps never set.)
+   *
+   * They are near-duplicates that exist on purpose and are **NOT
+   * interchangeable**. `scripts/test/catalog-registry.test.mjs` pins the facts
+   * both must agree on, so changing one and forgetting the other fails
+   * `npm test`.
+   *
+   * ## ⚠️ AND THERE IS NO HARD-CODED FALLBACK LIST, deliberately
+   *
+   * "The directory is unreachable" and "these are the catalogs" are different
+   * facts. When the registry cannot be read this component says a worded
+   * unknown and prints a caveat line — it never guesses a name, and it never
+   * again claims a partial scope was every shelf.
+   */
 
-  const SOURCE_LABELS = { game: 'board games', library: 'library', audiobook: 'audiobooks' };
-  /** The server's scope vocabulary (§4.5 catalogs), spoken like a person. */
-  const SCOPE_LABELS = { audiobook: 'audiobooks', library: 'the library', games: 'board games' };
+  /** What a shelf is called when the registry does not name it. ⚠️ NEVER the
+   *  raw source id — that is the "library2" bug in one line. */
+  const ES_UNKNOWN_SHELF = 'a shelf we cannot name';
+
+  /** Said beside results when the directory could not be read, so an unnamed
+   *  shelf reads as an outage rather than as a mystery. */
+  const ES_REGISTRY_CAVEAT =
+    'We couldn’t reach the estate’s catalog directory, so the shelves below are not named. ' +
+    'That’s an outage, not a permissions problem.';
+
+  /** Validated, not trusted — a malformed row would be rendered as a label. */
+  function esParseCatalogs(body) {
+    if (body === null || typeof body !== 'object' || !Array.isArray(body.catalogs) || body.catalogs.length === 0) return null;
+    const out = [];
+    for (const c of body.catalogs) {
+      if (c === null || typeof c !== 'object' || Array.isArray(c)) return null;
+      if (typeof c.id !== 'string' || !c.id) return null;
+      if (typeof c.label !== 'string' || !c.label) return null;
+      if (c.holding !== 'physical' && c.holding !== 'digital') return null;
+      if (typeof c.shared !== 'boolean') return null;
+      if (typeof c.kind !== 'string' || !c.kind) return null;
+      if (c.owner !== null && typeof c.owner !== 'string') return null;
+      if (c.push_source !== null && typeof c.push_source !== 'string') return null;
+      out.push(c);
+    }
+    return out;
+  }
+
+  /**
+   * One read per origin, memoised for the life of the page.
+   *
+   * ⚠️ Resolves to `[]` — never throws and never rejects. A search box that
+   * could not name a shelf must still SEARCH; the caller degrades its words,
+   * it does not lose its function.
+   *
+   * ⚠️ On `padhard.heygabi.ai` this call is refused by CORS today, because the
+   * index Worker's `READ_ORIGINS` does not list that host (measured
+   * 2026-09-05). That is pre-existing and not this component's to widen — the
+   * same list already blocks `/api/search` there, so the box is degraded on
+   * that host with or without this. Widening a CORS list is access-increasing
+   * and the owner's line; it is recorded as an open question in
+   * catalog-platform's docs/TODO.md.
+   */
+  const _esRegistryByOrigin = new Map();
+  function esLoadRegistry(origin) {
+    const url = `${origin}/api/catalogs`;
+    if (_esRegistryByOrigin.has(url)) return _esRegistryByOrigin.get(url);
+    const p = (async () => {
+      try {
+        const res = await fetch(url);
+        if (!res.ok) return [];
+        return esParseCatalogs(await res.json()) || [];
+      } catch (e) {
+        return [];
+      }
+    })();
+    _esRegistryByOrigin.set(url, p);
+    return p;
+  }
+
+  /** `entry.source` + the row's format → its catalog.
+   *
+   *  ⚠️ THE EBOOK CASE IS WHY THIS TAKES A FORMAT. Ebook rows ride
+   *  `PUT /api/push/audiobook` with `format: 'ebook'` because "audiobook" the
+   *  SOURCE means the household's shared pool, so `ebooks` has no push source
+   *  of its own and a row saying `audiobook` + `ebook` belongs to the shared
+   *  EBOOK shelf. The remap fires only when the matched catalog IS the shared
+   *  digital pool, so a physical shelf's own ebook stays that shelf's. */
+  function esCatalogForEntry(catalogs, source, format) {
+    const direct = catalogs.find((c) => c.push_source === source) || null;
+    if (format === 'ebook' && direct && direct.shared === true && direct.holding === 'digital') {
+      const ebooks = catalogs.find((c) => c.shared === true && c.holding === 'digital' && c.kind === 'books');
+      if (ebooks) return ebooks;
+    }
+    return direct;
+  }
+
+  /** A format the shelf's own name already implies — dropped rather than said
+   *  twice. Derived from `kind`/`holding`, so a future catalog inherits it. */
+  function esImpliedFormat(cat) {
+    if (!cat) return null;
+    if (cat.kind === 'audio') return 'audiobook';
+    if (cat.kind === 'games') return 'boardgame';
+    if (cat.kind === 'books' && cat.holding === 'digital') return 'ebook';
+    return null;
+  }
+
+  /** ["a","b","c"] → "a, b and c". */
+  function esJoinWords(parts) {
+    if (parts.length === 0) return '';
+    if (parts.length === 1) return parts[0];
+    return `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
+  }
 
   const DEFAULT_PLACEHOLDER_ANON = 'Search the audiobook shelf…';
   const DEFAULT_PLACEHOLDER_AUTHED = 'Start typing a title, author or series…';
@@ -349,6 +498,8 @@ export function groupBySeries(rows) {
         background: var(--et-bg); overflow: hidden;
       }
       .es-hit-cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
+      a.es-hit-cover { cursor: pointer; }
+      a.es-hit-cover:focus-visible { outline: 2px solid var(--et-accent); outline-offset: 2px; }
       .es-hit-body { display: flex; flex-direction: column; gap: .15rem; min-width: 0; }
       .es-hit-title { font-weight: 600; }
       .es-hit-title a { color: var(--et-fg); text-decoration: none; }
@@ -519,6 +670,15 @@ export function groupBySeries(rows) {
       this._input.setAttribute('aria-expanded', 'false');
       this._resultsEl.setAttribute('role', 'listbox');
       this._resultsEl.setAttribute('aria-label', 'Search results');
+
+      // The registry, started here so it is in flight beside the first
+      // keystroke rather than after it. Resolves to [] on any failure; every
+      // render path waits on it in _callIndex().
+      this._registry = null;
+      this._registryReady = esLoadRegistry(this.indexUrl).then((cats) => {
+        this._registry = cats;
+        return cats;
+      });
 
       const hintAttr = this.getAttribute('hint');
       this._hintEl.textContent = hintAttr !== null ? hintAttr : DEFAULT_HINT;
@@ -721,17 +881,72 @@ export function groupBySeries(rows) {
       return this.__iid;
     }
 
-    _sourceLabel(source) { return SOURCE_LABELS[source] || source; }
+    /** The catalogs, as far as this component knows them. `[]` until the
+     *  registry lands, and `[]` forever if it could not be read. */
+    get _catalogs() { return this._registry || []; }
 
-    _scopePhrase(scope) { return scope.map((c) => SCOPE_LABELS[c] || c).join(' and '); }
+    /** A row's shelf, in words. ⚠️ Degrades to a worded unknown, never to the
+     *  database id — printing "library2" at a person is the bug F2 named. */
+    _sourceLabel(source, format) {
+      const cat = esCatalogForEntry(this._catalogs, source, format);
+      return cat ? cat.label : ES_UNKNOWN_SHELF;
+    }
+
+    /** The format worth printing beside a shelf's name, or '' when the name
+     *  already implies it ("Shared audiobooks · audiobook" is noise). */
+    _formatSuffix(source, format) {
+      if (!format) return '';
+      const cat = esCatalogForEntry(this._catalogs, source, format);
+      return esImpliedFormat(cat) === format ? '' : format;
+    }
+
+    /** A scope, in the words a person would use for those shelves. */
+    _scopePhrase(scope) {
+      return esJoinWords(scope.map((id) => {
+        const cat = this._catalogs.find((c) => c.id === id);
+        return cat ? cat.label : ES_UNKNOWN_SHELF;
+      }));
+    }
+
+    /**
+     * 🔴 DOES THIS SCOPE COVER EVERY SHELF? — the replacement for
+     * `scope.length >= FULL_SCOPE_SIZE`.
+     *
+     * ⚠️ A SET COMPARISON, NOT A LENGTH ONE. Counting was the bug: any three
+     * catalogs satisfied `>= 3`, including the three that are the DEFAULT
+     * grant on a five-catalog estate. Every catalog id must be present.
+     *
+     * ⚠️ Returns false when the registry is unknown. We cannot claim a scope
+     * is everything without knowing what everything is, and the safe direction
+     * of that unknown is to say less rather than more.
+     */
+    _scopeIsEverything(scope) {
+      if (!Array.isArray(scope) || scope.length === 0) return false;
+      const cats = this._catalogs;
+      if (cats.length === 0) return false;
+      const have = new Set(scope);
+      return cats.every((c) => have.has(c.id));
+    }
 
     _scopeNote(scope) {
-      if (!Array.isArray(scope) || scope.length === 0 || scope.length >= FULL_SCOPE_SIZE) return null;
+      if (!Array.isArray(scope) || scope.length === 0) return null;
+      if (this._scopeIsEverything(scope)) return null;
       const p = document.createElement('p');
       p.className = 'es-caveat';
       p.setAttribute('role', 'presentation');
       p.textContent = `Searching ${this._scopePhrase(scope)} only.` +
         (this._currentUser ? '' : ' Sign in to search every shelf.');
+      return p;
+    }
+
+    /** Said when the directory could not be read, so "a shelf we cannot name"
+     *  reads as an outage rather than as a mystery. */
+    _registryCaveat() {
+      if (this._catalogs.length > 0) return null;
+      const p = document.createElement('p');
+      p.className = 'es-caveat';
+      p.setAttribute('role', 'presentation');
+      p.textContent = ES_REGISTRY_CAVEAT;
       return p;
     }
 
@@ -756,9 +971,26 @@ export function groupBySeries(rows) {
     }
 
     _coverFor(li, row) {
-      const box = document.createElement('span');
+      // The cover is a LINK to the item whenever we have both an image to show
+      // and a destination — same target the title anchor uses, routed through
+      // _openHit so the cancelable estate-search:select event still fires. With
+      // no cover image there is nothing to click, so the slot stays an inert,
+      // aria-hidden placeholder span (keeps rows aligned).
+      const linkUrl = row && row.cover_url ? row.detail_url : null;
+      const box = document.createElement(linkUrl ? 'a' : 'span');
       box.className = 'es-hit-cover';
-      box.setAttribute('aria-hidden', 'true');
+      if (linkUrl) {
+        box.href = linkUrl;
+        box.target = '_blank';
+        box.rel = 'noopener';
+        box.setAttribute('aria-label', row.title ? `Open ${row.title}` : 'Open item');
+        box.addEventListener('click', (e) => {
+          e.preventDefault();
+          this._openHit(linkUrl, row);
+        });
+      } else {
+        box.setAttribute('aria-hidden', 'true');
+      }
       if (row && row.cover_url) {
         const img = document.createElement('img');
         img.alt = '';
@@ -839,7 +1071,13 @@ export function groupBySeries(rows) {
       formats.className = 'es-hit-meta';
       hit.entries.forEach((e, i) => {
         if (i > 0) formats.append(' · ');
-        const label = `${this._sourceLabel(e.source)}: ${e.format}`;
+        // ⚠️ "library: hardcover" until 2026-09-05 — the source's own word,
+        // then a colon. It named a database row rather than a household's
+        // shelf. Now: "Skylar's library · hardcover", "Shared ebooks",
+        // "Samantha's library · paperback" — WHOSE, then what, and the format
+        // dropped when the shelf's name already implies it.
+        const suffix = this._formatSuffix(e.source, e.format);
+        const label = suffix ? `${this._sourceLabel(e.source, e.format)} · ${suffix}` : this._sourceLabel(e.source, e.format);
         if (e.detail_url) {
           const a = document.createElement('a');
           a.href = e.detail_url;
@@ -951,12 +1189,18 @@ export function groupBySeries(rows) {
         : [];
       const total = data.books.length + data.games.length + universeRows.length;
       if (total === 0) {
-        const where = Array.isArray(data.scope) && data.scope.length < FULL_SCOPE_SIZE
-          ? `in ${this._scopePhrase(data.scope)}` : 'on any shelf';
+        // 🔴 "on any shelf" was said to EVERY ordinary member, whose default
+        // grant is three catalogs of five. The claim is now made only when the
+        // scope genuinely covers every catalog the registry names — and when
+        // the registry is unknown it is not made at all, because a scope we
+        // cannot check is not a scope we can vouch for.
+        const everything = this._scopeIsEverything(data.scope);
+        const where = !Array.isArray(data.scope) || data.scope.length === 0
+          ? 'in the catalogs you can search'
+          : everything ? 'on any shelf' : `in ${this._scopePhrase(data.scope)}`;
         this._setStatus(
           `Nothing ${where} matches “${data.query}”. The search tries titles, authors and series — a couple more letters can help.` +
-          (this._currentUser || !Array.isArray(data.scope) || data.scope.length >= FULL_SCOPE_SIZE
-            ? '' : ' Signing in searches every shelf.'),
+          (this._currentUser || everything ? '' : ' Signing in searches every shelf.'),
         );
         return;
       }
@@ -964,6 +1208,8 @@ export function groupBySeries(rows) {
       this._input.setAttribute('aria-expanded', 'true');
 
       this._resultsEl.appendChild(this._caveatLine(`Matches for “${data.query}”.`));
+      const outage = this._registryCaveat();
+      if (outage) this._resultsEl.appendChild(outage);
       const note = this._scopeNote(data.scope);
       if (note) this._resultsEl.appendChild(note);
 
@@ -1060,6 +1306,13 @@ export function groupBySeries(rows) {
         }
         headers.authorization = `Bearer ${token}`;
       }
+      // ⚠️ EVERY render path funnels through here, so this is the one place
+      // that has to wait for the registry — a result rendered before the
+      // catalogs land would name every shelf "a shelf we cannot name" and then
+      // never redraw. The two requests are concurrent (the registry started in
+      // connectedCallback), so on a warm page this awaits an already-settled
+      // promise and costs a microtask.
+      if (this._registryReady) { try { await this._registryReady; } catch (e) { /* it never rejects */ } }
       let res;
       try {
         res = await fetch(`${this.indexUrl}${path}`, { headers, signal });
@@ -1507,10 +1760,14 @@ export function groupBySeries(rows) {
       const bookHit = data.books?.[0];
       const gameHit = data.games?.[0];
       if (bookHit) {
-        const sources = bookHit.entries.map((e) => this._sourceLabel(e.source)).join(', ');
+        const sources = esJoinWords([...new Set(bookHit.entries.map((e) => this._sourceLabel(e.source, e.format)))]);
         el.textContent = `In the catalog — ${sources}.`;
       } else if (gameHit) {
-        el.textContent = 'In the catalog — board games.';
+        // ⚠️ 'board games' was hard-coded here, which said WHAT rather than
+        // WHOSE and would have been wrong the moment a second games shelf
+        // existed. Same registry answer as the book branch.
+        const sources = esJoinWords([...new Set(gameHit.entries.map((e) => this._sourceLabel(e.source, e.format)))]);
+        el.textContent = `In the catalog — ${sources}.`;
       } else {
         el.textContent = 'Not found in any catalog.';
       }

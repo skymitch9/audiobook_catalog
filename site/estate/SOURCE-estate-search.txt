@@ -1,33 +1,39 @@
 estate-search.js — provenance and refresh procedure
 ====================================================
 
-⚠️ DO NOT EDIT site/estate/estate-search.js. It is a vendored copy; the one
+⚠️ DO NOT EDIT site/estate/estate-search.js. It is a GENERATED copy; the one
 canonical implementation lives upstream in catalog-platform:
 
   Upstream:  catalog-platform/sites/heygabi-home/public/assets/estate-search.js
-  Vendored:  2026-08-17
-  Upstream sha256 at vendoring time (the copy = this content with a 6-line
-  DO-NOT-EDIT banner prepended, nothing else changed):
-    4e2a7dc2143aba428b455de7404b1aeb01e9efe2d037c3d657f7b3a7ce930aab
+  Synced:    2026-09-06
+  Upstream sha256 at sync time (the copy = this content with a
+  7-line DO-NOT-EDIT banner prepended, nothing else changed):
+    adf0e419b3664a57c19c57ad0a91d7cd0f0b12e57d008ab1fe13dcb91eb19dff
+
+  ⚠️ THIS FILE IS GENERATED TOO — by scripts/sync_estate_search.py. Editing it
+  by hand records a hash that nothing produced.
+
+Refresh:
+
+  python scripts/sync_estate_search.py           # write the copy
+  python scripts/sync_estate_search.py --check   # what the test runs
+
+⚠️ The old procedure — the one this file used to carry — was a hand recipe
+(`sed -n '1,6p' … ; cat "$UP"` then `sha256sum` and edit this file). It was
+followed once, on 2026-08-17, and never again: measured 2026-09-05, this copy
+was 23 lines behind upstream with four divergences, one of which (the cover was
+an inert span rather than a link) was a real, user-visible behaviour gap. The
+recipe is recorded here as history, not as instructions.
 
 Why a committed copy and not a build-time sync: the library and games repos
 copy this file from the sibling checkout in a prebuild step
-(scripts/sync-estate-search.mjs there). This site is generated/static HTML
-with no such build step, so the copy is committed — the same LOCAL-copy
-precedent, minus the automation. Loading it cross-origin from heygabi.ai was
-rejected on purpose: it adds module-CORS coupling the other repos
-deliberately avoided.
-
-Refresh (run from the audiobook_catalog repo root, Git Bash):
-
-  UP="../../catalog-platform/sites/heygabi-home/public/assets/estate-search.js"
-  { sed -n '1,6p' site/estate/estate-search.js; cat "$UP"; } \
-    > site/estate/estate-search.js.new
-  node --check site/estate/estate-search.js.new
-  mv site/estate/estate-search.js.new site/estate/estate-search.js
-  sha256sum "$UP"   # then update the hash + date in THIS file
-
-  (The sed keeps the existing 6-line banner; update the banner's date too.)
+(scripts/sync-estate-search.mjs there) and gitignore the result, because those
+sites are BUILT. This one is not — site/ is served straight out of the repo —
+so the copy must stay TRACKED, and a sync running on `pretest` would rewrite
+tracked files mid-test and fight the pipeline's auto-commit for the tree. Same
+argument, same shape, as scripts/sync_estate_theme.py. Loading it cross-origin
+from heygabi.ai was rejected on purpose: it adds module-CORS coupling the other
+repos deliberately avoided.
 
 Sibling modules deliberately NOT vendored:
   - estate-auth.js — only dynamically imported when no .authAdapter property
@@ -37,6 +43,11 @@ Sibling modules deliberately NOT vendored:
     adapter exists to avoid.
   - estate-scan.js — only fetched when the `scan` attribute is present. This
     embed does not set it.
+  - assets/catalog-registry.js — the apex's registry client. The component
+    carries its OWN inline copy of that fetch and those label helpers, on
+    purpose (catalog-platform/docs/info/catalog-registry.md §10a): the sync
+    copies exactly ONE file, and a sibling import would 404 here and on both
+    other consumer sites.
 
 Consumer wiring: site/estate-search-mount.js (hand-authored, tested in
 site/__tests__/estate-search-mount.test.js). Embedded on index.html via
