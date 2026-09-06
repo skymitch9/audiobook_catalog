@@ -3,14 +3,81 @@ Test catalog completeness - verify every book has cover, drive link, and author 
 This test ensures the catalog is fully functional with all required resources.
 Books flagged as BookFunnel sourced (scripts/bookfunnel_books.json) are excluded
 from description/genre checks since they have known metadata gaps.
+
+⚠️ THESE 11 TESTS ONLY MEAN SOMETHING ON THE PIPELINE MACHINE, and they say so
+out loud. They read the REAL audio library at `ROOT_DIR`; a CI runner has no
+library, so there is nothing for them to check there.
+
+Until 2026-09-05 that was expressed as a `self.skipTest("No library found
+(expected in CI environment)")` at the top of every method — which meant CI
+reported all 11 as PASSING-shaped green while proving nothing (a `skipTest`
+inside a body is a skip, but the file looked like a live guard and nobody had
+measured that it never fired anywhere it gated). It is now a module-level
+`pytest.mark.skipif`, so `pytest -q` prints `11 skipped` with the reason
+naming the env var and the path — the same shape as the `requires_platform`
+guards in test_universes.py / test_title_key_fixtures.py / test_club_fixtures.py
+and the `SHELF_MAP.exists()` guard in test_shelf_map.py.
+
+⚠️ Running these tests is NOT free and NOT read-only: `extract_metadata()`
+writes extracted cover art into `output_files/covers/`. Do not run this file on
+the pipeline box while an ingestion run is in flight.
 """
 
 import json
 import unittest
 from pathlib import Path
 
+import pytest
+
 from app.config import EXTS, ROOT_DIR, SITE_DIR
 from app.metadata import extract_metadata, walk_library
+
+
+def _library_present() -> bool:
+    """Cheap probe: does ROOT_DIR exist and hold anything at all?
+
+    Deliberately does NOT walk the tree — `walk_library` over ~1,080 books is
+    the expensive part these tests exist to do, and a skip decision must not
+    cost that.
+    """
+    try:
+        return ROOT_DIR.is_dir() and any(ROOT_DIR.iterdir())
+    except OSError:
+        return False
+
+
+LIBRARY_PRESENT = _library_present()
+
+# ⚠️ ONE module-level guard, not eleven in-body ones. It names what is missing
+# and how to supply it, so a green CI run says "11 skipped: no audio library at
+# <path>" instead of eleven silent passes.
+pytestmark = pytest.mark.skipif(
+    not LIBRARY_PRESENT,
+    reason=(
+        f"no audio library at ROOT_DIR={ROOT_DIR} — these 11 completeness checks read the "
+        "REAL library and only run on the pipeline machine. Set the ROOT_DIR env var (or "
+        "ROOT_DIR in .env) to the audiobook folder; default is <repo>/library."
+    ),
+)
+
+# The author map is a SECOND resource with its own presence question, so it
+# gets its own named marker rather than hiding inside a test body. Two of the
+# 11 read it; the other nine do not care whether it is there.
+AUTHOR_MAP_PATHS = [
+    Path("author_drive_map.json"),  # cwd-relative — the repo root, when pytest is run from there
+    Path(__file__).parent.parent.parent / "author_drive_map.json",
+]
+AUTHOR_MAP_PATH = next((p for p in AUTHOR_MAP_PATHS if p.exists()), None)
+
+requires_author_map = pytest.mark.skipif(
+    AUTHOR_MAP_PATH is None,
+    reason=(
+        "author_drive_map.json not found (tried: "
+        + "; ".join(str(p) for p in AUTHOR_MAP_PATHS)
+        + ") — run pytest from the repo root, or generate it with "
+        "`python -m app.tools.generate_author_map`"
+    ),
+)
 
 # Load BookFunnel exclusion list
 BOOKFUNNEL_PATH = Path(__file__).parent.parent / "scripts" / "bookfunnel_books.json"
@@ -44,25 +111,27 @@ class TestCatalogCompleteness(unittest.TestCase):
             except Exception as e:
                 print(f"Warning: Failed to extract metadata from {file_path}: {e}")
 
-        # Load author map
+        # Load author map (one source of truth for where it lives:
+        # AUTHOR_MAP_PATH, the same constant `requires_author_map` guards on)
         cls.author_map = {}
-        author_map_paths = [
-            Path("author_drive_map.json"),
-            Path(__file__).parent.parent.parent / "author_drive_map.json",
-        ]
+        if AUTHOR_MAP_PATH is not None:
+            with open(AUTHOR_MAP_PATH, "r", encoding="utf-8") as f:
+                cls.author_map = json.load(f)
 
-        for map_path in author_map_paths:
-            if map_path.exists():
-                with open(map_path, "r", encoding="utf-8") as f:
-                    cls.author_map = json.load(f)
-                break
+        # ⚠️ A DIFFERENT condition from the module-level skipif above, and it
+        # gets its own named reason. The module guard fires when ROOT_DIR is
+        # absent/empty (CI). This fires when ROOT_DIR exists and holds files
+        # but none of them are audiobooks — i.e. it is pointed at the wrong
+        # folder. Left as a pass would divide by zero in the percentage
+        # reports below; left silent it would look like a working check.
+        if not cls.books:
+            raise unittest.SkipTest(
+                f"ROOT_DIR={ROOT_DIR} exists but contains no audiobooks "
+                f"(extensions {sorted(EXTS)}) — check the ROOT_DIR env var points at the library"
+            )
 
     def test_all_books_have_covers(self):
         """Test that all books have cover images extracted."""
-        # Skip if no books (CI environment)
-        if len(self.books) == 0:
-            self.skipTest("No library found (expected in CI environment)")
-
         from app.config import OUTPUT_DIR
 
         missing_covers = []
@@ -101,10 +170,6 @@ class TestCatalogCompleteness(unittest.TestCase):
 
     def test_all_authors_have_drive_links(self):
         """Test that all authors have Google Drive links in author map."""
-        # Skip if no books (CI environment)
-        if len(self.books) == 0:
-            self.skipTest("No library found (expected in CI environment)")
-
         missing_links = []
         authors_seen = set()
 
@@ -138,12 +203,9 @@ class TestCatalogCompleteness(unittest.TestCase):
 
         print(f"\n[OK] Author map loaded: {len(self.author_map)} authors mapped")
 
+    @requires_author_map
     def test_author_drive_links_are_valid(self):
         """Test that author drive links are properly formatted (folder IDs or URLs)."""
-        # Skip if no author map (CI environment)
-        if len(self.author_map) == 0:
-            self.skipTest("No author map found (expected in CI environment)")
-
         empty_links = []
         invalid_format = []
 
@@ -177,10 +239,6 @@ class TestCatalogCompleteness(unittest.TestCase):
 
     def test_all_books_have_authors(self):
         """Test that all books have author metadata."""
-        # Skip if no books (CI environment)
-        if len(self.books) == 0:
-            self.skipTest("No library found (expected in CI environment)")
-
         missing_authors = []
 
         for book in self.books:
@@ -200,9 +258,6 @@ class TestCatalogCompleteness(unittest.TestCase):
 
     def test_all_books_have_descriptions(self):
         """Test that all books have description metadata (excludes BookFunnel books)."""
-        if len(self.books) == 0:
-            self.skipTest("No library found (expected in CI environment)")
-
         missing = []
         skipped_bf = 0
         for book in self.books:
@@ -225,9 +280,6 @@ class TestCatalogCompleteness(unittest.TestCase):
 
     def test_all_books_have_titles(self):
         """Test that all books have title metadata."""
-        if len(self.books) == 0:
-            self.skipTest("No library found (expected in CI environment)")
-
         missing = []
         for book in self.books:
             title = book["metadata"].get("title", "")
@@ -244,9 +296,6 @@ class TestCatalogCompleteness(unittest.TestCase):
 
     def test_all_books_have_narrators(self):
         """Test that all books have narrator metadata."""
-        if len(self.books) == 0:
-            self.skipTest("No library found (expected in CI environment)")
-
         missing = []
         for book in self.books:
             narrator = book["metadata"].get("narrator", "")
@@ -263,9 +312,6 @@ class TestCatalogCompleteness(unittest.TestCase):
 
     def test_all_books_have_duration(self):
         """Test that all books have duration metadata."""
-        if len(self.books) == 0:
-            self.skipTest("No library found (expected in CI environment)")
-
         missing = []
         for book in self.books:
             duration = book["metadata"].get("duration_hhmm", "")
@@ -282,9 +328,6 @@ class TestCatalogCompleteness(unittest.TestCase):
 
     def test_all_books_have_genre(self):
         """Test that all books have genre metadata."""
-        if len(self.books) == 0:
-            self.skipTest("No library found (expected in CI environment)")
-
         missing = []
         for book in self.books:
             genre = book["metadata"].get("genre", "")
@@ -301,17 +344,17 @@ class TestCatalogCompleteness(unittest.TestCase):
 
     def test_catalog_has_books(self):
         """Test that the catalog is not empty."""
-        # Skip if running in CI without library
-        if len(self.books) == 0:
-            self.skipTest("No library found (expected in CI environment)")
         self.assertGreater(len(self.books), 0, "No books found in library")
 
+    @requires_author_map
     def test_author_map_exists(self):
-        """Test that author map file exists and is not empty."""
-        # Skip if running in CI without author map
-        if len(self.author_map) == 0:
-            self.skipTest("No author map found (expected in CI environment)")
-        self.assertGreater(len(self.author_map), 0, "author_drive_map.json is empty or not found")
+        """Test that the author map, once found, is not empty.
+
+        The FILE's existence is the skip condition (`requires_author_map`);
+        this asserts the remaining half — that it has content. A file present
+        but empty is a real defect, not an environment gap.
+        """
+        self.assertGreater(len(self.author_map), 0, f"{AUTHOR_MAP_PATH} is empty")
 
 
 if __name__ == "__main__":
