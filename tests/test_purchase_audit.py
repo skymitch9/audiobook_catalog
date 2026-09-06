@@ -294,6 +294,45 @@ def test_the_backed_off_interval_is_honoured_before_the_next_audit(tick, monkeyp
     assert calls["audits"] == 0
 
 
+def test_a_scheduler_fire_exactly_one_interval_after_a_slow_tick_is_NOT_throttled(tick, monkeypatch):
+    """⚠️ THE FIRST-DAY INCIDENT (2026-09-06). The 07:46 tick ran and took 18 s;
+    the 08:01 fire measured 14.7 min and was throttled. The stamp was the END
+    of the audit, so every second fire came up short by the audit's own length
+    — half the promised cadence, and the log said "cadence floor" as if that
+    were fine. The stamp is now the tick's START, and the floor carries a
+    minute of slack for scheduler jitter."""
+    clock = {"t": 1_000_000.0}
+    monkeypatch.setattr(pa, "_now", lambda: clock["t"])
+
+    def _slow_audit(download=True):
+        clock["t"] += 18.0  # the audit itself takes 18 s
+        return pa.TickOutcome(True, 0, 0, "0 new")
+
+    monkeypatch.setattr(pa, "run_purchase_audit", _slow_audit)
+    monkeypatch.setattr(pa.pipeline_requests, "request_run", lambda *a, **k: True)
+    _seed(last_attempt=0.0)
+
+    assert pa.poll_once() == 0
+    assert _state()["last_attempt"] == 1_000_000.0, "stamped at the START, not the end"
+
+    # The scheduler fires exactly BASE_MINUTES after the previous FIRE.
+    clock["t"] = 1_000_000.0 + pa.BASE_MINUTES * 60
+    assert pa.poll_once() == 0
+    assert _state()["last_attempt"] == 1_000_000.0 + pa.BASE_MINUTES * 60, \
+        "the second fire must run, not be throttled by its predecessor's duration"
+
+
+def test_the_floor_still_holds_well_inside_the_interval(tick, monkeypatch):
+    """Slack is a minute, not a licence: a fire 10 min after the last one is
+    still throttled, so a mis-registered task cannot hammer Audible."""
+    clock = {"t": 1_000_000.0}
+    monkeypatch.setattr(pa, "_now", lambda: clock["t"])
+    calls = _wire(monkeypatch, pa.TickOutcome(True, 0, 0, "0 new"))
+    _seed(last_attempt=1_000_000.0 - 10 * 60)
+    assert pa.poll_once() == 0
+    assert calls["audits"] == 0
+
+
 def test_a_corrupt_interval_can_never_produce_a_zero_minute_cadence(tick):
     for bad in (0, -5, None, "banana", 99999):
         assert pa.BASE_MINUTES <= pa.interval_minutes({"interval_minutes": bad}) <= pa.MAX_MINUTES

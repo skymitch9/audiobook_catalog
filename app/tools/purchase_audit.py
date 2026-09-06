@@ -128,6 +128,13 @@ def _int_env(name: str, default: int) -> int:
 # mis-registered 1-minute task cannot hammer Audible.
 BASE_MINUTES = _int_env("PURCHASE_AUDIT_MINUTES", 15)
 MAX_MINUTES = _int_env("PURCHASE_AUDIT_MAX_MINUTES", 60)
+# ⚠️ Slack under the floor, because the scheduler and the floor are the SAME
+# number. Measured 2026-09-06, first day live: the 07:46 tick ran, the 08:01
+# fire measured 14.7 min since it and was throttled — the audit had taken 18 s
+# and `last_attempt` was stamped at the END of it, so every second fire was
+# short by exactly the audit's own duration. Half the promised cadence, silently.
+# The stamp is now the tick's START (below) and the floor forgives this much.
+FLOOR_SLACK_MINUTES = 1.0
 # A download of a long book plus its ffmpeg remux is minutes, not seconds; the
 # timeout is a wedge-breaker, not a work budget.
 AUDIT_TIMEOUT_S = _int_env("PURCHASE_AUDIT_TIMEOUT_S", 1800)
@@ -493,8 +500,9 @@ def _tick(dry_run: bool = False) -> int:
     interval = interval_minutes(state)
 
     last_attempt = float(state.get("last_attempt") or 0.0)
-    elapsed_min = (_now() - last_attempt) / 60.0
-    if not dry_run and elapsed_min < interval:
+    started = _now()
+    elapsed_min = (started - last_attempt) / 60.0
+    if not dry_run and elapsed_min < interval - FLOOR_SLACK_MINUTES:
         _log_throttle(state, elapsed_min, interval)
         return 0
 
@@ -525,7 +533,9 @@ def _tick(dry_run: bool = False) -> int:
              f"back-off untouched (interval stays {interval} min).")
         return 0
 
-    now = _now()
+    # ⚠️ The START of this tick, not the end — the cadence is fire-to-fire, and
+    # stamping the end shortened every window by the audit's own duration.
+    now = started
     state["last_attempt"] = now
     state["last_result"] = outcome.summary
 
