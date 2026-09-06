@@ -1493,14 +1493,29 @@ service cloud.firestore {
     //   pipeline_status / pipeline_runs — read-only. Nobody can forge a run.
     //   pipeline_requests              — CREATE-ONLY, AND DELIBERATELY UNREADABLE.
     //
-    // The unreadable part is the security control, not an oversight. This
-    // project has no server-side auth (no request.auth anywhere — "admin" is a
+    // The unreadable part is the security control, not an oversight. The
+    // trigger is guarded by a SHARED SECRET rather than by identity: a request
+    // doc carries a token only the admin's browser holds, and the watcher on
+    // the home machine refuses to act unless it matches. Making the collection
+    // unreadable is what stops a passer-by harvesting that token out of a
+    // pending request and replaying it to spin up runs on a private machine.
+    // Do not add `allow read` here.
+    //
+    // ⚠️ COMMENT CORRECTED 2026-09-06 — the REASON this paragraph used to give
+    // was dead, though the rule it defends is unchanged. It said: "this project
+    // has no server-side auth (no request.auth anywhere — 'admin' is a
     // client-side displayName check), so rules cannot tell the admin from
-    // anyone else. A request doc therefore carries a shared secret that only
-    // the admin's browser holds, and the watcher on the home machine refuses
-    // to act unless it matches. Making the collection unreadable is what stops
-    // a passer-by harvesting that token out of a pending request and replaying
-    // it to spin up runs on a private machine. Do not add `allow read` here.
+    // anyone else." All three clauses are now false, measured 2026-09-06:
+    //   - `request.auth` appears 41 times in THIS file (grep -c);
+    //   - "admin" resolves from site_roles/{uid} server-side — the hardcoded
+    //     ADMIN_NAMES list was removed 2026-08-16 (site/identity.js:230-243);
+    //   - catalog-platform's audiobook-worker runs ESTATE_CHECK="enforce" live
+    //     (GET https://audiobook-api.heygabi.ai/api/health).
+    // The rule stays exactly as it is anyway: the pipeline trigger is
+    // deliberately token-guarded and NOT role-guarded — it is hard constraint
+    // #3 of catalog-platform/docs/info/audiobook-auth-migration.md (§7, "the
+    // pipeline, entirely" is untouched by the auth migration), so
+    // unreadability is still the thing protecting the token.
     //
     // Worst case for an attacker who knows the schema: they can write junk
     // docs that the watcher ignores and deletes. No execution, no disclosure.
