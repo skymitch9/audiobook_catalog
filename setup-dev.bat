@@ -2,7 +2,7 @@
 REM Development environment setup script for Windows
 
 REM KI-3: the cp1252 console crash. Every wrapper in this repo that starts a
-REM python process sets this, and this one starts two (pre-commit, run_tests).
+REM python process sets this, and this one starts two (pre-commit, pytest).
 REM It is not only about emoji in our own strings: the LIBRARY'S OWN DATA is a
 REM trigger — a dry run died on an author named 猫子 on 2026-09-02.
 set PYTHONIOENCODING=utf-8
@@ -35,9 +35,13 @@ echo 🧪 Testing pre-commit setup...
 pre-commit run --all-files
 
 REM Run tests
+REM WARNING: pytest, and only pytest. This used to call run_tests.py (stdlib
+REM unittest discovery), which collected 135 of the 2,242 cases pytest sees and
+REM reported green on the rest - a new developer got a false pass. Deleted
+REM 2026-09-05. (Comment kept pure ASCII: this file is read by cp1252 consoles.)
 echo.
 echo 🧪 Running test suite...
-python run_tests.py
+python -m pytest tests/ -q
 
 echo.
 echo ✅ Development environment setup complete!
@@ -50,5 +54,6 @@ echo.
 echo 💡 Tips:
 echo   - Pre-commit hooks will run automatically on git commit
 echo   - Run 'pre-commit run --all-files' to check all files manually
-echo   - Run 'python run_tests.py' to run tests
+echo   - Run 'python -m pytest tests/ -q' to run the Python tests
+echo   - Run 'npx vitest run' to run the JS tests
 echo   - See .github/SETUP.md for more details

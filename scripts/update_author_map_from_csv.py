@@ -110,7 +110,7 @@ def update_author_map():
         print(f"\n⚠ {empty_count} authors still need folder IDs")
         print("\nTo see which authors are missing, run:")
         print("  cd audiobook_catalog")
-        print("  python run_tests.py test_catalog_completeness -v")
+        print("  python -m pytest tests/test_catalog_completeness.py -v")
 
 if __name__ == '__main__':
     update_author_map()

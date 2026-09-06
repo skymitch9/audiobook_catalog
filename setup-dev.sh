@@ -27,9 +27,12 @@ echo "🧪 Testing pre-commit setup..."
 pre-commit run --all-files || true
 
 # Run tests
+# ⚠️ pytest, and only pytest. This used to call run_tests.py (stdlib unittest
+# discovery), which collected 135 of the 2,242 cases pytest sees and reported
+# green on the rest — a new developer got a false pass. Deleted 2026-09-05.
 echo ""
 echo "🧪 Running test suite..."
-python run_tests.py
+python -m pytest tests/ -q
 
 echo ""
 echo "✅ Development environment setup complete!"
@@ -42,5 +45,6 @@ echo ""
 echo "💡 Tips:"
 echo "  - Pre-commit hooks will run automatically on git commit"
 echo "  - Run 'pre-commit run --all-files' to check all files manually"
-echo "  - Run 'python run_tests.py' to run tests"
+echo "  - Run 'python -m pytest tests/ -q' to run the Python tests"
+echo "  - Run 'npx vitest run' to run the JS tests"
 echo "  - See .github/SETUP.md for more details"

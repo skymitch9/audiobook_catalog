@@ -1,7 +1,11 @@
 """Tests for the OpenAudible Quick Sync scheduler and the upload age gate.
 
-Written as unittest.TestCase so run_tests.py (stdlib unittest discovery, used
-by CI) collects them; pytest also runs these fine.
+Written as unittest.TestCase. That was originally so run_tests.py (stdlib
+unittest discovery) would collect them; that runner was deleted 2026-09-05
+because it saw only 135 of the 2,242 cases and reported green on the rest.
+pytest — the only runner now, and the one CI uses — runs unittest.TestCase and
+pytest-style modules alike, so the style here is a free choice, not a
+requirement.
 """
 
 import json

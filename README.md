@@ -54,8 +54,13 @@ pre-commit install
 
 ### Run Tests
 ```bash
-python run_tests.py
+python -m pytest tests/ -q   # Python suite — the one CI runs
+npx vitest run               # JS suite (site/__tests__)
 ```
+⚠️ `pytest` is the **only** Python runner. A `run_tests.py` (stdlib unittest
+discovery) used to sit here; it collected 135 of the 2,242 cases `pytest` sees
+and reported green on the rest, so it was deleted 2026-09-05.
+On Windows set `PYTHONIOENCODING=utf-8` first (KI-3, the cp1252 console crash).
 
 ### Code Quality
 ```bash
