@@ -52,12 +52,11 @@ disagree. Do not remove that check on the strength of this file looking tidy.
 
 from __future__ import annotations
 
-import json
-import os
 import time
 from pathlib import Path
 from typing import Iterable, Optional
 
+from app.core.atomic_json import write_json_atomic
 from app.core.ingest_queue import (
     TIER_EPUB, TIER_NEEDS_OCR, TIER_PDF_TEXT, TIER_REST_AUDIO,
     TIER_REVIEWED_AUDIO, TIER_TWIN, TRAINING_ROOT,
@@ -124,12 +123,15 @@ def write_queue_summary(summary: dict, path: Path = QUEUE_SUMMARY_PATH) -> None:
 
     tmp-then-rename for the same reason `save_state` does it: the pusher reads
     this file on a 15-minute timer and must never catch it half-written.
+
+    ⚠️ Since 2026-09-07 (F3) it goes through the ONE shared writer,
+    `app.core.atomic_json.write_json_atomic`, which adds `flush()`+`fsync()`
+    (a power cut, not a kill, is what tmp+replace alone does not survive) and
+    a unique temp name in place of the fixed `queue_summary.json.tmp`. The
+    helper RAISES on failure by design; swallowing it stays here, where the
+    "never stop a run" decision belongs.
     """
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = path.with_suffix(".json.tmp")
-        with open(tmp, "w", encoding="utf-8") as fh:
-            json.dump(summary, fh, indent=1, ensure_ascii=False)
-        os.replace(tmp, path)
+        write_json_atomic(path, summary, indent=1, ensure_ascii=False)
     except Exception:
         pass

@@ -25,7 +25,6 @@ import json
 import os
 import re
 import sys
-import tempfile
 import time
 from dataclasses import dataclass, field
 from typing import NamedTuple
@@ -76,6 +75,10 @@ except Exception:  # pragma: no cover - defensive
 # script as a subprocess) is covered no matter how it's invoked.
 from app.core import pipeline_lock
 from app.core import pipeline_schedule
+# F3: the ONE atomic JSON writer. This module's own `_atomic_write_json` was
+# the only correct copy in the repo; it now lives in app/core so the ingest
+# queue's two writers use the same code instead of a drifted near-duplicate.
+from app.core.atomic_json import write_json_atomic
 
 # OpenAudible export location
 OPENAUDIBLE_BOOKS_DIR = Path(os.getenv("ROOT_DIR", r"C:\Users\nbasl\OpenAudible\books"))
@@ -187,31 +190,26 @@ class AmbiguousAuthorFolder(NamedTuple):
 def _atomic_write_json(path: Path, data) -> None:
     """Write JSON to `path` atomically (F3, 2026-08-24).
 
-    Dump to a temp file in the SAME directory, flush + fsync, then
-    ``os.replace()`` — an atomic swap on both NTFS and POSIX. A crash, reboot
-    or kill *during* the write therefore leaves the PREVIOUS file fully intact
-    rather than a half-written, truncated one. That matters most for
-    upload_manifest.json: a truncated manifest makes the next run's
+    ⚠️ THE BODY MOVED to `app/core/atomic_json.py` on 2026-09-07 (F3's second
+    half) and this is now a thin adapter that pins this module's `indent=2`.
+    It was the ONLY correct copy in the repo — `ingest_queue.save_state` and
+    `ingest_queue_summary.write_queue_summary` had tmp+replace but no fsync
+    and a fixed temp name — so it became the shared one rather than a third
+    implementation being written beside it.
+
+    The name is kept because callers and `tests/test_pipeline_sanctity_fixes.py`
+    reference it, and because "atomic write" reads better at the call site
+    than the import would.
+
+    What it does, unchanged: dump to a temp file in the SAME directory, flush
+    + fsync, then ``os.replace()`` — an atomic swap on both NTFS and POSIX. A
+    crash, reboot or kill *during* the write therefore leaves the PREVIOUS
+    file fully intact rather than a half-written, truncated one. That matters
+    most for upload_manifest.json: a truncated manifest makes the next run's
     ``load_manifest()`` raise and halts EVERY future run until a human repairs
     the file. The temp file shares the target's directory so the replace stays
     on one filesystem (a cross-device replace is not atomic and can raise)."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(
-        dir=str(path.parent), prefix=path.name + ".", suffix=".tmp"
-    )
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(tmp, path)
-    except BaseException:
-        # Best-effort cleanup; never mask the original error.
-        try:
-            os.unlink(tmp)
-        except OSError:
-            pass
-        raise
+    write_json_atomic(path, data, indent=2, ensure_ascii=False)
 
 
 def load_manifest() -> dict:

@@ -60,6 +60,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from app.core.atomic_json import write_json_atomic
 from app.core.review_join import book_id_from_title, normalise_title
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -162,11 +163,19 @@ def load_state(path: Path = STATE_PATH) -> dict:
 
 
 def save_state(state: dict, path: Path = STATE_PATH) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(".tmp")
-    with open(tmp, "w", encoding="utf-8") as fh:
-        json.dump(state, fh, indent=1, ensure_ascii=False)
-    os.replace(tmp, path)   # atomic: a killed run never leaves half a state file
+    """Persist the ingest state. Atomic AND durable.
+
+    ⚠️ It was atomic-only until 2026-09-07 (F3). `os.replace` alone already
+    meant a killed run never left half a state file — but a POWER CUT could,
+    because the rename can reach the disk before the data blocks do. The
+    shared helper adds the `flush()`+`fsync()` that closes that, and a unique
+    temp name so `--status`, `--requeue-ocr` and the nightly fire (three
+    separate processes) cannot collide on one fixed `ingest_state.tmp`.
+
+    `indent=1, ensure_ascii=False` is the format this file has always had and
+    is passed explicitly to keep it byte-comparable — this is 1,244 rows a
+    human reads."""
+    write_json_atomic(path, state, indent=1, ensure_ascii=False)
 
 
 def mark(state: dict, book_id: str, status: str, **extra) -> None:
