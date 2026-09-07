@@ -80,8 +80,24 @@ from app.core import pipeline_schedule
 # queue's two writers use the same code instead of a drifted near-duplicate.
 from app.core.atomic_json import write_json_atomic
 
-# OpenAudible export location
-OPENAUDIBLE_BOOKS_DIR = Path(os.getenv("ROOT_DIR", r"C:\Users\nbasl\OpenAudible\books"))
+# OpenAudible export location.
+#
+# ⚠️ F6 (2026-09-07) — ONE DERIVATION. This was its own
+# `Path(os.getenv("ROOT_DIR", r"C:\Users\nbasl\OpenAudible\books"))`, a second
+# reading of the same environment variable with a DIFFERENT default from
+# `app.config.ROOT_DIR`'s (`<repo>/library`). On a machine with `ROOT_DIR`
+# unset — the recovery machine — the sorter's source and the catalogue's
+# library root were two different folders. `app/config.py` now carries the
+# OpenAudible default, so this alias is behaviour-preserving here and the two
+# can no longer disagree: there is nothing left to disagree with.
+#
+# Two side effects of importing rather than re-deriving, both improvements:
+#   * the value is now `.expanduser().resolve()`-d (they compared equal on this
+#     box — measured 2026-08-26, re-measured 2026-09-07);
+#   * `ROOT_DIR=""` (set but empty) used to give `Path("")` → the CWD, i.e. the
+#     sorter rglobbing whatever directory it was launched from. It now falls
+#     through to the default like every other reader.
+from app.config import ROOT_DIR as OPENAUDIBLE_BOOKS_DIR
 # Books downloaded by the Dockerized OpenAudible (scratch runtime dir) get
 # ingested into the library by the same sort step.
 CONTAINER_BOOKS_DIR = Path(__file__).resolve().parent.parent / "runtime" / "openaudible" / "books"
@@ -370,12 +386,18 @@ def filed_author_folder(path: Path, target_root: Path) -> str | None:
     function so it is testable without a library on disk.
 
     ⚠️ ``os.path.relpath``, NOT ``Path.relative_to``, and the reason is not
-    style. ``OPENAUDIBLE_BOOKS_DIR`` is ``Path(os.getenv("ROOT_DIR", …))`` —
-    raw — while ``app.config.ROOT_DIR`` is the same value ``.expanduser()
-    .resolve()``-d. They are equal today (measured 2026-08-26). If they ever
-    are not, ``relative_to`` raises on EVERY file, every filed book reads as a
-    NEW ARRIVAL, and the sorter relocates the whole library — F5's exact
-    catastrophe by a new road.
+    style. If ``target_root`` and the paths handed to this function are
+    normalised differently, ``relative_to`` raises on EVERY file, every filed
+    book reads as a NEW ARRIVAL, and the sorter relocates the whole library —
+    F5's exact catastrophe by a new road.
+
+    ⚠️ **F6 (2026-09-07) DID NOT RETIRE THIS DEFENCE, and must not be read as
+    having done so.** The specific divergence it named is gone —
+    ``OPENAUDIBLE_BOOKS_DIR`` *is* ``app.config.ROOT_DIR`` now, one object, so
+    that pair cannot differ. But this guards the GENERAL case: ``$ROOT_DIR``
+    is free text in a ``.env``, ``target_root`` is a parameter, and the
+    container books dir is a separate root entirely. Merging two constants
+    removes one source of unnormalised input, not the possibility of one.
 
     ⚠️ **Measured, not assumed:** ``WindowsPath.relative_to`` already tolerates
     a trailing separator and a case difference, so those two are NOT the

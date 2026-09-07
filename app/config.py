@@ -14,8 +14,40 @@ PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent
 OUTPUT_DIR: Path = PROJECT_ROOT / "output_files"
 SITE_DIR: Path = PROJECT_ROOT / "site"
 
+# ---------------------------------------------------------------------------
+# ROOT_DIR — the AUDIO library, and the ONE derivation of it (F6, 2026-09-07)
+# ---------------------------------------------------------------------------
+# ⚠️ THIS LINE MOVED A DEFAULT. Until 2026-09-07 the unset-`ROOT_DIR` default
+# here was `PROJECT_ROOT / "library"`, while `scripts/sync_to_drive.py` (and
+# seven other scripts) defaulted to the OpenAudible export path below. So on a
+# machine that does not set `ROOT_DIR` the sorter's source directory and the
+# catalogue's library root pointed at two ENTIRELY DIFFERENT folders,
+# unconditionally — not "identical unless resolve() diverges", which is what
+# the 2026-08-24 sanctity audit recorded. That machine is the RECOVERY machine
+# (`docs/access/RECOVERY.md` rebuilds from git + blobs, and a fresh clone has
+# no `.env`), which is the worst possible day to find out.
+#
+# The OpenAudible path won because it is what the OTHER EIGHT derivations
+# already say, so this makes them agree instead of leaving one odd. Nothing on
+# this box moves: `ROOT_DIR` is set here, and the two compared equal (measured
+# 2026-08-26, re-measured 2026-09-07). Nothing on any other box moves either —
+# `PROJECT_ROOT/"library"` does not exist in this repo, nothing creates it and
+# nothing else referenced it, so every consumer already bailed with
+# "ROOT_DIR not found" and now bails on a different missing path.
+#
+# ⚠️ It is one person's user profile as a literal, and that is deliberate
+# rather than tidy: the alternative (the repo-local path) is the value that was
+# WRONG for eight of nine callers. Any machine that is not this one is expected
+# to set `ROOT_DIR`; the default only decides which error it prints.
+#
+# ⚠️ Do NOT "fix" `filed_author_folder`'s `os.path.relpath` on the strength of
+# this merge (`scripts/sync_to_drive.py`). That guards the GENERAL case — a
+# free-text `$ROOT_DIR` carrying a `..`, a `~` or a relative segment — and this
+# only merges one pair of constants. Removing it re-opens F5: `relative_to`
+# raises on every file, every filed book reads as a new arrival, and the sorter
+# relocates the whole library.
 ROOT_DIR_ENV = os.getenv("ROOT_DIR")
-DEFAULT_LIBRARY_DIR = PROJECT_ROOT / "library"
+DEFAULT_LIBRARY_DIR = Path(r"C:\Users\nbasl\OpenAudible\books")
 ROOT_DIR: Path = Path(ROOT_DIR_ENV if ROOT_DIR_ENV else DEFAULT_LIBRARY_DIR).expanduser().resolve()
 
 # ---------------------------------------------------------------------------

@@ -89,12 +89,18 @@ def test_filed_author_folder_recognises_the_three_cases(tmp_path):
 def test_filed_author_folder_survives_an_unnormalised_root(tmp_path):
     """⚠️ THE ONE THAT WOULD RELOCATE THE WHOLE LIBRARY.
 
-    OPENAUDIBLE_BOOKS_DIR is raw ``Path(os.getenv("ROOT_DIR"))``; app.config's
-    ROOT_DIR is the same value ``.resolve()``-d. They agree today. If a future
-    $ROOT_DIR carried a trailing slash, a relative segment or different case,
-    ``Path.relative_to`` would raise on EVERY file — every filed book would
-    read as a new arrival and the sorter would move the library. relpath
+    If a $ROOT_DIR carried a trailing slash, a relative segment or different
+    case, ``Path.relative_to`` would raise on EVERY file — every filed book
+    would read as a new arrival and the sorter would move the library. relpath
     absolutises and normcases both sides, so it cannot.
+
+    ⚠️ **Updated 2026-09-07 (F6).** The docstring used to open by naming the
+    two constants — OPENAUDIBLE_BOOKS_DIR raw, app.config's ROOT_DIR
+    ``.resolve()``-d — as the divergence to fear. That pair is now ONE object
+    (see ``tests/test_library_root_single_derivation.py``), so this test no
+    longer covers *them*. It still covers what actually matters and always
+    did: ``$ROOT_DIR`` is free text in a ``.env`` and ``target_root`` is a
+    parameter, so an unnormalised root can still arrive from either.
 
     ⚠️ Measured 2026-08-26, so the claim is right-sized: ``WindowsPath
     .relative_to`` ALREADY tolerated the trailing separator and the case
