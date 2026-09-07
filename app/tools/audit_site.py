@@ -45,6 +45,21 @@ AUTHOR_MAP_NAME = "author_drive_map.json"
 COVER_MANIFEST_NAME = "covers_manifest.json"
 EBOOKS_MANIFEST_NAME = "ebooks.json"
 
+# ⚠️ THE ONLY EBOOK FILE THAT REACHES CI, and the reason check 5 is half-blind
+# there. `site/ebooks.json` is GITIGNORED on purpose (`.gitignore:81`, owner
+# directive 2026-08-17: this repo is PUBLIC and must stay public, and
+# deploy.yml assembles each lane from that branch's COMMITTED site/ — a tracked
+# manifest would be world-readable twice over). So a GitHub Actions checkout can
+# never have it, and never will under this design.
+#
+# `site/ebooks_status.json` IS tracked (`.gitignore:89`) and carries counts and
+# times only — {generated_at, count, needs_human_cover_count}, no titles, no
+# paths. It cannot answer "does every EPUB have a cover", which is a per-row
+# question, but it can say when the manifest was last built and how many books
+# are waiting on a human cover — which turns a bare "not audited" into a
+# measurement somebody can act on.
+EBOOKS_STATUS_NAME = "ebooks_status.json"
+
 # The manifest key naming books no automatic cover source could settle. ⚠️ Kept
 # in step with scripts.build_ebook_manifest.NEEDS_HUMAN_COVER_KEY, but NOT
 # imported from it: this module audits only files tracked in git so it can run
@@ -274,6 +289,51 @@ def _check_drive_links(
     return failures, warnings
 
 
+def _ebooks_status_note(site_dir: Path) -> str:
+    """The half of check 5 a CI checkout CAN measure, in one sentence.
+
+    ⚠️ It never fails and never warns on its own — it is the tail of the
+    missing-manifest warning, and its whole job is to stop that warning reading
+    like a fault. `site/ebooks_status.json` is TRACKED, so it is present on
+    every current ref; a ref old enough to lack it gets the pre-ebooks wording
+    instead, which is then the true diagnosis rather than a guess.
+
+    ⚠️ `needs_human_cover_count` above zero is NOT a problem — a named PDF is
+    the allowed case (see the docstring below), and the promote gate passes on
+    it by design. It is reported because a number nobody can see is a number
+    nobody notices growing, not because it blocks anything.
+    """
+    status_path = site_dir / EBOOKS_STATUS_NAME
+    if not status_path.exists():
+        # No manifest and no status file: genuinely a ref that predates the
+        # ebook shelf. This is the only case where "pre-ebooks" is a
+        # measurement rather than a shrug.
+        return f"{status_path} is absent too, so this ref predates the ebook shelf."
+
+    try:
+        with open(status_path, encoding="utf-8") as f:
+            status = json.load(f)
+        if not isinstance(status, dict):
+            raise TypeError("not an object")
+    except (json.JSONDecodeError, OSError, TypeError) as e:
+        return f"{status_path} is unreadable ({e}), so nothing about the shelf could be measured."
+
+    # ⚠️ Absent is not zero, and it is not a count either. A missing key means
+    # the writer predates it — reported as "not recorded", never as 0.
+    def figure(key: str) -> str:
+        v = status.get(key)
+        return str(v) if isinstance(v, int) and not isinstance(v, bool) else "not recorded"
+
+    return (
+        "⚠️ EXPECTED, NOT A FAULT: site/ebooks.json is gitignored because this repo is public "
+        "(.gitignore:81), so no CI checkout can ever have it — cover coverage is gated by "
+        "tests/test_ebook_covers.py at merge instead. What this ref DOES record, from the tracked "
+        f"{EBOOKS_STATUS_NAME}: {figure('count')} ebook(s), manifest built "
+        f"{status.get('generated_at') or 'at an unrecorded time'}, "
+        f"{figure('needs_human_cover_count')} waiting on a human cover."
+    )
+
+
 def _check_ebook_covers(site_dir: Path) -> tuple:
     """Every EPUB in site/ebooks.json must carry a cover_url.
 
@@ -299,6 +359,32 @@ def _check_ebook_covers(site_dir: Path) -> tuple:
     (empty when nothing is waiting), so the failure path is live for any
     current ref.
 
+    ⚠️ IN GITHUB ACTIONS THE MANIFEST IS *ALWAYS* MISSING, AND THAT IS BY
+    DESIGN — not a rollback ref, not a broken wiring. `site/ebooks.json` is
+    gitignored (`.gitignore:81`) because this repo is public and `deploy.yml`
+    assembles each lane from the branch's committed `site/`; see the
+    EBOOKS_STATUS_NAME comment. So `promote.yml` has carried this warning on
+    every run since 2026-08-17 and always will. Two consequences worth saying
+    out loud rather than leaving a reader to guess:
+
+      · **Cover coverage on a promote is gated by the MERGE, not by here.**
+        `tests/test_ebook_covers.py` runs against this machine's real manifest
+        and is the enforcement that actually happens. This gate is the second
+        of the two places, and in CI it is the one that cannot see.
+      · The warning now reports what CI *can* measure, from the tracked
+        `site/ebooks_status.json`: when the manifest was last built, how many
+        ebooks it counted, and how many are waiting on a human cover. A
+        promote log that says "162 ebooks, built 2026-09-04, 0 waiting" is a
+        different thing from one that says "not audited".
+
+    Making CI audit coverage properly needs one of two changes NEITHER of which
+    belongs in this module, and both are recorded in docs/KNOWN_ISSUES.md:
+    publish a coverless-EPUB count into `ebooks_status.json` (a change to
+    `scripts/build_ebook_manifest.py`, which is on the live pipeline path), or
+    have `promote.yml` fetch the manifest from the private `ebooks-gated` R2
+    bucket first (which needs R2 credentials in Actions secrets — a real
+    access-increasing decision, and the owner's).
+
     Escape hatch: ALLOW_COVERLESS_EPUBS=1, emergency use only — it lets a
     known-broken shelf reach prod, so use it to unblock an unrelated urgent
     promotion and never as a way to live with missing covers. It covers the
@@ -308,7 +394,7 @@ def _check_ebook_covers(site_dir: Path) -> tuple:
 
     path = site_dir / EBOOKS_MANIFEST_NAME
     if not path.exists():
-        return [], [f"{path} not found — ebook cover coverage not audited (pre-ebooks ref?)"]
+        return [], [f"{path} not found — ebook cover coverage not audited. {_ebooks_status_note(site_dir)}"]
     try:
         with open(path, encoding="utf-8") as f:
             manifest = json.load(f)

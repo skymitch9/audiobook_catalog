@@ -350,6 +350,74 @@ class AuditSiteTestCase(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("not found", out)
 
+    # ---- the missing manifest is EXPECTED in CI, and says so ----
+    #
+    # ⚠️ `site/ebooks.json` is gitignored on a PUBLIC repo (.gitignore:81), so
+    # `promote.yml` has carried this warning on every run since 2026-08-17 and
+    # always will. The warning used to guess "(pre-ebooks ref?)", which is
+    # wrong on every current ref and sends a reader looking for a rollback that
+    # is not there. These pin the honest version.
+
+    def write_ebooks_status(self, **fields):
+        (self.site / "ebooks_status.json").write_text(json.dumps(fields), encoding="utf-8")
+
+    def test_missing_manifest_names_the_gitignore_as_the_cause_not_a_rollback(self):
+        self.setup_clean_catalog()
+        self.write_ebooks_status(
+            generated_at="2026-09-04T23:10:32.436979Z", count=162, needs_human_cover_count=0
+        )
+        code, out = self.audit_output()
+        self.assertEqual(code, 0)
+        self.assertIn("EXPECTED, NOT A FAULT", out)
+        self.assertIn("gitignored", out)
+        # It must name the gate that DOES enforce covers, or the reader is left
+        # believing nothing checks them.
+        self.assertIn("tests/test_ebook_covers.py", out)
+        # And it must carry the measurements the tracked status file holds.
+        self.assertIn("162 ebook(s)", out)
+        self.assertIn("2026-09-04T23:10:32.436979Z", out)
+        self.assertIn("0 waiting on a human cover", out)
+        self.assertNotIn("pre-ebooks", out)
+
+    def test_a_ref_with_neither_file_is_the_ONLY_pre_ebooks_diagnosis(self):
+        # No manifest and no status file is the one case where "this ref
+        # predates the ebook shelf" is a measurement rather than a shrug.
+        self.setup_clean_catalog()
+        code, out = self.audit_output()
+        self.assertEqual(code, 0)
+        self.assertIn("predates the ebook shelf", out)
+        self.assertNotIn("EXPECTED, NOT A FAULT", out)
+
+    def test_a_waiting_cover_count_is_reported_and_still_does_not_block(self):
+        # A NAMED coverless PDF is the allowed case, so a non-zero count is
+        # reported, never enforced. A number nobody can see is a number nobody
+        # notices growing.
+        self.setup_clean_catalog()
+        self.write_ebooks_status(
+            generated_at="2026-09-06T01:00:00Z", count=170, needs_human_cover_count=4
+        )
+        code, out = self.audit_output()
+        self.assertEqual(code, 0)
+        self.assertIn("4 waiting on a human cover", out)
+
+    def test_a_missing_status_FIELD_reads_as_not_recorded_never_as_zero(self):
+        # ⚠️ Absent is not zero — the same rule the processing board's lane
+        # counts follow. An older writer with no `needs_human_cover_count` must
+        # not render as "nothing is waiting".
+        self.setup_clean_catalog()
+        self.write_ebooks_status(generated_at="2026-08-18T00:00:00Z", count=100)
+        code, out = self.audit_output()
+        self.assertEqual(code, 0)
+        self.assertIn("not recorded waiting on a human cover", out)
+        self.assertNotIn("0 waiting on a human cover", out)
+
+    def test_an_unreadable_status_file_says_so_and_still_does_not_block(self):
+        self.setup_clean_catalog()
+        (self.site / "ebooks_status.json").write_text("{not json", encoding="utf-8")
+        code, out = self.audit_output()
+        self.assertEqual(code, 0)
+        self.assertIn("unreadable", out)
+
     def test_malformed_ebook_manifest_fails(self):
         self.setup_clean_catalog()
         (self.site / "ebooks.json").write_text("{not json", encoding="utf-8")
