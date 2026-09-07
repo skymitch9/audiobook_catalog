@@ -211,6 +211,90 @@ def set_summary(**fields: Any) -> None:
         pass
 
 
+# --------------------------------------------------------------------------
+# STEP 1b's own verdict — B18, 2026-09-07
+#
+# ⚠️ THE FALSE AMBER THAT WOULD NOT DIE. heygabi.ai/status's ebook row had to
+# answer "should the published manifest have moved?" and nothing said so, so it
+# GUESSED — first from wall-clock freshness, then from the run's `trigger`
+# string, then from `steps[].publish.state`. Each guess was right about the case
+# that prompted it and wrong about the next; the owner reported the same false
+# amber THREE separate times.
+#
+# 2026-08-16 fixed half of it: STEP 1b started recording `ebookManifestAt` +
+# `ebookCount`, so a run that DID build a manifest says so. What stayed a guess
+# is the other half — **the absence of those fields**, which is four different
+# facts wearing one appearance:
+#
+#     a. 1b ran and the read-back of ebooks.json failed   (a real, quiet fault)
+#     b. 1b was skipped by design      (--rebuild-only, a single-step run)
+#     c. 1b ran and the BUILD failed                       (a real fault)
+#     d. the run predates the 2026-08-16 change
+#
+# The status page could only tell (b) — the harmless one — from (a) and (c) by
+# reading the trigger string, i.e. a CROSS-REPO STRING CONTRACT: rename a
+# trigger in `sync_pipeline_8h.bat` or `pipeline_watcher.py` and the row
+# silently degrades with no error anywhere.
+#
+# `ebookManifestState` ends that by STATING the fact. It deliberately mirrors
+# `summary.driveParityState`, which the status page already singles out as the
+# pattern to copy — *"It is a READ, not an inference … No trigger strings, no
+# step-state archaeology, nothing this page could be wrong about on its own."*
+#
+# ⚠️ A `steps[]` entry for 1b was the other option and was NOT taken. `STEPS`
+# above is mirrored BY HAND in five places across two repos (see
+# `scripts/sync_to_drive.py`'s STEP_INFO note), so adding a tenth step would be
+# a five-file cross-repo change that renumbers every existing index — a much
+# larger blast radius than one summary field, for the same information.
+EBOOK_MANIFEST_BUILT = "built"
+EBOOK_MANIFEST_SKIPPED = "skipped"
+EBOOK_MANIFEST_FAILED = "failed"
+
+
+def ebook_manifest(
+    state: str,
+    generated_at: str | None = None,
+    count: int | None = None,
+    detail: str = "",
+) -> None:
+    """Record what STEP 1b did, so the status page reads it instead of guessing.
+
+    `state` is one of the three constants above:
+
+      built    the manifest was rebuilt this run. `generated_at` is the file's
+               OWN `generated_at`, read back from `site/ebooks.json` — never a
+               clock reading invented here, because that is the stamp the
+               status page compares the published heartbeat against and an
+               invented one could differ from it.
+      skipped  1b was not run, BY DESIGN (`--rebuild-only`, a single-step run).
+               ⚠️ This is the whole point of the field: it turns "no ebook
+               fields in the summary" from an ambiguity into a statement.
+      failed   1b ran and could not produce a manifest. Previously invisible —
+               it looked exactly like `skipped` from the outside.
+
+    ⚠️ `built` WITHOUT a `generated_at` is legitimate and must stay
+    representable: the build can succeed while reading the file back fails.
+    That is case (a) above, and saying "it ran, but I cannot tell you when" is
+    strictly more than the page could know before.
+
+    ⚠️ This says the manifest was BUILT, never PUBLISHED. The gap between the
+    two is the 2026-08-16 bug (publish gated on `uploaded_count > 0`, so a
+    quiet run built a manifest the site never received). The page needs this
+    field AND the published heartbeat; do not let a later change treat `built`
+    alone as "the site is up to date".
+
+    Never raises — `set_summary` force-pushes and swallows its own errors.
+    """
+    fields: dict[str, Any] = {"ebookManifestState": state}
+    if generated_at:
+        fields["ebookManifestAt"] = generated_at
+    if count is not None:
+        fields["ebookCount"] = count
+    if detail:
+        fields["ebookManifestDetail"] = detail[:300]
+    set_summary(**fields)
+
+
 def finish_run(state: str = "success", error: str | None = None) -> None:
     """Close the run: flip the status doc and append to pipeline_runs history."""
     try:

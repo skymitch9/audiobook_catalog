@@ -1505,6 +1505,14 @@ def _run_pipeline_body(
         rc = build_manifest(dry=dry_run)
         if rc != 0:
             print("  [WARN] Ebook manifest build reported failure — see above.")
+            # B18 (2026-09-07): a FAILED build used to be invisible — it left
+            # the summary with no ebook fields, which looked identical to
+            # "skipped by design" and got the page's harmless green.
+            if not dry_run:
+                pstatus.ebook_manifest(
+                    pstatus.EBOOK_MANIFEST_FAILED,
+                    detail=f"build_manifest returned {rc}",
+                )
         elif not dry_run:
             # RECORD THAT IT HAPPENED (2026-08-16, owner-approved).
             #
@@ -1536,18 +1544,37 @@ def _run_pipeline_body(
             # the site). The status page needs BOTH this field and
             # steps[].publish.state === 'done'. Do not let a later change treat
             # this field alone as "the site is up to date".
+            #
+            # ⚠️ B18 (2026-09-07) added `ebookManifestState` beside these two.
+            # The timestamp alone could only ever say "it ran"; its ABSENCE was
+            # four different facts wearing one appearance (ran-but-unreadable /
+            # skipped by design / build failed / a run older than the field),
+            # and the status page told them apart by reading the TRIGGER
+            # STRING — a cross-repo contract that degrades silently on a
+            # rename. See app/pipeline_status.ebook_manifest().
             try:
                 import json as _json
                 _m = _json.loads((PROJECT_ROOT / "site" / "ebooks.json").read_text(encoding="utf-8"))
-                pstatus.set_summary(
-                    ebookManifestAt=_m.get("generated_at"),
-                    ebookCount=_m.get("count"),
+                pstatus.ebook_manifest(
+                    pstatus.EBOOK_MANIFEST_BUILT,
+                    generated_at=_m.get("generated_at"),
+                    count=_m.get("count"),
                 )
                 print(f"  [status] ebookManifestAt={_m.get('generated_at')} count={_m.get('count')}")
             except Exception as e:  # noqa: BLE001 - recording is best-effort
                 print(f"  [WARN] Could not record ebookManifestAt: {e}")
+                # ⚠️ STILL RECORD `built`. The manifest WAS rebuilt; only the
+                # read-back failed. Saying "it ran, but I cannot tell you when"
+                # is strictly more than the page could know before, and it is
+                # what stops this landing in the same bucket as "skipped".
+                pstatus.ebook_manifest(
+                    pstatus.EBOOK_MANIFEST_BUILT,
+                    detail=f"built, but site/ebooks.json could not be read back: {e}",
+                )
     except Exception as e:
         print(f"  [WARN] Ebook manifest refresh failed: {e}")
+        if not dry_run:
+            pstatus.ebook_manifest(pstatus.EBOOK_MANIFEST_FAILED, detail=str(e))
 
     # -----------------------------------------------------------------------
     # Step 2: Detect new (un-uploaded) books
@@ -2129,6 +2156,18 @@ def _run_rebuild_only_body(trigger: str = "manual") -> None:
     pstatus.start_run(trigger=trigger)
     print(f"  {pstatus.status_note()}")
 
+    # B18 (2026-09-07): SAY that STEP 1b is skipped, rather than leaving the
+    # status page to deduce it from `trigger == "manual-rebuild"`. That
+    # deduction is the second of the three false ambers on the ebook row — a
+    # rebuild-only run left the manifest legitimately older than the run that
+    # followed it, and the page judged a manifest against a run that was never
+    # going to write one. Recorded FIRST, before anything can fail, so the
+    # statement survives a rebuild that dies at STEP 5.
+    pstatus.ebook_manifest(
+        pstatus.EBOOK_MANIFEST_SKIPPED,
+        detail="--rebuild-only: STEP 1b is excluded by design",
+    )
+
     print("\n[REBUILD-ONLY] Rebuilding catalog (STEP 5)...")
     pstatus.step("catalog")
     try:
@@ -2520,6 +2559,14 @@ def _run_step_body(step: str, trigger: str) -> None:
     print("=" * 60)
     pstatus.start_step_run(step, info["label"], trigger)
     print(f"  {pstatus.status_note()}")
+    # B18 (2026-09-07): no entry in STEP_INFO rebuilds the ebook manifest —
+    # step 1b has no fine-grained control — so a single-step run always skips
+    # it. Recorded rather than left to the page to infer from a
+    # "manual-step:<key>" trigger string it reads across a repo boundary.
+    pstatus.ebook_manifest(
+        pstatus.EBOOK_MANIFEST_SKIPPED,
+        detail=f"single step '{step}': STEP 1b is not part of it",
+    )
     # A handler may return a run-state string (e.g. 'partial' from a failed
     # push in the publish step, F1); handlers that return None mean 'success'.
     handler_state = _STEP_HANDLERS[step]()
