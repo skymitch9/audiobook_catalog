@@ -582,11 +582,19 @@ class TestArmedOcrIsPromotedOutOfTheTail:
         # ⚠️ `tier` is a cross-repo contract (ingest_queue_summary's lane
         # labels, read by the sibling repo's status page). Promotion changes
         # WHERE an item sorts, never WHAT it is.
-        from app.core.ingest_queue_summary import LANE_BY_TIER
+        #
+        # ⚠️ AND THAT STABILITY HAD A COST, FIXED 2026-09-07 (B17): because the
+        # tier does not move, `LANE_BY_TIER` alone rendered a book being OCR'd
+        # tonight as "Deferred PDF (needs OCR)". The tier is STILL 6 — that is
+        # the contract and it is deliberately unchanged — but the lane is no
+        # longer read off it alone. See `lane_for_item` and
+        # `tests/test_ocr_armed_lane.py`.
+        from app.core.ingest_queue_summary import LANE_BY_TIER, lane_for_item
 
         armed = self._item({"books": {"scan-1": {"status": STATUS_PENDING}}})
         assert armed.tier == TIER_NEEDS_OCR
         assert LANE_BY_TIER[armed.tier] == "deferred-pdf"
+        assert lane_for_item(armed) == "ocr-pdf"
 
     def test_nothing_else_gains_a_sort_tier(self):
         # A feature nobody switched on must not be able to move the queue.
