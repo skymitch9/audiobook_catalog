@@ -10,6 +10,37 @@ import { col } from './fb-env.js';
 import { slugifyName } from './identity.js';
 import { describeActionError } from './permission-ux.js';
 import { reportGate } from './gate-shadow.js';
+import { flagEnabled } from './flags.js';
+import { seg, workerWrite } from './worker-writes.js';
+
+/* ── Phase 3a: the Worker path, behind AUTH_ROUTES_CLUBS ──────────────────
+ *
+ * Nine of this file's write functions have a mirror route in the audiobook
+ * Worker (catalog-platform/apps/audiobook-worker/src/enforce-routes.ts) — the
+ * club doc PATCH/DELETE, the two webhook routes, the manager claim, and the
+ * four member/request ops. When `AUTH_ROUTES_CLUBS` is on, each calls its
+ * route instead of writing Firestore; when it is off (the shipped default)
+ * every one of them behaves exactly as it did before, and the browser-direct
+ * code below is untouched.
+ *
+ * ⚠️ WHAT DOES **NOT** MOVE, and why each stays:
+ *   createClub, joinClub, leaveClub, acceptInvite, declineInvite,
+ *   requestToJoin, dismissRateNudge — MEMBER-OPEN surfaces. Design §1 keeps
+ *   every member-open write browser-direct; there is no route to call and
+ *   inventing one is out of scope.
+ *   The member-editable half of updateClubDetails (name, description, emoji,
+ *   avatarReadId, avatarCoverHref, promptsEnabled) — same reason, and the
+ *   Worker actively REFUSES those keys (`"…" is not a worker-gated club
+ *   field`), so they must be split off before the PATCH is sent.
+ *
+ * ⚠️ NO FALLBACK anywhere: a refused or unreachable Worker returns the worded
+ * error and writes nothing (worker-writes.js rule 1).
+ *
+ * ⚠️ The `ab_gate_shadow` report fires on the DIRECT path only. On the Worker
+ * path the Worker logs its own `ab_gate` line (mode `enforce`), and a shadow
+ * line beside it would count one action twice in the soak ledger with a
+ * `succeeded` bit describing an HTTP call rather than a Firestore write.
+ */
 
 /**
  * Validate a club name. 3-40 chars after trimming.
@@ -299,6 +330,24 @@ export const MANAGED_CLUB_FIELDS = [
 ];
 
 /**
+ * The club-doc fields `PATCH /api/clubs/:clubId` accepts (Phase 3a) —
+ * STRUCTURAL + OPERATIONAL, and nothing else.
+ *
+ * ⚠️ DERIVED, never retyped, so it cannot drift from the two tiers above that
+ * firestore.rules is pinned against. The RESTRICTED tiers are deliberately
+ * absent: the webhook and the manager roster have their own routes, and the
+ * PATCH refuses them by name with a sentence naming the right endpoint.
+ *
+ * ⚠️ Everything NOT in this list — name, description, emoji, avatarReadId,
+ * avatarCoverHref, promptsEnabled — is member-editable and stays
+ * browser-direct (design §1). `updateClubDetails` therefore SPLITS an edit
+ * that touches both, rather than sending the lot and being refused.
+ */
+export const WORKER_PATCHABLE_CLUB_FIELDS = [
+  ...STRUCTURAL_CLUB_FIELDS, ...OPERATIONAL_CLUB_FIELDS,
+];
+
+/**
  * Read-doc fields rules gate the same way, split by tier — THREE tiers since
  * the 2026-08-17 MANAGECLUB SPLIT (owner decision, option B):
  *   LIFECYCLE   — finish/abandon (status, finishedAt) and the blind-ratings
@@ -428,6 +477,24 @@ export async function claimManagerRole(db, clubId, uid, session, role) {
     return { success: false, error: 'Sign in with Google to secure your role.' };
   }
   const r = role === 'moderator' ? 'moderator' : 'host';
+
+  if (flagEnabled('AUTH_ROUTES_CLUBS')) {
+    // POST /api/clubs/:clubId/managers/claim — the gate is the `claimManager`
+    // RULE, not a floor: unclaimed is first-come-first-served to any live
+    // session, claimed is moderator+ and never the club's own managers.
+    //
+    // ⚠️ Two things the browser-direct path could not do, and this one does:
+    // the uid stamped is the TOKEN'S, so a claim can only ever name its
+    // caller; and the write carries an updateTime precondition, so two people
+    // claiming the same free club in the same second cannot both land — the
+    // loser is told, in words, that somebody claimed it first.
+    const result = await workerWrite('POST', `/api/clubs/${seg(clubId)}/managers/claim`, {
+      role: r,
+      displayName: session && session.displayName ? session.displayName : '',
+    });
+    return result.success ? { success: true } : { success: false, error: result.error };
+  }
+
   // The shadow report's outcome bit — see the `finally` below and
   // gate-shadow.js. Set on the ONE success path; every other exit leaves it
   // false, which is exactly what those exits are.
@@ -497,6 +564,19 @@ export async function setClubDiscordWebhook(db, clubId, url, session) {
   if (!isValidDiscordWebhook(trimmed)) {
     return { success: false, error: 'That does not look like a Discord webhook URL (https://discord.com/api/webhooks/...).' };
   }
+
+  if (flagEnabled('AUTH_ROUTES_CLUBS')) {
+    // PUT /api/clubs/:clubId/webhook — one call replaces the two writes
+    // below (the write-only settings subdoc, then the masked tail on the club
+    // doc), which matters: the browser-direct pair can half-land, leaving the
+    // real URL saved under a stale mask. Gate: administerClub, island-held.
+    const result = await workerWrite('PUT', `/api/clubs/${seg(clubId)}/webhook`, {
+      url: trimmed,
+      displayName: session && session.displayName ? session.displayName : '',
+    });
+    return result.success ? { success: true } : { success: false, error: result.error };
+  }
+
   let succeeded = false; // the shadow report's outcome bit — see the finally
   try {
     await setDoc(doc(db, col('clubs'), clubId, 'settings', 'discord'), {
@@ -521,6 +601,11 @@ export async function setClubDiscordWebhook(db, clubId, url, session) {
  * enforced in the UI and in firestore.rules — ADMINISTERED_CLUB_FIELDS).
  */
 export async function clearClubDiscordWebhook(db, clubId) {
+  if (flagEnabled('AUTH_ROUTES_CLUBS')) {
+    const result = await workerWrite('DELETE', `/api/clubs/${seg(clubId)}/webhook`);
+    return result.success ? { success: true } : { success: false, error: result.error };
+  }
+
   let succeeded = false; // the shadow report's outcome bit — see the finally
   try {
     await deleteDoc(doc(db, col('clubs'), clubId, 'settings', 'discord'));
@@ -588,6 +673,11 @@ export async function updateClubDetails(db, clubId, input) {
     }
     updates.features = cleaned;
   }
+
+  if (flagEnabled('AUTH_ROUTES_CLUBS')) {
+    return _updateClubDetailsViaWorker(db, clubId, updates);
+  }
+
   let succeeded = false; // the shadow report's outcome bit — see the finally
   try {
     await updateDoc(doc(db, col('clubs'), clubId), updates);
@@ -608,6 +698,69 @@ export async function updateClubDetails(db, clubId, input) {
       reportGate('club.setNextMeeting', { clubId, succeeded });
     }
   }
+}
+
+/**
+ * Split a validated `updates` bag into the half the Worker gates and the half
+ * that stays browser-direct.
+ *
+ * Exported because the split IS the contract worth pinning: getting it wrong
+ * in either direction is a real bug — send a member-editable field and the
+ * whole PATCH is refused ("… is not a worker-gated club field"), keep a gated
+ * one on the direct path and Phase 3b's rules deploy will refuse it silently
+ * the day it lands.
+ *
+ * @returns {{gated: object, direct: object}}
+ */
+export function splitClubUpdates(updates) {
+  const gated = {};
+  const direct = {};
+  for (const key of Object.keys(updates || {})) {
+    if (WORKER_PATCHABLE_CLUB_FIELDS.includes(key)) gated[key] = updates[key];
+    else direct[key] = updates[key];
+  }
+  return { gated, direct };
+}
+
+/**
+ * The Worker path for updateClubDetails.
+ *
+ * ⚠️ ONE EDIT BECOMES TWO WRITES, and that is inherent to the design rather
+ * than a shortcut: §1 keeps the member-editable fields browser-direct, and
+ * the Worker refuses them by name, so a modal save that renames a club AND
+ * toggles a feature cannot be one call. The GATED half goes first, because it
+ * is the half that can be refused — a manager without the role gets the
+ * refusal with nothing at all applied, instead of a half-saved club whose
+ * name changed and whose settings did not.
+ *
+ * ⚠️ If the gated half lands and the direct half then fails, the club is
+ * left half-updated and the person is told so in words. That is strictly
+ * better than the alternative orderings and no worse than today for the case
+ * that matters (a single tier's edit is still a single write).
+ */
+async function _updateClubDetailsViaWorker(db, clubId, updates) {
+  const { gated, direct } = splitClubUpdates(updates);
+
+  if (Object.keys(gated).length > 0) {
+    const result = await workerWrite('PATCH', `/api/clubs/${seg(clubId)}`, gated);
+    if (!result.success) return { success: false, error: result.error };
+  }
+  if (Object.keys(direct).length > 0) {
+    try {
+      await updateDoc(doc(db, col('clubs'), clubId), direct);
+    } catch (e) {
+      return {
+        success: false,
+        error: describeActionError(e, {
+          fallback: Object.keys(gated).length > 0
+            ? 'The club settings were saved, but its name/description could not be — '
+              + `${e && e.message ? e.message : 'the write was refused'}. Reload the club and try that part again.`
+            : undefined,
+        }),
+      };
+    }
+  }
+  return { success: true };
 }
 
 /**
@@ -732,6 +885,17 @@ export async function leaveClub(db, clubId, session) {
  * Refuses to remove the host.
  */
 export async function removeMemberBySlug(db, clubId, targetSlug) {
+  if (flagEnabled('AUTH_ROUTES_CLUBS')) {
+    // The Worker refuses the host with its own 409 "The host cannot be
+    // removed." — the same sentence this function throws below, so the person
+    // reads the same thing on either path.
+    const result = await workerWrite(
+      'DELETE',
+      `/api/clubs/${seg(clubId)}/members/${seg(targetSlug)}`,
+    );
+    return result.success ? { success: true } : { success: false, error: result.error };
+  }
+
   const clubRef = doc(db, col('clubs'), clubId);
   let succeeded = false; // the shadow report's outcome bit — see the finally
   try {
@@ -764,6 +928,16 @@ export async function setMemberRole(db, clubId, targetSlug, role) {
   if (role !== 'moderator' && role !== 'member') {
     return { success: false, error: 'Invalid role.' };
   }
+
+  if (flagEnabled('AUTH_ROUTES_CLUBS')) {
+    const result = await workerWrite(
+      'PUT',
+      `/api/clubs/${seg(clubId)}/members/${seg(targetSlug)}/role`,
+      { role },
+    );
+    return result.success ? { success: true } : { success: false, error: result.error };
+  }
+
   let succeeded = false; // the shadow report's outcome bit — see the finally
   try {
     const club = await getClub(db, clubId);
@@ -811,6 +985,14 @@ export async function getRequests(db, clubId) {
 
 /** Accept a join request: the requester becomes an active member. */
 export async function acceptRequest(db, clubId, targetSlug) {
+  if (flagEnabled('AUTH_ROUTES_CLUBS')) {
+    const result = await workerWrite(
+      'POST',
+      `/api/clubs/${seg(clubId)}/requests/${seg(targetSlug)}/accept`,
+    );
+    return result.success ? { success: true } : { success: false, error: result.error };
+  }
+
   let succeeded = false; // the shadow report's outcome bit — see the finally
   try {
     const reqRef = doc(db, col('clubs'), clubId, 'requests', targetSlug);
@@ -845,6 +1027,14 @@ export async function acceptRequest(db, clubId, targetSlug) {
 
 /** Reject (delete) a join request. */
 export async function rejectRequest(db, clubId, targetSlug) {
+  if (flagEnabled('AUTH_ROUTES_CLUBS')) {
+    const result = await workerWrite(
+      'DELETE',
+      `/api/clubs/${seg(clubId)}/requests/${seg(targetSlug)}`,
+    );
+    return result.success ? { success: true } : { success: false, error: result.error };
+  }
+
   let succeeded = false; // the shadow report's outcome bit — see the finally
   try {
     await deleteDoc(doc(db, col('clubs'), clubId, 'requests', targetSlug));
@@ -867,6 +1057,17 @@ export async function inviteMember(db, clubId, displayName) {
   const name = (displayName || '').trim();
   if (name.length < 2) return { success: false, error: 'Enter a display name.' };
   const slug = slugifyName(name);
+
+  if (flagEnabled('AUTH_ROUTES_CLUBS')) {
+    // The Worker slugifies the name the same way (identity.js slugifyName,
+    // copied verbatim into enforce-routes.ts) and answers the "already a
+    // member" / "already invited" cases as worded 409s.
+    const result = await workerWrite('POST', `/api/clubs/${seg(clubId)}/invites`, {
+      displayName: name,
+    });
+    return result.success ? { success: true } : { success: false, error: result.error };
+  }
+
   const clubRef = doc(db, col('clubs'), clubId);
   let succeeded = false; // the shadow report's outcome bit — see the finally
   try {
@@ -945,6 +1146,13 @@ export async function declineInvite(db, clubId, session) {
  * Delete a club and its member docs. Host-only action (enforced in the UI).
  */
 export async function deleteClub(db, clubId) {
+  if (flagEnabled('AUTH_ROUTES_CLUBS')) {
+    // manageClub (admin floor, island-held) — the destructive row the
+    // 2026-08-17 MANAGECLUB SPLIT deliberately did NOT move to operateClub.
+    const result = await workerWrite('DELETE', `/api/clubs/${seg(clubId)}`);
+    return result.success ? { success: true } : { success: false, error: result.error };
+  }
+
   let succeeded = false; // the shadow report's outcome bit — see the finally
   try {
     const membersSnap = await getDocs(collection(db, col('clubs'), clubId, 'members'));
