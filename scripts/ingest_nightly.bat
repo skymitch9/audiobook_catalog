@@ -9,8 +9,20 @@ rem
 rem THIS FIRES EVERY 30 MINUTES, ALL DAY -- and that is deliberate.
 rem The task is dumb; app/core/ingest_control.py holds every gate:
 rem   * inside 00:00-07:45 Phoenix it works continuously at batch 16;
-rem   * outside it, --opportunistic takes ONE book at a time at batch 8, and
-rem     only after two GPU polls two minutes apart both read under 50%%;
+rem   * outside it, --opportunistic keeps taking books at batch 8 for as long
+rem     as each one INDEPENDENTLY clears the gate: the control doc is re-read
+rem     and decide_start() re-runs before every book, and an audio start also
+rem     waits on two GPU polls two minutes apart both under 50%%. The run stops
+rem     at the first book that does not clear -- it is NOT capped at one.
+rem     (Corrected 2026-09-06; this line used to say "takes ONE book at a
+rem     time", and nothing in the code does that. ingest_books.run() is a
+rem     plain `for item in queue:` over the WHOLE queue; --limit slices it but
+rem     defaults to 0 and this file does not pass it. What is per-book is the
+rem     GATE, not the count. Measured on the single invocation that fired
+rem     2026-09-04 16:30:01: 3 queued, 2 packed back to back in 34 minutes,
+rem     each preceded by its own ~2-minute GPU clearance. The same wrong
+rem     sentence is corrected in docs/access/PIPELINE.md and
+rem     docs/info/book-ingestion.md.)
 rem   * the Firestore control doc (ingestion_control/state) can pause all of it
 rem     from the GABI dashboard, and an UNREADABLE control counts as paused.
 rem A single-flight lock (output_files\ingest_books.lock) means the 30-minute
