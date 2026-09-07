@@ -17,8 +17,13 @@ The safety net is the R2 docs backup — `catalog-platform/scripts/backup-docs.m
 restore drilled 2026-08-21, runbook `catalog-platform/docs/access/backup-restore.md`
 §6b. A session that assumes git protects a file under `docs/` is wrong twice over.
 
-⚠️ **`docs/TODO.md` is 0 bytes right now**, awaiting an owner-run restore. Do not
-read it as evidence of anything, and do not write to it.
+⚠️ **`docs/TODO.md` was ZEROED at 08:02 on 2026-09-07 by a shell redirect and
+RESTORED byte-exact at 14:02** — 183,869 bytes, out of the R2 docs snapshot, because
+there was no git history to use. **It is current again; read it.**
+🔴 **Write a doc via a TEMP FILE + `os.replace`, never `>` / `Set-Content` /
+`Out-File`** — a redirect truncates its target before the writing command produces a
+byte. Incident banner: top of `docs/TODO.md`. Symptom entry: `docs/info/gotchas.md`,
+*"I rewrote a doc and now it is 0 bytes"*.
 
 ## 🔴 THIS MACHINE IS THE LIVE PIPELINE BOX
 
