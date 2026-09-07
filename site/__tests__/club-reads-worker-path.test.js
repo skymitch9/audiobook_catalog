@@ -4,8 +4,12 @@
 // Feature: auth-migration Phase 3a, surface 3 — site/club-reads.js on the
 // Worker's read-lifecycle, schedule and poll routes.
 //
-// Seven functions move. Beyond the four properties surfaces 1 and 2 pin, this
-// file carries the two that are specific to reads:
+// NINE functions move as of 2026-09-07 — the seven original ones, plus the
+// MODERATION arm of deleteComment and deleteQuote (the `comment.modDelete` /
+// `quote.modDelete` gap Phase 3a recorded and W15-AB-ENFORCE closed).
+//
+// Beyond the four properties surfaces 1 and 2 pin, this file carries three
+// that are specific to reads:
 //
 //   7. ⚠️ `updateReadLabel` DOES NOT MOVE. `slotLabel` is member-editable by
 //      design, `read.setSlot` is `{kind:'signedIn'}`, and enforce-routes.ts
@@ -16,6 +20,10 @@
 //   8. ⚠️ `refreshClubAvatar` still runs after a Worker finish/remove, and a
 //      failure to repaint the club card must NOT report the action as
 //      failed. It is a member-open presentation write on both paths.
+//   9. ⚠️ Only the MODERATION arm of deleteComment/deleteQuote moves. Removing
+//      YOUR OWN comment or quote is a member-open write with no shadow action
+//      and no route, and it stays browser-direct WITH THE FLAG ON — the same
+//      shape of decision as `updateReadLabel` above, pinned the same way.
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
@@ -56,9 +64,12 @@ vi.mock('firebase/auth', () => ({
   onAuthStateChanged: (auth, cb) => { cb(currentUser); return () => {}; },
 }));
 
+import { reportGate } from '../gate-shadow.js';
 import {
   createPoll,
+  deleteComment,
   deletePoll,
+  deleteQuote,
   finishRead,
   removeRead,
   revealRatings,
@@ -91,6 +102,7 @@ beforeEach(() => {
   flagOn = false;
   currentUser = { getIdToken: async () => 'live-token' };
   fsCalls.length = 0;
+  reportGate.mockClear();
   getDocImpl = async () => ({ exists: () => true, data: () => ({ milestones: [] }) });
 });
 
@@ -279,5 +291,98 @@ describe('⚠️ updateReadLabel STAYS browser-direct — the settled decision',
     expect(result).toEqual({ success: true });
     expect(fetchMock).not.toHaveBeenCalled();
     expect(writes()).toEqual([['updateDoc', 'clubs/c1/reads/r1', { slotLabel: 'Side read' }]]);
+  });
+});
+
+/* ── the two MODERATION deletes (2026-09-07, W15-AB-ENFORCE) ──────────────
+ *
+ * `comment.modDelete` and `quote.modDelete` had a shadow gate and no route
+ * until now. What is worth pinning is the HALF that moved: only the
+ * moderation arm. A member removing their own comment or quote is a
+ * member-open write the Worker has no route for and should not have one.
+ */
+
+describe('deleteComment / deleteQuote — only the MODERATION arm moves', () => {
+  it('FLAG OFF: both arms write Firestore and the moderation arm still reports', async () => {
+    const fetchMock = stubFetch();
+
+    await deleteComment({}, 'c1', 'r1', 'x', { asModerator: true });
+    await deleteQuote({}, 'c1', 'r1', 'q1', { asModerator: true });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(writes().map((c) => [c[0], c[1]])).toEqual([
+      ['deleteDoc', 'clubs/c1/reads/r1/comments/x'],
+      ['updateDoc', 'clubs/c1/reads/r1'],
+      ['deleteDoc', 'clubs/c1/reads/r1/quotes/q1'],
+    ]);
+    expect(reportGate).toHaveBeenCalledWith('comment.modDelete', { clubId: 'c1', succeeded: true });
+    expect(reportGate).toHaveBeenCalledWith('quote.modDelete', { clubId: 'c1', succeeded: true });
+  });
+
+  it('FLAG ON: a moderation delete calls the route enforce-routes.ts mounts', async () => {
+    flagOn = true;
+    const fetchMock = stubFetch();
+
+    expect(await deleteComment({}, 'c1', 'r1', 'x', { asModerator: true }))
+      .toEqual({ success: true });
+    expect(call(fetchMock, 0))
+      .toEqual(['DELETE', '/api/clubs/c1/reads/r1/comments/x']);
+
+    expect(await deleteQuote({}, 'c1', 'r1', 'q1', { asModerator: true }))
+      .toEqual({ success: true });
+    expect(call(fetchMock, 1))
+      .toEqual(['DELETE', '/api/clubs/c1/reads/r1/quotes/q1']);
+
+    // ⚠️ Nothing else happened: no Firestore write at all, and in particular
+    // no second commentCount decrement — the route owns the counter.
+    expect(fsCalls).toEqual([]);
+  });
+
+  it('FLAG ON: sends NO ab_gate_shadow report — the Worker writes its own line', async () => {
+    flagOn = true;
+    stubFetch();
+    await deleteComment({}, 'c1', 'r1', 'x', { asModerator: true });
+    await deleteQuote({}, 'c1', 'r1', 'q1', { asModerator: true });
+    expect(reportGate).not.toHaveBeenCalled();
+  });
+
+  it('⚠️ FLAG ON: removing YOUR OWN comment or quote stays browser-direct', async () => {
+    flagOn = true;
+    const fetchMock = stubFetch();
+
+    await deleteComment({}, 'c1', 'r1', 'x');
+    await deleteQuote({}, 'c1', 'r1', 'q1', { asModerator: false });
+
+    // The one place a later session would "finish the job" and take away
+    // every member's ability to retract their own words.
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(writes().map((c) => [c[0], c[1]])).toEqual([
+      ['deleteDoc', 'clubs/c1/reads/r1/comments/x'],
+      ['updateDoc', 'clubs/c1/reads/r1'],
+      ['deleteDoc', 'clubs/c1/reads/r1/quotes/q1'],
+    ]);
+    // …and a self-delete still reports nothing, on either path.
+    expect(reportGate).not.toHaveBeenCalled();
+  });
+
+  it('FLAG ON: a refusal is worded, touches no Firestore and never falls back', async () => {
+    flagOn = true;
+    const detail = 'This action needs the "operateClub" capability, which the moderator role holds.';
+    stubFetch(async () => ({ ok: false, status: 403, json: async () => ({ detail }) }));
+
+    expect(await deleteComment({}, 'c1', 'r1', 'x', { asModerator: true }))
+      .toEqual({ success: false, error: detail });
+    expect(await deleteQuote({}, 'c1', 'r1', 'q1', { asModerator: true }))
+      .toEqual({ success: false, error: detail });
+    expect(fsCalls).toEqual([]);
+  });
+
+  it('FLAG ON: an unreachable Worker is worded as an OUTAGE, not a permission failure', async () => {
+    flagOn = true;
+    stubFetch(async () => { throw new TypeError('Failed to fetch'); });
+    const result = await deleteComment({}, 'c1', 'r1', 'x', { asModerator: true });
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/connection problem, not a permission one/i);
+    expect(fsCalls).toEqual([]);
   });
 });

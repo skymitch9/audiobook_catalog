@@ -16,7 +16,7 @@ import { seg, workerWrite } from './worker-writes.js';
 
 /* ── Phase 3a: the Worker path, behind AUTH_ROUTES_CLUB_READS ─────────────
  *
- * Seven of this file's write functions have a mirror route in the audiobook
+ * Nine of this file's write functions have a mirror route in the audiobook
  * Worker (catalog-platform/apps/audiobook-worker/src/enforce-routes.ts):
  *
  *   setReadSchedule  PUT    /api/clubs/:c/reads/:r/schedule        operateClub
@@ -26,6 +26,22 @@ import { seg, workerWrite } from './worker-writes.js';
  *   createPoll       POST   /api/clubs/:c/polls                    operateClub
  *   setPollStatus    PUT    /api/clubs/:c/polls/:p/status          operateClub
  *   deletePoll       DELETE /api/clubs/:c/polls/:p                 operateClub
+ *   deleteComment*   DELETE /api/clubs/:c/reads/:r/comments/:id    operateClub
+ *   deleteQuote*     DELETE /api/clubs/:c/reads/:r/quotes/:id      operateClub
+ *
+ * ⚠️ *THE LAST TWO MOVE ONLY ON THEIR MODERATION ARM* — `opts.asModerator`,
+ * the same bit that decides whether they report to the shadow. Deleting YOUR
+ * OWN comment or quote is a member-open write with no shadow action, no rules
+ * clause to mirror and no route on the Worker, and it stays browser-direct
+ * WITH THE FLAG ON. A test pins that, because "finish the job" here would take
+ * away every member's ability to retract their own words. The Worker's routes
+ * are named `comment.modDelete` / `quote.modDelete` for exactly this reason.
+ *
+ * ⚠️ The counter differs by a hair on the two paths, deliberately: the browser
+ * bumps `commentCount` with Firestore's atomic `increment(-1)`, the Worker
+ * does a preconditioned read-modify-write that FLOORS AT ZERO and refuses an
+ * already-deleted comment rather than decrementing twice. Same end state, one
+ * fewer way to end up showing a negative count.
  *
  * ⚠️ `updateReadLabel` (the read-card rename, `slotLabel`) DOES NOT MOVE, and
  * this is a decision rather than an omission — settled 2026-09-06, recorded in
@@ -36,11 +52,10 @@ import { seg, workerWrite } from './worker-writes.js';
  * states outright that there is DELIBERATELY no route to mirror it. Wiring one
  * would take the pencil away from every ordinary member.
  *
- * ⚠️ Nothing else in this file moves either. Comments, quotes, reactions,
- * pins, progress, ratings, votes, RSVPs and the club TBR are member-open
- * writes; `comment.modDelete` and `quote.modDelete` exist in the shadow
- * vocabulary but have NO enforce route, so their moderator deletes stay
- * browser-direct and are recorded as a gap rather than invented here.
+ * ⚠️ Nothing else in this file moves either. Reactions, pins, progress,
+ * ratings, votes, RSVPs and the club TBR are member-open writes with no gate
+ * to enforce — as are comments and quotes themselves, right up to the moment
+ * somebody removes ANOTHER person's.
  *
  * ⚠️ `refreshClubAvatar` stays browser-direct on BOTH paths — it is a
  * member-open presentation write and the Worker's module doc says so
@@ -991,8 +1006,28 @@ export async function getQuotes(db, clubId, readId) {
  * a worker-bound surface in the auth migration, so only that case reports
  * to the Phase 1 shadow; deleting your own quote stays browser-direct and
  * unreported (a self-delete report would pollute the would_deny soak).
+ *
+ * ⚠️ AND ONLY THAT CASE TAKES THE WORKER PATH when AUTH_ROUTES_CLUB_READS is
+ * on. The saver removing their own line keeps writing Firestore directly, on
+ * both paths, because the Worker has no route for it and should not: it is a
+ * member-open write. The flag switches the MODERATION arm, nothing else.
  */
 export async function deleteQuote(db, clubId, readId, quoteId, opts) {
+  const asModerator = !!(opts && opts.asModerator);
+
+  if (asModerator && flagEnabled('AUTH_ROUTES_CLUB_READS')) {
+    // ⚠️ No ab_gate_shadow report on this path — the Worker logs its own
+    // `ab_gate` line (mode enforce) and a shadow line beside it would count
+    // one action twice in the soak ledger, carrying a `succeeded` bit that
+    // describes an HTTP call rather than the Firestore write the flip
+    // criterion is about.
+    const result = await workerWrite(
+      'DELETE',
+      `/api/clubs/${seg(clubId)}/reads/${seg(readId)}/quotes/${seg(quoteId)}`,
+    );
+    return result.success ? { success: true } : { success: false, error: result.error };
+  }
+
   let succeeded = false; // the shadow report's outcome bit — see the finally
   try {
     await deleteDoc(doc(db, col('clubs'), clubId, 'reads', readId, 'quotes', quoteId));
@@ -1001,7 +1036,7 @@ export async function deleteQuote(db, clubId, readId, quoteId, opts) {
   } catch (e) {
     return { success: false, error: describeActionError(e, { need: 'to be the person who saved it, or hold the host/moderator role' }) };
   } finally {
-    if (opts && opts.asModerator) {
+    if (asModerator) {
       reportGate('quote.modDelete', { clubId, succeeded }); // Phase 1 shadow — fire-and-forget
     }
   }
@@ -1009,10 +1044,26 @@ export async function deleteQuote(db, clubId, readId, quoteId, opts) {
 
 /**
  * Delete a comment (author or host/moderator — enforced in the UI).
- * `opts.asModerator` — same contract as deleteQuote above: only a
- * moderation delete (not the author's own) reports to the Phase 1 shadow.
+ * `opts.asModerator` — same contract as deleteQuote above, in both halves:
+ * only a moderation delete (not the author's own) reports to the Phase 1
+ * shadow, and only a moderation delete takes the Worker path under
+ * AUTH_ROUTES_CLUB_READS.
+ *
+ * ⚠️ On the Worker path the `commentCount` decrement is the ROUTE's job, not
+ * this function's — `enforce-routes.ts` deletes the comment and takes the
+ * count down in one request. Doing it here as well would double-decrement.
  */
 export async function deleteComment(db, clubId, readId, commentId, opts) {
+  const asModerator = !!(opts && opts.asModerator);
+
+  if (asModerator && flagEnabled('AUTH_ROUTES_CLUB_READS')) {
+    const result = await workerWrite(
+      'DELETE',
+      `/api/clubs/${seg(clubId)}/reads/${seg(readId)}/comments/${seg(commentId)}`,
+    );
+    return result.success ? { success: true } : { success: false, error: result.error };
+  }
+
   let succeeded = false; // the shadow report's outcome bit — see the finally
   try {
     await deleteDoc(doc(db, col('clubs'), clubId, 'reads', readId, 'comments', commentId));
@@ -1022,7 +1073,7 @@ export async function deleteComment(db, clubId, readId, commentId, opts) {
   } catch (e) {
     return { success: false, error: describeActionError(e, { need: 'to be the comment author, or hold the host/moderator role' }) };
   } finally {
-    if (opts && opts.asModerator) {
+    if (asModerator) {
       reportGate('comment.modDelete', { clubId, succeeded }); // Phase 1 shadow — fire-and-forget
     }
   }

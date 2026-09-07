@@ -14,6 +14,34 @@ import { bookIdFromTitle } from './reviews.js';
 import { describeActionError } from './permission-ux.js';
 import { getLiveUser } from './identity.js';
 import { reportGate } from './gate-shadow.js';
+import { flagEnabled } from './flags.js';
+import { seg, workerWrite } from './worker-writes.js';
+
+/* ── Phase 3a: the Worker path, behind AUTH_ROUTES_WARNINGS ───────────────
+ *
+ * ONE of this file's write functions has mirror routes in the audiobook Worker
+ * (catalog-platform/apps/audiobook-worker/src/enforce-routes.ts) — and it has
+ * TWO of them, because `deleteUserWarning` has always been one function with
+ * two gates (the 2026-08-17 split, owner-approved):
+ *
+ *   your own note      DELETE /api/warnings/:docId            warning.selfDelete
+ *   anyone else's note DELETE /api/warnings/:docId/moderate   warning.modDelete
+ *
+ * ⚠️ The choice between them is made HERE, by the same `authored` boolean that
+ * already chooses which shadow action to report — and the Worker does NOT take
+ * that choice on trust. The self route re-checks `authorUid == uid` against the
+ * stored document (firestore.rules' `warningAuthorIsRequester`), so a client
+ * that named the wrong route gets a worded refusal, not a delete.
+ *
+ * ⚠️ `addUserWarning` and `requestWarningCheck` do NOT move, and neither has a
+ * route. Both are member-open creates the rules keep shape-only; `cw_requests`
+ * in particular is money-gated by `request.auth != null` in the rules and by
+ * nothing here.
+ *
+ * ⚠️ No fallback, worded refusals, and no `ab_gate_shadow` report on the
+ * Worker path — the Worker writes its own `ab_gate` line and a shadow line
+ * beside it would count one action twice. Same three notes as clubs.js.
+ */
 
 export const MAX_WARNING_LABEL = 80;
 
@@ -188,6 +216,23 @@ export async function getWarningRequest(db, bookTitle) {
  * Blind spot #3 of the 2026-08-16 soak audit: this module reported NOTHING
  * before, so the moderator surface measured as unused rather than as absent.
  *
+ * ## Two paths, one behaviour, chosen by `AUTH_ROUTES_WARNINGS` (site/flags.js)
+ *
+ * FLAG OFF (the shipped default): the browser deletes the document directly,
+ * rules-enforced by `canDeleteUserWarning()` exactly as it has been since
+ * 2026-08-17. Nothing below changes.
+ *
+ * FLAG ON: the delete goes to whichever of the Worker's two routes matches the
+ * arm this attempt is on — the same split the shadow actions above already
+ * name. The gain over the rules is the estate check: `firestore.rules` can only
+ * ask whether a `site_roles` doc says moderator, so a REVOKED moderator whose
+ * doc still stands keeps this power today; the Worker asks the household
+ * directory too, and refuses. (The SELF arm is `{kind:'signedIn'}` and reaches
+ * no estate check on either path — removing your own note is not a role.)
+ *
+ * ⚠️ NO FALLBACK. A Worker refusal or outage is returned as a worded error and
+ * never retried through Firestore (worker-writes.js rule 1).
+ *
  * @param {object} db
  * @param {{id: string, displayName?: string, authorUid?: string}} warning
  * @param {{displayName: string}} session the localStorage mirror (presentation)
@@ -223,6 +268,18 @@ export async function deleteUserWarning(db, warning, session, opts) {
       error: 'This note was added before removals were tied to your account, so only a '
            + 'site moderator can take it down. Add it again and it becomes yours to remove.',
     };
+  }
+
+  if (flagEnabled('AUTH_ROUTES_WARNINGS')) {
+    // ⚠️ The SAME boolean that picks the shadow action picks the route, so the
+    // two can never disagree about which floor this attempt was measured
+    // against. `authored` here means "the stored authorUid is my live uid" —
+    // exactly what the self route re-verifies server-side.
+    const result = await workerWrite(
+      'DELETE',
+      authored ? `/api/warnings/${seg(warning.id)}` : `/api/warnings/${seg(warning.id)}/moderate`,
+    );
+    return result.success ? { success: true } : { success: false, error: result.error };
   }
 
   let succeeded = false; // the shadow report's outcome bit — see the finally

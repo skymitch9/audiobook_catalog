@@ -2,9 +2,12 @@
 // ES module, browser-native (no build step)
 //
 // Phase 3a of the auth migration (catalog-platform/docs/info/
-// audiobook-auth-migration.md §5) switches three write surfaces from
-// browser-direct Firestore writes onto the audiobook Worker's 18 enforce
-// routes. §5's own rule for that phase is:
+// audiobook-auth-migration.md §5) switches four write surfaces from
+// browser-direct Firestore writes onto the audiobook Worker's 22 enforce
+// routes. (It was three surfaces and 18 routes when this file was written on
+// 2026-09-06; the fourth surface and the last four routes landed 2026-09-07,
+// closing the `comment.modDelete` / `quote.modDelete` / `warning.*Delete` gap
+// Phase 3a had recorded.) §5's own rule for that phase is:
 //
 //     "3a. Worker endpoints live, client switched behind a per-surface flag
 //      (old direct-write path kept in code one release)."
@@ -58,8 +61,26 @@ export const FLAG_DEFAULTS = {
   AUTH_ROUTES_REVIEWS: false,
   /** site/clubs.js    — the club doc, webhook, claim and member ops */
   AUTH_ROUTES_CLUBS: false,
-  /** site/club-reads.js — read lifecycle, schedule and the three poll ops */
+  /**
+   * site/club-reads.js — read lifecycle, schedule, the three poll ops, and
+   * (since 2026-09-07) the two MODERATION deletes: someone else's comment and
+   * someone else's quote. ⚠️ Nine functions on one flag now, not seven —
+   * because the convention here is ONE FLAG PER FILE, not per route. A
+   * per-route flag would multiply the rollout surface without giving anyone a
+   * finer decision than "is this module's writes enforced yet".
+   */
   AUTH_ROUTES_CLUB_READS: false,
+  /**
+   * site/user-warnings.js — deleteUserWarning, whose two arms take two routes
+   * (added 2026-09-07). The FOURTH surface, and it needed its own flag rather
+   * than a share of another for the same reason the first three are separate:
+   * it is its own file, it can be switched on and reviewed alone, and the
+   * `user_content_warnings` collection has nothing to do with clubs.
+   *
+   *   your own note      → DELETE /api/warnings/:docId
+   *   anyone else's note → DELETE /api/warnings/:docId/moderate
+   */
+  AUTH_ROUTES_WARNINGS: false,
 };
 
 /** The localStorage key holding the per-browser override map. */

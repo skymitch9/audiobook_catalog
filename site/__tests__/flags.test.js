@@ -29,11 +29,15 @@ describe('flags — the shipped defaults', () => {
     }
   });
 
-  it('names the three Phase 3a surfaces and nothing else', () => {
+  it('names the four Phase 3a surfaces and nothing else', () => {
+    // ⚠️ AUTH_ROUTES_WARNINGS joined 2026-09-07 with the two content-note
+    // routes (site/user-warnings.js). A fifth name appearing here without a
+    // surface behind it is a flag nobody can explain from reading flags.js.
     expect(Object.keys(FLAG_DEFAULTS).sort()).toEqual([
       'AUTH_ROUTES_CLUBS',
       'AUTH_ROUTES_CLUB_READS',
       'AUTH_ROUTES_REVIEWS',
+      'AUTH_ROUTES_WARNINGS',
     ]);
   });
 
