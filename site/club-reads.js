@@ -11,6 +11,45 @@ import { coverUrl } from './covers-base.js';
 import { slugifyName } from './identity.js';
 import { describeActionError } from './permission-ux.js';
 import { reportGate } from './gate-shadow.js';
+import { flagEnabled } from './flags.js';
+import { seg, workerWrite } from './worker-writes.js';
+
+/* ── Phase 3a: the Worker path, behind AUTH_ROUTES_CLUB_READS ─────────────
+ *
+ * Seven of this file's write functions have a mirror route in the audiobook
+ * Worker (catalog-platform/apps/audiobook-worker/src/enforce-routes.ts):
+ *
+ *   setReadSchedule  PUT    /api/clubs/:c/reads/:r/schedule        operateClub
+ *   finishRead       POST   /api/clubs/:c/reads/:r/finish          operateClub
+ *   removeRead       DELETE /api/clubs/:c/reads/:r                 operateClub
+ *   revealRatings    POST   /api/clubs/:c/reads/:r/reveal-ratings  operateClub
+ *   createPoll       POST   /api/clubs/:c/polls                    operateClub
+ *   setPollStatus    PUT    /api/clubs/:c/polls/:p/status          operateClub
+ *   deletePoll       DELETE /api/clubs/:c/polls/:p                 operateClub
+ *
+ * ⚠️ `updateReadLabel` (the read-card rename, `slotLabel`) DOES NOT MOVE, and
+ * this is a decision rather than an omission — settled 2026-09-06, recorded in
+ * the audiobook TODO's "Role model" section. `slotLabel` is member-editable by
+ * design: firestore.rules deliberately keeps it out of MANAGED_READ_FIELDS
+ * ("commentCount bumps and slot labels stay open"), its shadow action
+ * `read.setSlot` is `{ kind: 'signedIn' }`, and `enforce-routes.ts:51–53`
+ * states outright that there is DELIBERATELY no route to mirror it. Wiring one
+ * would take the pencil away from every ordinary member.
+ *
+ * ⚠️ Nothing else in this file moves either. Comments, quotes, reactions,
+ * pins, progress, ratings, votes, RSVPs and the club TBR are member-open
+ * writes; `comment.modDelete` and `quote.modDelete` exist in the shadow
+ * vocabulary but have NO enforce route, so their moderator deletes stay
+ * browser-direct and are recorded as a gap rather than invented here.
+ *
+ * ⚠️ `refreshClubAvatar` stays browser-direct on BOTH paths — it is a
+ * member-open presentation write and the Worker's module doc says so
+ * explicitly. finishRead/removeRead still call it after the Worker succeeds,
+ * so the club card is refreshed either way.
+ *
+ * No fallback, worded refusals, and no ab_gate_shadow on the Worker path —
+ * see the same notes in clubs.js.
+ */
 
 export const MAX_ACTIVE_READS = 2;
 export const MAX_MILESTONES = 400;
@@ -296,6 +335,18 @@ export function scheduleStatus(milestones, progress, chaptered, nowMs) {
  * schedule structure — and stamps scheduleUpdatedAt.
  */
 export async function setReadSchedule(db, clubId, readId, dueAts) {
+  if (flagEnabled('AUTH_ROUTES_CLUB_READS')) {
+    // The Worker re-stamps dueAt POSITIONALLY over the milestones sorted by
+    // position, exactly as below, and treats every other milestone field as a
+    // raw wire value so nothing else is rewritten. `null` clears a slot.
+    const result = await workerWrite(
+      'PUT',
+      `/api/clubs/${seg(clubId)}/reads/${seg(readId)}/schedule`,
+      { dueAts: Array.isArray(dueAts) ? dueAts : [] },
+    );
+    return result.success ? { success: true } : { success: false, error: result.error };
+  }
+
   // The shadow report's outcome bit — see the `finally` below and
   // gate-shadow.js. Set on the ONE success path; every other exit (an early
   // `success: false` inside the try, or a throw) leaves it false, which is
@@ -562,6 +613,25 @@ export async function getReads(db, clubId) {
  * a site moderator. Unclaimed clubs stay open, as they always were.
  */
 export async function removeRead(db, clubId, readId) {
+  if (flagEnabled('AUTH_ROUTES_CLUB_READS')) {
+    const result = await workerWrite(
+      'DELETE',
+      `/api/clubs/${seg(clubId)}/reads/${seg(readId)}`,
+    );
+    if (!result.success) return { success: false, error: result.error };
+    // ⚠️ The ratings sweep is COMPLETE on this path and best-effort on the
+    // one below: firestore.rules hides a blind read's ratings subcollection
+    // from every browser, so the client's own cleanup is refused and leaves
+    // orphans. The service account can list it. Strictly less orphan data,
+    // same end state.
+    //
+    // refreshClubAvatar stays browser-direct (member-open presentation write,
+    // enforce-routes.ts module doc) — so it still runs here, and a failure to
+    // repaint the club card must not report the removal as failed.
+    try { await refreshClubAvatar(db, clubId); } catch (e) { /* cosmetic only */ }
+    return { success: true };
+  }
+
   const clubRef = doc(db, col('clubs'), clubId);
   const readRef = doc(db, col('clubs'), clubId, 'reads', readId);
   let succeeded = false; // the shadow report's outcome bit — see the finally
@@ -671,6 +741,20 @@ export async function finishRead(db, clubId, readId, status) {
   if (status !== 'finished' && status !== 'abandoned') {
     return { success: false, error: 'Invalid status.' };
   }
+
+  if (flagEnabled('AUTH_ROUTES_CLUB_READS')) {
+    const result = await workerWrite(
+      'POST',
+      `/api/clubs/${seg(clubId)}/reads/${seg(readId)}/finish`,
+      { status },
+    );
+    if (!result.success) return { success: false, error: result.error };
+    // Member-open presentation write; a repaint failure is not a finish
+    // failure. See the note in removeRead.
+    try { await refreshClubAvatar(db, clubId); } catch (e) { /* cosmetic only */ }
+    return { success: true };
+  }
+
   const clubRef = doc(db, col('clubs'), clubId);
   const readRef = doc(db, col('clubs'), clubId, 'reads', readId);
   let succeeded = false; // the shadow report's outcome bit — see the finally
@@ -1495,6 +1579,27 @@ export async function createPoll(db, clubId, input, session) {
     ? validateNextBookOptions(input.options)
     : validatePollOptions(input.options);
   if (!oCheck.valid) return { success: false, error: oCheck.error };
+
+  if (flagEnabled('AUTH_ROUTES_CLUB_READS')) {
+    // The cleaned options go over as-is: `oCheck.options` is already the
+    // exact shape the route validates (trimmed strings, or {title, author,
+    // coverHref} refs), and the Worker stamps createdBy/createdBySlug from
+    // the display name it is handed — this site's presentation identity, the
+    // same value the direct path writes.
+    const result = await workerWrite('POST', `/api/clubs/${seg(clubId)}/polls`, {
+      type,
+      question: input.question.trim(),
+      options: oCheck.options,
+      readId: input.readId || null,
+      milestoneId: input.milestoneId || null,
+      milestonePosition:
+        typeof input.milestonePosition === 'number' ? input.milestonePosition : null,
+      displayName: session.displayName,
+    });
+    if (!result.success) return { success: false, error: result.error };
+    return { success: true, pollId: result.data && result.data.pollId };
+  }
+
   let succeeded = false; // the shadow report's outcome bit — see the finally
   try {
     const ref = doc(collection(db, col('clubs'), clubId, 'polls'));
@@ -1540,6 +1645,16 @@ export async function getPoll(db, clubId, pollId) {
  */
 export async function setPollStatus(db, clubId, pollId, status) {
   if (status !== 'open' && status !== 'closed') return { success: false, error: 'Invalid status.' };
+
+  if (flagEnabled('AUTH_ROUTES_CLUB_READS')) {
+    const result = await workerWrite(
+      'PUT',
+      `/api/clubs/${seg(clubId)}/polls/${seg(pollId)}/status`,
+      { status },
+    );
+    return result.success ? { success: true } : { success: false, error: result.error };
+  }
+
   let succeeded = false; // the shadow report's outcome bit — see the finally
   try {
     await updateDoc(doc(db, col('clubs'), clubId, 'polls', pollId), {
@@ -1557,6 +1672,16 @@ export async function setPollStatus(db, clubId, pollId, status) {
 
 /** Delete a poll and its votes (manager action). */
 export async function deletePoll(db, clubId, pollId) {
+  if (flagEnabled('AUTH_ROUTES_CLUB_READS')) {
+    // The Worker deletes the votes subcollection first, then the poll —
+    // the same order as below.
+    const result = await workerWrite(
+      'DELETE',
+      `/api/clubs/${seg(clubId)}/polls/${seg(pollId)}`,
+    );
+    return result.success ? { success: true } : { success: false, error: result.error };
+  }
+
   let succeeded = false; // the shadow report's outcome bit — see the finally
   try {
     const votesSnap = await getDocs(collection(db, col('clubs'), clubId, 'polls', pollId, 'votes'));
@@ -1808,6 +1933,14 @@ export async function rateBook(db, clubId, readId, rating, comment, session) {
  * a real instant to compare against.
  */
 export async function revealRatings(db, clubId, readId) {
+  if (flagEnabled('AUTH_ROUTES_CLUB_READS')) {
+    const result = await workerWrite(
+      'POST',
+      `/api/clubs/${seg(clubId)}/reads/${seg(readId)}/reveal-ratings`,
+    );
+    return result.success ? { success: true } : { success: false, error: result.error };
+  }
+
   let succeeded = false; // the shadow report's outcome bit — see the finally
   try {
     await updateDoc(doc(db, col('clubs'), clubId, 'reads', readId), {
