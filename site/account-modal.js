@@ -221,6 +221,11 @@ export function mountAccountModal(db, app, containerEl) {
     const gameAccuracy = (gameCorrect + gameWrong) > 0
       ? Math.round((gameCorrect / (gameCorrect + gameWrong)) * 100) : 0;
 
+    // ⚠️ CUT 2026-09-07 (owner rule "less grey paragraphs", audit item 157):
+    // the legacy block used to open with "The site now uses live Google
+    // sign-in. Sign in once to carry this account forward — your reviews and
+    // favorites stay put." A migration notice long past its moment. The
+    // BUTTON is the feature and stays; do not reinstate the sentence.
     container.innerHTML = `
       <div style="text-align:center;padding:10px 0">
         ${photo}
@@ -229,8 +234,7 @@ export function mountAccountModal(db, app, containerEl) {
       </div>
       ${session.legacy ? `
       <div style="border:1px solid var(--border,#2a2a3a);padding:10px;margin:10px 0;font-size:.8em;color:var(--muted,#8a8f98)">
-        The site now uses live Google sign-in. Sign in once to carry this account forward — your reviews and favorites stay put.
-        <button id="am-legacy-upgrade" style="width:100%;margin-top:8px;justify-content:center;padding:8px 12px;display:inline-flex;align-items:center;border:1px solid var(--border,#2a2a3a);background:var(--bg,#0a0a12);color:var(--text,#e8e6e3);font-weight:700;cursor:pointer;font-family:inherit">${GOOGLE_SVG}Continue with Google</button>
+        <button id="am-legacy-upgrade" style="width:100%;justify-content:center;padding:8px 12px;display:inline-flex;align-items:center;border:1px solid var(--border,#2a2a3a);background:var(--bg,#0a0a12);color:var(--text,#e8e6e3);font-weight:700;cursor:pointer;font-family:inherit">${GOOGLE_SVG}Continue with Google</button>
       </div>` : ''}
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0;text-align:center">
         <div class="am-stat"><div class="v" id="am-review-count">...</div><div class="l">Reviews</div></div>

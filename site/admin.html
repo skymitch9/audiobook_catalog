@@ -245,8 +245,16 @@
   // full so the page can name the exact role and uid it was let in on. It
   // is enforced end to end — the same doc powers the site-admin clause in
   // firestore.rules. Browsers cannot list the collection (own-doc reads
-  // only), so a full roster stays a server-side concern; this panel is
-  // honest about that.
+  // only), so a full roster stays a server-side concern.
+  //
+  // ⚠️ CUT 2026-09-07 (owner rule "less grey paragraphs", audit item 164):
+  // the admin and moderator branches each ended with an identical
+  // <p class="pl-hint">"Only your own role is readable from a browser; the
+  // full roster lives server-side (heygabi.ai/admin role dropdown /
+  // scripts/seed_site_admin.py as break-glass)."</p> — an implementation
+  // detail, printed TWICE. The home of record is this comment. The
+  // no-role branch's hint is a DIFFERENT string and stays: it is the only
+  // thing on the page telling somebody without a role where to get one.
   async function initSiteRolePanel() {
     const section = document.getElementById('site-role-section');
     const card = document.getElementById('site-role-card');
@@ -256,16 +264,12 @@
     if (role && role.role === 'admin') {
       card.innerHTML = '<div><strong style="color:#48bb78">admin</strong> — rules-enforced '
         + '(<code>site_roles/' + role.uid + '</code>). Club pages show host/mod controls on every club, '
-        + 'Firestore accepts your manager-gated club writes, and you can remove any review site-wide.</div>'
-        + '<p class="pl-hint">Only your own role is readable from a browser; the full roster lives '
-        + 'server-side (heygabi.ai/admin role dropdown / scripts/seed_site_admin.py as break-glass).</p>';
+        + 'Firestore accepts your manager-gated club writes, and you can remove any review site-wide.</div>';
     } else if (role && role.role === 'moderator') {
       card.innerHTML = '<div><strong style="color:#4fd1c5">moderator</strong> — rules-enforced '
         + '(<code>site_roles/' + role.uid + '</code>). Club pages show the operational controls on every '
         + 'club: membership, content removal, schedule, polls and meetings. Structural settings '
-        + '(features/webhook/identity/roster/deletes) and site-wide review removal stay admin-only.</div>'
-        + '<p class="pl-hint">Only your own role is readable from a browser; the full roster lives '
-        + 'server-side (heygabi.ai/admin role dropdown / scripts/seed_site_admin.py as break-glass).</p>';
+        + '(features/webhook/identity/roster/deletes) and site-wide review removal stay admin-only.</div>';
     } else {
       card.innerHTML = '<div>No rules-enforced site role for this Google account.</div>'
         + '<p class="pl-hint">Roles are granted at heygabi.ai/admin (or scripts/seed_site_admin.py as '

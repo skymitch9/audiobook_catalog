@@ -102,8 +102,7 @@ export function renderStatus(el, status) {
     el.innerHTML = `<div class="pl-card pl-card--idle">
       <div class="pl-head"><span class="pl-dot pl-dot--idle"></span><strong>Automated Book Pipeline</strong>
       <span class="pl-state">no runs recorded yet</span></div>
-      <p class="pl-hint">The status card fills in the first time the pipeline runs
-      with credentials configured.</p></div>`;
+      <p class="pl-hint">Fills in on the first run.</p></div>`;
     return;
   }
 

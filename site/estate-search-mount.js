@@ -145,11 +145,12 @@ export async function mountEstateSearch({ app, host }) {
   }
   // No `scan` attribute: estate-scan.js is not vendored (see
   // SOURCE-estate-search.txt) and scanning is not this page's surface.
-  el.setAttribute(
-    'hint',
-    'Checks the library books and board games too — the search box above covers only this catalog. ' +
-    'Anyone can search the audiobooks; sign in to search every shelf.',
-  );
+  // ⚠️ CUT 2026-09-07 (owner rule "less grey paragraphs", audit item 174):
+  // the `hint` attribute read "Checks the library books and board games too —
+  // the search box above covers only this catalog. Anyone can search the
+  // audiobooks; sign in to search every shelf." The fold's own summary
+  // already says "Search the whole estate", and the component states its own
+  // signed-out condition. No hint is set now — do not reinstate one.
 
   el.addEventListener('estate-search:select', (event) => {
     const detail = event.detail || {};

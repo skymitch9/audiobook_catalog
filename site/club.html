@@ -70,7 +70,8 @@ body{
 .rsvp-btn:hover:not(:disabled){border-color:var(--neon-cyan);color:var(--neon-cyan)}
 .rsvp-btn:disabled{cursor:default;opacity:.6}
 .rsvp-btn.mine{border-color:var(--neon-yellow);color:var(--neon-yellow)}
-.rsvp-hint{margin-top:6px;color:var(--muted);font-size:.78em}
+/* .rsvp-hint went with audit item 170 (2026-09-07) — the non-member hint it
+   styled is gone, and so are the disabled buttons it explained. */
 .rsvp-tally{display:flex;flex-wrap:wrap;gap:16px;margin-top:8px}
 .rsvp-group-label{color:var(--muted);font-family:var(--et-font-mono);font-size:.75em;text-transform:var(--et-title-case)}
 .rsvp-names{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}
@@ -466,7 +467,9 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
           <input id="edit-meeting-at" type="datetime-local" />
           <textarea id="edit-meeting-notes" maxlength="500" rows="2"
             placeholder="Meeting notes — agenda, where, what to have read"></textarea>
-          <small style="color:var(--muted)">Leave the date empty for no scheduled meeting.</small>
+          <!-- ⚠️ CUT 2026-09-07 (owner rule "less grey paragraphs", audit item
+               167): "Leave the date empty for no scheduled meeting." An empty
+               optional date field already means no meeting. -->
         </div>
       </div>
     </details>
@@ -903,15 +906,21 @@ html[data-theme="cyberpunk"] .modal-panel h2{letter-spacing:1px !important}
           ).join('')}</div>` : ''}
         </div>`;
     };
+    // ⚠️ CHANGED 2026-09-07 (owner rule "less grey paragraphs", audit item
+    // 170). It used to render the three RSVP buttons DISABLED to a
+    // non-member and explain them underneath — "Join the club to RSVP —
+    // everyone can still download the calendar file." A control somebody
+    // cannot use is not rendered at all now; the calendar button, which
+    // everybody can use, is unconditional, so the row never goes empty.
+    // The tally stays visible to non-members exactly as before.
     return `
       <div class="rsvp-block">
         <div class="rsvp-row">
-          ${RSVP_RESPONSES.map(k =>
-            `<button class="rsvp-btn rsvp-${k}${mine === k ? ' mine' : ''}" data-rsvp="${k}"${canRsvp ? '' : ' disabled'}>${RSVP_LABELS[k]}${mine === k ? ' ✓' : ''}</button>`
-          ).join('')}
+          ${canRsvp ? RSVP_RESPONSES.map(k =>
+            `<button class="rsvp-btn rsvp-${k}${mine === k ? ' mine' : ''}" data-rsvp="${k}">${RSVP_LABELS[k]}${mine === k ? ' ✓' : ''}</button>`
+          ).join('') : ''}
           <button id="ics-download-btn" class="nav-link" style="padding:5px 12px;font-size:.8em">📅 Add to calendar</button>
         </div>
-        ${!canRsvp ? '<div class="rsvp-hint">Join the club to RSVP — everyone can still download the calendar file.</div>' : ''}
         <div class="rsvp-tally">${group('going', 'Going')}${group('maybe', 'Maybe')}${group('cant', "Can't")}</div>
       </div>`;
   }
