@@ -16,8 +16,12 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from scripts.drive_role_parity import (
+    ENFORCED_RUNGS,
     MASS_DRIFT_CAP,
     OWNER_PROTECTED_EMAILS,
+    ROLE_LADDER,
+    RUNG_MIN_DRIVE_LEVEL,
+    STORED_SITE_ROLES,
     apply_aliases,
     apply_to_drive,
     classify,
@@ -25,6 +29,12 @@ from scripts.drive_role_parity import (
     load_exceptions,
     normalize_email,
     plan_drive_changes,
+    required_drive_level,
+    rung_at_least,
+    rung_from_site_role,
+    rung_rank,
+    shadow_counts,
+    shadow_plan,
 )
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -643,6 +653,209 @@ class Step8WiringTestCase(unittest.TestCase):
         applied_report = [ln for ln in body.splitlines() if "_parity_report(\"applied\"" in ln]
         self.assertTrue(applied_report)
         self.assertNotIn("', '.join(applied)", applied_report[0])
+
+
+class LadderRankTestCase(unittest.TestCase):
+    """The canonical cumulative comparison — the Python twin of
+    role-ladder.ts's roleAtLeast. Every permission question in this repo goes
+    through rung_at_least; these are the properties that make that safe."""
+
+    def test_ladder_is_the_cumulative_order(self):
+        self.assertEqual(
+            ROLE_LADDER,
+            ("guest", "member", "contributor", "moderator", "admin", "owner"),
+        )
+
+    def test_each_tier_implies_every_tier_beneath_it(self):
+        """⚠️ The whole point of a cumulative ladder, asserted exhaustively
+        rather than at a couple of sample points: for every pair, `held`
+        satisfies `required` exactly when it sits at or above it."""
+        for hi, held in enumerate(ROLE_LADDER):
+            for lo, required in enumerate(ROLE_LADDER):
+                self.assertEqual(
+                    rung_at_least(held, required),
+                    hi >= lo,
+                    f"{held} vs {required}",
+                )
+
+    def test_rung_at_least_is_reflexive(self):
+        for rung in ROLE_LADDER:
+            self.assertTrue(rung_at_least(rung, rung))
+
+    def test_rung_rank_strictly_increases(self):
+        ranks = [rung_rank(r) for r in ROLE_LADDER]
+        self.assertEqual(ranks, sorted(ranks))
+        self.assertEqual(len(set(ranks)), len(ranks))
+
+    def test_rung_rank_raises_on_a_non_rung(self):
+        """A bad rung here is a programmer error. A live store's bad value
+        goes through rung_from_site_role, which returns None instead — the
+        two paths must not be collapsed."""
+        with self.assertRaises(ValueError):
+            rung_rank("wizard")
+
+    def test_guest_is_the_absence_of_a_row_never_a_stored_value(self):
+        """⚠️ The design's load-bearing rule: viewer/guest is NEVER stored."""
+        self.assertEqual(rung_from_site_role(None), "guest")
+        self.assertEqual(rung_from_site_role(""), "guest")
+        self.assertNotIn("guest", STORED_SITE_ROLES)
+        self.assertNotIn("owner", STORED_SITE_ROLES)
+
+    def test_retired_vocabulary_is_refused_not_coerced(self):
+        """'viewer'/'reader' were renamed 2026-08-16. Accepting them would
+        hide a store that never migrated; None means 'do not guess'."""
+        self.assertIsNone(rung_from_site_role("viewer"))
+        self.assertIsNone(rung_from_site_role("reader"))
+        self.assertIsNone(required_drive_level("reader"))
+
+    def test_required_drive_level_is_a_floor_shared_above_contributor(self):
+        """contributor/moderator/admin all floor at writer — Drive has three
+        levels for six rungs. A rank comparison would call every admin
+        under-granted forever."""
+        self.assertEqual(required_drive_level("member"), "reader")
+        for role in ("contributor", "moderator", "admin"):
+            self.assertEqual(required_drive_level(role), "writer")
+        self.assertEqual(required_drive_level(None), "none")
+
+    def test_every_ladder_rung_has_a_drive_floor(self):
+        self.assertEqual(set(RUNG_MIN_DRIVE_LEVEL), set(ROLE_LADDER))
+
+
+class LadderReachTestCase(unittest.TestCase):
+    """classify()'s new reach: the rungs that gained storage, split on
+    whether enforcing them hands access out or takes it back."""
+
+    def _rows(self, drive_level, site_role, status="approved"):
+        email = "person@gmail.com"
+        drive_perms = (
+            {email: {"role": drive_level, "id": "p1", "displayName": ""}}
+            if drive_level != "none"
+            else {}
+        )
+        estate_rows = {email: {"status": status, "is_approver": False, "is_devops": False}}
+        site_roles = {email: {"role": site_role}} if site_role else {}
+        return _buckets_for(drive_perms, estate_rows, site_roles)
+
+    # ---- LIVE: contributor joins the enforced rungs ----------------------
+
+    def test_contributor_is_enforced_live_like_moderator_and_admin(self):
+        self.assertEqual(ENFORCED_RUNGS, frozenset({"contributor", "moderator", "admin"}))
+
+    def test_contributor_below_writer_is_a_real_plan(self):
+        """The drift the old `site_role in ("admin","moderator")` check missed
+        entirely — a contributor the ladder gave upload and Drive never did."""
+        buckets = self._rows("reader", "contributor")
+        self.assertEqual(len(buckets["mismatch"]), 1)
+        self.assertEqual(buckets["mismatch"][0]["drive_fix"], "writer")
+        planned = plan_drive_changes(buckets, _exceptions())
+        self.assertEqual(len(planned), 1)
+        self.assertEqual(planned[0]["action"], "update_to_writer")
+
+    def test_contributor_at_writer_is_ok(self):
+        buckets = self._rows("writer", "contributor")
+        self.assertEqual(len(buckets["ok"]), 1)
+        self.assertEqual(plan_drive_changes(buckets, _exceptions()), [])
+
+    def test_member_and_contributor_no_longer_fall_into_the_false_ok_note(self):
+        """⚠️ The regression this whole change exists to kill: a stored rung
+        used to land in `ok` described as "no elevated site role on file"."""
+        for role in STORED_SITE_ROLES:
+            buckets = self._rows("reader", role)
+            for r in buckets["ok"]:
+                self.assertNotIn("no elevated site role", r["note"])
+
+    # ---- SHADOW: member and guest are computed, never planned ------------
+
+    def test_member_without_drive_is_shadow_only_never_planned(self):
+        """Access-INCREASING, and apply_to_drive() has no create verb."""
+        buckets = self._rows("none", "member")
+        self.assertEqual(len(buckets["mismatch"]), 1)
+        row = buckets["mismatch"][0]
+        self.assertIsNone(row["drive_fix"])
+        self.assertEqual(row["would_fix"], "grant_reader")
+        self.assertEqual(plan_drive_changes(buckets, _exceptions()), [])
+        self.assertEqual(shadow_counts(shadow_plan(buckets, _exceptions()))["grant_view"], 1)
+
+    def test_member_at_reader_is_ok(self):
+        buckets = self._rows("reader", "member")
+        self.assertEqual(len(buckets["ok"]), 1)
+        self.assertEqual(shadow_plan(buckets, _exceptions()), [])
+
+    def test_member_over_granted_to_writer_is_shadow_downgrade(self):
+        buckets = self._rows("writer", "member")
+        row = buckets["mismatch"][0]
+        self.assertIsNone(row["drive_fix"])
+        self.assertEqual(row["would_fix"], "update_to_reader")
+        self.assertEqual(plan_drive_changes(buckets, _exceptions()), [])
+        self.assertEqual(shadow_counts(shadow_plan(buckets, _exceptions()))["downgrade"], 1)
+
+    def test_guest_holding_drive_is_shadow_removal_never_planned(self):
+        """⚠️ Access-reducing, but the population is everyone granted Drive by
+        hand before the ladder existed. Enforcing before the owner grants
+        `member` revokes real people in the wrong order."""
+        buckets = self._rows("reader", None)
+        row = buckets["mismatch"][0]
+        self.assertIsNone(row["drive_fix"])
+        self.assertEqual(row["would_fix"], "remove")
+        self.assertEqual(plan_drive_changes(buckets, _exceptions()), [])
+        self.assertEqual(shadow_counts(shadow_plan(buckets, _exceptions()))["remove"], 1)
+
+    def test_guest_with_no_drive_is_the_correct_end_state(self):
+        buckets = self._rows("none", None)
+        self.assertEqual(len(buckets["role_only"]), 1)
+        self.assertEqual(buckets["mismatch"], [])
+        self.assertEqual(shadow_plan(buckets, _exceptions()), [])
+
+    def test_unrecognised_stored_role_is_reported_and_drive_left_alone(self):
+        buckets = self._rows("writer", "viewer")
+        row = buckets["mismatch"][0]
+        self.assertIsNone(row["drive_fix"])
+        self.assertIsNone(row.get("would_fix"))
+        self.assertEqual(plan_drive_changes(buckets, _exceptions()), [])
+        self.assertEqual(shadow_plan(buckets, _exceptions()), [])
+
+    # ---- the rails still hold on the shadow set --------------------------
+
+    def test_shadow_set_honours_owner_protection_and_the_exception_list(self):
+        """⚠️ The shadow number is evidence for a decision, so it must be the
+        number that would REALLY run — filtered by the same rails, or the
+        count shrinks the day it goes live and the shadow period proves
+        nothing."""
+        protected = sorted(OWNER_PROTECTED_EMAILS)[0]
+        drive_perms = {
+            protected: {"role": "reader", "id": "p1", "displayName": ""},
+            "excepted@gmail.com": {"role": "reader", "id": "p2", "displayName": ""},
+            "plain@gmail.com": {"role": "reader", "id": "p3", "displayName": ""},
+        }
+        estate_rows = {
+            e: {"status": "approved", "is_approver": False, "is_devops": False}
+            for e in drive_perms
+        }
+        exc = _exceptions(pending_outreach={"excepted@gmail.com": {"implies_role": "member"}})
+        buckets = _buckets_for(drive_perms, estate_rows, {}, exc)
+        shadowed = shadow_plan(buckets, exc)
+        self.assertEqual([s["email"] for s in shadowed], ["plain@gmail.com"])
+
+    def test_shadow_rows_never_reach_the_fuse_or_the_apply_path(self):
+        """More shadow rows than MASS_DRIFT_CAP must still plan nothing —
+        the enforcement gate is `drive_fix`, not the fuse."""
+        drive_perms, estate_rows, site_roles = {}, {}, {}
+        for i in range(MASS_DRIFT_CAP + 3):
+            email = f"guest{i}@gmail.com"
+            drive_perms[email] = {"role": "reader", "id": f"p{i}", "displayName": ""}
+            estate_rows[email] = {"status": "approved", "is_approver": False, "is_devops": False}
+        buckets = _buckets_for(drive_perms, estate_rows, site_roles)
+        self.assertEqual(plan_drive_changes(buckets, _exceptions()), [])
+        allowed, _ = fuse_check(plan_drive_changes(buckets, _exceptions()))
+        self.assertTrue(allowed, "an empty plan is within any cap")
+        self.assertEqual(len(shadow_plan(buckets, _exceptions())), MASS_DRIFT_CAP + 3)
+
+    def test_a_rung_held_without_an_approved_estate_row_still_loses_drive(self):
+        """The estate directory remains the gate that admits people: a
+        revoked contributor is a removal, not a writer upgrade."""
+        buckets = self._rows("writer", "contributor", status="revoked")
+        planned = plan_drive_changes(buckets, _exceptions())
+        self.assertEqual([p["action"] for p in planned], ["remove"])
 
 
 if __name__ == "__main__":

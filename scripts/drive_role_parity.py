@@ -38,14 +38,61 @@ Three sources, three different trust levels:
       $FIREBASE_SERVICE_ACCOUNT), same plumbing as seed_site_admin.py.
       REQUIRED; the script exits if this can't be read.
 
-⚠️ IMPORTANT GAP, not a bug: ROLES.md's role ladder (viewer < reader <
-contributor < moderator < admin < owner) is "DESIGN, partially built" — only
-admin/moderator are actually stored anywhere (Firestore site_roles). reader
-and contributor have NO per-user storage yet. So "approved in the estate
-directory, no site_roles doc" cannot be read as "role = reader" or "role =
-viewer" with certainty — it is reported as exactly what it is (approved
-membership, no elevated role on file) and never silently upgraded to a role
-this script invented.
+⚠️ THE GAP THIS FILE USED TO DESCRIBE IS CLOSED — read this before trusting
+any older comment below. Until 2026-09-07 this header said the ladder was
+"DESIGN, partially built" and that `reader`/`contributor` had NO per-user
+storage. Both halves are now stale:
+
+  * the ladder SHIPPED on 2026-08-16 as `guest < member < contributor <
+    moderator < admin < owner` (catalog-platform
+    `apps/auth-worker/src/role-ladder.ts`), and the bottom two rungs were
+    RENAMED in the same breath: `viewer` -> `guest`, `reader` -> `member`.
+    Any `viewer`/`reader` string anywhere in this repo is the retired
+    vocabulary; see rung_from_site_role(), which refuses to coerce it.
+  * `SITE_ROLES = ['member', 'contributor', 'moderator', 'admin']` are ALL
+    stored, in the same Firestore `site_roles/{uid}` doc this script already
+    reads. `guest` is still never stored — the ABSENCE of a doc IS guest —
+    and `owner` is DB-only.
+
+⚠️ WHAT IS ENFORCED HERE, AND WHAT IS DELIBERATELY NOT (2026-09-07). The
+ladder having storage does NOT mean every rung is safe to reconcile
+unattended, so the two halves are split on ONE axis — does the change hand
+access OUT, or take it BACK:
+
+  LIVE, applied every pipeline cycle behind MASS_DRIFT_CAP:
+    * `contributor` joins `moderator`/`admin` at the Drive `writer` floor.
+      Same action, same rails, same fuse as the two rungs already enforced —
+      the only thing that changed is that this script now RECOGNISES a third
+      stored value. Nothing new can happen to anyone who was not already
+      deliberately granted a rung in the portal.
+
+  SHADOW — computed, counted, printed, and applied to NOTHING:
+    * `member` with no Drive permission wants a Drive `reader` GRANT. Two
+      independent reasons it does not run: it is ACCESS-INCREASING (global
+      rule: act on access-reducing orders, CONFIRM access-increasing ones),
+      and apply_to_drive() has no create verb at all — it can update and
+      delete an existing permission and deliberately refuses to invent one
+      for an address Drive has never seen. Adding that verb to a script that
+      runs unattended every 8 hours is an owner decision, not a refactor.
+    * `guest` (no stored doc) still holding Drive access wants a REMOVE.
+      Access-reducing, so the global rule would say act — but the population
+      is every person who was granted Drive by hand BEFORE the ladder
+      existed and has never been given a rung in the portal. Enforcing it
+      first and granting rungs second revokes real people's books in the
+      wrong order. The right order is: the owner grants `member` to everyone
+      who should keep access, watches this shadow count fall to the people
+      who genuinely should lose it, and only then is enforcement flipped.
+    * `member` holding Drive `writer` wants a downgrade to `reader`. Small
+      and access-reducing, but it is a demotion of a real person's working
+      access on a comparison this script has never once been run against
+      live, and it needs an `update_to_reader` action the apply half does
+      not have. Grouped with the others rather than smuggled in alone.
+
+  The shadow counts ride in the report and in --json-summary
+  (`shadowWouldGrantView`, `shadowWouldRemove`, `shadowWouldDowngrade`) so
+  the numbers can be WATCHED falling before anything is flipped. That is the
+  estate's standard off -> shadow -> enforce rollout, and the flip procedure
+  is written out at LADDER_ENFORCEMENT below.
 
 THE EXCEPTION LIST (docs/access/drive-exceptions.json) — owner order
 2026-08-16: some Drive-only people are a known, temporary migration queue
@@ -72,17 +119,16 @@ SAFETY MODEL:
                              accounts — see below)
                            * anyone in drive-exceptions.json
                              (pending_outreach or permanent_exceptions)
-                         and SKIPS (never guesses) any row where the
-                         estate side is merely "approved, no elevated role"
-                         — that tier isn't implemented, so there is no role
-                         to enforce yet; forcing a level here would be
-                         exactly the naive reconciliation ROLES.md warns
-                         against,
+                         and SKIPS (never guesses) any row whose correct
+                         end state is only known in SHADOW — a `guest` still
+                         holding Drive, a `member` wanting a Drive grant or
+                         a downgrade. Those are computed and counted, never
+                         planned; see LADDER_ENFORCEMENT,
                          and refuses the WHOLE plan if it would change more
                          than MASS_DRIFT_CAP people in one run (the fuse).
       --apply-to-roles   report-only, always. Prints what role each Drive
                          permission level implies (writer -> contributor,
-                         reader -> reader) as a suggestion for the owner to
+                         reader -> member) as a suggestion for the owner to
                          act on by hand in the admin UI. NEVER writes
                          Firestore — granting a site role is a human act,
                          full stop.
@@ -146,21 +192,169 @@ OWNER_PROTECTED_EMAILS = {"nbaslamking@gmail.com", "mitchlandtv@gmail.com"}
 #   Drive permission  -> estate role
 #   owner              -> owner
 #   writer             -> contributor (or above)
-#   reader              -> reader (or above)
-#   (none)              -> viewer
+#   reader             -> member (or above)
+#   (none)             -> guest
 DRIVE_LEVEL_RANK = {"none": 0, "reader": 1, "writer": 2, "owner": 3}
 DRIVE_LEVEL_TO_ESTATE_LABEL = {
     "owner": "owner",
     "writer": "contributor (or above)",
-    "reader": "reader (or above)",
-    "none": "viewer",
+    "reader": "member (or above)",
+    "none": "guest",
 }
 DRIVE_LEVEL_TO_IMPLIED_ROLE = {
     "owner": "owner",
     "writer": "contributor",
-    "reader": "reader",
-    "none": "viewer",
+    "reader": "member",
+    "none": "guest",
 }
+
+# ---------------------------------------------------------------------------
+# THE LADDER — the ONE home for it in this repo (2026-09-07).
+#
+# MIRRORED from catalog-platform `apps/auth-worker/src/role-ladder.ts`, which
+# is the definition: that module owns rank, the grant rule and the capability
+# map, and this is a read-only copy of the ORDER so a Python script can make
+# the same comparison. tests/test_drive_rung_parity.py parses the .ts file and
+# asserts the two agree, because a mirror nobody checks is how two systems
+# drift into disagreeing about who may open what.
+#
+# ⚠️ These tables lived in scripts/drive_rung_parity.py until 2026-09-07 and
+# were MOVED here, not copied: that module imports its loaders from this one
+# already, so this is the end of the dependency that can hold them without a
+# cycle. It re-exports every name, so nothing that imported them from there
+# has to change. Two copies of a cumulative comparison is precisely the
+# near-duplicate rank check the ladder exists to prevent.
+#
+# ⚠️ `guest` is NEVER stored — the absence of a site_roles doc IS guest.
+# `owner` is DB-only and the grant API refuses it, so a role-side `owner`
+# cannot appear; an `owner` row here is always the Drive folder's own owner.
+# ---------------------------------------------------------------------------
+ROLE_LADDER: tuple[str, ...] = (
+    "guest",
+    "member",
+    "contributor",
+    "moderator",
+    "admin",
+    "owner",
+)
+
+# ROLES.md §2's table read left-to-right: a Drive permission proves at least
+# this rung.
+DRIVE_LEVEL_MIN_RUNG: dict[str, str] = {
+    "none": "guest",
+    "reader": "member",
+    "writer": "contributor",
+    "owner": "owner",
+}
+
+# The same table read right-to-left: this rung needs at least this Drive
+# level. ⚠️ contributor, moderator and admin ALL land on `writer`, and that is
+# not a rounding error — the ladder is cumulative and Drive has three levels
+# to spend on six rungs. It is why the reconciliation can only ever be "at
+# least", never "exactly", above `contributor`, and why a rank comparison
+# (admin=4 > contributor=2) would report every admin as under-granted forever.
+RUNG_MIN_DRIVE_LEVEL: dict[str, str] = {
+    "guest": "none",
+    "member": "reader",
+    "contributor": "writer",
+    "moderator": "writer",
+    "admin": "writer",
+    "owner": "owner",
+}
+
+# The roles the grant API will ever WRITE to a site_roles doc (role-ladder.ts
+# SITE_ROLES). Anything else in the store is either the pre-2026-08-16
+# vocabulary (`viewer`/`reader`) or corruption — either way it is REPORTED,
+# never coerced onto a rung this script picked.
+STORED_SITE_ROLES: tuple[str, ...] = ("member", "contributor", "moderator", "admin")
+
+
+def rung_rank(rung: str) -> int:
+    """Index on the ladder. Raises on a rung this module does not know — a
+    programmer error, never a value that reached here from a live store
+    (those go through rung_from_site_role, which returns None instead)."""
+    try:
+        return ROLE_LADDER.index(rung)
+    except ValueError:
+        raise ValueError(f"not a ladder rung: {rung!r}") from None
+
+
+def rung_at_least(held: str, required: str) -> bool:
+    """THE cumulative comparison. `held` includes everything beneath it.
+
+    ⚠️ This is the Python twin of role-ladder.ts's `roleAtLeast`, and it is
+    the only place in this repo that compares two rungs. Anything asking
+    "is this person at least X" calls this — never a string equality, never
+    an `in (...)` tuple of role names, which is exactly the near-duplicate
+    rank check that lets one call site disagree with another about who may
+    open a book.
+    """
+    return rung_rank(held) >= rung_rank(required)
+
+
+def rung_from_site_role(role: str | None) -> str | None:
+    """The rung a STORED site_roles value names.
+
+    None/'' -> 'guest' (no doc IS guest — role-ladder.ts).
+    An unrecognised string -> None, meaning "do not guess". ⚠️ That includes
+    the OLD vocabulary: 'viewer' and 'reader' were renamed to 'guest' and
+    'member' on 2026-08-16, and quietly accepting them here would hide a
+    store that never migrated.
+    """
+    if not role:
+        return "guest"
+    if role in STORED_SITE_ROLES:
+        return role
+    return None
+
+
+def rung_from_drive_level(level: str | None) -> str:
+    return DRIVE_LEVEL_MIN_RUNG.get(level or "none", "guest")
+
+
+def required_drive_level(role: str | None) -> str | None:
+    """The Drive level a stored site role requires — the FLOOR, not equality.
+
+    Returns None for a value rung_from_site_role refuses to recognise, so a
+    caller can tell "this rung needs nothing" (guest -> 'none') apart from
+    "this string means nothing to me" (None) without a second lookup. The two
+    must stay distinguishable: collapsing them is how a stale-vocabulary doc
+    gets reconciled as if it were a guest and quietly loses its access.
+    """
+    rung = rung_from_site_role(role)
+    if rung is None:
+        return None
+    return RUNG_MIN_DRIVE_LEVEL[rung]
+
+
+# ---------------------------------------------------------------------------
+# LADDER_ENFORCEMENT — which rungs this script may actually APPLY.
+#
+# See the "WHAT IS ENFORCED HERE" block at the top of this file for the full
+# reasoning. In one line: a rung is enforced when the change it implies can
+# only ever take access BACK from somebody who was deliberately given a rung,
+# and is shadowed when it hands access OUT or when it would revoke people who
+# have simply never been graded yet.
+#
+# `ENFORCED_RUNGS` are the stored roles whose Drive FLOOR is applied live.
+# Every other stored rung is computed into the report and the JSON summary as
+# a `would_fix`, and reaches plan_drive_changes() as nothing at all.
+#
+# ⚠️ THE FLIP PROCEDURE, so nobody has to reconstruct it:
+#   1. The owner grants `member` in the estate portal's audiobook section to
+#      everyone who should keep Drive access. Roles are the source of truth;
+#      this reconciler is downstream, and the grants must come FIRST or the
+#      first enforcing run revokes people in the wrong order.
+#   2. Watch `shadowWouldRemove` in the pipeline's STEP 8 JSON fall to only
+#      the people who genuinely should lose access. Five consecutive clean
+#      cycles, per the estate's shadow-first rule — not one good reading.
+#   3. `shadowWouldGrantView` needs a `create` verb in apply_to_drive() that
+#      does not exist and is access-INCREASING, so it needs the owner's word
+#      before it is written at all, not merely before it is switched on.
+#   4. Only then add the rung to ENFORCED_RUNGS, in its own commit, never as
+#      a side effect of an unrelated change.
+# ---------------------------------------------------------------------------
+ENFORCED_RUNGS: frozenset[str] = frozenset({"contributor", "moderator", "admin"})
 
 # ---------------------------------------------------------------------------
 # THE FUSE — blast-radius protection for the AUTO-APPLY (owner order
@@ -636,7 +830,15 @@ def classify(
             continue
 
         status = estate_row["status"] if estate_row else None
-        site_role_implies_writer = site_role in ("admin", "moderator")
+
+        # THE ladder decision, made once, in the canonical pair of helpers
+        # above — never a scattered `site_role in ("admin", "moderator")`.
+        # That tuple is what this line replaced on 2026-09-07, and it was
+        # wrong the moment `contributor` became storable: a real stored rung
+        # matched no branch and fell through to "no elevated site role on
+        # file", a sentence that had quietly become false.
+        role_rung = rung_from_site_role(site_role)
+        needed_level = required_drive_level(site_role)
 
         # ---- not in estate directory at all, has Drive access, NOT excepted ----
         if estate_row is None and drive_level != "none":
@@ -703,75 +905,175 @@ def classify(
             )
             continue
 
-        # ---- approved + explicit site role (admin/moderator implies contributor+) ----
-        if estate_row is not None and status == "approved" and site_role_implies_writer:
-            if drive_level in ("writer", "owner"):
-                note = "Drive level matches the implied minimum for this site role."
+        # ---- approved, but the stored value is not a rung this ladder knows ----
+        # ⚠️ Reported, never coerced. The commonest cause is the retired
+        # 'viewer'/'reader' vocabulary (renamed 2026-08-16): treating it as a
+        # guest would report a store that never migrated as ordinary drift and
+        # invite somebody to "fix" it by taking Drive access away.
+        if estate_row is not None and status == "approved" and role_rung is None:
+            buckets["mismatch"].append(
+                {
+                    **row(email),
+                    "drive": drive_level,
+                    "estate": f"approved, site_roles={site_role!r} — NOT a ladder rung",
+                    "difference": (
+                        f"Stored site role {site_role!r} is not one of "
+                        f"{list(STORED_SITE_ROLES)}. It is probably the retired "
+                        f"'viewer'/'reader' vocabulary. Nothing is reconciled against a "
+                        f"value this ladder cannot read."
+                    ),
+                    "drive_fix": None,
+                    "action": action
+                    or "Fix the site_roles doc in the estate portal (re-grant the rung), "
+                    "then re-run. Drive is deliberately left exactly as it is.",
+                }
+            )
+            continue
+
+        # ---- approved + a rung this ladder knows: the one comparison --------
+        # The whole ladder decision, once, on DRIVE LEVELS rather than rung
+        # ranks. ⚠️ Comparing ranks is the bug this shape exists to prevent:
+        # contributor, moderator and admin all floor at Drive `writer`, so an
+        # admin holding `writer` is CORRECT, while admin(4) > contributor(2)
+        # would call it drift and report every admin as under-granted forever.
+        if estate_row is not None and status == "approved" and role_rung is not None:
+            have = DRIVE_LEVEL_RANK[drive_level]
+            need = DRIVE_LEVEL_RANK[needed_level]
+
+            # --- guest with no Drive: the correct end state, nothing to do ---
+            if role_rung == "guest" and drive_level == "none":
+                in_gap_list = email in estate_only_gap
+                buckets["role_only"].append(
+                    {
+                        **row(email),
+                        "drive": "none",
+                        "estate": "approved (guest — no rung granted on the ladder)",
+                        "note": (
+                            "Also listed in drive-exceptions.json's estate_members_without_drive."
+                            if in_gap_list
+                            else "Not in drive-exceptions.json's mirror list — worth adding for visibility."
+                        ),
+                        "action": action
+                        or "Correct as it stands: guest is the absence of a rung, and guest "
+                        "gets no Drive access. If this person should be able to download "
+                        "books, the fix is to grant them `member` in the estate portal — "
+                        "not to add a Drive permission by hand.",
+                    }
+                )
+                continue
+
+            # --- guest still holding Drive: SHADOW removal ------------------
+            # Access-reducing, so the global rule would say act. It does not,
+            # and the reason is ORDER, not direction: this population is
+            # everyone granted Drive by hand before the ladder existed. See
+            # LADDER_ENFORCEMENT's flip procedure.
+            if role_rung == "guest":
+                buckets["mismatch"].append(
+                    {
+                        **row(email),
+                        "drive": drive_level,
+                        "estate": "approved (guest — no rung granted on the ladder)",
+                        "difference": (
+                            f"Drive grants {drive_level} (implies "
+                            f"{rung_from_drive_level(drive_level)} or above); the ladder "
+                            f"grants no rung at all, and guest gets no Drive access."
+                        ),
+                        "drive_fix": None,
+                        "would_fix": None if is_owner_protected else "remove",
+                        "action": action
+                        or "SHADOW ONLY — nothing applied. Either grant this person "
+                        "`member` in the estate portal (if they should keep access) or "
+                        "their Drive permission comes off once guest enforcement is "
+                        "flipped on. See LADDER_ENFORCEMENT.",
+                    }
+                )
+                continue
+
+            # --- at or above the floor: correct ------------------------------
+            # An over-grant into `owner` is not actionable at any rung: this
+            # script never edits an owner permission, unconditionally.
+            if have == need or (have > need and drive_level == "owner"):
+                note = (
+                    f"Drive {drive_level} satisfies the floor for rung "
+                    f"'{role_rung}' ({needed_level})."
+                )
                 if is_owner_protected:
                     note += " [OWNER-PROTECTED account]"
                 buckets["ok"].append(
                     {
                         **row(email),
                         "drive": drive_level,
-                        "estate": f"approved, site_roles={site_role} (implies contributor+)",
+                        "estate": f"approved, site_roles={site_role} (rung {role_rung})",
                         "note": note,
                     }
                 )
-            else:
-                buckets["mismatch"].append(
-                    {
-                        **row(email),
-                        "drive": drive_level,
-                        "estate": f"approved, site_roles={site_role} (implies contributor+ -> Drive writer)",
-                        "difference": f"Site role implies Drive writer; actual Drive level is "
-                        f"'{drive_level}'.",
-                        # The other KNOWN role decision: an explicit
-                        # admin/moderator doc in Firestore is a stored role,
-                        # so the Drive level it implies is enforceable. (The
-                        # unimplemented reader/contributor tiers never reach
-                        # here — they have no storage to disagree with.)
-                        "drive_fix": None if is_owner_protected else "writer",
-                        "action": action or f"Upgrade Drive permission to writer to match site role {site_role}.",
-                    }
+                continue
+
+            # --- under-granted: the ladder promises more than Drive gives ----
+            if have < need:
+                enforced = role_rung in ENFORCED_RUNGS
+                difference = (
+                    f"Rung '{role_rung}' needs Drive {needed_level}; Drive grants "
+                    f"'{drive_level}'."
                 )
-            continue
+                if enforced:
+                    # LIVE. A deliberately-granted contributor/moderator/admin
+                    # is a stored decision, and raising Drive to the writer
+                    # floor is the same action, rail and fuse that have run
+                    # every cycle since 2026-08-17. ⚠️ If the person holds NO
+                    # Drive permission at all, apply_to_drive() finds nothing
+                    # to update and SKIPS loudly rather than creating one —
+                    # pre-existing behaviour, deliberately unchanged here.
+                    buckets["mismatch"].append(
+                        {
+                            **row(email),
+                            "drive": drive_level,
+                            "estate": f"approved, site_roles={site_role} (rung {role_rung} -> Drive {needed_level})",
+                            "difference": difference,
+                            "drive_fix": None if is_owner_protected else "writer",
+                            "action": action
+                            or f"Upgrade Drive permission to {needed_level} to match rung {role_rung}.",
+                        }
+                    )
+                else:
+                    # SHADOW. `member` with no Drive wants a GRANT, which is
+                    # access-increasing AND needs a create verb apply_to_drive()
+                    # does not have. Both are owner decisions.
+                    buckets["mismatch"].append(
+                        {
+                            **row(email),
+                            "drive": drive_level,
+                            "estate": f"approved, site_roles={site_role} (rung {role_rung} -> Drive {needed_level})",
+                            "difference": difference,
+                            "drive_fix": None,
+                            "would_fix": None if is_owner_protected else f"grant_{needed_level}",
+                            "action": action
+                            or f"SHADOW ONLY — nothing applied. Rung {role_rung} should hold "
+                            f"Drive {needed_level}; granting it is access-increasing and needs "
+                            "the owner's word plus a create verb this script does not have. "
+                            "See LADDER_ENFORCEMENT.",
+                        }
+                    )
+                continue
 
-        # ---- approved, no elevated site role, no Drive access ----
-        if estate_row is not None and status == "approved" and drive_level == "none":
-            in_gap_list = email in estate_only_gap
-            buckets["role_only"].append(
-                {
-                    **row(email),
-                    "drive": "none",
-                    "estate": "approved (no elevated site role on file)",
-                    "note": (
-                        "Also listed in drive-exceptions.json's estate_members_without_drive."
-                        if in_gap_list
-                        else "Not in drive-exceptions.json's mirror list — worth adding for visibility."
-                    ),
-                    "action": action
-                    or "No Drive access despite estate membership. reader/contributor "
-                    "role storage does not exist yet, so this can't be auto-graded — "
-                    "owner decides whether this person should get Drive reader access.",
-                }
-            )
-            continue
-
-        # ---- approved, no elevated role, DOES have Drive access: no positive
-        #      conflict, but also no stored role to verify the level against ----
-        if estate_row is not None and status == "approved" and drive_level != "none":
-            buckets["ok"].append(
+            # --- over-granted below owner: SHADOW downgrade -----------------
+            buckets["mismatch"].append(
                 {
                     **row(email),
                     "drive": drive_level,
-                    "estate": "approved (no elevated site role on file)",
-                    "note": (
-                        f"Consistent, not verified: approved member already has Drive "
-                        f"{drive_level}. reader/contributor role storage isn't built yet, "
-                        f"so this can't be confirmed against a stored role — Drive is the "
-                        f"de facto record for now. Implied role once storage exists: "
-                        f"{DRIVE_LEVEL_TO_IMPLIED_ROLE.get(drive_level)}."
+                    "estate": f"approved, site_roles={site_role} (rung {role_rung} -> Drive {needed_level})",
+                    "difference": (
+                        f"Drive grants {drive_level} (implies "
+                        f"{rung_from_drive_level(drive_level)} or above); rung "
+                        f"'{role_rung}' needs only {needed_level}."
                     ),
+                    "drive_fix": None,
+                    "would_fix": None if is_owner_protected else f"update_to_{needed_level}",
+                    "action": action
+                    or f"SHADOW ONLY — nothing applied. Drive grants more than rung "
+                    f"{role_rung} justifies. Either promote them on the ladder or their "
+                    f"Drive level drops to {needed_level} once this is enforced. "
+                    "See LADDER_ENFORCEMENT.",
                 }
             )
             continue
@@ -897,7 +1199,17 @@ def print_report(
     if not buckets["mismatch"]:
         print("  (none)")
     for r in buckets["mismatch"]:
-        print(f"  {r['email']:<32} drive={r['drive']:<8} estate={r['estate']}")
+        # ⚠️ Say which half of the gate each row is on, in the row itself. A
+        # report where an enforced change and a shadowed one look identical is
+        # how somebody concludes the reconciler "did nothing" — or, worse,
+        # assumes it already handled something it only counted.
+        if r.get("drive_fix"):
+            mark = f"  [WILL APPLY: {r['drive_fix']}]"
+        elif r.get("would_fix"):
+            mark = f"  [SHADOW ONLY, would {r['would_fix']}]"
+        else:
+            mark = "  [no plan]"
+        print(f"  {r['email']:<32} drive={r['drive']:<8} estate={r['estate']}{mark}")
         print(f"      difference: {r['difference']}")
         print(f"      -> {r['action']}")
 
@@ -919,6 +1231,26 @@ def print_report(
     total = sum(len(v) for v in buckets.values())
     print(f"  TOTAL rows:                      {total}")
 
+    shadowed = shadow_plan(buckets, exceptions)
+    sc = shadow_counts(shadowed)
+    print("\n" + "=" * 78)
+    print("LADDER SHADOW — computed, counted, APPLIED TO NOTHING")
+    print("=" * 78)
+    print(f"  enforced rungs (live):           {', '.join(sorted(ENFORCED_RUNGS))}")
+    print(f"  would GRANT view (member+):      {sc['grant_view']}")
+    print(f"  would REMOVE (guest w/ Drive):   {sc['remove']}")
+    print(f"  would DOWNGRADE (over-granted):  {sc['downgrade']}")
+    print(f"  shadow TOTAL:                    {sc['total']}")
+    if shadowed:
+        for s in shadowed:
+            where = "" if s["email"] == s["drive_account"] else f" (Drive perm held as {s['drive_account']})"
+            print(f"    - would {s['action']}: {s['email']}{where}  [currently {s['from']}]")
+    print(
+        "  Nothing above was applied, and no flag in this script applies it. The\n"
+        "  flip procedure is at LADDER_ENFORCEMENT in this file; step 1 is the\n"
+        "  owner granting `member` in the estate portal, not a change here."
+    )
+
 
 # ---------------------------------------------------------------------------
 # --apply-to-drive: the PURE decision half
@@ -937,16 +1269,22 @@ def plan_drive_changes(buckets: dict, exceptions: dict) -> list[dict]:
     """PURE. Buckets + the exception list in, the apply set out.
 
     Reads ONLY `buckets['mismatch']`, and only rows carrying an explicit
-    `drive_fix` — the two cases where a role is actually STORED somewhere and
-    can therefore be enforced (an admin/moderator site_roles doc; an estate
+    `drive_fix` — the cases where a rung is actually STORED and enforcing it
+    can only take access back (an ENFORCED_RUNGS site_roles doc; an estate
     status of pending/revoked). Every other bucket is unreachable from here
     by design, and each for its own reason:
 
-      * `role_only` / the "approved, no elevated role" rows — the
-        reader/contributor tiers have no per-user storage yet (ROLES.md §2),
-        so there is no role to enforce. Forcing a level here would be the
-        naive reconciliation ROLES.md warns against, and it would GRANT
-        access (see the global rule: act on access-reducing orders, confirm
+      * ⚠️ SHADOW rows (2026-09-07) carry `would_fix` and a `drive_fix` of
+        None, so they are skipped by the `if not fix` guard below exactly
+        like an unknown tier. That is the whole enforcement gate: a rung
+        moves from shadow to live by being added to ENFORCED_RUNGS, which
+        makes classify() emit `drive_fix` instead of `would_fix`, and NOTHING
+        in this function or the Drive-mutating half changes. Read
+        `would_fix` here and the gate would be silently disarmed.
+      * `role_only` — a guest with no Drive access, which is the correct end
+        state and not drift at all. Granting a level here would be the naive
+        reconciliation ROLES.md warns against, and it would GRANT access (see
+        the global rule: act on access-reducing orders, confirm
         access-increasing ones).
       * `drive_only_untriaged` — a person nobody has triaged. Revoking them
         unattended is precisely what the exception list exists to prevent
@@ -982,6 +1320,60 @@ def plan_drive_changes(buckets: dict, exceptions: dict) -> list[dict]:
             }
         )
     return planned
+
+
+def shadow_plan(buckets: dict, exceptions: dict) -> list[dict]:
+    """PURE. The would-apply set for rungs NOT in ENFORCED_RUNGS.
+
+    Deliberately the same shape and the same rails as plan_drive_changes()
+    (owner-protected accounts and the exception list are filtered here too),
+    so the number the owner watches while deciding whether to flip
+    enforcement is the number that would actually run — not a looser count
+    that shrinks the moment it goes live and makes the shadow period
+    worthless as evidence.
+
+    ⚠️ Nothing calls this from the apply path, and nothing should. It exists
+    to be COUNTED and PRINTED. See LADDER_ENFORCEMENT for the flip procedure.
+    """
+    excepted = set(exceptions.get("pending_outreach") or {}) | set(
+        exceptions.get("permanent_exceptions") or {}
+    )
+
+    shadowed: list[dict] = []
+    for r in buckets.get("mismatch", []):
+        email = r.get("raw_email") or r.get("email")
+        would = r.get("would_fix")
+        if not would:
+            continue
+        if email in OWNER_PROTECTED_EMAILS:
+            continue
+        if email in excepted:
+            continue
+        shadowed.append(
+            {
+                "action": would,
+                "email": email,
+                "drive_account": r.get("drive_account") or email,
+                "from": r.get("drive"),
+                "reason": r.get("difference", ""),
+            }
+        )
+    return shadowed
+
+
+def shadow_counts(shadowed: list[dict]) -> dict:
+    """PURE. Counts only, keyed by what the change would DO — the three
+    numbers LADDER_ENFORCEMENT's flip procedure asks to be watched."""
+    counts = {"grant_view": 0, "remove": 0, "downgrade": 0, "total": len(shadowed)}
+    for s in shadowed:
+        act = s["action"]
+        if act.startswith("grant_"):
+            counts["grant_view"] += 1
+        elif act == "remove":
+            counts["remove"] += 1
+        else:
+            counts["downgrade"] += 1
+    return counts
 
 
 def fuse_check(planned: list[dict], cap: int = MASS_DRIFT_CAP, override: bool = False):
@@ -1211,6 +1603,10 @@ def main() -> int:
     )
 
     counts = {name: len(rows) for name, rows in buckets.items()}
+    # Counts only, never emails — this dict is what the pipeline copies into
+    # the world-readable pipeline_status doc. shadow_counts() is built that
+    # way on purpose; keep it that way.
+    counts["ladder_shadow"] = shadow_counts(shadow_plan(buckets, exceptions))
 
     if args.apply_to_roles:
         print("\n--apply-to-roles: report-only, as designed. No site roles were "
@@ -1287,6 +1683,14 @@ def _emit_json_summary(args, state: str, counts: dict, apply_result, estate_erro
         "failed": (apply_result or {}).get("failed", []),
         "fuseTripped": (apply_result or {}).get("fuse_tripped", False),
         "fuseReason": (apply_result or {}).get("fuse_reason", ""),
+        # The three numbers LADDER_ENFORCEMENT's flip procedure asks to be
+        # WATCHED. Lifted to the top level rather than left nested in counts
+        # so a dashboard or a grep can read them without knowing this dict's
+        # shape — they are the evidence for a decision, not a detail.
+        "enforcedRungs": sorted(ENFORCED_RUNGS),
+        "shadowWouldGrantView": counts.get("ladder_shadow", {}).get("grant_view", 0),
+        "shadowWouldRemove": counts.get("ladder_shadow", {}).get("remove", 0),
+        "shadowWouldDowngrade": counts.get("ladder_shadow", {}).get("downgrade", 0),
         "at": datetime.now().isoformat(timespec="seconds"),
     }
     print("PARITY_JSON " + json.dumps(payload))

@@ -9,10 +9,20 @@ then the ladder gained two STORED rungs — `member` and `contributor`
 (catalog-platform `apps/auth-worker/src/role-ladder.ts`, `SITE_ROLES = ['member',
 'contributor', 'moderator', 'admin']`) — and the reconciler never learned them.
 
-⚠️ WHAT THAT ACTUALLY COSTS, and it is not cosmetic. In the sibling script a
-person whose `site_roles` doc says `member` or `contributor` matches no branch
-and lands in `ok` with the note *"approved (no elevated site role on file)"* —
-a sentence that is now FALSE. Two real drifts hide behind it:
+⚠️ UPDATE 2026-09-07 — THE SIBLING SCRIPT HAS NOW LEARNED THEM, so the
+paragraph below is history rather than a live finding. drive_role_parity.py
+routes every rung through the same tables this module introduced (they now
+LIVE there and are re-exported here — see the import block), and it splits
+them on one axis: `contributor` joined `moderator`/`admin` as an ENFORCED
+rung applied live behind MASS_DRIFT_CAP, while `member` and `guest` are
+computed as SHADOW and applied to nothing. That leaves this module as the
+per-rung REPORT — the same numbers, partitioned by rung rather than by
+problem class, and still writing nothing in either direction.
+
+⚠️ WHAT THAT COST WHILE IT LASTED, and it was not cosmetic. In the sibling
+script a person whose `site_roles` doc said `member` or `contributor` matched
+no branch and landed in `ok` with the note *"approved (no elevated site role
+on file)"* — a sentence that had become FALSE. Two real drifts hid behind it:
 
   * a `contributor` holding only Drive `reader` — the ladder granted upload,
     Drive never did (reported here as ROLE-ONLY at `contributor`); and
@@ -69,96 +79,44 @@ for _stream in (sys.stdout, sys.stderr):
 
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from drive_role_parity import (  # noqa: E402  (path inserted just above)
+# ---------------------------------------------------------------------------
+# ⚠️ THE LADDER MOVED, 2026-09-07 — it is no longer defined in this file.
+#
+# The tables and helpers below (ROLE_LADDER, the two mapping tables,
+# STORED_SITE_ROLES, rung_rank, rung_from_drive_level, rung_from_site_role)
+# were DEFINED here when this module was written, and now live in
+# drive_role_parity.py, which is imported below. They are re-exported by this
+# import so every existing caller and test keeps working unchanged.
+#
+# Why they moved: the sibling script learned the same rungs when the ladder
+# gained storage, and two copies of a cumulative comparison is exactly the
+# near-duplicate rank check the ladder exists to prevent — one call site
+# eventually disagrees with the other about who may open a book. This module
+# already imported its three loaders from there, so that side is the end of
+# the dependency that can hold the tables without a cycle.
+#
+# The mirror is still checked against catalog-platform's role-ladder.ts by
+# tests/test_drive_rung_parity.py, which parses the .ts file; the test imports
+# these names from HERE, so it now transitively guards the one real copy.
+# ---------------------------------------------------------------------------
+from drive_role_parity import (  # noqa: E402,F401  (path inserted just above)
+    DRIVE_LEVEL_MIN_RUNG,
     DRIVE_LEVEL_RANK,
     EXCEPTIONS_PATH_DEFAULT,
     FOLDER_ID_DEFAULT,
     OWNER_PROTECTED_EMAILS,
+    ROLE_LADDER,
+    RUNG_MIN_DRIVE_LEVEL,
+    STORED_SITE_ROLES,
     apply_aliases,
     fetch_drive_permissions,
     fetch_estate_directory,
     fetch_site_roles,
     load_exceptions,
+    rung_from_drive_level,
+    rung_from_site_role,
+    rung_rank,
 )
-
-# ---------------------------------------------------------------------------
-# The ladder. MIRRORED from catalog-platform apps/auth-worker/src/role-ladder.ts
-# (`ROLE_LADDER`), which is the definition. tests/test_drive_rung_parity.py
-# parses that file and asserts the two agree, because a mirror nobody checks is
-# how two systems drift into disagreeing about who may do what.
-#
-# ⚠️ `guest` is never STORED — no site_roles doc IS guest. `owner` is DB-only
-# and the grant API refuses it, so a role-side `owner` cannot appear here; an
-# `owner` row in this report is always the Drive folder's own owner permission.
-# ---------------------------------------------------------------------------
-ROLE_LADDER: tuple[str, ...] = (
-    "guest",
-    "member",
-    "contributor",
-    "moderator",
-    "admin",
-    "owner",
-)
-
-# ROLES.md §2's table, read left-to-right: a Drive permission proves at least
-# this rung. `writer -> contributor (or above)`, `reader -> member (or above)`.
-DRIVE_LEVEL_MIN_RUNG: dict[str, str] = {
-    "none": "guest",
-    "reader": "member",
-    "writer": "contributor",
-    "owner": "owner",
-}
-
-# The same table read right-to-left: this rung needs at least this Drive level.
-# ⚠️ moderator and admin both land on `writer` and that is not a rounding
-# error — the ladder is cumulative, and Drive has only three levels to spend
-# on six rungs. It is why a `moderator` and a `contributor` are
-# indistinguishable from the Drive side, and why the reconciliation can only
-# ever be "at least", never "exactly", above `contributor`.
-RUNG_MIN_DRIVE_LEVEL: dict[str, str] = {
-    "guest": "none",
-    "member": "reader",
-    "contributor": "writer",
-    "moderator": "writer",
-    "admin": "writer",
-    "owner": "owner",
-}
-
-# The roles the grant API will write to a site_roles doc (role-ladder.ts
-# SITE_ROLES). Anything else in the store is either the pre-2026-08-16
-# vocabulary (`viewer`/`reader`) or corruption — either way it is REPORTED,
-# never coerced onto a rung this script picked.
-STORED_SITE_ROLES: tuple[str, ...] = ("member", "contributor", "moderator", "admin")
-
-
-def rung_rank(rung: str) -> int:
-    """Index on the ladder. Raises on a rung this module does not know — a
-    programmer error, never a value that reached here from a live store (those
-    go through rung_from_site_role, which returns None instead)."""
-    try:
-        return ROLE_LADDER.index(rung)
-    except ValueError:
-        raise ValueError(f"not a ladder rung: {rung!r}") from None
-
-
-def rung_from_drive_level(level: str | None) -> str:
-    return DRIVE_LEVEL_MIN_RUNG.get(level or "none", "guest")
-
-
-def rung_from_site_role(role: str | None) -> str | None:
-    """The rung a STORED site_roles value names.
-
-    None/'' -> 'guest' (no doc IS guest — role-ladder.ts).
-    An unrecognised string -> None, meaning "do not guess". ⚠️ That includes
-    the OLD vocabulary: 'viewer' and 'reader' were renamed to 'guest' and
-    'member' on 2026-08-16, and quietly accepting them here would hide a store
-    that never migrated.
-    """
-    if not role:
-        return "guest"
-    if role in STORED_SITE_ROLES:
-        return role
-    return None
 
 
 def _estate_desc(estate_row, estate_rows) -> str:
