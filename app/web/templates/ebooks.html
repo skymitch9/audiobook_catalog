@@ -46,14 +46,22 @@
   (ROLES.md §1e): signed out / signed in but not approved / approved but
   without the ebook grant. None of them renders a single book.
 
-  NO DOWNLOADS FROM HERE, still — and since 2026-08-17 there IS a Read button
-  on every card, which is not the same thing. It is a LINK to /read, a separate
-  page that does its own sign-in and its own gated range requests; no file is
-  reachable from this page. `can_download` rides the gated answer (the LADDER's
-  `download`, admin+) for a future download affordance and is deliberately NOT
-  consulted by the Read button: reading is the estate's `vis_ebooks` grant that
-  opened this shelf, and gating Read on `download` would show every member a
-  shelf none of them could read.
+  DOWNLOADS EXIST SINCE 2026-09-06 (phase 4b) AND ARE ADMIN-ONLY. The reading
+  card grows a "Download file" button ONLY when the gated answer's
+  `can_download` is true — the LADDER's `download` capability, floor `admin`,
+  answered by the Worker about this caller's rung. Everyone else sees no
+  control at all (ROLES.md §1e: a control the role cannot use is not rendered,
+  and a greyed one is still a thing to ask about). It is a BUTTON, not a link:
+  `GET /api/download/:anchor` needs an `Authorization` bearer, which no
+  `<a href>` can carry, so the auth module fetches it and hands the browser a
+  save. ⚠️ None of that is the gate — the Worker re-asks BOTH questions on
+  every request (the estate's `vis_ebooks` grant AND `download`).
+
+  The Read button is the OTHER thing and has not changed. It is a LINK to
+  /read, a separate page that does its own sign-in and its own gated range
+  requests, and it is deliberately NOT gated on `can_download`: reading is the
+  estate's `vis_ebooks` grant that opened this shelf, and gating Read on
+  `download` would show every member a shelf none of them could read.
 
   BOTH FORMATS carry the button since viewer phase 2 (2026-08-17). EPUB cards
   previously carried a NOTE instead, because the reader answered an honest "not
@@ -473,6 +481,26 @@ h1 .tail{color:var(--accent)}
   border:1.5px solid var(--accent);color:var(--accent);background:transparent;
   text-decoration:none;transition:background .15s,color .15s}
 .eb-read-group .eb-read-shelf:hover{background:var(--accent);color:var(--card)}
+
+/* The DOWNLOAD action (phase 4b, 2026-09-06). ⚠️ Deliberately QUIETER than
+   Read — outlined, neutral ink, no accent fill — because reading in the
+   browser is the action nearly everybody who reaches this card should take,
+   and taking a whole file away is the admin-only exception. A second filled
+   pill beside "Read" would read as an equal-weight alternative. It is only
+   ever rendered for a caller the Worker said holds `download`, so there is no
+   disabled state to style: the control is absent, not greyed. */
+.eb-download-row{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-top:12px}
+.eb-download{padding:7px 15px;border-radius:9px;border:1.5px solid var(--ink-faint);
+  background:transparent;color:var(--ink-faint);font-family:var(--sans);
+  font-weight:600;font-size:.85em;cursor:pointer;
+  transition:background .15s,color .15s,border-color .15s}
+.eb-download:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.eb-download:disabled{opacity:.55;cursor:progress}
+.eb-download-status{font-family:var(--sans);font-size:.78em;color:var(--ink-faint);
+  line-height:1.5;flex:1 1 180px;min-width:0}
+/* A refusal or an outage. It is a SENTENCE, never a status code — the whole
+   §1e contract lands in this one rule's content, not its colour. */
+.eb-download-status.is-bad{color:var(--accent-deep)}
 .loading{text-align:center;padding:40px;color:var(--ink-faint);font-style:italic}
 /* The permission gate (2026-08-17). It is a designed state, not an error
    state: a signed-out visitor should meet a closed shelf that looks made,
@@ -707,6 +735,38 @@ h1 .tail{color:var(--accent)}
   // module costs the card its notes block and NOTHING else — never the card,
   // never the shelf.
   var cardHook = null;
+
+  // ------------------------------ the DOWNLOAD affordance -------------------
+  // Phase 4b, 2026-09-06. ⚠️ TWO conditions, and BOTH are required before a
+  // single pixel is drawn:
+  //
+  //   1. `canDownload` — the manifest answer's `can_download`, which is the
+  //      Worker's own `can(role, 'download')` on the caller's rung (floor
+  //      `admin`). ROLES.md §1e: controls the role cannot use are NOT
+  //      RENDERED, so an ordinary member never sees a Download button at all
+  //      — not a greyed one, not one that refuses on click.
+  //   2. `downloader` — the AUTH module below, registered through
+  //      useDownloader(). No module, no button: the request needs a bearer
+  //      that only that half holds, and a button that cannot send one would
+  //      be exactly the dead affordance §1e forbids.
+  //
+  // ⚠️ WHY `can_download` AND NOT A SECOND /api/me FETCH. This shelf already
+  // reads /api/me through identity.js resolveSiteAccess (for the content
+  // notes' moderator ✕), so the capability list IS reachable here — and it is
+  // deliberately not the source. `can_download` is the same predicate resolved
+  // by the same Worker on the same rung, arriving inside the request that
+  // opened this shelf: one round trip, and no window in which the shelf and
+  // the button disagree about who is an admin. resolveSiteAccess's OUTAGE
+  // fallback also maps only four capabilities and has no `download` row, so it
+  // could never answer yes anyway — it fails closed, which is right, but
+  // "right by accident" is not a source of truth.
+  //
+  // ⚠️ NONE OF THIS IS THE GATE. The Worker re-asks both questions on every
+  // request (ebook-download.ts): the estate's `vis_ebooks` grant AND the
+  // ladder's `download`. Someone who flips `can_download` in devtools gets a
+  // worded 403 and no bytes.
+  var canDownload = false;
+  var downloader = null;
 
   // ------------------------------ the PDF preference ------------------------
   // Owner, 2026-08-17: the PDFs are hidden by default and revealed by a
@@ -1108,10 +1168,59 @@ h1 .tail{color:var(--accent)}
         read = '<a class="eb-read" href="read?b=' + encodeURIComponent(b.anchor) + '">Read &#x2192;</a>';
       }
     }
+    // DOWNLOAD — phase 4b, 2026-09-06. Rendered ONLY for a caller the Worker
+    // said holds `download` (admin+), and only when the auth half registered a
+    // downloader. Everyone else sees no control at all — §1e renders no button
+    // a role cannot use, and a greyed-out one is still a thing to ask about.
+    //
+    // ⚠️ A BUTTON, NOT A LINK, and that is forced rather than chosen. The
+    // Worker route needs an `Authorization: Bearer` header on the request, and
+    // a plain <a href> to another origin cannot carry one — the browser would
+    // send an anonymous request and meet a 401. So the auth half fetches it
+    // with the token and hands the bytes to the browser as a save. The
+    // server's `Content-Disposition: attachment` is still the real contract
+    // (it is what makes a direct hit save rather than render); the filename
+    // used here comes from the manifest row, because `Content-Disposition` is
+    // not in the Worker's CORS `exposeHeaders` and so cannot be read by JS.
+    var dl = '';
+    if (canDownload && typeof downloader === 'function' && b.anchor) {
+      dl = '<div class="eb-download-row">' +
+        '<button type="button" class="eb-download" data-anchor="' + esc(b.anchor) + '">Download file</button>' +
+        '<span class="eb-download-status" role="status" aria-live="polite"></span>' +
+      '</div>';
+    }
     cardInfoEl.innerHTML =
       '<h2 id="eb-card-title">' + esc(b.title) + '</h2>' +
       (b.author ? '<div class="eb-card-author">' + esc(b.author) + '</div>' : '') +
-      meta + provisional + audio + read;
+      meta + provisional + audio + read + dl;
+
+    if (dl) {
+      var dlBtn = cardInfoEl.querySelector('.eb-download');
+      var dlStatus = cardInfoEl.querySelector('.eb-download-status');
+      dlBtn.addEventListener('click', function () {
+        // Disabled for the duration: a second click would start a second whole
+        // transfer of the same file, and on this corpus that is megabytes.
+        dlBtn.disabled = true;
+        dlStatus.className = 'eb-download-status';
+        dlStatus.textContent = 'Fetching…';
+        // ⚠️ Wrapped, and the catch says OUTAGE rather than permission: a
+        // throwing downloader is a bug or a dropped network, never a verdict
+        // about this person. The downloader itself words every refusal it
+        // receives from the Worker.
+        Promise.resolve()
+          .then(function () { return downloader(b); })
+          .then(function (msg) {
+            dlStatus.textContent = msg || 'Saved.';
+          })
+          .catch(function (err) {
+            dlStatus.className = 'eb-download-status is-bad';
+            dlStatus.textContent = (err && err.message)
+              ? err.message
+              : 'The download did not start. That is a problem on our side or with the connection, not a decision about your account — try again, and tell Mitch if it keeps happening.';
+          })
+          .then(function () { dlBtn.disabled = false; });
+      });
+    }
 
     // Content notes: the slot is always drawn, the filling is the module's.
     // Wrapped so a throwing hook loses the notes and not the open card.
@@ -1187,6 +1296,11 @@ h1 .tail{color:var(--accent)}
     /** Paint the shelf from a manifest object the caller already obtained. */
     render: function (manifest) {
       allBooks = Array.isArray(manifest.ebooks) ? manifest.ebooks : [];
+      // ⚠️ STRICT true. A manifest from an older Worker carries no
+      // `can_download` at all, and `undefined` must render no button rather
+      // than a truthy-ish one — the same fail-closed rule the Worker's gate
+      // uses on a directory that answers without a visibility fact.
+      canDownload = manifest.can_download === true;
       generatedEl.textContent = manifest.generated_at || 'unknown';
       renderPdfToggle();
       renderChips();
@@ -1227,6 +1341,18 @@ h1 .tail{color:var(--accent)}
     /** Register the reading card's content-notes filler:
      *  `(book, slotEl) => void`, called once per card open. */
     onCard: function (fn) { cardHook = typeof fn === 'function' ? fn : null; },
+    /**
+     * Register the DOWNLOAD transport (phase 4b, 2026-09-06): `fn(book)`
+     * returns a promise resolving to a short sentence for the status line, or
+     * REJECTING with an Error whose `.message` is already a §1e sentence.
+     *
+     * ⚠️ Same extension-point shape as `onCard` and `useShelfJoin`, and the
+     * same reason: this plain script must not import a module, and only the
+     * module half holds a Firebase token. Until it registers, no card draws a
+     * Download button — which is also the right answer when the module is
+     * blocked, so there is one behaviour to reason about instead of two.
+     */
+    useDownloader: function (fn) { downloader = typeof fn === 'function' ? fn : null; },
   };
 
   // ===== Multi-select mode for bulk TBR =====
@@ -1343,6 +1469,86 @@ h1 .tail{color:var(--accent)}
    *  SITE_ORIGINS, which is what makes the cross-origin call legal. */
   const MANIFEST_URL = 'https://audiobook-api.heygabi.ai/api/ebooks/manifest';
 
+  /** The attachment route (phase 4b, 2026-09-06) — same origin, same bearer. */
+  const DOWNLOAD_URL = 'https://audiobook-api.heygabi.ai/api/download/';
+
+  /**
+   * Fetch one book's file with the caller's bearer and hand it to the browser
+   * as a save. Registered on the plain half through `useDownloader`, which is
+   * what makes a Download button appear at all.
+   *
+   * ⚠️ THE REQUEST NEEDS A HEADER, WHICH IS WHY THIS EXISTS. A plain
+   * `<a href>` to audiobook-api.heygabi.ai cannot carry `Authorization`, so a
+   * link would send an anonymous cross-origin request and meet the Worker's
+   * 401 — a dead button that looks like a broken site. There is deliberately
+   * no signed-URL alternative anywhere in this system: the credential is a
+   * per-request bearer, so a copied URL is a 401 and access can be revoked
+   * mid-session.
+   *
+   * ⚠️ THE WHOLE FILE PASSES THROUGH THIS TAB'S MEMORY (`res.blob()`), and
+   * that is the honest cost of the header. The corpus averages ~11 MB a file
+   * and the biggest one present is well inside what a browser holds, but this
+   * does NOT scale to the 393 MiB omnibus if it is ever uploaded. The fix
+   * then is a streaming save (File System Access API) or a short-lived
+   * one-time token — NOT pointing the button at the viewer's route, which is
+   * `inline` on purpose.
+   *
+   * ⚠️ Every rejection carries a §1e SENTENCE in `.message`, never a status.
+   * The Worker's own `detail` is passed through verbatim where one arrived —
+   * it is already worded, and re-wording it here would create a second place
+   * where refusals are phrased. A transport failure is worded as an OUTAGE,
+   * because a network error is not a permission decision.
+   */
+  async function downloadBook(book) {
+    const token = await getIdToken(app);
+    if (!token) {
+      throw new Error(
+        'Your sign-in is no longer live, so the download could not be authorised. Reload the page and sign in again — nothing is wrong with your account.',
+      );
+    }
+    let res;
+    try {
+      res = await fetch(DOWNLOAD_URL + encodeURIComponent(book.anchor), {
+        headers: { Authorization: 'Bearer ' + token },
+      });
+    } catch (e) {
+      throw new Error(
+        'The download could not be started because the server could not be reached. That is an outage or a connection problem, not a decision about your account — try again shortly.',
+      );
+    }
+    if (!res.ok) {
+      let detail = '';
+      try {
+        const body = await res.json();
+        if (body && typeof body.detail === 'string') detail = body.detail;
+      } catch (e) { /* a body that is not JSON tells us nothing; fall through */ }
+      throw new Error(
+        detail ||
+          'The download was refused and the server did not say why. That is a fault on our side — tell Mitch, and mention which book you were opening.',
+      );
+    }
+    const blob = await res.blob();
+    // The name comes from the MANIFEST row, not from the response. The Worker
+    // sends `Content-Disposition: attachment; filename=…` and it is the real
+    // contract for a direct hit, but `Content-Disposition` is not in the
+    // Worker's CORS `exposeHeaders`, so cross-origin JavaScript cannot read
+    // it. Both spellings derive from the same `path`, so they agree.
+    const name =
+      book.filename || String(book.path || '').split('/').pop() || (book.title || 'book');
+    const href = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = href;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    // Revoked on a delay, not immediately: some browsers read the blob after
+    // the click returns, and a revoked URL there is a download that silently
+    // produces nothing.
+    setTimeout(() => URL.revokeObjectURL(href), 60000);
+    return 'Sent to your downloads as “' + name + '”.';
+  }
+
   // ── hand the plain script the canonical shelf join ───────────────────────
   //
   // Started here at module load rather than inside the gated manifest flow,
@@ -1406,6 +1612,15 @@ h1 .tail{color:var(--accent)}
         canModerate: canModerateNotes,
       });
     });
+    // The download transport, registered BEFORE the first render for the same
+    // reason the notes hook is: a deep link opens a card during render(), and
+    // a downloader installed afterwards would leave that one card — the one
+    // somebody followed a link to — without its button.
+    //
+    // ⚠️ Registering it does NOT render anything. The button appears only if
+    // `manifest.can_download` is true, which is the Worker's answer about this
+    // caller's rung, not this page's opinion.
+    window.ebooksShelf.useDownloader(downloadBook);
     window.ebooksShelf.render(manifest);
   }
 

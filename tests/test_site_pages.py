@@ -6,10 +6,17 @@ app/writers.py on every build — no substitution, unlike index.html. The tests
 pin the copy step and the contracts the ebooks page (ebook-split design,
 phase 1) must keep:
 
-  - display-only: the page renders site/ebooks.json client-side and offers no
-    downloads; a manifest refresh must update it with NO html rebuild, which
-    is only true while the fetch is the relative same-origin 'ebooks.json'
-    (on the dev lane that resolves to /dev/ebooks.json, on prod /ebooks.json)
+  - data at RUNTIME: every book arrives from the gated manifest endpoint with
+    a bearer, so a manifest refresh updates the page with NO html rebuild and
+    a view-source of the page holds no book, no filename and no file link.
+    (⚠️ This bullet used to say "display-only … offers no downloads". That
+    stopped being true on 2026-09-06, PHASE 4b: the reading card now grows a
+    "Download file" button — but ONLY for a caller the Worker said holds the
+    ladder's `download` capability, floor `admin`. The tests below pin the
+    conditional, the transport and the refusal wording; the old assertion is
+    kept in spirit as "no `<a download>` anywhere", which is still true and
+    for a load-bearing reason: the route needs an Authorization header that
+    no plain link can carry.)
   - honesty: the manifest's `source` field distinguishes metadata read out of
     the file ('opf') from metadata guessed off the filename ('filename');
     the page must keep the provisional rows visibly provisional
@@ -94,14 +101,53 @@ class TestEbooksPageContracts:
         for ext in (".epub'", '.epub"', ".pdf'", '.pdf"'):
             assert ext not in html, "no direct file links — and no filenames at all"
 
-    def test_display_only_no_download_affordance(self):
-        # Still display-only. `can_download` is READ from the gated answer so
-        # a future reader knows what to draw, but this page draws nothing:
-        # there must be no anchor, no `download` attribute, no button.
+    def test_the_download_control_is_rendered_ONLY_on_can_download(self):
+        # PHASE 4b, 2026-09-06. ROLES.md §1e: a control the role cannot use is
+        # NOT RENDERED — not greyed, not refusing on click. The page's own
+        # answer for that question is the gated manifest's `can_download`,
+        # which is the Worker's `can(role, 'download')` (floor `admin`).
+        #
+        # Mutation that reddens: drawing the button unconditionally, or
+        # loosening the strict-true read so an older Worker's missing field
+        # renders a button.
         html = _template("ebooks.html")
-        assert "download=" not in html.lower(), "no download attribute"
+        assert "manifest.can_download === true" in html, (
+            "can_download must be read STRICTLY true — a manifest from an "
+            "older Worker carries no such field and must draw no button"
+        )
+        assert "if (canDownload && typeof downloader === 'function' && b.anchor)" in html, (
+            "the Download button must be behind BOTH the capability answer "
+            "and a registered transport"
+        )
+
+    def test_download_is_a_button_because_a_link_cannot_carry_a_bearer(self):
+        # The old "display-only" assertion, kept and re-aimed. `<a download>`
+        # is still forbidden — not for modesty but because
+        # GET /api/download/:anchor needs an Authorization header, and a plain
+        # cross-origin link would send an anonymous request and meet a 401:
+        # a dead button that looks like a broken site.
+        html = _template("ebooks.html")
         assert "<a download" not in html.lower()
-        assert "downloadbtn" not in html.lower().replace(" ", "")
+        assert '<button type="button" class="eb-download"' in html
+        assert "/api/download/" in html
+        assert "Authorization: 'Bearer ' + token" in html
+
+    def test_a_download_refusal_shows_the_workers_own_sentence(self):
+        # §1e: never a bare status, never a raw body. The Worker's `detail` is
+        # already worded and is passed through verbatim; a transport failure is
+        # worded as an OUTAGE, because a network error is not a permission
+        # decision. Mutation that reddens: rendering res.status anywhere.
+        html = _template("ebooks.html")
+        assert "typeof body.detail === 'string'" in html, (
+            "the Worker's own worded refusal must be passed through"
+        )
+        assert "not a decision about your account" in html
+        # ⚠️ Branching ON a status is fine and the gate does it (401 -> "sign
+        # in again"); what is forbidden is a status reaching a person's EYES.
+        # So the assertion is about CONCATENATION, not about the word.
+        assert "+ res.status" not in html, "a person must never see a bare status"
+        assert "res.status +" not in html, "a person must never see a bare status"
+        assert "${res.status}" not in html, "a person must never see a bare status"
 
     def test_filename_sourced_rows_are_marked_provisional(self):
         html = _template("ebooks.html")
