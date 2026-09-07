@@ -18,19 +18,60 @@ naming the env var and the path — the same shape as the `requires_platform`
 guards in test_universes.py / test_title_key_fixtures.py / test_club_fixtures.py
 and the `SHELF_MAP.exists()` guard in test_shelf_map.py.
 
-⚠️ Running these tests is NOT free and NOT read-only: `extract_metadata()`
-writes extracted cover art into `output_files/covers/`. Do not run this file on
-the pipeline box while an ingestion run is in flight.
+✅ THE SIX HOLLOW TESTS NOW HAVE A FAILURE PATH — audit §4.2, fixed 2026-09-07.
+Until today six of the eleven had no `assert`, no `self.fail` and no raise: they
+walked the library, printed a `[REPORT]` block and passed unconditionally, so
+`test_all_books_have_narrators` did not check that all books have narrators.
+Each now asserts against a ceiling MEASURED on the live library that day (see
+the FLOORS block below), so the suite is green now and goes red on regression.
+Three that gate a NON-ZERO number were renamed to stop promising a check they
+do not make: `..._authors_missing_drive_links_within_ceiling`,
+`test_book_descriptions_within_ceiling`, `test_books_missing_genre_within_ceiling`.
+The `[REPORT]` prints are kept — the numbers were the point of the originals.
+
+✅ RUNNING THIS FILE NO LONGER WRITES TO `output_files/` — audit §4.4, fixed
+2026-09-07. `extract_metadata()` still writes extracted cover art, but
+`setUpClass` redirects `app.metadata.OUTPUT_DIR` to `COVER_OUTPUT_DIR` under the
+OS temp dir for the life of the class, so a plain `pytest -q` on the pipeline box
+no longer rewrites the real ~1,090 cover JPEGs. No app or pipeline code changed.
+⚠️ It still READS the whole library and is the slowest setup in the estate
+(~8.3 s), so it is still not free — but it is now side-effect free where it
+matters. Verified by mtime sweep: 0 files under `output_files/` touched by a run.
 """
 
 import json
+import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import pytest
 
-from app.config import EXTS, ROOT_DIR, SITE_DIR
+import app.metadata as app_metadata
+from app.config import EXTS, OUTPUT_DIR, ROOT_DIR, SITE_DIR
 from app.metadata import extract_metadata, walk_library
+
+# ⚠️ AUDIT §4.4 (2026-09-07) — WHERE THE COVERS GO UNDER TEST.
+#
+# `extract_metadata()` -> `app.metadata._save_cover_for_file()` WRITES the
+# embedded cover art of every book it reads. Before this constant existed it
+# wrote into the real `output_files/covers/`, so a plain `pytest -q` on the
+# pipeline box rewrote **1,090 cover JPEGs** — and `git status` could not see
+# any of it, because `.gitignore:4` ignores `output_files/`. A clean
+# `git status --short` is NOT proof that a suite is side-effect free; only an
+# mtime sweep caught it.
+#
+# `setUpClass` redirects `app.metadata.OUTPUT_DIR` here for the whole class, so
+# the writes land in the OS temp area instead. The app/pipeline code is
+# UNCHANGED — this is a test-side patch of a module global, which works because
+# `_save_cover_for_file` resolves `OUTPUT_DIR` at call time.
+#
+# Why a STABLE path rather than a fresh `mkdtemp()` per run: nothing here ever
+# deletes a directory, so a per-run temp dir would accumulate ~200 MB a run.
+# A single reused root is overwritten in place and stays bounded. The bytes are
+# a deterministic function of the library, so two concurrent runs writing it
+# write the same content.
+COVER_OUTPUT_DIR = Path(tempfile.gettempdir()) / "audiobook_catalog_test_covers"
 
 
 def _library_present() -> bool:
@@ -88,12 +129,98 @@ if BOOKFUNNEL_PATH.exists():
         BOOKFUNNEL_BOOKS = set(data.get("books", []))
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# ⚠️ AUDIT §4.2 (2026-09-07) — THE MEASURED FLOORS.
+#
+# Until today six of these tests had NO failure path of any kind: no `assert`,
+# no `self.fail`, no raise. They walked the real ~1,080-book library, built a
+# list of problems, printed a `[REPORT]` block and passed unconditionally —
+# `test_all_books_have_narrators` did not check that all books have narrators.
+#
+# Some of what they measure is a CODE invariant (every book has a title) and is
+# asserted at 0 problems. The rest is a LIBRARY-CONTENT gap the owner already
+# accepts — a book whose m4b carries no genre tag is not a bug in this repo —
+# so those get an explicit floor instead of a demand for 100%.
+#
+# ⚠️ THE FLOORS ARE NOT ROUND NUMBERS OR GUESSES. Each is the count MEASURED on
+# the date below against the live library, so the suite is green today and goes
+# RED the moment coverage regresses. Raising a floor after a real improvement is
+# welcome; LOWERING one is a deliberate act that needs a re-measurement and a
+# note saying which books legitimately left the library.
+#
+# ⚠️ Every floor below is a CEILING ON PROBLEMS, not a floor on successes, and
+# that is deliberate: an absolute floor on successes silently loosens as the
+# library grows (1,090 books with covers still clears a floor of 1,090 once the
+# library reaches 1,091), whereas a ceiling on the missing count stays exactly
+# as tight tomorrow as it is today.
+#
+# MEASURED 2026-09-07 13:07 Phoenix, by running this file and reading its own
+# `[REPORT]` lines. Library: **1,090 books**, 522 authors mapped.
+#
+#   books total ............................ 1090
+#   missing embedded cover ................. 0     (100.0%)
+#   cover_href naming no file .............. 0
+#   missing author metadata ................ 0     (100.0%)
+#   missing narrator metadata .............. 0     (100.0%)
+#   missing duration metadata .............. 0     (100.0%)
+#   missing genre metadata ................. 1     (99.9%)  — "Thesaurize"
+#   missing description metadata ........... 86    (92.1%)  — 0 BookFunnel excl.
+#   authors absent from author_drive_map ... 1              — "Funa"
+# ─────────────────────────────────────────────────────────────────────────────
+FLOORS_MEASURED_ON = "2026-09-07"
+
+# Zero today, and zero is the real invariant: these four are produced for every
+# book by the tag readers in `app/metadata.py`, so a non-zero count is a code or
+# ingestion defect rather than a library-content gap.
+MAX_BOOKS_MISSING_COVERS = 0
+MAX_BOOKS_MISSING_AUTHORS = 0
+MAX_BOOKS_MISSING_NARRATORS = 0
+MAX_BOOKS_MISSING_DURATION = 0
+
+# Non-zero today. These are CONTENT gaps in the source m4b tags — the owner
+# accepts them, and demanding 100% would make the suite permanently red — so
+# they are gated at exactly the count measured on FLOORS_MEASURED_ON.
+MAX_BOOKS_MISSING_GENRE = 1  # "Thesaurize"
+MAX_BOOKS_MISSING_DESCRIPTIONS = 86
+MAX_AUTHORS_MISSING_DRIVE_LINKS = 1  # "Funa"
+
+
 class TestCatalogCompleteness(unittest.TestCase):
     """Test that all books have required resources (covers, links)."""
 
     @classmethod
     def setUpClass(cls):
         """Load all books and author map once for all tests."""
+        # ⚠️ AUDIT §4.4 — start the cover redirect BEFORE the first
+        # `extract_metadata()` call, and hold it for the whole class. See
+        # COVER_OUTPUT_DIR above for why this exists.
+        COVER_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        cls.cover_output_dir = COVER_OUTPUT_DIR
+        cls._cover_patch = mock.patch.object(app_metadata, "OUTPUT_DIR", COVER_OUTPUT_DIR)
+        cls._cover_patch.start()
+        try:
+            cls._load_library()
+        except BaseException:
+            # unittest does NOT call tearDownClass when setUpClass raises, and
+            # `SkipTest` below is one of the ways it raises — so the patch has
+            # to be released here or it leaks into every later test module.
+            cls._stop_cover_patch()
+            raise
+
+    @classmethod
+    def _stop_cover_patch(cls):
+        """Idempotent — called from both the setUpClass failure path and teardown."""
+        patcher = getattr(cls, "_cover_patch", None)
+        if patcher is not None:
+            patcher.stop()
+            cls._cover_patch = None
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._stop_cover_patch()
+
+    @classmethod
+    def _load_library(cls):
         cls.files = walk_library(ROOT_DIR, EXTS)
         cls.books = []
 
@@ -131,9 +258,7 @@ class TestCatalogCompleteness(unittest.TestCase):
             )
 
     def test_all_books_have_covers(self):
-        """Test that all books have cover images extracted."""
-        from app.config import OUTPUT_DIR
-
+        """Every extracted cover_href resolves to a real file, and cover coverage holds its floor."""
         missing_covers = []
         extraction_errors = []
 
@@ -142,34 +267,51 @@ class TestCatalogCompleteness(unittest.TestCase):
             if not cover_href:
                 missing_covers.append(str(book["path"]))
             else:
-                # Verify cover file exists in output directory (where extract_metadata writes it)
-                # Cover files are staged to site/ only during `stage_site_files()`, so check OUTPUT_DIR first.
-                output_cover_path = OUTPUT_DIR / cover_href
-                site_cover_path = SITE_DIR / cover_href
-                if not output_cover_path.exists() and not site_cover_path.exists():
-                    extraction_errors.append(f"{book['path']} (cover file missing from both output and site dirs)")
+                # ⚠️ The redirect target FIRST — under test that is where this
+                # run's extraction actually wrote (audit §4.4). The real
+                # OUTPUT_DIR and SITE_DIR stay as fallbacks so a cover staged
+                # by an earlier pipeline run still counts; `stage_site_files()`
+                # is what copies OUTPUT_DIR -> SITE_DIR.
+                if not any(
+                    (base / cover_href).exists()
+                    for base in (self.cover_output_dir, OUTPUT_DIR, SITE_DIR)
+                ):
+                    extraction_errors.append(f"{book['path']} (cover file missing from all three cover dirs)")
 
-        # Report missing covers (not a failure, just informational)
+        with_covers = len(self.books) - len(missing_covers)
+        pct = (with_covers / len(self.books)) * 100
+        print(f"\n[REPORT] Books with embedded covers: {with_covers}/{len(self.books)} ({pct:.1f}%)")
         if missing_covers:
-            print(f"\n[REPORT] {len(missing_covers)} books without embedded covers:")
             for path in missing_covers[:20]:
                 print(f"  - {path}")
             if len(missing_covers) > 20:
                 print(f"  ... and {len(missing_covers) - 20} more")
 
-        # Only fail if extraction failed (cover_href exists but file doesn't in either location)
         if extraction_errors:
             print(f"\n[ERROR] {len(extraction_errors)} cover extraction failures:")
             for error in extraction_errors[:10]:
                 print(f"  - {error}")
             if len(extraction_errors) > 10:
                 print(f"  ... and {len(extraction_errors) - 10} more")
-            self.fail(f"{len(extraction_errors)} covers failed to extract properly")
 
-        print(f"\n[OK] Cover extraction working: {len(self.books) - len(missing_covers)} books have covers")
+        # INVARIANT, measured 0 on 2026-09-07: a cover_href that names no file
+        # is always a defect — the href is what the site renders.
+        self.assertEqual(
+            [], extraction_errors, f"{len(extraction_errors)} covers failed to extract properly"
+        )
 
-    def test_all_authors_have_drive_links(self):
-        """Test that all authors have Google Drive links in author map."""
+        self.assertLessEqual(
+            len(missing_covers),
+            MAX_BOOKS_MISSING_COVERS,
+            f"cover coverage regressed: {len(missing_covers)} books have no embedded cover, "
+            f"ceiling is {MAX_BOOKS_MISSING_COVERS} (measured {FLOORS_MEASURED_ON}). "
+            f"First offenders: {missing_covers[:5]}",
+        )
+
+    def test_authors_missing_drive_links_within_ceiling(self):
+        """Renamed 2026-09-07 (audit §4.2). It was `test_all_authors_have_drive_links`
+        and it asserted nothing at all; 1 author legitimately has no map entry, so
+        this is a THRESHOLD test and now says so in its name."""
         missing_links = []
         authors_seen = set()
 
@@ -192,16 +334,25 @@ class TestCatalogCompleteness(unittest.TestCase):
 
                 missing_links.append(author)
 
-        # Report missing links (not a failure, just informational)
+        print(f"\n[REPORT] {len(missing_links)} authors missing from author_drive_map.json "
+              f"(ceiling {MAX_AUTHORS_MISSING_DRIVE_LINKS}, measured {FLOORS_MEASURED_ON}):")
+        for author in sorted(missing_links)[:20]:
+            print(f"  - {author}")
+        if len(missing_links) > 20:
+            print(f"  ... and {len(missing_links) - 20} more")
         if missing_links:
-            print(f"\n[REPORT] {len(missing_links)} authors missing from author_drive_map.json:")
-            for author in sorted(missing_links)[:20]:
-                print(f"  - {author}")
-            if len(missing_links) > 20:
-                print(f"  ... and {len(missing_links) - 20} more")
-            print(f"\n[TIP] Run 'python -m app.tools.generate_author_map' to add them")
+            print("\n[TIP] Run 'python -m app.tools.generate_author_map' to add them")
 
         print(f"\n[OK] Author map loaded: {len(self.author_map)} authors mapped")
+
+        self.assertLessEqual(
+            len(missing_links),
+            MAX_AUTHORS_MISSING_DRIVE_LINKS,
+            f"author Drive-link coverage regressed: {len(missing_links)} authors are absent "
+            f"from author_drive_map.json, ceiling is {MAX_AUTHORS_MISSING_DRIVE_LINKS} "
+            f"(measured {FLOORS_MEASURED_ON}). New: {sorted(missing_links)[:5]}. "
+            f"Fix with `python -m app.tools.generate_author_map`.",
+        )
 
     @requires_author_map
     def test_author_drive_links_are_valid(self):
@@ -246,7 +397,6 @@ class TestCatalogCompleteness(unittest.TestCase):
             if not author:
                 missing_authors.append(str(book["path"]))
 
-        # Report missing authors (not a failure, just informational)
         if missing_authors:
             print(f"\n[REPORT] {len(missing_authors)} books missing author metadata:")
             for path in missing_authors[:20]:
@@ -256,8 +406,20 @@ class TestCatalogCompleteness(unittest.TestCase):
 
         print(f"\n[OK] Books with authors: {len(self.books) - len(missing_authors)}/{len(self.books)}")
 
-    def test_all_books_have_descriptions(self):
-        """Test that all books have description metadata (excludes BookFunnel books)."""
+        # INVARIANT: 0 measured 2026-09-07. An author is what routes a book to
+        # its Drive folder and its shelf, so a book without one is a real defect.
+        self.assertLessEqual(
+            len(missing_authors),
+            MAX_BOOKS_MISSING_AUTHORS,
+            f"{len(missing_authors)} books have no author metadata, ceiling is "
+            f"{MAX_BOOKS_MISSING_AUTHORS} (measured {FLOORS_MEASURED_ON}): {missing_authors[:5]}",
+        )
+
+    def test_book_descriptions_within_ceiling(self):
+        """Renamed 2026-09-07 (audit §4.2). It was `test_all_books_have_descriptions`
+        and it asserted nothing; 86 books legitimately carry no description tag, so
+        this is a THRESHOLD test and now says so in its name.
+        (BookFunnel-sourced books are excluded — known metadata gaps.)"""
         missing = []
         skipped_bf = 0
         for book in self.books:
@@ -277,6 +439,14 @@ class TestCatalogCompleteness(unittest.TestCase):
                 print(f"  - {title}")
             if len(missing) > 10:
                 print(f"  ... and {len(missing) - 10} more")
+
+        self.assertLessEqual(
+            len(missing),
+            MAX_BOOKS_MISSING_DESCRIPTIONS,
+            f"description coverage regressed: {len(missing)} books have no description, "
+            f"ceiling is {MAX_BOOKS_MISSING_DESCRIPTIONS} (measured {FLOORS_MEASURED_ON}). "
+            f"Sample: {missing[:5]}",
+        )
 
     def test_all_books_have_titles(self):
         """Test that all books have title metadata."""
@@ -310,6 +480,14 @@ class TestCatalogCompleteness(unittest.TestCase):
             if len(missing) > 10:
                 print(f"  ... and {len(missing) - 10} more")
 
+        # INVARIANT: 0 measured 2026-09-07. The name of this test is now true.
+        self.assertLessEqual(
+            len(missing),
+            MAX_BOOKS_MISSING_NARRATORS,
+            f"narrator coverage regressed: {len(missing)} books have no narrator, ceiling is "
+            f"{MAX_BOOKS_MISSING_NARRATORS} (measured {FLOORS_MEASURED_ON}). Sample: {missing[:5]}",
+        )
+
     def test_all_books_have_duration(self):
         """Test that all books have duration metadata."""
         missing = []
@@ -326,8 +504,21 @@ class TestCatalogCompleteness(unittest.TestCase):
             if len(missing) > 10:
                 print(f"  ... and {len(missing) - 10} more")
 
-    def test_all_books_have_genre(self):
-        """Test that all books have genre metadata."""
+        # INVARIANT: 0 measured 2026-09-07. ⚠️ `duration_hhmm` is load-bearing —
+        # `catalog-twins` uses it to tell a duplicate EDITION from a SUBSTITUTION
+        # (info/catalog-twins.md), so a book that loses it is a real defect.
+        self.assertLessEqual(
+            len(missing),
+            MAX_BOOKS_MISSING_DURATION,
+            f"duration coverage regressed: {len(missing)} books have no duration (or 0:00), "
+            f"ceiling is {MAX_BOOKS_MISSING_DURATION} (measured {FLOORS_MEASURED_ON}). "
+            f"Sample: {missing[:5]}",
+        )
+
+    def test_books_missing_genre_within_ceiling(self):
+        """Renamed 2026-09-07 (audit §4.2). It was `test_all_books_have_genre` and it
+        asserted nothing; 1 book legitimately carries no genre tag, so this is a
+        THRESHOLD test and now says so in its name."""
         missing = []
         for book in self.books:
             genre = book["metadata"].get("genre", "")
@@ -341,6 +532,13 @@ class TestCatalogCompleteness(unittest.TestCase):
                 print(f"  - {title}")
             if len(missing) > 10:
                 print(f"  ... and {len(missing) - 10} more")
+
+        self.assertLessEqual(
+            len(missing),
+            MAX_BOOKS_MISSING_GENRE,
+            f"genre coverage regressed: {len(missing)} books have no genre, ceiling is "
+            f"{MAX_BOOKS_MISSING_GENRE} (measured {FLOORS_MEASURED_ON}). Sample: {missing[:5]}",
+        )
 
     def test_catalog_has_books(self):
         """Test that the catalog is not empty."""
