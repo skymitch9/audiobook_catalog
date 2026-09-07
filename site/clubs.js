@@ -749,14 +749,19 @@ async function _updateClubDetailsViaWorker(db, clubId, updates) {
     try {
       await updateDoc(doc(db, col('clubs'), clubId), direct);
     } catch (e) {
+      const said = describeActionError(e, { need: 'permission to edit this club' });
+      // ⚠️ The "which half saved" note is prepended OUTSIDE describeActionError
+      // on purpose: it applies to a permission refusal and a network failure
+      // just as much as to anything else, and describeActionError's `fallback`
+      // is only consulted for the third case. A person told nothing but "you
+      // don't have permission" would retry the whole modal and wonder why the
+      // settings kept re-applying.
       return {
         success: false,
-        error: describeActionError(e, {
-          fallback: Object.keys(gated).length > 0
-            ? 'The club settings were saved, but its name/description could not be — '
-              + `${e && e.message ? e.message : 'the write was refused'}. Reload the club and try that part again.`
-            : undefined,
-        }),
+        error: Object.keys(gated).length > 0
+          ? `The club settings were saved, but its name/description could not be. ${said} `
+            + 'Reload the club and try that part again.'
+          : said,
       };
     }
   }

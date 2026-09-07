@@ -303,6 +303,31 @@ describe('FLAG ON — updateClubDetails splits the edit, gated half first', () =
     expect(result.error).toMatch(/club settings were saved/i);
     expect(result.error).toMatch(/name\/description could not be/i);
   });
+
+  it('⚠️ the which-half note survives a PERMISSION refusal on the direct half', async () => {
+    stubFetch();
+    updateDocImpl = async () => {
+      const e = new Error('Missing or insufficient permissions.');
+      e.code = 'permission-denied';
+      throw e;
+    };
+
+    const result = await updateClubDetails({}, 'c1', { name: 'New name', joinMode: 'open' });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/club settings were saved/i);
+    expect(result.error).toMatch(/don't have permission/i);
+  });
+
+  it('a direct-ONLY edit that fails says nothing about settings that never existed', async () => {
+    stubFetch();
+    updateDocImpl = async () => { throw new Error('write refused'); };
+
+    const result = await updateClubDetails({}, 'c1', { name: 'New name' });
+
+    expect(result.success).toBe(false);
+    expect(result.error).not.toMatch(/club settings were saved/i);
+  });
 });
 
 describe('FLAG ON — failures are worded and never fall back to Firestore', () => {
