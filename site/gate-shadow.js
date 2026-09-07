@@ -46,41 +46,15 @@
 //   catalog-platform/apps/audiobook-worker/test/gate-shadow.test.ts
 //                                       (what is parsed, same literal)
 
-import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 import { IS_DEV_LANE } from './fb-env.js';
+// ⚠️ liveAuthUser() MOVED to site/auth-token.js on 2026-09-06, unchanged.
+// Phase 3a's worker-writes.js needs the same "the live session's ID token"
+// answer, and two copies of it would drift. The behaviour this module relies
+// on is documented there: never rejects, 4 s ceiling, default app, cached
+// token with no forced refresh.
+import { liveAuthUser } from './auth-token.js';
 
 export const GATE_SHADOW_URL = 'https://audiobook-api.heygabi.ai/api/gate/shadow';
-
-/** How long to wait for Firebase to publish auth state before reporting
- * tokenless anyway. A page whose auth never settles still measures. */
-const AUTH_WAIT_MS = 4000;
-
-/**
- * The live Firebase user, or null — the identity.js liveUser() pattern, but
- * on the DEFAULT app (every page calls initializeApp exactly once) so this
- * module needs no app threaded through reviews.js/clubs.js/club-reads.js.
- * Never rejects; every failure resolves null.
- */
-function liveAuthUser() {
-  return new Promise((resolve) => {
-    let done = false;
-    let unsub = null;
-    const finish = (u) => {
-      if (done) return;
-      done = true;
-      if (typeof unsub === 'function') { try { unsub(); } catch (e) { /* already detached */ } }
-      resolve(u || null);
-    };
-    try {
-      const auth = getAuth();
-      if (auth.currentUser) return finish(auth.currentUser);
-      unsub = onAuthStateChanged(auth, (u) => finish(u));
-      setTimeout(() => finish(null), AUTH_WAIT_MS);
-    } catch (e) {
-      finish(null);
-    }
-  });
-}
 
 /** The async half — only ever called with every rejection swallowed. */
 async function sendReport(action, context) {

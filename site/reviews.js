@@ -5,6 +5,8 @@ import { doc, setDoc, getDoc, deleteDoc, serverTimestamp, collection, getDocs, q
 import { col } from './fb-env.js';
 import { describeActionError } from './permission-ux.js';
 import { reportGate } from './gate-shadow.js';
+import { flagEnabled } from './flags.js';
+import { seg, workerWrite } from './worker-writes.js';
 
 /**
  * Derive a book identifier by slugifying the title.
@@ -535,16 +537,57 @@ export async function clearTbrForRating(db, bookId, displayName, uid) {
 }
 
 /**
- * Remove a review — SITE ADMIN ONLY, and rules-enforced (three-tier model,
- * 2026-08-14): firestore.rules allows a /reviews delete only when the
- * caller's live Firebase uid holds site_roles role 'admin'. Everyone else
- * (moderators included — the owner scoped their sweep to clubs) gets
- * PERMISSION_DENIED, so this function is safe to ship in a public module:
- * the rule, not the UI, is the control. Doc id is the same composite
- * submitReview writes: `{bookId}_{displayNameLower}`.
+ * The one document id a review lives under — the composite submitReview
+ * writes, `{bookId}_{displayNameLower}`.
+ *
+ * ⚠️ Extracted 2026-09-06 because Phase 3a gave it a second reader: the
+ * Worker route is `DELETE /api/reviews/:docId`, so the id is now part of a
+ * URL as well as of a Firestore path, and the two must be the same string by
+ * construction rather than by two people spelling it the same way.
+ */
+export function reviewDocId(bookId, displayName) {
+  return `${bookId}_${(displayName || '').toLowerCase()}`;
+}
+
+/**
+ * Remove a review — SITE ADMIN ONLY.
+ *
+ * ## Two paths, one behaviour, chosen by `AUTH_ROUTES_REVIEWS` (site/flags.js)
+ *
+ * FLAG OFF (the shipped default): the browser deletes the document directly,
+ * exactly as it has since 2026-08-14. It is rules-enforced —
+ * `firestore.rules` allows a /reviews delete only when the caller's live
+ * Firebase uid holds site_roles role 'admin'. Everyone else (moderators
+ * included — the owner scoped their sweep to clubs) gets PERMISSION_DENIED,
+ * so this function is safe to ship in a public module: the rule, not the UI,
+ * is the control.
+ *
+ * FLAG ON: the delete goes to the Worker's `DELETE /api/reviews/:docId`,
+ * capability `removeAnyReview` (admin+), estate-checked. That last part is
+ * the point of the whole migration and the reason this is Phase 3's
+ * highest-value route: `firestore.rules` can only ask whether a `site_roles`
+ * doc says 'admin', so a REVOKED admin whose doc still stands keeps this
+ * power (the 2026-08-16 incident). The Worker asks the estate directory too,
+ * and refuses.
+ *
+ * ⚠️ NO FALLBACK. A Worker refusal or outage is returned as a worded error;
+ * it never retries through Firestore (worker-writes.js rule 1).
+ *
+ * ⚠️ The shadow report is sent on the DIRECT path only. On the Worker path
+ * the Worker writes its own `ab_gate` line (mode `enforce`,
+ * enforce-gate.ts `logGateLine`) — sending an `ab_gate_shadow` line as well
+ * would count one action twice in the soak ledger, and would carry a
+ * `succeeded` bit describing an HTTP call rather than the Firestore write the
+ * ledger's flip criterion is about.
  */
 export async function deleteReview(db, bookId, displayName) {
-  const docId = `${bookId}_${(displayName || '').toLowerCase()}`;
+  const docId = reviewDocId(bookId, displayName);
+
+  if (flagEnabled('AUTH_ROUTES_REVIEWS')) {
+    const result = await workerWrite('DELETE', `/api/reviews/${seg(docId)}`);
+    return result.success ? { success: true } : { success: false, error: result.error };
+  }
+
   let succeeded = false; // the shadow report's outcome bit — see the finally
   try {
     await deleteDoc(doc(db, col('reviews'), docId));
