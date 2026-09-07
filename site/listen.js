@@ -939,11 +939,17 @@ async function openBook(anchor) {
   el('ls-shell').hidden = false;
   el('ls-title').textContent = state.title;
   el('ls-author').textContent = state.author ? `· ${state.author}` : '';
-  el('ls-note').textContent =
-    'Your spot is saved as you listen — per book, per person, and it follows you to another '
-    + 'device, where the player offers to jump rather than moving you. Playback speed follows '
-    + 'the book the same way. This player does not work offline yet; that is the next piece '
-    + 'of work. The skip interval stays on this device, because it is a thumb habit.';
+  // ⚠️ CUT 2026-09-07 (owner rule "less grey paragraphs", audit item 159 —
+  // the longest grey block in the estate). #ls-note used to be filled with
+  // "Your spot is saved as you listen — per book, per person, and it follows
+  // you to another device, where the player offers to jump rather than moving
+  // you. Playback speed follows the book the same way. This player does not
+  // work offline yet; that is the next piece of work. The skip interval stays
+  // on this device, because it is a thumb habit." It duplicated the footer
+  // disclosure and explained three settings nobody asked about; the
+  // cross-device jump announces itself with its own prompt when it happens.
+  // The <p id="ls-note"> element and its CSS rule went with it, so nothing
+  // here may call el('ls-note') again without putting the element back.
 
   buildSelects();
   labelSkipButtons();

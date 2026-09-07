@@ -435,25 +435,39 @@ def test_the_eviction_shield_is_stamped_and_is_not_the_ping_that_was_rejected():
     assert "col(STAMP_COLLECTION)" in body
 
 
-def test_the_page_still_says_what_it_does_not_do_yet():
-    """Offline is still a phase boundary and is still stated to the person.
-    ⚠️ And the SAVED-SPOT sentence has been replaced rather than deleted: the
-    page should now say it saves, not go quiet about it."""
+def test_the_transport_note_stays_cut():
+    """⚠️ INVERTED 2026-09-07 — this test used to REQUIRE the #ls-note
+    paragraph ("does not work offline", "Your spot is saved"). The owner's
+    "less grey paragraphs" rule cut it (grey-paragraph audit item 159, the
+    longest grey block in the estate: it duplicated the footer disclosure and
+    explained three settings nobody asked about). The test now guards the
+    other direction — the paragraph must not grow back, and nothing may write
+    to an element the page no longer has."""
     body = strip_comments(read(LISTEN_JS))
-    assert "does not work offline" in body
-    assert "does not save your spot yet" not in body, (
-        "the page still tells people their spot is not saved, and it now is"
+    page = strip_comments(read(TEMPLATE))
+    assert "Your spot is saved as you listen" not in body, (
+        "audit item 159's paragraph is back in listen.js"
     )
-    assert "Your spot is saved" in body
+    assert "thumb habit" not in body
+    assert "ls-note" not in body, "listen.js writes to #ls-note, which is gone"
+    assert 'id="ls-note"' not in page, (
+        "the #ls-note element is back without the paragraph being re-approved"
+    )
 
 
-def test_the_footer_disclosure_was_narrowed_rather_than_left_to_go_stale():
-    """⚠️ It used to read "Nothing is downloaded to this device", which stopped
-    being the whole truth the moment a position was cached locally. The claim
-    that MATTERS — no book files — is kept, and the rest is said."""
-    page = read(TEMPLATE)
-    assert "no book files are kept on this device" in page
-    assert "Nothing is downloaded to this device." not in page
+def test_the_footer_disclosure_survived_the_2026_09_07_shortening():
+    """⚠️ The footer said "Nothing is downloaded to this device" until the
+    position cache made that untrue; it was then narrowed to "no book files are
+    kept on this device". SHORTENED again 2026-09-07 (audit item 158) — the
+    "streamed from the household library" half describes the implementation and
+    went. ⚠️ THE DISCLOSURE ITSELF IS NOT A CANDIDATE and must survive every
+    future trim: it is a claim about somebody's own device."""
+    page = strip_comments(read(TEMPLATE))
+    assert "Nothing is stored on this device" in page, (
+        "the on-device disclosure is gone entirely, not shortened"
+    )
+    assert "your place is saved to your account" in page
+    assert "Streamed from the household library" not in page
 
 
 def test_no_invented_worker_route_is_called():

@@ -173,8 +173,7 @@
   #ls-error { display: none; margin-top: 12px; padding: 10px 12px; border-radius: 6px;
               border: 1px solid var(--neon-magenta, #d4409b);
               color: var(--neon-magenta, #f0a); font-size: .85rem; line-height: 1.5; }
-  #ls-note { margin-top: 14px; color: var(--muted, #6a6a86); font-size: .75rem;
-             line-height: 1.5; }
+  /* #ls-note went with audit item 159 (2026-09-07) — see listen.js. */
   .ls-footer { margin-top: 18px; color: var(--muted, #6a6a86); font-size: .78rem; }
   .ls-footer a { color: var(--muted, #9a9ab0); }
 </style>
@@ -268,8 +267,8 @@
     </details>
 
     <div id="ls-error" role="alert"></div>
-
-    <p id="ls-note"></p>
+    <!-- <p id="ls-note"> and the paragraph listen.js filled it with were CUT
+         2026-09-07 (owner rule "less grey paragraphs", audit item 159). -->
   </div>
 
   <div class="ls-footer">
@@ -277,9 +276,13 @@
          NARROWED in phase 3 rather than left to quietly become untrue: no BOOK
          FILES are cached, which is the claim that matters, but the page does
          now keep your place — on this device and in your account. Phase 4 (the
-         PWA, with offline downloads) is what changes the first half. -->
-    Streamed from the household library — no book files are kept on this device.
-    Your place in the book is saved to your account.
+         PWA, with offline downloads) is what changes the first half.
+         ⚠️ SHORTENED 2026-09-07 (owner rule "less grey paragraphs", audit item
+         158) from "Streamed from the household library — no book files are
+         kept on this device. Your place in the book is saved to your account."
+         The disclosure survives; the "streamed from the household library"
+         half went, because it describes the implementation. -->
+    Nothing is stored on this device; your place is saved to your account.
     Back to the <a href=".">catalogue</a>.
   </div>
 </div>
