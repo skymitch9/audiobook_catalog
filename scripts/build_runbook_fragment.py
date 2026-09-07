@@ -52,7 +52,10 @@ HEADER_COMMENT = """<!-- Estate doc fragment doc:{slug} — served by auth-worke
      Source of truth: audiobook_catalog {source} (LOCAL ONLY).
      ⚠️ GENERATED — do not hand-edit. Regenerate with:
        python -m scripts.build_runbook_fragment {source} --slug {slug} --out <this file>
-     then publish with the wrangler kv command in SHELF_SERVER.md §12. -->
+     then publish with the wrangler kv command in SHELF_SERVER.md's
+     "Published copies of this doc" section (§9 as of 2026-09-06 — the
+     section is cited by NAME because it has already been renumbered once,
+     and this comment sat pointing at a §12 that no longer exists). -->
 """
 
 # Fallback only — normally lifted from the fragment being replaced.
