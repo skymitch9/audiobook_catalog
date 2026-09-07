@@ -5,10 +5,10 @@ estate-search.js — provenance and refresh procedure
 canonical implementation lives upstream in catalog-platform:
 
   Upstream:  catalog-platform/sites/heygabi-home/public/assets/estate-search.js
-  Synced:    2026-09-06
+  Synced:    2026-09-07
   Upstream sha256 at sync time (the copy = this content with a
   7-line DO-NOT-EDIT banner prepended, nothing else changed):
-    a95bb93c56598c87d42fd83a6719a66ed5952cd1c76910294eb74b876a9f601c
+    24fd26fb2aec5454693013ec36f91a8f22c724fe3133b048062e931ac5720227
 
   ⚠️ THIS FILE IS GENERATED TOO — by scripts/sync_estate_search.py. Editing it
   by hand records a hash that nothing produced.

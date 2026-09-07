@@ -60,9 +60,13 @@
  *                  out once auth resolves). Default: find.js's own copy.
  *   placeholder-authed  Input placeholder once signed in (authed mode only).
  *   sign-in-label  Text on the sign-in button (authed mode only).
- *   hint           The helper line under the box. Omit the attribute (rather
- *                  than passing empty) to keep find.js's own copy; pass an
- *                  empty string explicitly to hide the line.
+ *   hint           The helper line under the box. ⚠️ EMPTY BY DEFAULT since
+ *                  2026-09-07 (W17-ES-GREY, the owner's "fewer grey
+ *                  paragraphs" rule): the box, its placeholder and its
+ *                  button say what it does, so no consumer is given an
+ *                  explainer it did not ask for. Set the attribute to opt
+ *                  IN to a line; the element hides itself whenever its text
+ *                  is empty, whether or not the attribute is present.
  *   universes      'true' (default) | 'false' — show the cross-catalog
  *                  "Universes" result group and "everything in X →" follow-
  *                  up buttons. /api/universe stays members-only server-side
@@ -296,10 +300,13 @@ export function groupBySeries(rows) {
   const ES_UNKNOWN_SHELF = 'a shelf we cannot name';
 
   /** Said beside results when the directory could not be read, so an unnamed
-   *  shelf reads as an outage rather than as a mystery. */
+   *  shelf reads as an outage rather than as a mystery. ⚠️ Shortened from two
+   *  sentences to one (W17-ES-GREY 2026-09-07) — both facts survive: what
+   *  failed, and that it is NOT a permissions problem. Keep that second half:
+   *  an outage worded as a refusal sends people asking for access they already
+   *  hold, and `predeploy.checks.json` pins the phrase on the live host. */
   const ES_REGISTRY_CAVEAT =
-    'We couldn’t reach the estate’s catalog directory, so the shelves below are not named. ' +
-    'That’s an outage, not a permissions problem.';
+    'We couldn’t reach the estate’s catalog directory, so the shelves below are not named — an outage, not a permissions problem.';
 
   /** Validated, not trusted — a malformed row would be rendered as a label. */
   function esParseCatalogs(body) {
@@ -404,8 +411,15 @@ export function groupBySeries(rows) {
   const DEFAULT_PLACEHOLDER_ANON = 'Search the audiobook shelf…';
   const DEFAULT_PLACEHOLDER_AUTHED = 'Start typing a title, author or series…';
   const DEFAULT_SIGNIN_LABEL = 'Sign in to search everything';
-  const DEFAULT_HINT =
-    '“Do we own this in any format?” — one title, checked against every shelf at once.';
+  /** ⚠️ EMPTY ON PURPOSE (W17-ES-GREY 2026-09-07). This held a one-sentence
+   *  explainer of what the search box is for — the same sentence both
+   *  consumer pages had already been made to suppress with hint="" under the
+   *  owner's "fewer grey paragraphs" rule (2026-09-07 02:50 Phoenix), because
+   *  the placeholder and the Search button already say it. Suppressing it in
+   *  each consumer left the DEFAULT still shipping to any site that took the
+   *  defaults, so the cut belongs here instead. The `hint` attribute still
+   *  works for a consumer that wants a line; the element hides on empty. */
+  const DEFAULT_HINT = '';
 
   /**
    * Inline SVG icons (owner order 2026-08-15): the barcode button shows a
@@ -696,9 +710,13 @@ export function groupBySeries(rows) {
         return cats;
       });
 
+      // ⚠️ Hidden whenever the TEXT is empty — never on whether the attribute
+      // was passed (W17-ES-GREY 2026-09-07). The old form only hid on an
+      // explicit hint="", which is why both consumer pages had to pass one to
+      // suppress a default they never asked for.
       const hintAttr = this.getAttribute('hint');
       this._hintEl.textContent = hintAttr !== null ? hintAttr : DEFAULT_HINT;
-      if (this._hintEl.textContent === '') this._hintEl.hidden = true;
+      this._hintEl.hidden = this._hintEl.textContent === '';
 
       this._input.addEventListener('input', this._onInput);
       this._input.addEventListener('keydown', this._onKeydown);
@@ -1181,10 +1199,14 @@ export function groupBySeries(rows) {
       const heading = document.createElement('p');
       heading.className = 'es-caveat';
       heading.setAttribute('role', 'presentation');
-      // ⚠ Load-bearing copy (find.js's own header): in-catalog, not owned.
-      heading.textContent =
-        `${headingText} A result means it is in the catalog — some entries are wanted, not owned. ` +
-        'Tap through to the owning catalog for owned-versus-wanted.';
+      // ⚠ Load-bearing FACT (find.js's own header): a search hit is presence
+      // in a catalog, NOT ownership. That half stays.
+      // ⚠️ SHORTENED W17-ES-GREY 2026-09-07: the second sentence — a how-to
+      // telling the reader to open the owning catalog to tell owned from
+      // wanted — is gone. Every row here is already a link to that catalog,
+      // so it described the click the reader was about to make anyway, and
+      // the apex keeps one full-length copy of the caveat in /series.
+      heading.textContent = `${headingText} Some results are wanted, not owned.`;
       return heading;
     }
 
@@ -1214,8 +1236,12 @@ export function groupBySeries(rows) {
         const where = !Array.isArray(data.scope) || data.scope.length === 0
           ? 'in the catalogs you can search'
           : everything ? 'on any shelf' : `in ${this._scopePhrase(data.scope)}`;
+        // ⚠️ W17-ES-GREY 2026-09-07: the middle clause — an explainer naming
+        // which fields are searched and suggesting more letters — is cut. What
+        // survives is the STATE (nothing matched, and where it looked) and the
+        // one clause that would change the answer (signing in widens scope).
         this._setStatus(
-          `Nothing ${where} matches “${data.query}”. The search tries titles, authors and series — a couple more letters can help.` +
+          `Nothing ${where} matches “${data.query}”.` +
           (this._currentUser || everything ? '' : ' Signing in searches every shelf.'),
         );
         return;
@@ -1230,7 +1256,12 @@ export function groupBySeries(rows) {
       if (note) this._resultsEl.appendChild(note);
 
       if (universeRows.length) {
-        this._resultsEl.appendChild(this._groupHeading('Universes — every catalog, every format'));
+        // ⚠️ W17-ES-GREY 2026-09-07: the three group headings below carried an
+        // em-dashed tail explaining how each group was built. Cut — the rows
+        // demonstrate it (a universe row IS a cross-catalog button, a book row
+        // lists its own shelves), and `_renderUniverse` already headed its own
+        // groups with the bare noun, so the two renderers now agree.
+        this._resultsEl.appendChild(this._groupHeading('Universes'));
         const ul = document.createElement('ul');
         ul.className = 'es-hits';
         ul.setAttribute('role', 'presentation');
@@ -1253,7 +1284,7 @@ export function groupBySeries(rows) {
       }
 
       if (data.books.length) {
-        this._resultsEl.appendChild(this._groupHeading('Books & audiobooks — same work, any format'));
+        this._resultsEl.appendChild(this._groupHeading('Books & audiobooks'));
         const ul = document.createElement('ul');
         ul.className = 'es-hits';
         ul.setAttribute('role', 'presentation');
@@ -1262,7 +1293,7 @@ export function groupBySeries(rows) {
       }
 
       if (data.games.length) {
-        this._resultsEl.appendChild(this._groupHeading('Board games — matched on title'));
+        this._resultsEl.appendChild(this._groupHeading('Board games'));
         const ul = document.createElement('ul');
         ul.className = 'es-hits';
         ul.setAttribute('role', 'presentation');
@@ -1392,7 +1423,10 @@ export function groupBySeries(rows) {
       if (this.authMode !== 'authed' || !this._currentUser) {
         // /api/universe is members-only server-side (§4.5's carve-out is
         // search-only). Say so as an invitation, before a 401 says it worse.
-        this._setStatus(`The universe view spans every shelf, so it needs a sign-in. Sign in to see everything in ${name}.`);
+        // ⚠️ W17-ES-GREY 2026-09-07: the leading clause explaining WHY the
+        // view needs a sign-in is cut; what is left names the thing the
+        // reader wanted and the one action that gets it.
+        this._setStatus(`Sign in to see everything in ${name}.`);
         return;
       }
       if (this._inflight) this._inflight.abort();
