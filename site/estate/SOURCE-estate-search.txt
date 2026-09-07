@@ -8,7 +8,7 @@ canonical implementation lives upstream in catalog-platform:
   Synced:    2026-09-06
   Upstream sha256 at sync time (the copy = this content with a
   7-line DO-NOT-EDIT banner prepended, nothing else changed):
-    adf0e419b3664a57c19c57ad0a91d7cd0f0b12e57d008ab1fe13dcb91eb19dff
+    a95bb93c56598c87d42fd83a6719a66ed5952cd1c76910294eb74b876a9f601c
 
   ⚠️ THIS FILE IS GENERATED TOO — by scripts/sync_estate_search.py. Editing it
   by hand records a hash that nothing produced.

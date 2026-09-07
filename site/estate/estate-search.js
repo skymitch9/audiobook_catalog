@@ -326,13 +326,29 @@ export function groupBySeries(rows) {
    * could not name a shelf must still SEARCH; the caller degrades its words,
    * it does not lose its function.
    *
-   * ⚠️ On `padhard.heygabi.ai` this call is refused by CORS today, because the
-   * index Worker's `READ_ORIGINS` does not list that host (measured
-   * 2026-09-05). That is pre-existing and not this component's to widen — the
-   * same list already blocks `/api/search` there, so the box is degraded on
-   * that host with or without this. Widening a CORS list is access-increasing
-   * and the owner's line; it is recorded as an open question in
-   * catalog-platform's docs/TODO.md.
+   * ⚠️ **CORRECTED 2026-09-06.** This comment used to say the call "is refused
+   * by CORS today" on `padhard.heygabi.ai`, because the index Worker's
+   * `READ_ORIGINS` did not list that host (true when measured 2026-09-05, and
+   * the open question it pointed at has since been answered). The owner said
+   * **"Yes"** to padhard on 2026-09-06 and **"1. Yes"** to `ebooks` separately
+   * the same day, so `READ_ORIGINS` is now **all six estate catalog hosts**:
+   * apex, `library`, `boardgames`, `audiobooks`, `padhard`, `ebooks`. Both
+   * `/api/catalogs` and `/api/search` echo the origin from every one of them —
+   * measured live with `curl -sS -D <file> -o <file>`, padhard 14:33Z and
+   * ebooks 20:48–20:50Z. **So this call is no longer refused anywhere the
+   * component is mounted.**
+   *
+   * ⚠️ The `[]` fallback above is still load-bearing and is NOT dead code: an
+   * unknown future host, a directory outage or a non-200 all still land there.
+   * A widened allowlist removes one cause, not the need for the fallback.
+   *
+   * ⚠️ And the thing worth carrying forward: **CORS only decides which PAGES
+   * may ask, never what is RETURNED** — measured 2026-09-06, the anonymous
+   * `/api/search?q=test` body is `"scope":["audiobook"]` from ebooks, from
+   * padhard, from library **and from `example.com`**, byte-identical. Scope is
+   * decided per-caller by the estate, not by the origin header.
+   *
+   * One home for these facts: `docs/info/catalog-registry.md` §10.
    */
   const _esRegistryByOrigin = new Map();
   function esLoadRegistry(origin) {
