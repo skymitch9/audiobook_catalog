@@ -247263,5 +247263,151 @@
    }
   ],
   "parts": []
+ },
+ "So Not Meant to Be": {
+  "source": "m4b",
+  "chapters": [
+   {
+    "title": "Chapter 1",
+    "start_min": 0.0,
+    "start_sec": 0.0
+   },
+   {
+    "title": "Chapter 2",
+    "start_min": 0.2,
+    "start_sec": 14.629
+   },
+   {
+    "title": "Chapter 3",
+    "start_min": 16.6,
+    "start_sec": 998.551
+   },
+   {
+    "title": "Chapter 4",
+    "start_min": 28.9,
+    "start_sec": 1731.001
+   },
+   {
+    "title": "Chapter 5",
+    "start_min": 47.0,
+    "start_sec": 2819.831
+   },
+   {
+    "title": "Chapter 6",
+    "start_min": 88.6,
+    "start_sec": 5315.675
+   },
+   {
+    "title": "Chapter 7",
+    "start_min": 102.7,
+    "start_sec": 6162.228
+   },
+   {
+    "title": "Chapter 8",
+    "start_min": 130.0,
+    "start_sec": 7797.377
+   },
+   {
+    "title": "Chapter 9",
+    "start_min": 151.4,
+    "start_sec": 9084.273
+   },
+   {
+    "title": "Chapter 10",
+    "start_min": 178.7,
+    "start_sec": 10719.306
+   },
+   {
+    "title": "Chapter 11",
+    "start_min": 203.9,
+    "start_sec": 12231.413
+   },
+   {
+    "title": "Chapter 12",
+    "start_min": 231.0,
+    "start_sec": 13861.268
+   },
+   {
+    "title": "Chapter 13",
+    "start_min": 259.1,
+    "start_sec": 15546.433
+   },
+   {
+    "title": "Chapter 14",
+    "start_min": 318.0,
+    "start_sec": 19080.069
+   },
+   {
+    "title": "Chapter 15",
+    "start_min": 352.0,
+    "start_sec": 21118.897
+   },
+   {
+    "title": "Chapter 16",
+    "start_min": 402.5,
+    "start_sec": 24152.84
+   },
+   {
+    "title": "Chapter 17",
+    "start_min": 431.5,
+    "start_sec": 25889.158
+   },
+   {
+    "title": "Chapter 18",
+    "start_min": 459.4,
+    "start_sec": 27565.291
+   },
+   {
+    "title": "Chapter 19",
+    "start_min": 498.7,
+    "start_sec": 29920.467
+   },
+   {
+    "title": "Chapter 20",
+    "start_min": 552.1,
+    "start_sec": 33126.539
+   },
+   {
+    "title": "Chapter 21",
+    "start_min": 587.2,
+    "start_sec": 35232.891
+   },
+   {
+    "title": "Chapter 22",
+    "start_min": 641.8,
+    "start_sec": 38507.137
+   },
+   {
+    "title": "Chapter 23",
+    "start_min": 677.0,
+    "start_sec": 40622.266
+   },
+   {
+    "title": "Chapter 24",
+    "start_min": 714.2,
+    "start_sec": 42850.708
+   },
+   {
+    "title": "Chapter 25",
+    "start_min": 742.8,
+    "start_sec": 44568.543
+   },
+   {
+    "title": "Chapter 26",
+    "start_min": 773.9,
+    "start_sec": 46436.984
+   },
+   {
+    "title": "Chapter 27",
+    "start_min": 798.4,
+    "start_sec": 47905.831
+   },
+   {
+    "title": "Chapter 28",
+    "start_min": 803.5,
+    "start_sec": 48212.567
+   }
+  ],
+  "parts": []
  }
 }
