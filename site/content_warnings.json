@@ -7839,5 +7839,27 @@
   ],
   "source": "hardcover",
   "checked_at": 1789786647
+ },
+ "Fall I Want: A Cozy Creek Collection Standalone": {
+  "warnings": [
+   {
+    "label": "Sexual content",
+    "source_url": "https://app.thestorygraph.com/book_reviews/10451db2-2e0c-4046-a8d7-91fcf0009f43/content_warning/45?page=2"
+   },
+   {
+    "label": "Toxic relationship",
+    "source_url": "https://app.thestorygraph.com/book_reviews/b8618aa7-57aa-4c42-a60d-6ddcbabbb8b9/content_warning/52"
+   },
+   {
+    "label": "Death of parent",
+    "source_url": "https://app.thestorygraph.com/book_reviews/b8618aa7-57aa-4c42-a60d-6ddcbabbb8b9/content_warning/52"
+   },
+   {
+    "label": "Emotional turbulence",
+    "source_url": "https://www.goodreads.com/book/show/217241182"
+   }
+  ],
+  "source": "web",
+  "checked_at": 1790007285
  }
 }
