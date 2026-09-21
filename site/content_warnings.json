@@ -7861,5 +7861,79 @@
   ],
   "source": "web",
   "checked_at": 1790007285
+ },
+ "Mile High: Windy City Series, Book 1": {
+  "warnings": [
+   {
+    "label": "Fatphobia & body-shaming (including internalised body-shaming and dysmorphia)",
+    "source_url": "https://triggerwarningdatabase.com/2024/06/04/mile-high-by-liz-tomforde/"
+   },
+   {
+    "label": "Descriptions of personal trauma",
+    "source_url": "https://www.supersummary.com/mile-high/summary/"
+   },
+   {
+    "label": "Emotional abuse",
+    "source_url": "https://www.supersummary.com/mile-high/summary/"
+   },
+   {
+    "label": "Body image/weight issues",
+    "source_url": "https://goodeyreads.com/2024/09/13/book-review-mile-high-windy-city-1-by-liz-tomforde/"
+   },
+   {
+    "label": "Parental abandonment",
+    "source_url": "https://goodeyreads.com/2024/09/13/book-review-mile-high-windy-city-1-by-liz-tomforde/"
+   },
+   {
+    "label": "Anxiety/panic attacks",
+    "source_url": "https://goodeyreads.com/2024/09/13/book-review-mile-high-windy-city-1-by-liz-tomforde/"
+   },
+   {
+    "label": "Psychologically manipulative mother",
+    "source_url": "https://goodeyreads.com/2024/09/13/book-review-mile-high-windy-city-1-by-liz-tomforde/"
+   },
+   {
+    "label": "Fatphobia",
+    "source_url": "https://alovelylittlebookblog.com/2023/06/22/mile-high-by-liz-tomforde/"
+   },
+   {
+    "label": "Body shaming (Moderate)",
+    "source_url": "https://app.thestorygraph.com/book_reviews/850d086e-4caf-4dee-b43b-c97e477329fe/content_warning/10?page=4"
+   },
+   {
+    "label": "Bullying (Moderate)",
+    "source_url": "https://app.thestorygraph.com/book_reviews/850d086e-4caf-4dee-b43b-c97e477329fe/content_warning/10?page=4"
+   },
+   {
+    "label": "Emotional abuse (Moderate)",
+    "source_url": "https://app.thestorygraph.com/book_reviews/850d086e-4caf-4dee-b43b-c97e477329fe/content_warning/10?page=4"
+   },
+   {
+    "label": "Fatphobia (Moderate)",
+    "source_url": "https://app.thestorygraph.com/book_reviews/850d086e-4caf-4dee-b43b-c97e477329fe/content_warning/10?page=4"
+   },
+   {
+    "label": "Panic attacks/disorders (Moderate)",
+    "source_url": "https://app.thestorygraph.com/book_reviews/850d086e-4caf-4dee-b43b-c97e477329fe/content_warning/10?page=4"
+   },
+   {
+    "label": "Toxic relationship (Moderate)",
+    "source_url": "https://app.thestorygraph.com/book_reviews/850d086e-4caf-4dee-b43b-c97e477329fe/content_warning/10?page=4"
+   },
+   {
+    "label": "Abandonment (Moderate)",
+    "source_url": "https://app.thestorygraph.com/book_reviews/850d086e-4caf-4dee-b43b-c97e477329fe/content_warning/10?page=4"
+   },
+   {
+    "label": "Eating disorder (Moderate)",
+    "source_url": "https://app.thestorygraph.com/book_reviews/850d086e-4caf-4dee-b43b-c97e477329fe/content_warning/22"
+   },
+   {
+    "label": "Toxic friendship (Moderate)",
+    "source_url": "https://app.thestorygraph.com/book_reviews/850d086e-4caf-4dee-b43b-c97e477329fe/content_warning/22"
+   }
+  ],
+  "source": "web",
+  "checked_at": 1790010102
  }
 }
