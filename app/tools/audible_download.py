@@ -29,8 +29,10 @@ DEFAULT_OUT = PROJECT_ROOT / "runtime" / "openaudible" / "books"
 PROFILE_BY_USER_SUFFIX = {
     "4I7OE4OQ": "skylar",
     "7QF7NMAA": "samantha",
+    # paige (2026-09-21): suffix read off her rows in runtime/openaudible/books.json
+    "TNJ4QOQA": "paige",
 }
-ALL_PROFILES = ["skylar", "samantha"]
+ALL_PROFILES = ["skylar", "samantha", "paige"]
 
 
 def find_ffmpeg():

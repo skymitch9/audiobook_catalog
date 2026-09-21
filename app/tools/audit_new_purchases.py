@@ -34,7 +34,11 @@ CATALOG_PATH = SITE_DIR / "catalog.csv"
 PROJECT_ROOT = SITE_DIR.parent
 
 
-AUDIBLE_PROFILES = ("skylar", "samantha")
+# One entry per audible-cli profile (`python -m audible_cli manage profile list`).
+# ⚠️ Every name here MUST have an auth file, or every tick prints an export
+# failure for it. paige added 2026-09-21 (third household account; export
+# measured at 5 rows the day it was registered).
+AUDIBLE_PROFILES = ("skylar", "samantha", "paige")
 
 
 def audible_cli_books():
