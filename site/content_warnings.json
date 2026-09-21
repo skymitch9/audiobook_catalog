@@ -7935,5 +7935,182 @@
   ],
   "source": "web",
   "checked_at": 1790010102
+ },
+ "The Night We Met": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1790012446
+ },
+ "Haunting Adeline - Cat and Mouse Duet, Book 1": {
+  "warnings": [
+   {
+    "label": "Stalking",
+    "source_url": "https://hardcover.app/books/haunting-adeline"
+   },
+   {
+    "label": "Sexual content",
+    "source_url": "https://hardcover.app/books/haunting-adeline"
+   },
+   {
+    "label": "Sexual assault",
+    "source_url": "https://hardcover.app/books/haunting-adeline"
+   },
+   {
+    "label": "Trafficking",
+    "source_url": "https://hardcover.app/books/haunting-adeline"
+   },
+   {
+    "label": "Child abuse",
+    "source_url": "https://hardcover.app/books/haunting-adeline"
+   },
+   {
+    "label": "Murder",
+    "source_url": "https://hardcover.app/books/haunting-adeline"
+   },
+   {
+    "label": "Rape",
+    "source_url": "https://hardcover.app/books/haunting-adeline"
+   },
+   {
+    "label": "Sexual violence",
+    "source_url": "https://hardcover.app/books/haunting-adeline"
+   },
+   {
+    "label": "Toxic relationship",
+    "source_url": "https://hardcover.app/books/haunting-adeline"
+   },
+   {
+    "label": "Violence",
+    "source_url": "https://hardcover.app/books/haunting-adeline"
+   }
+  ],
+  "source": "hardcover",
+  "checked_at": 1790012447
+ },
+ "Hunting Adeline - Cat and Mouse Duet, Book 2": {
+  "warnings": [
+   {
+    "label": "Rape",
+    "source_url": "https://hardcover.app/books/hunting-adeline"
+   },
+   {
+    "label": "Trafficking",
+    "source_url": "https://hardcover.app/books/hunting-adeline"
+   },
+   {
+    "label": "Stalking",
+    "source_url": "https://hardcover.app/books/hunting-adeline"
+   },
+   {
+    "label": "Sexual content",
+    "source_url": "https://hardcover.app/books/hunting-adeline"
+   },
+   {
+    "label": "Murder",
+    "source_url": "https://hardcover.app/books/hunting-adeline"
+   },
+   {
+    "label": "Sexual assault",
+    "source_url": "https://hardcover.app/books/hunting-adeline"
+   },
+   {
+    "label": "Sexual violence",
+    "source_url": "https://hardcover.app/books/hunting-adeline"
+   },
+   {
+    "label": "Physical abuse",
+    "source_url": "https://hardcover.app/books/hunting-adeline"
+   },
+   {
+    "label": "Emotional abuse",
+    "source_url": "https://hardcover.app/books/hunting-adeline"
+   },
+   {
+    "label": "Injury/Injury detail",
+    "source_url": "https://hardcover.app/books/hunting-adeline"
+   }
+  ],
+  "source": "hardcover",
+  "checked_at": 1790012448
+ },
+ "Bromantasy": {
+  "warnings": [
+   {
+    "label": "past child neglect",
+    "source_url": "https://www.romance.io/books/6926cfad7402b702d69a0783/bromantasy-mire-roche"
+   },
+   {
+    "label": "past child abuse",
+    "source_url": "https://www.romance.io/books/6926cfad7402b702d69a0783/bromantasy-mire-roche"
+   },
+   {
+    "label": "substance abuse",
+    "source_url": "https://www.romance.io/books/6926cfad7402b702d69a0783/bromantasy-mire-roche"
+   },
+   {
+    "label": "alcoholism",
+    "source_url": "https://www.romance.io/books/6926cfad7402b702d69a0783/bromantasy-mire-roche"
+   },
+   {
+    "label": "violence",
+    "source_url": "https://moodreads.app/book/11748"
+   },
+   {
+    "label": "alcohol use",
+    "source_url": "https://moodreads.app/book/11748"
+   },
+   {
+    "label": "explicit sexual content",
+    "source_url": "https://andreasgalley.com/2026/03/02/arc-bromantasy-maire-roche/"
+   }
+  ],
+  "source": "web",
+  "checked_at": 1790012680
+ },
+ "Game On - An Into Darkness Novel": {
+  "warnings": [
+   {
+    "label": "Sexual content",
+    "source_url": "https://hardcover.app/books/game-on-2026"
+   },
+   {
+    "label": "Death of parent",
+    "source_url": "https://hardcover.app/books/game-on-2026"
+   },
+   {
+    "label": "Car accident",
+    "source_url": "https://hardcover.app/books/game-on-2026"
+   },
+   {
+    "label": "forced proximity",
+    "source_url": "https://hardcover.app/books/game-on-2026"
+   },
+   {
+    "label": "Chronic illness",
+    "source_url": "https://hardcover.app/books/game-on-2026"
+   },
+   {
+    "label": "graphic sex",
+    "source_url": "https://hardcover.app/books/game-on-2026"
+   },
+   {
+    "label": "gaslighting",
+    "source_url": "https://hardcover.app/books/game-on-2026"
+   },
+   {
+    "label": "Manipulation",
+    "source_url": "https://hardcover.app/books/game-on-2026"
+   },
+   {
+    "label": "Morally Gray Characters",
+    "source_url": "https://hardcover.app/books/game-on-2026"
+   },
+   {
+    "label": "enemies to lovers",
+    "source_url": "https://hardcover.app/books/game-on-2026"
+   }
+  ],
+  "source": "hardcover",
+  "checked_at": 1790012681
  }
 }

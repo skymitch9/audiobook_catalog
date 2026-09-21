@@ -1,6 +1,13 @@
 {
  "entries": [
   {
+   "key": "The Night We Met|Abby Jimenez",
+   "title": "The Night We Met",
+   "author": "Abby Jimenez",
+   "added": "2026-09-21",
+   "source": "pipeline"
+  },
+  {
    "key": "Mile High: Windy City Series, Book 1|Liz Tomforde",
    "title": "Mile High: Windy City Series, Book 1",
    "author": "Liz Tomforde",
@@ -8,9 +15,37 @@
    "source": "pipeline"
   },
   {
+   "key": "Hunting Adeline - Cat and Mouse Duet, Book 2|H. D. Carlton",
+   "title": "Hunting Adeline - Cat and Mouse Duet, Book 2",
+   "author": "H. D. Carlton",
+   "added": "2026-09-21",
+   "source": "pipeline"
+  },
+  {
+   "key": "Haunting Adeline - Cat and Mouse Duet, Book 1|H. D. Carlton",
+   "title": "Haunting Adeline - Cat and Mouse Duet, Book 1",
+   "author": "H. D. Carlton",
+   "added": "2026-09-21",
+   "source": "pipeline"
+  },
+  {
+   "key": "Game On - An Into Darkness Novel|Navessa Allen",
+   "title": "Game On - An Into Darkness Novel",
+   "author": "Navessa Allen",
+   "added": "2026-09-21",
+   "source": "pipeline"
+  },
+  {
    "key": "Fall I Want: A Cozy Creek Collection Standalone|Lyra Parish",
    "title": "Fall I Want: A Cozy Creek Collection Standalone",
    "author": "Lyra Parish",
+   "added": "2026-09-21",
+   "source": "pipeline"
+  },
+  {
+   "key": "Bromantasy|Máire Roche",
+   "title": "Bromantasy",
+   "author": "Máire Roche",
    "added": "2026-09-21",
    "source": "pipeline"
   },

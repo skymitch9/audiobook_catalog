@@ -247931,5 +247931,1451 @@
    }
   ],
   "parts": []
+ },
+ "The Night We Met": {
+  "source": "m4b",
+  "chapters": [
+   {
+    "title": "Opening Credits",
+    "start_min": 0.0,
+    "start_sec": 0.0
+   },
+   {
+    "title": "Dedication",
+    "start_min": 0.7,
+    "start_sec": 39.333
+   },
+   {
+    "title": "Author’s Note",
+    "start_min": 1.0,
+    "start_sec": 58.037
+   },
+   {
+    "title": "1: Chris",
+    "start_min": 2.5,
+    "start_sec": 148.025
+   },
+   {
+    "title": "2: Larissa",
+    "start_min": 12.1,
+    "start_sec": 723.694
+   },
+   {
+    "title": "3: Chris",
+    "start_min": 33.1,
+    "start_sec": 1983.817
+   },
+   {
+    "title": "4: Larissa",
+    "start_min": 49.4,
+    "start_sec": 2963.582
+   },
+   {
+    "title": "5: Chris",
+    "start_min": 63.1,
+    "start_sec": 3783.78
+   },
+   {
+    "title": "6: Larissa",
+    "start_min": 95.8,
+    "start_sec": 5746.516
+   },
+   {
+    "title": "7: Chris",
+    "start_min": 110.7,
+    "start_sec": 6639.764
+   },
+   {
+    "title": "8: Larissa",
+    "start_min": 116.0,
+    "start_sec": 6958.852
+   },
+   {
+    "title": "9: Chris",
+    "start_min": 131.7,
+    "start_sec": 7900.281
+   },
+   {
+    "title": "10: Larissa",
+    "start_min": 166.8,
+    "start_sec": 10006.098
+   },
+   {
+    "title": "11: Chris",
+    "start_min": 173.9,
+    "start_sec": 10436.897
+   },
+   {
+    "title": "12: Larissa",
+    "start_min": 189.1,
+    "start_sec": 11344.425
+   },
+   {
+    "title": "13: Chris",
+    "start_min": 200.2,
+    "start_sec": 12010.814
+   },
+   {
+    "title": "14: Chris",
+    "start_min": 204.4,
+    "start_sec": 12264.793
+   },
+   {
+    "title": "15: Larissa",
+    "start_min": 209.2,
+    "start_sec": 12553.324
+   },
+   {
+    "title": "16: Chris",
+    "start_min": 212.6,
+    "start_sec": 12757.752
+   },
+   {
+    "title": "17: Larissa",
+    "start_min": 231.2,
+    "start_sec": 13873.656
+   },
+   {
+    "title": "18: Larissa",
+    "start_min": 234.8,
+    "start_sec": 14085.654
+   },
+   {
+    "title": "19: Larissa",
+    "start_min": 239.2,
+    "start_sec": 14352.219
+   },
+   {
+    "title": "20: Chris",
+    "start_min": 247.2,
+    "start_sec": 14830.433
+   },
+   {
+    "title": "21: Larissa",
+    "start_min": 250.9,
+    "start_sec": 15056.734
+   },
+   {
+    "title": "22: Chris",
+    "start_min": 261.4,
+    "start_sec": 15681.002
+   },
+   {
+    "title": "23: Larissa",
+    "start_min": 273.0,
+    "start_sec": 16377.832
+   },
+   {
+    "title": "24: Chris",
+    "start_min": 278.2,
+    "start_sec": 16694.737
+   },
+   {
+    "title": "25: Larissa",
+    "start_min": 294.5,
+    "start_sec": 17669.58
+   },
+   {
+    "title": "26: Chris",
+    "start_min": 314.9,
+    "start_sec": 18895.454
+   },
+   {
+    "title": "27: Larissa",
+    "start_min": 324.8,
+    "start_sec": 19488.073
+   },
+   {
+    "title": "28: Chris",
+    "start_min": 328.5,
+    "start_sec": 19707.989
+   },
+   {
+    "title": "29: Larissa",
+    "start_min": 339.9,
+    "start_sec": 20391.677
+   },
+   {
+    "title": "30: Chris",
+    "start_min": 356.2,
+    "start_sec": 21371.048
+   },
+   {
+    "title": "31: Larissa",
+    "start_min": 362.2,
+    "start_sec": 21731.189
+   },
+   {
+    "title": "32: Chris",
+    "start_min": 370.9,
+    "start_sec": 22253.057
+   },
+   {
+    "title": "33: Larissa",
+    "start_min": 378.8,
+    "start_sec": 22725.792
+   },
+   {
+    "title": "34: Larissa",
+    "start_min": 383.8,
+    "start_sec": 23026.861
+   },
+   {
+    "title": "35: Chris",
+    "start_min": 398.1,
+    "start_sec": 23888.228
+   },
+   {
+    "title": "36: Larissa",
+    "start_min": 406.1,
+    "start_sec": 24364.608
+   },
+   {
+    "title": "37: Chris",
+    "start_min": 413.7,
+    "start_sec": 24822.087
+   },
+   {
+    "title": "38: Larissa",
+    "start_min": 422.3,
+    "start_sec": 25335.573
+   },
+   {
+    "title": "39: Chris",
+    "start_min": 439.1,
+    "start_sec": 26343.945
+   },
+   {
+    "title": "40: Larissa",
+    "start_min": 449.5,
+    "start_sec": 26968.956
+   },
+   {
+    "title": "41: Chris",
+    "start_min": 459.2,
+    "start_sec": 27551.614
+   },
+   {
+    "title": "42: Larissa",
+    "start_min": 469.3,
+    "start_sec": 28157.956
+   },
+   {
+    "title": "43: Chris",
+    "start_min": 473.6,
+    "start_sec": 28417.764
+   },
+   {
+    "title": "44: Larissa",
+    "start_min": 476.7,
+    "start_sec": 28604.173
+   },
+   {
+    "title": "45: Chris",
+    "start_min": 488.7,
+    "start_sec": 29320.717
+   },
+   {
+    "title": "46: Larissa",
+    "start_min": 501.0,
+    "start_sec": 30060.644
+   },
+   {
+    "title": "47: Chris",
+    "start_min": 514.0,
+    "start_sec": 30838.651
+   },
+   {
+    "title": "48: Larissa",
+    "start_min": 532.7,
+    "start_sec": 31960.685
+   },
+   {
+    "title": "49: Larissa",
+    "start_min": 542.9,
+    "start_sec": 32574.202
+   },
+   {
+    "title": "50: Chris",
+    "start_min": 545.7,
+    "start_sec": 32740.828
+   },
+   {
+    "title": "51: Larissa",
+    "start_min": 548.2,
+    "start_sec": 32894.729
+   },
+   {
+    "title": "52: Chris",
+    "start_min": 562.8,
+    "start_sec": 33766.777
+   },
+   {
+    "title": "Epilogue: Chris",
+    "start_min": 580.6,
+    "start_sec": 34834.453
+   },
+   {
+    "title": "Author's Note",
+    "start_min": 587.6,
+    "start_sec": 35258.286
+   },
+   {
+    "title": "End Credits",
+    "start_min": 590.7,
+    "start_sec": 35439.494
+   }
+  ],
+  "parts": []
+ },
+ "Haunting Adeline - Cat and Mouse Duet, Book 1": {
+  "source": "m4b",
+  "chapters": [
+   {
+    "title": "Opening Credits",
+    "start_min": 0.0,
+    "start_sec": 0.0
+   },
+   {
+    "title": "Prologue",
+    "start_min": 0.4,
+    "start_sec": 23.497
+   },
+   {
+    "title": "Chapter 1",
+    "start_min": 4.1,
+    "start_sec": 243.088
+   },
+   {
+    "title": "March 19, 1944",
+    "start_min": 37.8,
+    "start_sec": 2265.058
+   },
+   {
+    "title": "Chapter 2",
+    "start_min": 38.8,
+    "start_sec": 2329.145
+   },
+   {
+    "title": "April 4th, 1944",
+    "start_min": 50.4,
+    "start_sec": 3023.978
+   },
+   {
+    "title": "Chapter 3",
+    "start_min": 51.4,
+    "start_sec": 3082.376
+   },
+   {
+    "title": "April 10th, 1944",
+    "start_min": 70.5,
+    "start_sec": 4227.839
+   },
+   {
+    "title": "Chapter 4",
+    "start_min": 72.2,
+    "start_sec": 4330.285
+   },
+   {
+    "title": "April 12th, 1944",
+    "start_min": 84.6,
+    "start_sec": 5077.921
+   },
+   {
+    "title": "Chapter 5",
+    "start_min": 86.2,
+    "start_sec": 5170.522
+   },
+   {
+    "title": "May 16th, 1944",
+    "start_min": 109.9,
+    "start_sec": 6596.784
+   },
+   {
+    "title": "Chapter 6",
+    "start_min": 111.3,
+    "start_sec": 6679.052
+   },
+   {
+    "title": "Chapter 7",
+    "start_min": 129.5,
+    "start_sec": 7771.922
+   },
+   {
+    "title": "May 25th, 1944",
+    "start_min": 147.3,
+    "start_sec": 8839.343
+   },
+   {
+    "title": "Chapter 8",
+    "start_min": 149.0,
+    "start_sec": 8937.447
+   },
+   {
+    "title": "July 7th, 1944",
+    "start_min": 174.5,
+    "start_sec": 10467.433
+   },
+   {
+    "title": "Chapter 9",
+    "start_min": 175.9,
+    "start_sec": 10555.018
+   },
+   {
+    "title": "Chapter 10",
+    "start_min": 197.0,
+    "start_sec": 11822.432
+   },
+   {
+    "title": "September 10th, 1944",
+    "start_min": 231.4,
+    "start_sec": 13883.017
+   },
+   {
+    "title": "Chapter 11",
+    "start_min": 232.8,
+    "start_sec": 13965.703
+   },
+   {
+    "title": "September 18th, 1944",
+    "start_min": 257.1,
+    "start_sec": 15423.428
+   },
+   {
+    "title": "Chapter 12",
+    "start_min": 258.1,
+    "start_sec": 15484.473
+   },
+   {
+    "title": "Chapter 13",
+    "start_min": 273.0,
+    "start_sec": 16377.14
+   },
+   {
+    "title": "September 22nd, 1944",
+    "start_min": 297.3,
+    "start_sec": 17836.398
+   },
+   {
+    "title": "Chapter 14",
+    "start_min": 298.6,
+    "start_sec": 17915.74
+   },
+   {
+    "title": "November 18th, 1944",
+    "start_min": 311.1,
+    "start_sec": 18667.578
+   },
+   {
+    "title": "Chapter 15",
+    "start_min": 312.4,
+    "start_sec": 18743.669
+   },
+   {
+    "title": "January 14th, 1945",
+    "start_min": 339.8,
+    "start_sec": 20389.011
+   },
+   {
+    "title": "Chapter 16",
+    "start_min": 340.8,
+    "start_sec": 20446.108
+   },
+   {
+    "title": "March 10th, 1945",
+    "start_min": 369.6,
+    "start_sec": 22174.926
+   },
+   {
+    "title": "Chapter 17",
+    "start_min": 370.5,
+    "start_sec": 22232.325
+   },
+   {
+    "title": "Chapter 18",
+    "start_min": 380.4,
+    "start_sec": 22821.345
+   },
+   {
+    "title": "April 14th, 1945",
+    "start_min": 419.6,
+    "start_sec": 25173.642
+   },
+   {
+    "title": "Chapter 19",
+    "start_min": 420.5,
+    "start_sec": 25227.744
+   },
+   {
+    "title": "Chapter 20",
+    "start_min": 437.2,
+    "start_sec": 26232.61
+   },
+   {
+    "title": "April15th, 1945",
+    "start_min": 462.5,
+    "start_sec": 27747.386
+   },
+   {
+    "title": "Chapter 21",
+    "start_min": 463.5,
+    "start_sec": 27807.595
+   },
+   {
+    "title": "June 19th, 1945",
+    "start_min": 498.1,
+    "start_sec": 29888.242
+   },
+   {
+    "title": "Chapter 22",
+    "start_min": 499.4,
+    "start_sec": 29963.358
+   },
+   {
+    "title": "Chapter 23",
+    "start_min": 528.3,
+    "start_sec": 31700.419
+   },
+   {
+    "title": "July 4th, 1945",
+    "start_min": 558.0,
+    "start_sec": 33478.533
+   },
+   {
+    "title": "Chapter 24",
+    "start_min": 559.2,
+    "start_sec": 33553.115
+   },
+   {
+    "title": "September 27th, 1945",
+    "start_min": 572.6,
+    "start_sec": 34356.687
+   },
+   {
+    "title": "Chapter 25",
+    "start_min": 574.0,
+    "start_sec": 34440.023
+   },
+   {
+    "title": "Chapter 26",
+    "start_min": 595.6,
+    "start_sec": 35736.114
+   },
+   {
+    "title": "September 28th, 1945",
+    "start_min": 634.5,
+    "start_sec": 38067.513
+   },
+   {
+    "title": "Chapter 27",
+    "start_min": 635.5,
+    "start_sec": 38127.861
+   },
+   {
+    "title": "October 13th, 1945",
+    "start_min": 674.3,
+    "start_sec": 40456.868
+   },
+   {
+    "title": "Chapter 28",
+    "start_min": 675.5,
+    "start_sec": 40529.5
+   },
+   {
+    "title": "Chapter 29",
+    "start_min": 692.5,
+    "start_sec": 41549.924
+   },
+   {
+    "title": "Chapter 30",
+    "start_min": 712.6,
+    "start_sec": 42756.827
+   },
+   {
+    "title": "November 2nd, 1945",
+    "start_min": 751.5,
+    "start_sec": 45088.667
+   },
+   {
+    "title": "Chapter 31",
+    "start_min": 752.6,
+    "start_sec": 45157.258
+   },
+   {
+    "title": "Chapter 32",
+    "start_min": 776.0,
+    "start_sec": 46559.487
+   },
+   {
+    "title": "Chapter 33",
+    "start_min": 795.1,
+    "start_sec": 47707.458
+   },
+   {
+    "title": "Chapter 34",
+    "start_min": 824.2,
+    "start_sec": 49454.504
+   },
+   {
+    "title": "February 3rd, 1946",
+    "start_min": 856.5,
+    "start_sec": 51390.165
+   },
+   {
+    "title": "Chapter 35",
+    "start_min": 857.2,
+    "start_sec": 51429.499
+   },
+   {
+    "title": "Chapter 36",
+    "start_min": 882.8,
+    "start_sec": 52970.05
+   },
+   {
+    "title": "May 8th, 1946",
+    "start_min": 906.7,
+    "start_sec": 54403.023
+   },
+   {
+    "title": "Chapter 37",
+    "start_min": 907.7,
+    "start_sec": 54461.699
+   },
+   {
+    "title": "Chapter 38",
+    "start_min": 922.5,
+    "start_sec": 55350.396
+   },
+   {
+    "title": "May 18th, 1946",
+    "start_min": 941.1,
+    "start_sec": 56464.141
+   },
+   {
+    "title": "Chapter 39",
+    "start_min": 942.0,
+    "start_sec": 56520.402
+   },
+   {
+    "title": "Chapter 40",
+    "start_min": 956.1,
+    "start_sec": 57364.052
+   },
+   {
+    "title": "Chapter 41",
+    "start_min": 971.9,
+    "start_sec": 58312.772
+   },
+   {
+    "title": "Chapter 42",
+    "start_min": 992.0,
+    "start_sec": 59518.259
+   },
+   {
+    "title": "Final Letter",
+    "start_min": 1004.6,
+    "start_sec": 60278.851
+   },
+   {
+    "title": "End Credits",
+    "start_min": 1004.9,
+    "start_sec": 60291.018
+   }
+  ],
+  "parts": []
+ },
+ "Hunting Adeline - Cat and Mouse Duet, Book 2": {
+  "source": "m4b",
+  "chapters": [
+   {
+    "title": "Opening Credits",
+    "start_min": 0.0,
+    "start_sec": 0.0
+   },
+   {
+    "title": "Part One",
+    "start_min": 0.5,
+    "start_sec": 30.046
+   },
+   {
+    "title": "Chapter 1",
+    "start_min": 0.9,
+    "start_sec": 52.151
+   },
+   {
+    "title": "June 8th, 2008",
+    "start_min": 27.0,
+    "start_sec": 1620.449
+   },
+   {
+    "title": "Chapter 2",
+    "start_min": 27.8,
+    "start_sec": 1668.885
+   },
+   {
+    "title": "June 10th, 2008",
+    "start_min": 56.5,
+    "start_sec": 3387.463
+   },
+   {
+    "title": "Chapter 3",
+    "start_min": 57.2,
+    "start_sec": 3431.116
+   },
+   {
+    "title": "June 11th, 2008",
+    "start_min": 74.6,
+    "start_sec": 4474.342
+   },
+   {
+    "title": "Chapter 4",
+    "start_min": 75.5,
+    "start_sec": 4528.583
+   },
+   {
+    "title": "Layla Layla Layla",
+    "start_min": 96.4,
+    "start_sec": 5783.528
+   },
+   {
+    "title": "Chapter 5",
+    "start_min": 96.8,
+    "start_sec": 5805.354
+   },
+   {
+    "title": "June 14th, 2008",
+    "start_min": 115.8,
+    "start_sec": 6950.701
+   },
+   {
+    "title": "Chapter 6",
+    "start_min": 116.7,
+    "start_sec": 7004.826
+   },
+   {
+    "title": "June 16th, 2008",
+    "start_min": 147.4,
+    "start_sec": 8841.872
+   },
+   {
+    "title": "Chapter 7",
+    "start_min": 148.1,
+    "start_sec": 8887.777
+   },
+   {
+    "title": "June 18th, 2008",
+    "start_min": 177.5,
+    "start_sec": 10647.176
+   },
+   {
+    "title": "Chapter 8",
+    "start_min": 178.4,
+    "start_sec": 10702.439
+   },
+   {
+    "title": "Chapter 9",
+    "start_min": 202.6,
+    "start_sec": 12154.266
+   },
+   {
+    "title": "November 2021",
+    "start_min": 223.0,
+    "start_sec": 13377.725
+   },
+   {
+    "title": "Chapter 10",
+    "start_min": 224.3,
+    "start_sec": 13457.764
+   },
+   {
+    "title": "Chapter 11",
+    "start_min": 236.6,
+    "start_sec": 14193.79
+   },
+   {
+    "title": "November 2021",
+    "start_min": 250.7,
+    "start_sec": 15040.807
+   },
+   {
+    "title": "Chapter 12",
+    "start_min": 251.9,
+    "start_sec": 15114.391
+   },
+   {
+    "title": "November 2022",
+    "start_min": 273.6,
+    "start_sec": 16418.47
+   },
+   {
+    "title": "Chapter 13",
+    "start_min": 275.1,
+    "start_sec": 16504.081
+   },
+   {
+    "title": "Chapter 14",
+    "start_min": 290.4,
+    "start_sec": 17422.592
+   },
+   {
+    "title": "Chapter 15",
+    "start_min": 330.7,
+    "start_sec": 19842.343
+   },
+   {
+    "title": "Chapter 16",
+    "start_min": 355.7,
+    "start_sec": 21340.889
+   },
+   {
+    "title": "Chapter 17",
+    "start_min": 371.9,
+    "start_sec": 22311.854
+   },
+   {
+    "title": "Chapter 18",
+    "start_min": 393.9,
+    "start_sec": 23636.831
+   },
+   {
+    "title": "January 2022",
+    "start_min": 425.0,
+    "start_sec": 25499.071
+   },
+   {
+    "title": "Chapter 19",
+    "start_min": 426.5,
+    "start_sec": 25588.676
+   },
+   {
+    "title": "Chapter 20",
+    "start_min": 445.7,
+    "start_sec": 26744.774
+   },
+   {
+    "title": "Chapter 21",
+    "start_min": 486.3,
+    "start_sec": 29175.09
+   },
+   {
+    "title": "Chapter 22",
+    "start_min": 502.7,
+    "start_sec": 30161.775
+   },
+   {
+    "title": "Part Two, January 21st, 2022",
+    "start_min": 520.9,
+    "start_sec": 31253.368
+   },
+   {
+    "title": "Chapter 23",
+    "start_min": 521.5,
+    "start_sec": 31291.03
+   },
+   {
+    "title": "February 18th, 2022",
+    "start_min": 540.0,
+    "start_sec": 32402.174
+   },
+   {
+    "title": "Chapter 24",
+    "start_min": 541.1,
+    "start_sec": 32466.237
+   },
+   {
+    "title": "March 2nd, 2022",
+    "start_min": 553.5,
+    "start_sec": 33210.831
+   },
+   {
+    "title": "Chapter 25",
+    "start_min": 554.9,
+    "start_sec": 33294.794
+   },
+   {
+    "title": "March 14th, 2022",
+    "start_min": 577.7,
+    "start_sec": 34659.152
+   },
+   {
+    "title": "Chapter 26",
+    "start_min": 578.9,
+    "start_sec": 34733.362
+   },
+   {
+    "title": "April 7th, 2022",
+    "start_min": 610.3,
+    "start_sec": 36615.362
+   },
+   {
+    "title": "Chapter 27",
+    "start_min": 611.5,
+    "start_sec": 36687.367
+   },
+   {
+    "title": "April 28th, 2022",
+    "start_min": 642.8,
+    "start_sec": 38570.18
+   },
+   {
+    "title": "Chapter 28",
+    "start_min": 644.3,
+    "start_sec": 38659.042
+   },
+   {
+    "title": "Chapter 29",
+    "start_min": 680.2,
+    "start_sec": 40813.853
+   },
+   {
+    "title": "Chapter 30",
+    "start_min": 691.8,
+    "start_sec": 41510.567
+   },
+   {
+    "title": "May 29th, 2022",
+    "start_min": 708.3,
+    "start_sec": 42498.715
+   },
+   {
+    "title": "Chapter 31",
+    "start_min": 709.3,
+    "start_sec": 42555.278
+   },
+   {
+    "title": "May 31st, 2022",
+    "start_min": 753.8,
+    "start_sec": 45225.735
+   },
+   {
+    "title": "Chapter 32",
+    "start_min": 754.6,
+    "start_sec": 45273.359
+   },
+   {
+    "title": "Chapter 33",
+    "start_min": 788.3,
+    "start_sec": 47297.512
+   },
+   {
+    "title": "June 2nd, 2022",
+    "start_min": 810.2,
+    "start_sec": 48614.222
+   },
+   {
+    "title": "Chapter 34",
+    "start_min": 811.7,
+    "start_sec": 48702.806
+   },
+   {
+    "title": "June 4th, 2022",
+    "start_min": 850.5,
+    "start_sec": 51029.329
+   },
+   {
+    "title": "Chapter 35",
+    "start_min": 851.9,
+    "start_sec": 51113.919
+   },
+   {
+    "title": "Chapter 36",
+    "start_min": 880.1,
+    "start_sec": 52807.025
+   },
+   {
+    "title": "June 5th, 2022",
+    "start_min": 895.0,
+    "start_sec": 53699.367
+   },
+   {
+    "title": "Chapter 37",
+    "start_min": 896.3,
+    "start_sec": 53777.85
+   },
+   {
+    "title": "Chapter 38",
+    "start_min": 945.3,
+    "start_sec": 56716.195
+   },
+   {
+    "title": "Chapter 39",
+    "start_min": 980.6,
+    "start_sec": 58835.387
+   },
+   {
+    "title": "June 28th, 2022",
+    "start_min": 1009.7,
+    "start_sec": 60583.245
+   },
+   {
+    "title": "Chapter 40",
+    "start_min": 1011.3,
+    "start_sec": 60678.679
+   },
+   {
+    "title": "Chapter 41",
+    "start_min": 1060.9,
+    "start_sec": 63654.803
+   },
+   {
+    "title": "Chapter 42",
+    "start_min": 1083.4,
+    "start_sec": 65001.931
+   },
+   {
+    "title": "Chapter 43",
+    "start_min": 1119.0,
+    "start_sec": 67138.84
+   },
+   {
+    "title": "Epilogue",
+    "start_min": 1134.2,
+    "start_sec": 68051.593
+   },
+   {
+    "title": "Rio's Letter",
+    "start_min": 1153.0,
+    "start_sec": 69180.732
+   },
+   {
+    "title": "End Credits",
+    "start_min": 1153.5,
+    "start_sec": 69210.105
+   }
+  ],
+  "parts": [
+   {
+    "label": "Part One",
+    "start_index": 1,
+    "end_index": 34
+   },
+   {
+    "label": "Part Two, January 21st, 2022",
+    "start_index": 35,
+    "end_index": 70
+   }
+  ]
+ },
+ "Bromantasy": {
+  "source": "m4b",
+  "chapters": [
+   {
+    "title": "Bromantasy: Intro",
+    "start_min": 0.0,
+    "start_sec": 0.0
+   },
+   {
+    "title": "Dedication",
+    "start_min": 0.3,
+    "start_sec": 15.301
+   },
+   {
+    "title": "Act One: Mistakes at the Tavern: Chapter One",
+    "start_min": 0.5,
+    "start_sec": 29.534
+   },
+   {
+    "title": "Chapter Two",
+    "start_min": 15.0,
+    "start_sec": 901.489
+   },
+   {
+    "title": "Chapter Three",
+    "start_min": 40.5,
+    "start_sec": 2429.733
+   },
+   {
+    "title": "Chapter Four",
+    "start_min": 79.1,
+    "start_sec": 4745.389
+   },
+   {
+    "title": "Chapter Five",
+    "start_min": 95.5,
+    "start_sec": 5731.981
+   },
+   {
+    "title": "Chapter Six",
+    "start_min": 118.8,
+    "start_sec": 7125.085
+   },
+   {
+    "title": "Chapter Seven",
+    "start_min": 129.8,
+    "start_sec": 7785.506
+   },
+   {
+    "title": "Chapter Eight",
+    "start_min": 162.3,
+    "start_sec": 9735.866
+   },
+   {
+    "title": "Chapter Nine",
+    "start_min": 181.0,
+    "start_sec": 10857.923
+   },
+   {
+    "title": "Act Two: Dragon Adoption: Chapter Ten",
+    "start_min": 196.9,
+    "start_sec": 11813.725
+   },
+   {
+    "title": "Chapter Eleven",
+    "start_min": 211.4,
+    "start_sec": 12685.471
+   },
+   {
+    "title": "Chapter Twelve",
+    "start_min": 236.3,
+    "start_sec": 14177.051
+   },
+   {
+    "title": "Chapter Thirteen",
+    "start_min": 255.7,
+    "start_sec": 15341.787
+   },
+   {
+    "title": "Chapter Fourteen",
+    "start_min": 269.0,
+    "start_sec": 16142.689
+   },
+   {
+    "title": "Chapter Fifteen",
+    "start_min": 293.6,
+    "start_sec": 17616.413
+   },
+   {
+    "title": "Chapter Sixteen",
+    "start_min": 304.8,
+    "start_sec": 18290.372
+   },
+   {
+    "title": "Chapter Seventeen",
+    "start_min": 318.7,
+    "start_sec": 19120.438
+   },
+   {
+    "title": "Chapter Eighteen",
+    "start_min": 334.0,
+    "start_sec": 20042.804
+   },
+   {
+    "title": "Act Three: Bill Isn't So Bad, Somehow?: Chapter Nineteen",
+    "start_min": 348.0,
+    "start_sec": 20882.089
+   },
+   {
+    "title": "Chapter Twenty",
+    "start_min": 359.5,
+    "start_sec": 21567.797
+   },
+   {
+    "title": "Chapter Twenty-one",
+    "start_min": 377.2,
+    "start_sec": 22633.801
+   },
+   {
+    "title": "Chapter Twenty-two",
+    "start_min": 387.3,
+    "start_sec": 23235.244
+   },
+   {
+    "title": "Chapter Twenty-three",
+    "start_min": 410.5,
+    "start_sec": 24632.644
+   },
+   {
+    "title": "Chapter Twenty-four",
+    "start_min": 427.7,
+    "start_sec": 25662.193
+   },
+   {
+    "title": "Chapter Twenty-five",
+    "start_min": 437.1,
+    "start_sec": 26228.225
+   },
+   {
+    "title": "Act Four: Kiss the Boy: Chapter Twenty-six",
+    "start_min": 450.3,
+    "start_sec": 27018.934
+   },
+   {
+    "title": "Chapter Twenty-seven",
+    "start_min": 471.2,
+    "start_sec": 28271.07
+   },
+   {
+    "title": "Chapter Twenty-eight",
+    "start_min": 486.0,
+    "start_sec": 29159.372
+   },
+   {
+    "title": "Chapter Twenty-nine",
+    "start_min": 497.4,
+    "start_sec": 29842.549
+   },
+   {
+    "title": "Chapter Thirty",
+    "start_min": 504.0,
+    "start_sec": 30241.328
+   },
+   {
+    "title": "Chapter Thirty-one",
+    "start_min": 523.2,
+    "start_sec": 31393.943
+   },
+   {
+    "title": "Credits",
+    "start_min": 527.8,
+    "start_sec": 31665.407
+   }
+  ],
+  "parts": []
+ },
+ "Game On - An Into Darkness Novel": {
+  "source": "m4b",
+  "chapters": [
+   {
+    "title": "Game On: An Into Darkness Novel: Intro",
+    "start_min": 0.0,
+    "start_sec": 0.0
+   },
+   {
+    "title": "Author’s Note",
+    "start_min": 0.4,
+    "start_sec": 26.47
+   },
+   {
+    "title": "Trigger Warnings",
+    "start_min": 0.9,
+    "start_sec": 53.056
+   },
+   {
+    "title": "Dedication",
+    "start_min": 1.9,
+    "start_sec": 112.313
+   },
+   {
+    "title": "Chapter 1: Tyler",
+    "start_min": 2.0,
+    "start_sec": 120.022
+   },
+   {
+    "title": "Chapter 2: Stella",
+    "start_min": 8.6,
+    "start_sec": 514.343
+   },
+   {
+    "title": "Chapter 3: Tyler",
+    "start_min": 27.5,
+    "start_sec": 1652.608
+   },
+   {
+    "title": "Chapter 4: Stella",
+    "start_min": 35.7,
+    "start_sec": 2141.086
+   },
+   {
+    "title": "Chapter 5: Tyler",
+    "start_min": 52.3,
+    "start_sec": 3135.016
+   },
+   {
+    "title": "Chapter 6: Stella",
+    "start_min": 74.1,
+    "start_sec": 4448.754
+   },
+   {
+    "title": "Chapter 7: Tyler",
+    "start_min": 97.8,
+    "start_sec": 5867.237
+   },
+   {
+    "title": "Chapter 8: Stella",
+    "start_min": 120.6,
+    "start_sec": 7233.684
+   },
+   {
+    "title": "Chapter 9: Tyler",
+    "start_min": 145.3,
+    "start_sec": 8720.689
+   },
+   {
+    "title": "Chapter 10: Stella",
+    "start_min": 166.3,
+    "start_sec": 9979.674
+   },
+   {
+    "title": "Chapter 11: Tyler",
+    "start_min": 186.2,
+    "start_sec": 11169.975
+   },
+   {
+    "title": "Chapter 12: Stella",
+    "start_min": 202.3,
+    "start_sec": 12139.965
+   },
+   {
+    "title": "Chapter 13: Tyler",
+    "start_min": 220.6,
+    "start_sec": 13238.686
+   },
+   {
+    "title": "Chapter 14: Stella",
+    "start_min": 230.4,
+    "start_sec": 13824.896
+   },
+   {
+    "title": "Chapter 15: Tyler",
+    "start_min": 246.9,
+    "start_sec": 14813.903
+   },
+   {
+    "title": "Chapter 16: Stella",
+    "start_min": 274.2,
+    "start_sec": 16449.981
+   },
+   {
+    "title": "Chapter 17: Tyler",
+    "start_min": 294.0,
+    "start_sec": 17641.373
+   },
+   {
+    "title": "Chapter 18: Stella",
+    "start_min": 315.4,
+    "start_sec": 18921.094
+   },
+   {
+    "title": "Chapter 19: Tyler",
+    "start_min": 321.9,
+    "start_sec": 19311.816
+   },
+   {
+    "title": "Chapter 20: Stella",
+    "start_min": 331.7,
+    "start_sec": 19900.256
+   },
+   {
+    "title": "Chapter 21: Tyler",
+    "start_min": 353.7,
+    "start_sec": 21222.609
+   },
+   {
+    "title": "Chapter 22: Tyler",
+    "start_min": 371.3,
+    "start_sec": 22275.192
+   },
+   {
+    "title": "Chapter 23: Stella",
+    "start_min": 392.5,
+    "start_sec": 23547.204
+   },
+   {
+    "title": "Chapter 24: Tyler",
+    "start_min": 409.3,
+    "start_sec": 24556.946
+   },
+   {
+    "title": "Chapter 25: Stella",
+    "start_min": 426.8,
+    "start_sec": 25605.489
+   },
+   {
+    "title": "Chapter 26: Tyler",
+    "start_min": 443.3,
+    "start_sec": 26595.959
+   },
+   {
+    "title": "Chapter 27: Stella",
+    "start_min": 455.7,
+    "start_sec": 27341.621
+   },
+   {
+    "title": "Chapter 28: Stella",
+    "start_min": 474.4,
+    "start_sec": 28464.793
+   },
+   {
+    "title": "Chapter 29: Stella",
+    "start_min": 493.2,
+    "start_sec": 29593.863
+   },
+   {
+    "title": "Chapter 30: Tyler",
+    "start_min": 510.3,
+    "start_sec": 30620.068
+   },
+   {
+    "title": "Chapter 31: Stella",
+    "start_min": 520.8,
+    "start_sec": 31249.816
+   },
+   {
+    "title": "Chapter 32: Tyler",
+    "start_min": 541.8,
+    "start_sec": 32507.989
+   },
+   {
+    "title": "Chapter 33: Stella",
+    "start_min": 562.1,
+    "start_sec": 33727.292
+   },
+   {
+    "title": "Chapter 34: Tyler",
+    "start_min": 587.6,
+    "start_sec": 35254.538
+   },
+   {
+    "title": "Chapter 35: Tyler",
+    "start_min": 614.6,
+    "start_sec": 36875.012
+   },
+   {
+    "title": "Chapter 36: Stella",
+    "start_min": 633.3,
+    "start_sec": 37998.788
+   },
+   {
+    "title": "Chapter 37: Tyler",
+    "start_min": 639.5,
+    "start_sec": 38367.01
+   },
+   {
+    "title": "Epilogue: Stella",
+    "start_min": 655.1,
+    "start_sec": 39308.045
+   },
+   {
+    "title": "A Note from Navessa",
+    "start_min": 672.1,
+    "start_sec": 40325.195
+   },
+   {
+    "title": "The Intruder: Fred",
+    "start_min": 673.1,
+    "start_sec": 40386.936
+   },
+   {
+    "title": "The Bookie: Tyler",
+    "start_min": 684.9,
+    "start_sec": 41094.355
+   },
+   {
+    "title": "The Debt: Tyler",
+    "start_min": 696.1,
+    "start_sec": 41767.222
+   },
+   {
+    "title": "The Brat: AJ",
+    "start_min": 720.7,
+    "start_sec": 43242.455
+   },
+   {
+    "title": "Credits",
+    "start_min": 740.5,
+    "start_sec": 44430.086
+   }
+  ],
+  "parts": []
  }
 }
