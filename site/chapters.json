@@ -249377,5 +249377,146 @@
    }
   ],
   "parts": []
+ },
+ "The Odyssey: Audible Iliad & Odyssey, Book 2": {
+  "source": "m4b",
+  "chapters": [
+   {
+    "title": "Chapter 1",
+    "start_min": 0.0,
+    "start_sec": 0.0
+   },
+   {
+    "title": "Chapter 2",
+    "start_min": 118.1,
+    "start_sec": 7085.732
+   },
+   {
+    "title": "Chapter 3",
+    "start_min": 193.3,
+    "start_sec": 11600.225
+   },
+   {
+    "title": "Chapter 4",
+    "start_min": 219.5,
+    "start_sec": 13167.851
+   },
+   {
+    "title": "Chapter 5",
+    "start_min": 242.0,
+    "start_sec": 14519.809
+   },
+   {
+    "title": "Chapter 6",
+    "start_min": 263.5,
+    "start_sec": 15810.815
+   },
+   {
+    "title": "Chapter 7",
+    "start_min": 288.3,
+    "start_sec": 17300.143
+   },
+   {
+    "title": "Chapter 8",
+    "start_min": 331.1,
+    "start_sec": 19863.394
+   },
+   {
+    "title": "Chapter 9",
+    "start_min": 356.8,
+    "start_sec": 21408.845
+   },
+   {
+    "title": "Chapter 10",
+    "start_min": 373.2,
+    "start_sec": 22391.374
+   },
+   {
+    "title": "Chapter 11",
+    "start_min": 390.8,
+    "start_sec": 23449.53
+   },
+   {
+    "title": "Chapter 12",
+    "start_min": 419.2,
+    "start_sec": 25152.969
+   },
+   {
+    "title": "Chapter 13",
+    "start_min": 447.3,
+    "start_sec": 26840.596
+   },
+   {
+    "title": "Chapter 14",
+    "start_min": 476.9,
+    "start_sec": 28613.764
+   },
+   {
+    "title": "Chapter 15",
+    "start_min": 509.2,
+    "start_sec": 30549.775
+   },
+   {
+    "title": "Chapter 16",
+    "start_min": 532.2,
+    "start_sec": 31931.733
+   },
+   {
+    "title": "Chapter 17",
+    "start_min": 554.0,
+    "start_sec": 33241.85
+   },
+   {
+    "title": "Chapter 18",
+    "start_min": 579.8,
+    "start_sec": 34790.412
+   },
+   {
+    "title": "Chapter 19",
+    "start_min": 605.7,
+    "start_sec": 36339.252
+   },
+   {
+    "title": "Chapter 20",
+    "start_min": 628.4,
+    "start_sec": 37706.49
+   },
+   {
+    "title": "Chapter 21",
+    "start_min": 656.8,
+    "start_sec": 39408.094
+   },
+   {
+    "title": "Chapter 22",
+    "start_min": 677.1,
+    "start_sec": 40628.094
+   },
+   {
+    "title": "Chapter 23",
+    "start_min": 705.8,
+    "start_sec": 42350.69
+   },
+   {
+    "title": "Chapter 24",
+    "start_min": 724.2,
+    "start_sec": 43450.967
+   },
+   {
+    "title": "Chapter 25",
+    "start_min": 744.1,
+    "start_sec": 44645.193
+   },
+   {
+    "title": "Chapter 26",
+    "start_min": 768.3,
+    "start_sec": 46100.108
+   },
+   {
+    "title": "Chapter 27",
+    "start_min": 785.9,
+    "start_sec": 47154.039
+   }
+  ],
+  "parts": []
  }
 }

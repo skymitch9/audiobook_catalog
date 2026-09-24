@@ -8112,5 +8112,15 @@
   ],
   "source": "hardcover",
   "checked_at": 1790012681
+ },
+ "The Odyssey: Audible Iliad & Odyssey, Book 2": {
+  "warnings": [
+   {
+    "label": "Misogyny",
+    "source_url": "https://app.thestorygraph.com/book_reviews/e4d58efa-07e9-44db-847b-370b80200ed7/content_warning/35"
+   }
+  ],
+  "source": "web",
+  "checked_at": 1790277222
  }
 }
