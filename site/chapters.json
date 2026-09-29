@@ -250638,5 +250638,96 @@
    }
   ],
   "parts": []
+ },
+ "Threshing Day (Wing and Claw Collection)": {
+  "source": "m4b",
+  "chapters": [
+   {
+    "title": "Chapter 1",
+    "start_min": 0.0,
+    "start_sec": 0.0
+   },
+   {
+    "title": "Chapter 2",
+    "start_min": 9.2,
+    "start_sec": 553.401
+   },
+   {
+    "title": "Chapter 3",
+    "start_min": 40.0,
+    "start_sec": 2401.965
+   },
+   {
+    "title": "Chapter 4",
+    "start_min": 62.7,
+    "start_sec": 3762.817
+   },
+   {
+    "title": "Chapter 5",
+    "start_min": 100.5,
+    "start_sec": 6032.684
+   },
+   {
+    "title": "Chapter 6",
+    "start_min": 115.1,
+    "start_sec": 6903.594
+   },
+   {
+    "title": "Chapter 7",
+    "start_min": 142.3,
+    "start_sec": 8539.533
+   },
+   {
+    "title": "Chapter 8",
+    "start_min": 168.1,
+    "start_sec": 10084.008
+   },
+   {
+    "title": "Chapter 9",
+    "start_min": 202.6,
+    "start_sec": 12153.789
+   },
+   {
+    "title": "Chapter 10",
+    "start_min": 202.7,
+    "start_sec": 12162.752
+   },
+   {
+    "title": "Chapter 11",
+    "start_min": 221.7,
+    "start_sec": 13304.43
+   },
+   {
+    "title": "Chapter 12",
+    "start_min": 257.9,
+    "start_sec": 15473.476
+   },
+   {
+    "title": "Chapter 13",
+    "start_min": 282.2,
+    "start_sec": 16929.042
+   },
+   {
+    "title": "Chapter 14",
+    "start_min": 301.4,
+    "start_sec": 18083.817
+   },
+   {
+    "title": "Chapter 15",
+    "start_min": 301.6,
+    "start_sec": 18093.105
+   },
+   {
+    "title": "Chapter 16",
+    "start_min": 340.6,
+    "start_sec": 20437.275
+   },
+   {
+    "title": "Chapter 17",
+    "start_min": 351.5,
+    "start_sec": 21087.573
+   }
+  ],
+  "parts": []
  }
 }
