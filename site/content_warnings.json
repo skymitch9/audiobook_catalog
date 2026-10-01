@@ -8157,5 +8157,15 @@
   "warnings": [],
   "source": "none",
   "checked_at": 1790808883
+ },
+ "The Bog Wife: A Novel": {
+  "warnings": [
+   {
+    "label": "Blood",
+    "source_url": "https://hardcover.app/books/the-bog-wife"
+   }
+  ],
+  "source": "hardcover",
+  "checked_at": 1790819281
  }
 }
