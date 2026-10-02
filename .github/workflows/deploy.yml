@@ -231,6 +231,13 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
 
+    env:
+      # A BOOLEAN, never the value (the CF_CONFIGURED pattern above): step `if:`
+      # cannot read `secrets`, job `env` can. 'true' once the owner has added
+      # the read-only R2 credential for the gated ebook manifest. Until then
+      # the ebook post is SKIPPED, loudly, and the audiobook post is untouched.
+      EBOOKS_READ_CONFIGURED: ${{ secrets.R2_EBOOKS_GATED_READ_KEY_ID != '' && secrets.R2_EBOOKS_GATED_READ_SECRET != '' }}
+
     steps:
     - name: ✅ Deployment summary
       run: |
@@ -292,3 +299,73 @@ jobs:
           git diff --cached --quiet || git commit -m "chore: Update catalog snapshot [skip ci]"
           git push || true
         fi
+
+    # ---- New-EBOOK notification: the same post, the same moment ------------
+    # Owner 2026-10-02: "lets use github actions, i want to match the audiobook
+    # catalog perfectly". Same trigger (a promote), same detect -> notify ->
+    # snapshot shape, same webhook, same message (create_embed kind="ebook").
+    #
+    # ⚠️ The ebook list is GATED and this repo is PUBLIC — Actions logs
+    # included. So: the manifest is fetched with a credential that can READ ONE
+    # OBJECT'S BUCKET and nothing else; it is never echoed, cached, uploaded as
+    # an artifact or committed (`*.json` ignores it); detect_new_ebooks.py and
+    # the notifier print counts, never titles; the tracked snapshot holds
+    # sha256 hashes, not names; and the last step deletes both files.
+
+    - name: ⏭️ Ebook post not configured
+      if: github.event_name == 'workflow_dispatch' && inputs.notify && env.EBOOKS_READ_CONFIGURED != 'true'
+      run: |
+        echo "::warning::Ebook Discord post SKIPPED — repo secrets R2_EBOOKS_GATED_READ_KEY_ID / R2_EBOOKS_GATED_READ_SECRET are not set. docs/access/PIPELINE.md (STEP 1c) has the setup."
+
+    - name: 📥 Fetch the gated ebook manifest (read-only)
+      if: github.event_name == 'workflow_dispatch' && inputs.notify && env.EBOOKS_READ_CONFIGURED == 'true'
+      id: fetch_ebooks
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.R2_EBOOKS_GATED_READ_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_EBOOKS_GATED_READ_SECRET }}
+        AWS_DEFAULT_REGION: auto
+        # R2 does not speak the CRC checksums newer AWS CLIs add by default.
+        AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+        AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+        R2_ENDPOINT: https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
+      run: |
+        aws s3 cp s3://ebooks-gated/ebooks.json ebooks_manifest.json \
+          --endpoint-url "$R2_ENDPOINT" --only-show-errors
+        echo "✓ gated manifest fetched ($(wc -c < ebooks_manifest.json) bytes)"
+      continue-on-error: true
+
+    - name: 🔍 Detect new ebooks
+      if: github.event_name == 'workflow_dispatch' && inputs.notify && steps.fetch_ebooks.outcome == 'success'
+      id: detect_ebooks
+      run: |
+        python -m app.tools.detect_new_ebooks
+      continue-on-error: true
+
+    - name: 📢 Notify Discord (ebooks)
+      if: github.event_name == 'workflow_dispatch' && inputs.notify && steps.detect_ebooks.outputs.has_new_ebooks == 'true'
+      env:
+        DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        SITE_URL: ${{ vars.SITE_URL }}
+      run: |
+        python -m app.tools.send_discord_notification --ebooks
+
+    - name: 💾 Save ebook snapshot
+      if: >-
+        github.event_name == 'workflow_dispatch' && inputs.notify &&
+        (steps.detect_ebooks.outputs.has_new_ebooks == 'true' || steps.detect_ebooks.outputs.baselined == 'true')
+      run: |
+        if [ "${{ steps.detect_ebooks.outputs.has_new_ebooks }}" = "true" ]; then
+          python -m app.tools.detect_new_ebooks --update-snapshot
+        fi
+        if [ -f "last_ebook_snapshot.json" ]; then
+          git config user.email "nbaslamking@gmail.com"
+          git config user.name "BookBuddy Bot"
+          git add last_ebook_snapshot.json
+          git diff --cached --quiet || git commit -m "chore: Update ebook snapshot [skip ci]"
+          git pull --rebase --quiet || true
+          git push || true
+        fi
+
+    - name: 🧹 Remove the gated manifest from the runner
+      if: always()
+      run: rm -f ebooks_manifest.json new_ebooks.json

@@ -36,6 +36,11 @@ docs/
 # covers that CI and every other checkout silently lack.
 !scripts/ebook_cover_overrides.json
 !last_catalog_snapshot.json
+# The ebook twin (app/tools/detect_new_ebooks.py). Tracked like the audiobook
+# one, but it holds sha256("title|author") ONLY — never a title: the ebook
+# shelf is gated and this repo is public. The manifest CI downloads to compare
+# against (ebooks_manifest.json) and new_ebooks.json stay ignored by *.json.
+!last_ebook_snapshot.json
 # The cross-language slug pin. MUST be tracked: tests/test_shelf_map.py and
 # site/__tests__/shelf-link.test.js BOTH read it, so an untracked copy is two
 # suites that pass on this machine and fail in CI on a missing file. Holds book

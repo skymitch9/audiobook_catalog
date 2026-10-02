@@ -2037,16 +2037,8 @@ def _run_pipeline_body(
             rc = publish_ebooks_main([])
             if rc != 0:
                 print("  [WARN] Ebook manifest not published - the previous one still serves.")
-            else:
-                # The ebook twin of the audiobook Discord post. It is made
-                # HERE and not in CI because the ebook list is gated and CI
-                # cannot see it; and only after a successful 5.8, so nothing
-                # is announced that a reader cannot open yet. Soft: an
-                # unannounced book stays pending and is retried next run.
-                from app.tools.notify_new_ebooks import run as notify_new_ebooks
-                print(f"  [ebooks-notify] {notify_new_ebooks(commit=True)}")
         except Exception as e:
-            print(f"  [WARN] Ebook manifest publish / announce failed: {e}")
+            print(f"  [WARN] Ebook manifest publish failed: {e}")
 
     # -----------------------------------------------------------------------
     # STEP 5.9 — fulfil the ON-DEMAND audiobook ingest queue.

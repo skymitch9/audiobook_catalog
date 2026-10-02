@@ -20,9 +20,9 @@ def create_embed(new_books_data, site_url, kind="audiobook"):
     ``kind="ebook"`` is the SAME message for the ebook shelf (owner, 2026-10-02:
     "use the exact same message and format and just specify ebook"): one
     builder, so the two posts cannot drift apart. Only the noun changes, plus a
-    Format field on each card where an audiobook has Duration. The ebook post
-    is sent by app/tools/notify_new_ebooks.py from the pipeline box, because
-    the ebook list is gated and CI cannot see it."""
+    Format field on each card where an audiobook has Duration. Both posts are
+    sent by deploy.yml on a promote; the ebook one is `--ebooks`, fed by
+    app/tools/detect_new_ebooks.py."""
     noun = "ebook" if kind == "ebook" else "book"
     new_count = new_books_data.get("new_count", 0)
     total_count = new_books_data.get("total_count", 0)
@@ -213,9 +213,21 @@ def main():
         print("DISCORD_WEBHOOK not set, skipping notification")
         sys.exit(0)
 
+    # --ebooks: the ebook post (detect_new_ebooks.py writes new_ebooks.json).
+    # Same builder, same webhook, same job; the link goes to the ebook shelf.
+    ebooks = "--ebooks" in sys.argv
+    kind = "ebook" if ebooks else "audiobook"
+    if ebooks:
+        site_url = site_url.rstrip("/") + "/ebooks.html"
+
     # Load new books data
-    new_books_file = Path("new_books.json")
+    new_books_file = Path("new_ebooks.json" if ebooks else "new_books.json")
     if not new_books_file.exists():
+        if ebooks:
+            # Never a generic "updated" post for the ebook shelf: no payload
+            # means nothing was detected, not that something changed.
+            print("No new_ebooks.json found, skipping the ebook notification")
+            sys.exit(0)
         print("No new_books.json found, sending generic update notification")
         new_books_data = {"new_count": 0, "total_count": 0, "books": []}
     else:
@@ -223,12 +235,13 @@ def main():
             new_books_data = json.load(f)
 
     # Create embeds
-    embeds = create_embed(new_books_data, site_url)
+    embeds = create_embed(new_books_data, site_url, kind=kind)
 
-    # Send notification with verification
+    # Send notification with verification. ⚠️ Counts only: this runs in the
+    # public repo's Actions log, and ebook titles are gated.
     print(f"Sending Discord notification ({len(embeds)} embed(s))...")
     print(f"  Target: {site_url}")
-    print(f"  New books: {new_books_data.get('new_count', 0)}")
+    print(f"  New {kind}s: {new_books_data.get('new_count', 0)}")
     success = send_notification(webhook_url, embeds)
 
     if success:
