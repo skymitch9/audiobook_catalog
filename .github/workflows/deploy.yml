@@ -326,6 +326,11 @@ jobs:
       id: fetch_ebooks
       uses: cloudflare/wrangler-action@v3
       with:
+        # ⚠️ Pinned: without it the action installs wrangler 3.90, which has no
+        # `--remote` and failed this step on its first run (2026-10-02, run
+        # 37077211709: "Unknown argument: remote"). In wrangler 4 r2 commands
+        # default to LOCAL storage, so `--remote` is required, not optional.
+        wranglerVersion: "4"
         apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         command: r2 object get ebooks-gated/ebooks.json --file ebooks_manifest.json --remote

@@ -170,3 +170,13 @@ def test_deploy_workflow_never_commits_the_manifest_or_payload():
     assert "git add last_ebook_snapshot.json" in wf
     assert "rm -f ebooks_manifest.json new_ebooks.json" in wf
     assert "upload-artifact" not in wf
+
+
+def test_ebook_fetch_pins_wrangler_4_and_reads_remote():
+    """First CI run (2026-10-02, run 37077211709): the action's default
+    wrangler 3.90 rejected `--remote`; wrangler 4 needs it or it reads LOCAL
+    storage."""
+    wf = (REPO / ".github" / "workflows" / "deploy.yml").read_text(encoding="utf-8")
+    step = wf.split("id: fetch_ebooks")[1].split("- name:")[0]
+    assert 'wranglerVersion: "4"' in step
+    assert "r2 object get ebooks-gated/ebooks.json --file ebooks_manifest.json --remote" in step
