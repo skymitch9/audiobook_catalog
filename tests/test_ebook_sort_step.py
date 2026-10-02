@@ -11,11 +11,14 @@ the upload manifest.
 What these tests pin:
   * a loose ebook with an OPF author is moved, logged, and returned (so the
     caller can put it in `just_moved` and STEP 4 uploads it the same run);
-  * the three refusals survive being run unattended — never overwrite, never
-    touch a filed file, never invent an author;
+  * the refusals survive being run unattended — never overwrite, never touch a
+    filed file, never invent an author;
+  * a re-downloaded DUPLICATE (its author folder already holds that filename)
+    is set aside outside the library: never deleted, the filed copy untouched,
+    a second duplicate never overwrites the first;
   * unattended, a FILENAME-derived author may join an existing folder but may
     never create one;
-  * the hand-run CLI planner keeps its old, more permissive behaviour;
+  * the hand-run CLI planner keeps its old behaviour on both points;
   * `--dry-run` plans and moves nothing;
   * a failure inside the step is a WARN, never a stopped pipeline.
 
@@ -46,6 +49,7 @@ def library(tmp_path, monkeypatch):
     monkeypatch.setattr(an, "load_shelf_aliases", lambda: {})
 
     monkeypatch.setattr(sync, "EBOOK_SORT_LOG_PATH", tmp_path / "out" / "ebook_sort_log.jsonl")
+    monkeypatch.delenv("EBOOK_DUPLICATES_DIR", raising=False)
     return root
 
 
@@ -64,20 +68,22 @@ def _file(root: Path, *parts: str, data: bytes = b"epub") -> Path:
     return p
 
 
+def _log_lines() -> list[dict]:
+    return [json.loads(x) for x in sync.EBOOK_SORT_LOG_PATH.read_text(encoding="utf-8").splitlines()]
+
+
 def test_loose_ebook_is_filed_logged_and_returned(library, monkeypatch):
     loose = _file(library, "Unsouled - Will Wight.epub")
     _opf(monkeypatch, {loose.name: "Will Wight"})
 
-    moved, skipped = sync.sort_standalone_ebooks(dry_run=False)
+    moved, skipped, set_aside = sync.sort_standalone_ebooks(dry_run=False)
 
     dest = library / "Will Wight" / loose.name
     assert moved == [dest]
-    assert skipped == []
+    assert (skipped, set_aside) == ([], [])
     assert dest.exists() and not loose.exists()
 
-    lines = sync.EBOOK_SORT_LOG_PATH.read_text(encoding="utf-8").splitlines()
-    assert len(lines) == 1
-    rec = json.loads(lines[0])
+    (rec,) = _log_lines()
     assert rec["from"] == loose.name
     assert rec["to"] == f"Will Wight/{loose.name}"
     assert rec["author_source"] == "opf"
@@ -88,33 +94,61 @@ def test_existing_folder_is_matched_case_insensitively(library, monkeypatch):
     loose = _file(library, "Bunny Girl - Sir Bedivere the Mad.epub")
     _opf(monkeypatch, {loose.name: "Sir Bedivere the Mad"})
 
-    moved, _ = sync.sort_standalone_ebooks(dry_run=False)
+    moved, _, _ = sync.sort_standalone_ebooks(dry_run=False)
 
     assert moved == [library / "Sir Bedivere The Mad" / loose.name]
     assert [d.name for d in library.iterdir() if d.is_dir()] == ["Sir Bedivere The Mad"]
 
 
-def test_never_overwrites_a_filed_copy(library, monkeypatch):
+def test_duplicate_is_set_aside_outside_the_library_and_nothing_is_overwritten(library, monkeypatch):
     filed = _file(library, "Will Wight", "Reaper - Will Wight.epub", data=b"old")
     loose = _file(library, "Reaper - Will Wight.epub", data=b"new")
     _opf(monkeypatch, {loose.name: "Will Wight"})
 
-    moved, skipped = sync.sort_standalone_ebooks(dry_run=False)
+    moved, skipped, set_aside = sync.sort_standalone_ebooks(dry_run=False)
 
-    assert moved == []
-    assert len(skipped) == 1 and "already holds a file of this name" in skipped[0]
-    assert filed.read_bytes() == b"old"
-    assert loose.read_bytes() == b"new"
-    assert not sync.EBOOK_SORT_LOG_PATH.exists()
+    aside = library.parent / "ebook_duplicates" / "Will Wight" / loose.name
+    assert (moved, skipped) == ([], [])
+    assert len(set_aside) == 1 and loose.name in set_aside[0]
+    assert filed.read_bytes() == b"old"          # the filed copy is untouched
+    assert aside.read_bytes() == b"new"          # the duplicate is kept, not deleted
+    assert not loose.exists()                    # and it is out of the library
+    assert library not in aside.parents
+
+    (rec,) = _log_lines()
+    assert rec["kind"] == "duplicate" and rec["from"] == loose.name
+
+
+def test_a_second_duplicate_never_overwrites_the_first(library, monkeypatch):
+    _file(library, "Will Wight", "Reaper - Will Wight.epub", data=b"old")
+    first = _file(library.parent, "ebook_duplicates", "Will Wight", "Reaper - Will Wight.epub", data=b"dup1")
+    loose = _file(library, "Reaper - Will Wight.epub", data=b"dup2")
+    _opf(monkeypatch, {loose.name: "Will Wight"})
+
+    _, _, set_aside = sync.sort_standalone_ebooks(dry_run=False)
+
+    assert len(set_aside) == 1
+    assert first.read_bytes() == b"dup1"
+    kept = sorted(p.read_bytes() for p in first.parent.iterdir())
+    assert kept == [b"dup1", b"dup2"]
+
+
+def test_duplicates_dir_can_be_overridden(library, monkeypatch, tmp_path):
+    monkeypatch.setenv("EBOOK_DUPLICATES_DIR", str(tmp_path / "elsewhere"))
+    _file(library, "Will Wight", "Reaper - Will Wight.epub")
+    loose = _file(library, "Reaper - Will Wight.epub")
+    _opf(monkeypatch, {loose.name: "Will Wight"})
+
+    sync.sort_standalone_ebooks(dry_run=False)
+
+    assert (tmp_path / "elsewhere" / "Will Wight" / loose.name).exists()
 
 
 def test_never_touches_a_file_already_in_a_folder(library, monkeypatch):
     filed = _file(library, "Somebody Else", "Unsouled - Will Wight.epub")
     _opf(monkeypatch, {filed.name: "Will Wight"})
 
-    moved, skipped = sync.sort_standalone_ebooks(dry_run=False)
-
-    assert (moved, skipped) == ([], [])
+    assert sync.sort_standalone_ebooks(dry_run=False) == ([], [], [])
     assert filed.exists()
 
 
@@ -122,9 +156,9 @@ def test_no_author_is_left_loose_and_named(library, monkeypatch):
     loose = _file(library, "mistborn_adventuregame.pdf")
     _opf(monkeypatch, {})
 
-    moved, skipped = sync.sort_standalone_ebooks(dry_run=False)
+    moved, skipped, set_aside = sync.sort_standalone_ebooks(dry_run=False)
 
-    assert moved == []
+    assert (moved, set_aside) == ([], [])
     assert len(skipped) == 1 and loose.name in skipped[0]
     assert loose.exists()
 
@@ -134,7 +168,7 @@ def test_filename_author_may_join_an_existing_folder(library, monkeypatch):
     loose = _file(library, "Handbook - Brandon Sanderson.pdf")
     _opf(monkeypatch, {})
 
-    moved, skipped = sync.sort_standalone_ebooks(dry_run=False)
+    moved, skipped, _ = sync.sort_standalone_ebooks(dry_run=False)
 
     assert moved == [library / "Brandon Sanderson" / loose.name]
     assert skipped == []
@@ -146,7 +180,7 @@ def test_filename_author_never_creates_a_folder_unattended(library, monkeypatch)
     loose = _file(library, "Field Guide - Deluxe Edition.pdf")
     _opf(monkeypatch, {})
 
-    moved, skipped = sync.sort_standalone_ebooks(dry_run=False)
+    moved, skipped, _ = sync.sort_standalone_ebooks(dry_run=False)
 
     assert moved == []
     assert len(skipped) == 1 and "filename only" in skipped[0]
@@ -154,40 +188,45 @@ def test_filename_author_never_creates_a_folder_unattended(library, monkeypatch)
     assert not (library / "Deluxe Edition").exists()
 
 
-def test_hand_run_planner_still_creates_a_folder_from_a_filename(library, monkeypatch):
-    """The CLI is attended — a person reads the plan before --commit — so its
-    behaviour is unchanged by the unattended guard."""
-    loose = _file(library, "Field Guide - Jane Roe.pdf")
-    _opf(monkeypatch, {})
+def test_hand_run_planner_is_unchanged(library, monkeypatch):
+    """The CLI is attended — a person reads the plan before --commit — so it
+    still creates a folder from a filename and still only REPORTS a collision."""
+    new = _file(library, "Field Guide - Jane Roe.pdf")
+    _file(library, "Will Wight", "Reaper - Will Wight.epub")
+    dupe = _file(library, "Reaper - Will Wight.epub")
+    _opf(monkeypatch, {dupe.name: "Will Wight"})
 
     moves, skipped = sort_ebooks.plan_moves(library, {})
 
-    assert skipped == []
-    assert [m["to"] for m in moves] == [f"Jane Roe/{loose.name}"]
+    assert [m["to"] for m in moves] == [f"Jane Roe/{new.name}"]
     assert moves[0]["new_folder"] == "yes"
+    assert len(skipped) == 1 and "already holds a file of this name" in skipped[0]
+    assert dupe.exists()
 
 
 def test_dry_run_plans_and_moves_nothing(library, monkeypatch):
+    _file(library, "Will Wight", "Reaper - Will Wight.epub")
+    dupe = _file(library, "Reaper - Will Wight.epub")
     loose = _file(library, "Unsouled - Will Wight.epub")
-    _opf(monkeypatch, {loose.name: "Will Wight"})
+    _opf(monkeypatch, {loose.name: "Will Wight", dupe.name: "Will Wight"})
 
-    moved, _ = sync.sort_standalone_ebooks(dry_run=True)
+    moved, _, set_aside = sync.sort_standalone_ebooks(dry_run=True)
 
     assert moved == [library / "Will Wight" / loose.name]
-    assert loose.exists()
-    assert not (library / "Will Wight").exists()
+    assert len(set_aside) == 1
+    assert loose.exists() and dupe.exists()
+    assert not (library.parent / "ebook_duplicates").exists()
     assert not sync.EBOOK_SORT_LOG_PATH.exists()
 
 
 def test_shelf_alias_is_honoured(library, monkeypatch):
     import app.author_names as an
     monkeypatch.setattr(an, "load_shelf_aliases", lambda: {"alex toxic": "Nadya Lee"})
-    monkeypatch.setattr(an, "resolve_shelf_author", lambda a, al: al.get(a.lower(), a))
     monkeypatch.setattr(sort_ebooks, "resolve_shelf_author", lambda a, al: al.get(a.lower(), a))
     loose = _file(library, "Book - Alex Toxic.epub")
     _opf(monkeypatch, {loose.name: "Alex Toxic"})
 
-    moved, _ = sync.sort_standalone_ebooks(dry_run=False)
+    moved, _, _ = sync.sort_standalone_ebooks(dry_run=False)
 
     assert moved == [library / "Nadya Lee" / loose.name]
 
@@ -198,5 +237,5 @@ def test_a_failure_is_a_warning_not_a_stopped_pipeline(library, monkeypatch, cap
 
     monkeypatch.setattr(sort_ebooks, "plan_moves", boom)
 
-    assert sync.sort_standalone_ebooks(dry_run=False) == ([], [])
+    assert sync.sort_standalone_ebooks(dry_run=False) == ([], [], [])
     assert "[WARN] Ebook sort failed" in capsys.readouterr().out

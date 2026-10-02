@@ -14,8 +14,16 @@ import requests
 from app.web.html_builder import cover_src
 
 
-def create_embed(new_books_data, site_url):
-    """Create Discord embed with new books."""
+def create_embed(new_books_data, site_url, kind="audiobook"):
+    """Create Discord embed with new books.
+
+    ``kind="ebook"`` is the SAME message for the ebook shelf (owner, 2026-10-02:
+    "use the exact same message and format and just specify ebook"): one
+    builder, so the two posts cannot drift apart. Only the noun changes, plus a
+    Format field on each card where an audiobook has Duration. The ebook post
+    is sent by app/tools/notify_new_ebooks.py from the pipeline box, because
+    the ebook list is gated and CI cannot see it."""
+    noun = "ebook" if kind == "ebook" else "book"
     new_count = new_books_data.get("new_count", 0)
     total_count = new_books_data.get("total_count", 0)
     books = new_books_data.get("books", [])
@@ -47,13 +55,13 @@ def create_embed(new_books_data, site_url):
         )
     else:
         # New books added
-        description = f"**{new_count}** new book{'s' if new_count != 1 else ''} added to the library!"
+        description = f"**{new_count}** new {noun}{'s' if new_count != 1 else ''} added to the library!"
         if new_count > len(books):
-            description += f"\n\n*Showing first {len(books)} books*"
+            description += f"\n\n*Showing first {len(books)} {noun}s*"
 
         embeds.append(
             {
-                "title": "📚 New Books Added!",
+                "title": f"📚 New {noun.capitalize()}s Added!",
                 "description": description,
                 "color": 3066993,  # Green
                 "fields": [
@@ -101,6 +109,9 @@ def create_embed(new_books_data, site_url):
                 fields.append({"name": "Details", "value": " • ".join(field_value), "inline": True})
             if duration:
                 fields.append({"name": "Duration", "value": f"⏱️ {duration}", "inline": True})
+            if kind == "ebook":
+                fmt = (book.get("format") or "").upper()
+                fields.append({"name": "Format", "value": "📖 Ebook" + (f" · {fmt}" if fmt else ""), "inline": True})
 
             book_embed = {
                 "title": title[:256],  # Discord title limit

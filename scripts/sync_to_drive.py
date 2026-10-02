@@ -643,7 +643,48 @@ def sort_companion_files(dry_run: bool = False) -> list[Path]:
 EBOOK_SORT_LOG_PATH = PROJECT_ROOT / "output_files" / "ebook_sort_log.jsonl"
 
 
-def sort_standalone_ebooks(dry_run: bool = False) -> tuple[list[Path], list[str]]:
+def ebook_duplicates_dir(root: Path) -> Path:
+    """Where a loose ebook goes when its author folder already holds a file of
+    the same name: a sibling of the library root, so it is OUTSIDE the tree
+    the manifest, the shelf, the watcher and STEP 4 all scan. Override with
+    $EBOOK_DUPLICATES_DIR."""
+    return Path(os.getenv("EBOOK_DUPLICATES_DIR") or (root.parent / "ebook_duplicates"))
+
+
+def _set_aside_duplicates(
+    root: Path, collisions: list[dict[str, str]], dry_run: bool, stamp: str
+) -> list[str]:
+    """Move each colliding loose ebook out of the library. Never deletes and
+    never overwrites — a second duplicate of the same name gets the timestamp
+    in its filename. Returns one named line per file set aside."""
+    import shutil
+
+    lines: list[str] = []
+    dup_root = ebook_duplicates_dir(root)
+    for c in collisions:
+        src = root / c["from"]
+        dest = dup_root / c["author_folder"] / src.name
+        if dest.exists():
+            dest = dest.with_name(f"{dest.stem} ({stamp.replace(':', '-')}){dest.suffix}")
+        line = f"{src.name}: {c['author_folder']}/ already holds this file — duplicate set aside in {dup_root}"
+        print(f"  [EBOOK-DUPLICATE] {line}")
+        if dry_run:
+            lines.append(line)
+            continue
+        try:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            with open(EBOOK_SORT_LOG_PATH, "a", encoding="utf-8") as log:
+                log.write(json.dumps(
+                    {"at": stamp, "kind": "duplicate", "from": c["from"], "to": str(dest)},
+                    ensure_ascii=False) + "\n")
+            shutil.move(str(src), str(dest))
+            lines.append(line)
+        except Exception as e:
+            print(f"  [ERROR] Could not set aside {src.name}: {e}")
+    return lines
+
+
+def sort_standalone_ebooks(dry_run: bool = False) -> tuple[list[Path], list[str], list[str]]:
     """File loose STANDALONE ebooks (no matching audiobook) at the library
     root into their author's folder — the ebook half of sort_books().
 
@@ -664,7 +705,15 @@ def sort_standalone_ebooks(dry_run: bool = False) -> tuple[list[Path], list[str]
     Every refusal is returned by name; the file stays loose and STEP 4 goes
     on reporting it as misplaced until a person files it.
 
-    Returns (moved destination Paths, skip lines). Never raises.
+    A loose ebook whose author folder ALREADY holds a file of that name is a
+    re-download (measured 2026-10-02: 20 of 82, none byte-identical to the
+    filed copy). Left loose it is listed twice on the shelf and warned about
+    on every run for ever, so it is SET ASIDE — moved out of the library to
+    ebook_duplicates_dir(), never deleted, the filed copy untouched — and
+    named in the run's warnings (owner decision 2026-10-02).
+
+    Returns (moved destination Paths, skip lines, set-aside lines). Never
+    raises.
     """
     from app.author_names import load_shelf_aliases
     from app.config import ROOT_DIR
@@ -673,27 +722,33 @@ def sort_standalone_ebooks(dry_run: bool = False) -> tuple[list[Path], list[str]
         from scripts.sort_ebooks import apply_moves, plan_moves
 
         root = Path(ROOT_DIR)
-        moves, skipped = plan_moves(root, load_shelf_aliases(), unattended=True)
+        collisions: list[dict[str, str]] = []
+        moves, skipped = plan_moves(
+            root, load_shelf_aliases(), unattended=True, collisions_out=collisions
+        )
         for m in moves:
             print(f"  [EBOOK] {Path(m['from']).name} -> {Path(m['to']).parent.name}/"
                   + ("  (new folder)" if m["new_folder"] else ""))
         for s in skipped:
             print(f"  [EBOOK-SKIP] {s}")
+
+        stamp = datetime.now().isoformat(timespec="seconds")
+        if not dry_run and (moves or collisions):
+            EBOOK_SORT_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        set_aside = _set_aside_duplicates(root, collisions, dry_run, stamp)
         if dry_run or not moves:
-            return [root / m["to"] for m in moves], skipped
+            return [root / m["to"] for m in moves], skipped, set_aside
 
         # Written BEFORE the first move, so a run that dies halfway still
         # leaves a complete record of what it intended to do.
-        stamp = datetime.now().isoformat(timespec="seconds")
-        EBOOK_SORT_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
         with open(EBOOK_SORT_LOG_PATH, "a", encoding="utf-8") as log:
             for m in moves:
                 log.write(json.dumps({"at": stamp, **m}, ensure_ascii=False) + "\n")
 
-        return apply_moves(root, moves), skipped
+        return apply_moves(root, moves), skipped, set_aside
     except Exception as e:
         print(f"  [WARN] Ebook sort failed: {e}")
-        return [], []
+        return [], [], []
 
 
 # ---------------------------------------------------------------------------
@@ -1534,7 +1589,7 @@ def _run_pipeline_body(
         # Step 1c: standalone ebooks. In just_moved for the same reason the
         # audio moves are — a successful rename means the file is complete,
         # so STEP 2 offers it to STEP 4 this run rather than the next.
-        ebooks_filed, ebooks_skipped = sort_standalone_ebooks(dry_run=dry_run)
+        ebooks_filed, ebooks_skipped, ebooks_set_aside = sort_standalone_ebooks(dry_run=dry_run)
         if ebooks_filed:
             print(f"  Filed {len(ebooks_filed)} standalone ebook(s).")
         just_moved = frozenset(moved) | frozenset(filed) | frozenset(ebooks_filed)
@@ -1543,6 +1598,8 @@ def _run_pipeline_body(
             _sort_detail += f", {len(ebooks_filed)} ebooks filed"
         if ebooks_skipped:
             _sort_detail += f", {len(ebooks_skipped)} ebooks left loose"
+        if ebooks_set_aside:
+            _sort_detail += f", {len(ebooks_set_aside)} duplicate ebooks set aside"
         if mismatches:
             _sort_detail += f", {len(mismatches)} tag/folder mismatch (not moved)"
         if resort_all:
@@ -1552,9 +1609,10 @@ def _run_pipeline_body(
             sorted=len(moved),
             ebooksFiled=len(ebooks_filed),
             ebooksLeftLoose=len(ebooks_skipped),
+            ebookDuplicatesSetAside=len(ebooks_set_aside),
             tagFolderMismatch=len(mismatches),
             tagFolderMismatchFiles=mismatches,
-            warnings=_add_warnings(*mismatches),
+            warnings=_add_warnings(*mismatches, *ebooks_set_aside),
         )
     else:
         print("\n[STEP 1] Skipped (--upload-only)")
@@ -1979,8 +2037,16 @@ def _run_pipeline_body(
             rc = publish_ebooks_main([])
             if rc != 0:
                 print("  [WARN] Ebook manifest not published - the previous one still serves.")
+            else:
+                # The ebook twin of the audiobook Discord post. It is made
+                # HERE and not in CI because the ebook list is gated and CI
+                # cannot see it; and only after a successful 5.8, so nothing
+                # is announced that a reader cannot open yet. Soft: an
+                # unannounced book stays pending and is retried next run.
+                from app.tools.notify_new_ebooks import run as notify_new_ebooks
+                print(f"  [ebooks-notify] {notify_new_ebooks(commit=True)}")
         except Exception as e:
-            print(f"  [WARN] Ebook manifest publish failed: {e}")
+            print(f"  [WARN] Ebook manifest publish / announce failed: {e}")
 
     # -----------------------------------------------------------------------
     # STEP 5.9 — fulfil the ON-DEMAND audiobook ingest queue.
@@ -2417,20 +2483,23 @@ def _step_sort() -> None:
     mismatches: list[str] = []
     moved = sort_books(dry_run=False, resort_all=False, mismatch_out=mismatches)
     filed = sort_companion_files(dry_run=False)
-    ebooks_filed, ebooks_skipped = sort_standalone_ebooks(dry_run=False)
+    ebooks_filed, ebooks_skipped, ebooks_set_aside = sort_standalone_ebooks(dry_run=False)
     detail = f"{len(moved)} sorted, {len(filed)} companions filed"
     if ebooks_filed or ebooks_skipped:
         detail += f", {len(ebooks_filed)} ebooks filed"
     if ebooks_skipped:
         detail += f", {len(ebooks_skipped)} ebooks left loose"
+    if ebooks_set_aside:
+        detail += f", {len(ebooks_set_aside)} duplicate ebooks set aside"
     if mismatches:
         detail += f", {len(mismatches)} tag/folder mismatch (not moved)"
     pstatus.step_detail("sort", detail)
     pstatus.set_summary(
         sorted=len(moved), companionsFiled=len(filed),
         ebooksFiled=len(ebooks_filed), ebooksLeftLoose=len(ebooks_skipped),
+        ebookDuplicatesSetAside=len(ebooks_set_aside),
         tagFolderMismatch=len(mismatches), tagFolderMismatchFiles=mismatches,
-        warnings=_add_warnings(*mismatches),
+        warnings=_add_warnings(*mismatches, *ebooks_set_aside),
     )
 
 

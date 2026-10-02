@@ -99,7 +99,11 @@ def existing_folder(root: Path, name: str) -> Path:
 
 
 def plan_moves(
-    root: Path, aliases: dict, *, unattended: bool = False
+    root: Path,
+    aliases: dict,
+    *,
+    unattended: bool = False,
+    collisions_out: list[dict[str, str]] | None = None,
 ) -> tuple[list[dict[str, str]], list[str]]:
     """Decide where each loose ebook at ``root`` goes. Moves nothing.
 
@@ -112,6 +116,11 @@ def plan_moves(
     shelf. The OPF is the book's own statement of its author, the same standing
     an audio tag has; "Title - Something.pdf" is a guess, and a guess that
     creates a folder becomes a Drive folder the same run.
+
+    ``collisions_out``, when given, receives the loose files whose author
+    folder already holds a file of the same name (``from`` + ``author_folder``)
+    INSTEAD of a skip line — the pipeline sets those aside as duplicates. The
+    CLI passes nothing and keeps reporting them as skipped.
     """
     loose = sorted(
         p for p in root.iterdir()
@@ -138,7 +147,10 @@ def plan_moves(
             continue
 
         if dest.exists():
-            skipped.append(f"{f.name}  — {dest_dir.name}/ already holds a file of this name")
+            if collisions_out is not None:
+                collisions_out.append({"from": f.name, "author_folder": dest_dir.name})
+            else:
+                skipped.append(f"{f.name}  — {dest_dir.name}/ already holds a file of this name")
             continue
 
         moves.append({

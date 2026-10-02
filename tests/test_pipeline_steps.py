@@ -276,14 +276,14 @@ def test_step_sort_reports_counts(monkeypatch, isolated_env):
         lambda dry_run=False, resort_all=False, mismatch_out=None: ["a", "b"],
     )
     monkeypatch.setattr(sync, "sort_companion_files", lambda dry_run=False: ["c"])
-    monkeypatch.setattr(sync, "sort_standalone_ebooks", lambda dry_run=False: ([], []))
+    monkeypatch.setattr(sync, "sort_standalone_ebooks", lambda dry_run=False: ([], [], []))
     sync._step_sort()
     detail = isolated_env.calls_named("step_detail")[0]
     assert detail[1] == ("sort", "2 sorted, 1 companions filed")
     summary = isolated_env.calls_named("set_summary")[0]
     assert summary[2] == {
         "sorted": 2, "companionsFiled": 1,
-        "ebooksFiled": 0, "ebooksLeftLoose": 0,
+        "ebooksFiled": 0, "ebooksLeftLoose": 0, "ebookDuplicatesSetAside": 0,
         "tagFolderMismatch": 0, "tagFolderMismatchFiles": [], "warnings": [],
     }
 
@@ -291,6 +291,9 @@ def test_step_sort_reports_counts(monkeypatch, isolated_env):
 def test_step_sort_reports_ebooks_filed_and_left_loose(monkeypatch, isolated_env):
     """STEP 1c: the ebook half of the sort is counted in the same step detail,
     and a refusal is a visible number, not a silent skip."""
+    # The run-level warning list is module state; keep this test's line out
+    # of every later test's.
+    monkeypatch.setattr(sync, "_RUN_WARNINGS", [])
     monkeypatch.setattr(
         sync, "sort_books",
         lambda dry_run=False, resort_all=False, mismatch_out=None: [],
@@ -298,16 +301,23 @@ def test_step_sort_reports_ebooks_filed_and_left_loose(monkeypatch, isolated_env
     monkeypatch.setattr(sync, "sort_companion_files", lambda dry_run=False: [])
     monkeypatch.setattr(
         sync, "sort_standalone_ebooks",
-        lambda dry_run=False: (["e1", "e2", "e3"], ["dupe.epub  — already holds"]),
+        lambda dry_run=False: (
+            ["e1", "e2", "e3"], ["noauthor.pdf  — no author"], ["Reaper.epub: duplicate set aside"]
+        ),
     )
     sync._step_sort()
     detail = isolated_env.calls_named("step_detail")[0]
     assert detail[1] == (
-        "sort", "0 sorted, 0 companions filed, 3 ebooks filed, 1 ebooks left loose"
+        "sort",
+        "0 sorted, 0 companions filed, 3 ebooks filed, 1 ebooks left loose, "
+        "1 duplicate ebooks set aside",
     )
     summary = isolated_env.calls_named("set_summary")[0][2]
     assert summary["ebooksFiled"] == 3
     assert summary["ebooksLeftLoose"] == 1
+    assert summary["ebookDuplicatesSetAside"] == 1
+    # A set-aside duplicate is NAMED on /status, not just counted.
+    assert summary["warnings"] == ["Reaper.epub: duplicate set aside"]
 
 
 def test_step_sort_never_resorts_the_whole_library(monkeypatch, isolated_env):
@@ -322,7 +332,7 @@ def test_step_sort_never_resorts_the_whole_library(monkeypatch, isolated_env):
 
     monkeypatch.setattr(sync, "sort_books", _sort)
     monkeypatch.setattr(sync, "sort_companion_files", lambda dry_run=False: [])
-    monkeypatch.setattr(sync, "sort_standalone_ebooks", lambda dry_run=False: ([], []))
+    monkeypatch.setattr(sync, "sort_standalone_ebooks", lambda dry_run=False: ([], [], []))
     sync._step_sort()
     assert seen["resort_all"] is False
 
@@ -337,7 +347,7 @@ def test_step_sort_names_a_tag_folder_mismatch(monkeypatch, isolated_env):
 
     monkeypatch.setattr(sync, "sort_books", _sort)
     monkeypatch.setattr(sync, "sort_companion_files", lambda dry_run=False: [])
-    monkeypatch.setattr(sync, "sort_standalone_ebooks", lambda dry_run=False: ([], []))
+    monkeypatch.setattr(sync, "sort_standalone_ebooks", lambda dry_run=False: ([], [], []))
     sync._step_sort()
 
     detail = isolated_env.calls_named("step_detail")[0]
