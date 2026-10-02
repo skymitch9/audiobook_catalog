@@ -32,12 +32,19 @@ from/to pairs — before touching anything, so a bad run can be undone the way
 `revert_author_moves.py` undid the 2026-08-09 one. It is written first and
 flushed, so it exists even if the run dies halfway.
 
-## ⚠️ After a committed run, two things are stale
+## After a committed run
 
-1. `site/ebooks.json` — regenerate with `python scripts/build_ebook_manifest.py`.
-2. `library_catalog`'s `edition.source_url`, which stores these paths. Fix with
-   `node scripts/relink-ebook-paths.mjs` in that repo, using the manifest this
-   writes. Skipping it makes `--prune` see every moved book as an orphan.
+Nothing needs doing by hand. The moves are a library change, so
+`AudiobookFsWatcher` fires a pipeline run, which rebuilds `site/ebooks.json`
+(STEP 1b), uploads the moved files to Drive (STEP 4) and R2 (5.75), and
+publishes the shelf (5.8) — on the idle path too since 2026-10-02.
+
+The pipeline also runs this same planner itself as STEP 1c
+(`sync_to_drive.sort_standalone_ebooks`), so the CLI is for looking at a plan
+or filing by hand, not a required step. ⚠️ The old advice to run
+`library_catalog/scripts/relink-ebook-paths.mjs` afterwards is gone: that
+script no longer exists (checked 2026-10-02) — the library's ebook lane was
+retired by the ebook split.
 
     python scripts/sort_ebooks.py             # show the plan
     python scripts/sort_ebooks.py --commit
@@ -218,10 +225,8 @@ def main() -> int:
     done = len(apply_moves(root, moves))
 
     print(f"\n[OK] moved {done} of {len(moves)}")
-    print("\nNow, in order:")
-    print("  1. python scripts/build_ebook_manifest.py       # site/ebooks.json still has the old paths")
-    print("  2. (library_catalog) node scripts/relink-ebook-paths.mjs --remote --commit")
-    print("     ^ without this, edition.source_url is stale and --prune sees every moved book as an orphan")
+    print("\nNothing else to run: the file watcher starts a pipeline run that rebuilds")
+    print("site/ebooks.json, uploads the moved files to Drive and R2, and publishes the shelf.")
     return 0
 
 
