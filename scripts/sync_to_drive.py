@@ -1295,6 +1295,40 @@ class UploadOutcome:
 _RUN_WARNINGS: list[str] = []
 
 
+def _sync_ebook_shelf() -> None:
+    """STEP 5.75 then STEP 5.8 — the ONE implementation both cycle paths call.
+
+    5.75 puts the ebook FILES in the private estate-ebooks bucket BEFORE 5.8
+    publishes the manifest that names them; reversing the order gives a
+    reader a Read button that 404s (docs/info/ebooks-r2-ingest.md).
+
+    5.8 publishes site/ebooks.json to its PRIVATE bucket. The file is
+    gitignored and out of the public deployment (owner directive: "I don't
+    want people scraping my books"), so this upload is the ONLY way a
+    refreshed shelf reaches a reader — and the published copy is also what
+    deploy.yml's ebook Discord post reads.
+
+    Each half is a WARN on failure, never a stop: the previous objects keep
+    serving and the next run retries. Both are idempotent."""
+    print("\n[STEP 5.75] Uploading ebook files to R2...")
+    try:
+        from scripts.upload_ebooks_r2 import main as upload_ebooks_main
+        rc = upload_ebooks_main(["--commit"])
+        if rc != 0:
+            print("  [WARN] Some ebook files failed to upload - they will retry next run.")
+    except Exception as e:
+        print(f"  [WARN] Ebook file upload failed: {e}")
+
+    print("\n[STEP 5.8] Publishing ebook manifest to the gated bucket...")
+    try:
+        from scripts.publish_ebooks_manifest import main as publish_ebooks_main
+        rc = publish_ebooks_main([])
+        if rc != 0:
+            print("  [WARN] Ebook manifest not published - the previous one still serves.")
+    except Exception as e:
+        print(f"  [WARN] Ebook manifest publish failed: {e}")
+
+
 def _reset_run_warnings() -> None:
     """Start of a run. Idempotent; matters in-process (tests, --step)."""
     _RUN_WARNINGS.clear()
@@ -1736,6 +1770,16 @@ def _run_pipeline_body(
         # `publish` step legitimately stays un-run and must not be dressed up
         # with a detail line that reads as though it happened.
         if not dry_run:
+            # STEP 5.75 + 5.8 on the IDLE path too (owner, 2026-10-02: "1
+            # yes"). STEP 1b rebuilt site/ebooks.json above whether or not
+            # anything was new, but only the busy path used to PUBLISH it — so
+            # an ebook-only change that uploads nothing (measured that day: 20
+            # duplicates set aside, local manifest 244 -> 224) never reached
+            # the shelf, nor the Discord post that reads the published copy,
+            # until some later run happened to upload a file. Both calls are
+            # idempotent (5.75: size+mtime/sha256; 5.8: sha256 of the
+            # manifest), so an unchanged shelf costs two quick no-ops.
+            _sync_ebook_shelf()
             _push_estate_index(record_step=False)
             # STEP 8 — parity runs on the idle path for a stronger reason than
             # the index does: it has NOTHING to do with books. Drift arrives
@@ -2013,32 +2057,8 @@ def _run_pipeline_body(
         except Exception as e:
             print(f"  [WARN] Cover upload failed: {e}")
 
-        # STEP 5.75 - the ebook FILES to the private estate-ebooks bucket,
-        # BEFORE 5.8 publishes the manifest that names them. Reversing the
-        # order gives a reader a Read button that 404s. A failure is a WARN,
-        # not a stop. See docs/info/ebooks-r2-ingest.md.
-        print("\n[STEP 5.75] Uploading ebook files to R2...")
-        try:
-            from scripts.upload_ebooks_r2 import main as upload_ebooks_main
-            rc = upload_ebooks_main(["--commit"])
-            if rc != 0:
-                print("  [WARN] Some ebook files failed to upload - they will retry next run.")
-        except Exception as e:
-            print(f"  [WARN] Ebook file upload failed: {e}")
-
-        # STEP 5.8 - the ebook manifest to its PRIVATE bucket. site/ebooks.json
-        # is gitignored and out of the public deployment (owner directive:
-        # "I don't want people scraping my books"), so this upload is the ONLY
-        # way a refreshed shelf reaches a reader. A failure is a WARN, not a
-        # stop: the previously published manifest keeps serving.
-        print("\n[STEP 5.8] Publishing ebook manifest to the gated bucket...")
-        try:
-            from scripts.publish_ebooks_manifest import main as publish_ebooks_main
-            rc = publish_ebooks_main([])
-            if rc != 0:
-                print("  [WARN] Ebook manifest not published - the previous one still serves.")
-        except Exception as e:
-            print(f"  [WARN] Ebook manifest publish failed: {e}")
+        # STEP 5.75 + 5.8 — the ebook files, then the manifest that names them.
+        _sync_ebook_shelf()
 
     # -----------------------------------------------------------------------
     # STEP 5.9 — fulfil the ON-DEMAND audiobook ingest queue.

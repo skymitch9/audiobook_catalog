@@ -233,10 +233,10 @@ jobs:
 
     env:
       # A BOOLEAN, never the value (the CF_CONFIGURED pattern above): step `if:`
-      # cannot read `secrets`, job `env` can. 'true' once the owner has added
-      # the read-only R2 credential for the gated ebook manifest. Until then
-      # the ebook post is SKIPPED, loudly, and the audiobook post is untouched.
-      EBOOKS_READ_CONFIGURED: ${{ secrets.R2_EBOOKS_GATED_READ_KEY_ID != '' && secrets.R2_EBOOKS_GATED_READ_SECRET != '' }}
+      # cannot read `secrets`, job `env` can. The ebook post reads the gated
+      # manifest with the SAME Cloudflare token the Pages publish uses (owner
+      # decision 2026-10-02, "2b": reuse it rather than mint a narrower one).
+      EBOOKS_READ_CONFIGURED: ${{ secrets.CLOUDFLARE_API_TOKEN != '' && secrets.CLOUDFLARE_ACCOUNT_ID != '' }}
 
     steps:
     - name: ✅ Deployment summary
@@ -306,33 +306,35 @@ jobs:
     # snapshot shape, same webhook, same message (create_embed kind="ebook").
     #
     # ⚠️ The ebook list is GATED and this repo is PUBLIC — Actions logs
-    # included. So: the manifest is fetched with a credential that can READ ONE
-    # OBJECT'S BUCKET and nothing else; it is never echoed, cached, uploaded as
-    # an artifact or committed (`*.json` ignores it); detect_new_ebooks.py and
-    # the notifier print counts, never titles; the tracked snapshot holds
-    # sha256 hashes, not names; and the last step deletes both files.
+    # included. So: the manifest is only ever written to a file (wrangler's
+    # --file), never echoed, cached, uploaded as an artifact or committed
+    # (`*.json` ignores it); detect_new_ebooks.py and the notifier print
+    # counts, never titles; the tracked snapshot holds sha256 hashes, not
+    # names; and the last step deletes both files.
+    #
+    # ⚠️ If this step fails with an authorization error, CLOUDFLARE_API_TOKEN
+    # lacks R2 read — the fix is the token's permissions (Workers R2 Storage:
+    # Read), not this file. The audiobook post does not depend on it.
 
     - name: ⏭️ Ebook post not configured
       if: github.event_name == 'workflow_dispatch' && inputs.notify && env.EBOOKS_READ_CONFIGURED != 'true'
       run: |
-        echo "::warning::Ebook Discord post SKIPPED — repo secrets R2_EBOOKS_GATED_READ_KEY_ID / R2_EBOOKS_GATED_READ_SECRET are not set. docs/access/PIPELINE.md (STEP 1c) has the setup."
+        echo "::warning::Ebook Discord post SKIPPED — CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID are not set."
 
     - name: 📥 Fetch the gated ebook manifest (read-only)
       if: github.event_name == 'workflow_dispatch' && inputs.notify && env.EBOOKS_READ_CONFIGURED == 'true'
       id: fetch_ebooks
-      env:
-        AWS_ACCESS_KEY_ID: ${{ secrets.R2_EBOOKS_GATED_READ_KEY_ID }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_EBOOKS_GATED_READ_SECRET }}
-        AWS_DEFAULT_REGION: auto
-        # R2 does not speak the CRC checksums newer AWS CLIs add by default.
-        AWS_REQUEST_CHECKSUM_CALCULATION: when_required
-        AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
-        R2_ENDPOINT: https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
-      run: |
-        aws s3 cp s3://ebooks-gated/ebooks.json ebooks_manifest.json \
-          --endpoint-url "$R2_ENDPOINT" --only-show-errors
-        echo "✓ gated manifest fetched ($(wc -c < ebooks_manifest.json) bytes)"
+      uses: cloudflare/wrangler-action@v3
+      with:
+        apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        command: r2 object get ebooks-gated/ebooks.json --file ebooks_manifest.json --remote
       continue-on-error: true
+
+    - name: ⚠️ Gated ebook manifest could not be read
+      if: github.event_name == 'workflow_dispatch' && inputs.notify && steps.fetch_ebooks.outcome == 'failure'
+      run: |
+        echo "::warning::Ebook Discord post SKIPPED — could not read ebooks-gated/ebooks.json. Check that CLOUDFLARE_API_TOKEN has R2 read (Workers R2 Storage: Read)."
 
     - name: 🔍 Detect new ebooks
       if: github.event_name == 'workflow_dispatch' && inputs.notify && steps.fetch_ebooks.outcome == 'success'

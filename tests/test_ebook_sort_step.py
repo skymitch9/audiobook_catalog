@@ -231,6 +231,27 @@ def test_shelf_alias_is_honoured(library, monkeypatch):
     assert moved == [library / "Nadya Lee" / loose.name]
 
 
+def test_idle_path_publishes_the_ebook_shelf_before_the_index_push():
+    """Owner 2026-10-02 ("1 yes"): a run that uploads nothing still publishes a
+    changed ebook manifest. Measured that day: 20 duplicates set aside, local
+    manifest 244 -> 224, and the idle run published nothing. Source-text pin,
+    in the style of test_index_push.py's idle-path check."""
+    src = Path(sync.__file__).read_text(encoding="utf-8")
+    idle = src.split("Nothing to upload. All books are synced!")[1].split("finish_run")[0]
+    assert "_sync_ebook_shelf()" in idle
+    assert idle.index("_sync_ebook_shelf()") < idle.index("_push_estate_index(")
+
+
+def test_one_ebook_shelf_implementation_and_files_before_manifest():
+    src = Path(sync.__file__).read_text(encoding="utf-8")
+    body = src.split("def _sync_ebook_shelf()")[1].split("\ndef ")[0]
+    assert body.index("upload_ebooks_main") < body.index("publish_ebooks_main")
+    # The busy path calls the same helper rather than carrying a second copy.
+    busy = src.split("def _run_pipeline_body(")[1].split("\ndef ")[0]
+    assert "_sync_ebook_shelf()" in busy
+    assert "upload_ebooks_main" not in busy and "publish_ebooks_main" not in busy
+
+
 def test_a_failure_is_a_warning_not_a_stopped_pipeline(library, monkeypatch, capsys):
     def boom(*a, **k):
         raise RuntimeError("disk on fire")
