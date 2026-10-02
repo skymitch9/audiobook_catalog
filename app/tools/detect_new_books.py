@@ -14,6 +14,21 @@ import sys
 from pathlib import Path
 
 SNAPSHOT_PATH = Path("last_catalog_snapshot.json")
+# The one ebook fact CI can see. site/ebooks.json (the list) is gitignored on
+# purpose — the ebook shelf is permission-gated — so only this count is tracked.
+EBOOK_STATUS_PATH = Path("site/ebooks_status.json")
+
+
+def load_ebook_count() -> int | None:
+    """Ebooks on the gated shelf, or None when the status file is absent or
+    unreadable. None means NOT KNOWN, never zero — the notification leaves the
+    ebook line out rather than announcing an empty shelf."""
+    try:
+        with open(EBOOK_STATUS_PATH, "r", encoding="utf-8") as f:
+            count = json.load(f).get("count")
+        return count if isinstance(count, int) and count >= 0 else None
+    except Exception:
+        return None
 
 
 def load_snapshot() -> set:
@@ -65,6 +80,7 @@ def main():
         output = {
             "new_count": 0,
             "total_count": len(current_books),
+            "ebook_count": load_ebook_count(),
             "books": [],
         }
         with open("new_books.json", "w", encoding="utf-8") as f:
@@ -92,7 +108,9 @@ def main():
     # Save to file for Discord notification
     output = {
         "new_count": len(new_books),
+        # Audiobooks only: one row of site/catalog.csv is one audiobook.
         "total_count": len(current_books),
+        "ebook_count": load_ebook_count(),
         "books": new_books[:10],  # Limit to 10 for Discord
     }
 

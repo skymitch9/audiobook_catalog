@@ -98,22 +98,25 @@ def existing_folder(root: Path, name: str) -> Path:
     return root / name
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    parser.add_argument("--commit", action="store_true", help="actually move files")
-    args = parser.parse_args()
+def plan_moves(
+    root: Path, aliases: dict, *, unattended: bool = False
+) -> tuple[list[dict[str, str]], list[str]]:
+    """Decide where each loose ebook at ``root`` goes. Moves nothing.
 
-    root = Path(ROOT_DIR)
+    Returns ``(moves, skipped)``: ``moves`` are from/to dicts relative to
+    ``root``; ``skipped`` are human-readable lines naming the file and why.
+
+    ``unattended`` is the pipeline's mode (STEP 1c of sync_to_drive.py), where
+    nobody reads the plan before it runs. There a FILENAME-derived author may
+    only file a book into a folder that already exists — it never mints a new
+    shelf. The OPF is the book's own statement of its author, the same standing
+    an audio tag has; "Title - Something.pdf" is a guess, and a guess that
+    creates a folder becomes a Drive folder the same run.
+    """
     loose = sorted(
         p for p in root.iterdir()
         if p.is_file() and p.suffix.lower() in COMPANION_EXTS
     )
-
-    if not loose:
-        print(f"Nothing loose at {root}. All ebooks are already shelved.")
-        return 0
-
-    aliases = load_shelf_aliases()
     moves: list[dict[str, str]] = []
     skipped: list[str] = []
 
@@ -127,19 +130,61 @@ def main() -> int:
         dest_dir = existing_folder(root, shelf)
         dest = dest_dir / f.name
 
+        if unattended and source != "opf" and not dest_dir.exists():
+            skipped.append(
+                f"{f.name}  — author '{shelf}' comes from the filename only and has no "
+                "folder yet; file it by hand"
+            )
+            continue
+
         if dest.exists():
             skipped.append(f"{f.name}  — {dest_dir.name}/ already holds a file of this name")
             continue
 
-        note = "" if dest_dir.exists() else "  (new folder)"
-        alias_note = f"  [alias: {raw} -> {shelf}]" if shelf != raw else ""
         moves.append({
             "from": str(f.relative_to(root)).replace("\\", "/"),
             "to": str(dest.relative_to(root)).replace("\\", "/"),
             "author": shelf,
             "author_source": source,
+            "new_folder": "" if dest_dir.exists() else "yes",
+            "alias_from": raw if shelf != raw else "",
         })
-        print(f"  {f.name[:62]:64} -> {dest_dir.name}/{note}{alias_note}")
+
+    return moves, skipped
+
+
+def apply_moves(root: Path, moves: list[dict[str, str]]) -> list[Path]:
+    """Carry out a plan from plan_moves(). Returns the destination Paths that
+    were actually moved; a failed rename is printed and left for the next run."""
+    done: list[Path] = []
+    for m in moves:
+        src, dst = root / m["from"], root / m["to"]
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            src.rename(dst)
+            done.append(dst)
+        except OSError as e:
+            print(f"  [FAIL] {m['from']} -> {m['to']}: {e}")
+    return done
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    parser.add_argument("--commit", action="store_true", help="actually move files")
+    args = parser.parse_args()
+
+    root = Path(ROOT_DIR)
+    moves, skipped = plan_moves(root, load_shelf_aliases())
+
+    if not moves and not skipped:
+        print(f"Nothing loose at {root}. All ebooks are already shelved.")
+        return 0
+
+    for m in moves:
+        name = Path(m["from"]).name
+        note = "  (new folder)" if m["new_folder"] else ""
+        alias_note = f"  [alias: {m['alias_from']} -> {m['author']}]" if m["alias_from"] else ""
+        print(f"  {name[:62]:64} -> {Path(m['to']).parent.name}/{note}{alias_note}")
 
     print(f"\n{len(moves)} to move, {len(skipped)} skipped")
     for s in skipped:
@@ -158,15 +203,7 @@ def main() -> int:
     MANIFEST_PATH.write_text(json.dumps(moves, indent=2), encoding="utf-8")
     print(f"\nwrote {MANIFEST_PATH.relative_to(PROJECT_ROOT)} ({len(moves)} entries)")
 
-    done = 0
-    for m in moves:
-        src, dst = root / m["from"], root / m["to"]
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            src.rename(dst)
-            done += 1
-        except OSError as e:
-            print(f"  [FAIL] {m['from']} -> {m['to']}: {e}")
+    done = len(apply_moves(root, moves))
 
     print(f"\n[OK] moved {done} of {len(moves)}")
     print("\nNow, in order:")

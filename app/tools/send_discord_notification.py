@@ -19,6 +19,13 @@ def create_embed(new_books_data, site_url):
     new_count = new_books_data.get("new_count", 0)
     total_count = new_books_data.get("total_count", 0)
     books = new_books_data.get("books", [])
+    # total_count is AUDIOBOOKS (rows of catalog.csv). Ebooks are counted
+    # separately; None means the count was not available, so say nothing
+    # about ebooks rather than "0".
+    ebook_count = new_books_data.get("ebook_count")
+    library_counts = f"**{total_count}** audiobooks"
+    if ebook_count is not None:
+        library_counts += f"\n**{ebook_count}** ebooks"
 
     # Main embed
     embeds = []
@@ -28,7 +35,8 @@ def create_embed(new_books_data, site_url):
         embeds.append(
             {
                 "title": "📚 Audiobook Catalog Updated",
-                "description": f"Catalog refreshed with **{total_count}** books.",
+                "description": "Catalog refreshed with "
+                + library_counts.replace("\n", " and ") + ".",
                 "color": 5814783,  # Blue
                 "fields": [
                     {"name": "🔗 View Catalog", "value": f"[Click here to browse]({site_url})"},
@@ -51,7 +59,7 @@ def create_embed(new_books_data, site_url):
                 "fields": [
                     {
                         "name": "📊 Library Stats",
-                        "value": f"**{total_count}** total books\n**{new_count}** new additions",
+                        "value": f"{library_counts}\n**{new_count}** new additions",
                         "inline": True,
                     },
                     {"name": "🔗 View Catalog", "value": f"[Browse Library]({site_url})", "inline": True},

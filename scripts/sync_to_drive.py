@@ -632,8 +632,68 @@ def sort_companion_files(dry_run: bool = False) -> list[Path]:
 
     if unmatched:
         print(f"  [companions] {unmatched} loose file(s) had no matching "
-              "audiobook — left in place (standalone ebooks)")
+              "audiobook — standalone ebooks, handed to the ebook sort")
     return moved
+
+
+# Append-only record of every move STEP 1c makes: one JSON line per file, with
+# the from/to pair, so an unattended filing can be undone by hand. Untracked
+# (output_files/ is gitignored) and keyed on file paths, like the other ebook
+# bookkeeping — see docs/info/ebooks-r2-ingest.md §3 for why that stays local.
+EBOOK_SORT_LOG_PATH = PROJECT_ROOT / "output_files" / "ebook_sort_log.jsonl"
+
+
+def sort_standalone_ebooks(dry_run: bool = False) -> tuple[list[Path], list[str]]:
+    """File loose STANDALONE ebooks (no matching audiobook) at the library
+    root into their author's folder — the ebook half of sort_books().
+
+    Until 2026-10-02 nothing did this: sort_books() filters on AUDIOBOOK_EXTS,
+    sort_companion_files() only files a doc beside the audiobook it belongs
+    to, and STEP 4 refuses anything not in an author folder. So an ebook with
+    no audiobook sat loose for ever — published to the gated shelf by STEP
+    5.75/5.8 but never backed up to Drive (measured that day: 82 loose, 0 of
+    them in the upload manifest). Owner: "we need ebooks to act the same way
+    as audiobooks for booksort and upload".
+
+    The decision is scripts/sort_ebooks.py's, shared with its hand-run CLI —
+    one planner, two callers — and it resolves the author through the same
+    resolve_shelf_author() sort_books() uses. Runs AFTER sort_companion_files
+    so a companion goes beside its audiobook first. What it will not do is
+    unchanged and deliberate: never overwrite, never rename, never touch a
+    filed file, and (unattended) never create a folder from a filename guess.
+    Every refusal is returned by name; the file stays loose and STEP 4 goes
+    on reporting it as misplaced until a person files it.
+
+    Returns (moved destination Paths, skip lines). Never raises.
+    """
+    from app.author_names import load_shelf_aliases
+    from app.config import ROOT_DIR
+
+    try:
+        from scripts.sort_ebooks import apply_moves, plan_moves
+
+        root = Path(ROOT_DIR)
+        moves, skipped = plan_moves(root, load_shelf_aliases(), unattended=True)
+        for m in moves:
+            print(f"  [EBOOK] {Path(m['from']).name} -> {Path(m['to']).parent.name}/"
+                  + ("  (new folder)" if m["new_folder"] else ""))
+        for s in skipped:
+            print(f"  [EBOOK-SKIP] {s}")
+        if dry_run or not moves:
+            return [root / m["to"] for m in moves], skipped
+
+        # Written BEFORE the first move, so a run that dies halfway still
+        # leaves a complete record of what it intended to do.
+        stamp = datetime.now().isoformat(timespec="seconds")
+        EBOOK_SORT_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with open(EBOOK_SORT_LOG_PATH, "a", encoding="utf-8") as log:
+            for m in moves:
+                log.write(json.dumps({"at": stamp, **m}, ensure_ascii=False) + "\n")
+
+        return apply_moves(root, moves), skipped
+    except Exception as e:
+        print(f"  [WARN] Ebook sort failed: {e}")
+        return [], []
 
 
 # ---------------------------------------------------------------------------
@@ -1196,10 +1256,11 @@ def _add_warnings(*lines: str) -> list[str]:
 
 def _file_is_misplaced(rel: Path) -> bool:
     """True when a candidate upload sits directly under the library root
-    (no <Author>/ folder) rather than filed under an author. Step 1 sorts
-    loose files into author folders on the NEXT run — this function just
-    recognizes the state, it does not fix it. See the judgment-guard note
-    in _upload_new_files()."""
+    (no <Author>/ folder) rather than filed under an author. Step 1 files
+    loose books — audio in sort_books(), standalone ebooks in
+    sort_standalone_ebooks() — so what reaches here is what Step 1 REFUSED
+    (no author, a name collision). This function just recognizes the state,
+    it does not fix it. See the judgment-guard note in _upload_new_files()."""
     return len(rel.parts) <= 1
 
 
@@ -1229,6 +1290,10 @@ def _upload_new_files(
     2026-08-15 morning fix for 9 misplaced epubs was made by the owner via
     the coordinator, not by this script); the pipeline's job is to report
     clearly, not to guess where a book belongs.
+
+    Still true of THIS function after 2026-10-02. Filing moved to STEP 1c
+    (sort_standalone_ebooks), which files an ebook only on the book's own
+    author metadata; whatever it refuses arrives here loose and is named.
     """
     manifest_updates: dict[str, dict] = {}
     outcome = UploadOutcome()
@@ -1466,8 +1531,18 @@ def _run_pipeline_body(
         filed = sort_companion_files(dry_run=dry_run)
         if filed:
             print(f"  Filed {len(filed)} orphaned companion file(s).")
-        just_moved = frozenset(moved) | frozenset(filed)
+        # Step 1c: standalone ebooks. In just_moved for the same reason the
+        # audio moves are — a successful rename means the file is complete,
+        # so STEP 2 offers it to STEP 4 this run rather than the next.
+        ebooks_filed, ebooks_skipped = sort_standalone_ebooks(dry_run=dry_run)
+        if ebooks_filed:
+            print(f"  Filed {len(ebooks_filed)} standalone ebook(s).")
+        just_moved = frozenset(moved) | frozenset(filed) | frozenset(ebooks_filed)
         _sort_detail = f"{len(moved)} sorted, {len(filed)} companions filed"
+        if ebooks_filed or ebooks_skipped:
+            _sort_detail += f", {len(ebooks_filed)} ebooks filed"
+        if ebooks_skipped:
+            _sort_detail += f", {len(ebooks_skipped)} ebooks left loose"
         if mismatches:
             _sort_detail += f", {len(mismatches)} tag/folder mismatch (not moved)"
         if resort_all:
@@ -1475,6 +1550,8 @@ def _run_pipeline_body(
         pstatus.step_detail("sort", _sort_detail)
         pstatus.set_summary(
             sorted=len(moved),
+            ebooksFiled=len(ebooks_filed),
+            ebooksLeftLoose=len(ebooks_skipped),
             tagFolderMismatch=len(mismatches),
             tagFolderMismatchFiles=mismatches,
             warnings=_add_warnings(*mismatches),
@@ -2340,12 +2417,18 @@ def _step_sort() -> None:
     mismatches: list[str] = []
     moved = sort_books(dry_run=False, resort_all=False, mismatch_out=mismatches)
     filed = sort_companion_files(dry_run=False)
+    ebooks_filed, ebooks_skipped = sort_standalone_ebooks(dry_run=False)
     detail = f"{len(moved)} sorted, {len(filed)} companions filed"
+    if ebooks_filed or ebooks_skipped:
+        detail += f", {len(ebooks_filed)} ebooks filed"
+    if ebooks_skipped:
+        detail += f", {len(ebooks_skipped)} ebooks left loose"
     if mismatches:
         detail += f", {len(mismatches)} tag/folder mismatch (not moved)"
     pstatus.step_detail("sort", detail)
     pstatus.set_summary(
         sorted=len(moved), companionsFiled=len(filed),
+        ebooksFiled=len(ebooks_filed), ebooksLeftLoose=len(ebooks_skipped),
         tagFolderMismatch=len(mismatches), tagFolderMismatchFiles=mismatches,
         warnings=_add_warnings(*mismatches),
     )
