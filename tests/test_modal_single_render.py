@@ -114,7 +114,7 @@ def test_the_observer_does_not_run_its_body_per_mutation_record():
 def test_each_modal_renderer_is_invoked_exactly_once():
     for name, path in (("template", TEMPLATE), ("generated", GENERATED)):
         block = observer_block(read(path))
-        for fn in ("renderReviewSection", "renderReadingListButtons", "renderAudioRow"):
+        for fn in ("renderReviewSection", "renderReadingListButtons", "renderShelfButton"):
             assert block.count(f"{fn}(") == 1, (
                 f"{name}: {fn} is called {block.count(f'{fn}(')} times in the "
                 "modal-open observer; it must be called exactly once per open."

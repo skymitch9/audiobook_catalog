@@ -2060,36 +2060,10 @@ def _run_pipeline_body(
         # STEP 5.75 + 5.8 — the ebook files, then the manifest that names them.
         _sync_ebook_shelf()
 
-    # -----------------------------------------------------------------------
-    # STEP 5.9 — fulfil the ON-DEMAND audiobook ingest queue.
-    #
-    # ⚠️ NOT gated on uploaded_count, and that is the point. A request is made
-    # on the SITE by a person who wants to listen to a book this library has
-    # held for two years; it has nothing to do with whether anything new
-    # arrived on Drive this run. Gating it on new arrivals would leave a
-    # requested book sitting in the queue for however long nobody buys
-    # anything — the same class of bug the 2026-08-15 STEP 6 gate was.
-    #
-    # Soft, exactly like steps 5.5-5.8: a Firestore listing failure, an
-    # unresolvable title or a dead uplink WARNs and the run continues. The
-    # request is kept (never cleared on failure), so the next run retries it.
-    #
-    # ⚠️ NOTHING HERE IS COMMITTED, deliberately: the only output is
-    # site/audio_manifest.json, which is GITIGNORED because it lists the
-    # household's books by filename (see .gitignore, and site/ebooks.json's
-    # story above it). So this step adds NO entry to _auto_commit_and_push's
-    # _ALLOWLIST — that omission is a decision, not an oversight.
-    # -----------------------------------------------------------------------
-    if not dry_run:
-        print("\n[STEP 5.9] Fulfilling audiobook ingest requests...")
-        try:
-            from app.tools.fulfill_audio_requests import fulfill_requests
-            stats = fulfill_requests(commit=True)
-            if stats.get("unresolved"):
-                print(f"  [WARN] {stats['unresolved']} request(s) name a book this "
-                      "library cannot resolve — kept for review.")
-        except Exception as e:
-            print(f"  [WARN] Audio request fulfilment failed: {e}")
+    # STEP 5.9 (the on-demand audio ingest queue for the in-browser player) was
+    # RETIRED 2026-10-16 with the player — owner: "decom the listen to
+    # audiobooks from cloudflare service and just use shelf". estate-audio now
+    # holds only the archive/ backup (scripts/archive_audio_r2.py, untouched).
 
     # -----------------------------------------------------------------------
     # Step 6: Auto-commit & push
