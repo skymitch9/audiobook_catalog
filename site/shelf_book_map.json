@@ -1,7 +1,7 @@
 {
- "generatedAt": "2026-09-03T05:38:02Z",
+ "generatedAt": "2026-10-16T17:44:35Z",
  "libraryId": "69bed7b1-89b1-422d-92de-c27d7c9087db",
- "ebookLibraryId": null,
+ "ebookLibraryId": "340b8d35-6f4f-4551-9912-66dd3b58956b",
  "books": {
   "1-lifesteal-a-litrpg-adventure": {
    "t": "1% Lifesteal",
@@ -125,7 +125,7 @@
   },
   "adventures-in-the-argo-beneath-the-dragoneye-moons-book-2": {
    "t": "Adventures in the Argo",
-   "m": "audio"
+   "m": "both"
   },
   "aether-s-blessing-aether-s-revival-book-1": {
    "t": "Aether's Blessing",
@@ -137,7 +137,7 @@
   },
   "alchemised": {
    "t": "Alchemised",
-   "m": "audio"
+   "m": "both"
   },
   "alchemy-and-a-cup-of-tea-tomes-tea-book-4": {
    "t": "Alchemy and a Cup of Tea",
@@ -161,7 +161,7 @@
   },
   "all-the-skills-5-a-deck-building-litrpg-all-the-skills-book-5": {
    "t": "All the Skills 5: A Deck-Building LitRPG",
-   "m": "audio"
+   "m": "both"
   },
   "all-the-skills-6-a-deck-building-litrpg-all-the-skills-book-6": {
    "t": "All the Skills 6: A Deck-Building LitRPG",
@@ -189,6 +189,10 @@
   },
   "amber-the-cursed-berserker-book-3-a-litrpg-adventure": {
    "t": "Amber the Cursed Berserker: Book 3",
+   "m": "audio"
+  },
+  "amber-the-cursed-berserker-book-4-a-litrpg-adventure": {
+   "t": "Amber the Cursed Berserker: Book 4: A LitRPG Adventure",
    "m": "audio"
   },
   "amelia-the-level-zero-hero-2-a-litrpg-adventure-amelia-book-2": {
@@ -437,7 +441,7 @@
   },
   "beyond-the-wall-beneath-the-dragoneye-moons-book-4": {
    "t": "Beyond the Wall",
-   "m": "audio"
+   "m": "both"
   },
   "bibliomancer-wolfman-warlock-book-1": {
    "t": "Bibliomancer",
@@ -478,6 +482,22 @@
   "board-conquest-a-kingdom-building-litrpg": {
    "t": "Board & Conquest: [A Kingdom Building LitRPG]",
    "m": "ebook"
+  },
+  "bog-standard-isekai-benighted": {
+   "t": "Bog Standard Isekai: Benighted",
+   "m": "both"
+  },
+  "bog-standard-isekai-illusionist-a-litrpg-isekai-adventure": {
+   "t": "Bog Standard Isekai: Illusionist: A LitRPG Isekai Adventure",
+   "m": "both"
+  },
+  "bog-standard-isekai-nightmares-a-litrpg-isekai-adventure-bog-standard-isekai-book-3": {
+   "t": "Bog Standard Isekai: Nightmares: A LitRPG Isekai Adventure (Bog Standard Isekai, Book 3)",
+   "m": "audio"
+  },
+  "bog-standard-isekai-scarred": {
+   "t": "Bog Standard Isekai: Scarred",
+   "m": "audio"
   },
   "bonded-summoner-omnibus-books-1-3-a-summoner-fantasy-litrpg": {
    "t": "Bonded Summoner Omnibus: Books 1-3",
@@ -527,6 +547,10 @@
    "t": "Broken Fae",
    "m": "audio"
   },
+  "bromantasy": {
+   "t": "Bromantasy",
+   "m": "audio"
+  },
   "bunny-girl-evolution-1-a-monster-evolution-litrpg": {
    "t": "Bunny Girl Evolution 1",
    "m": "audio"
@@ -539,6 +563,10 @@
    "t": "Bunny Girl Evolution 3: A Monster Evolution LitRPG",
    "m": "audio"
   },
+  "burn-of-the-everflame-the-kindred-s-curse-saga-book-4": {
+   "t": "Burn of the Everflame: The Kindred's Curse Saga, Book 4",
+   "m": "audio"
+  },
   "bushido-online-the-battle-begins": {
    "t": "Bushido Online: The Battle Begins",
    "m": "audio"
@@ -548,7 +576,7 @@
    "m": "audio"
   },
   "caged-wolf-darkmore-penitentiary-book-1": {
-   "t": "Zodiac Academy",
+   "t": "Caged Wolf: Darkmore Penitentiary, Book 1",
    "m": "audio"
   },
   "calamity-the-reckoners-book-3": {
@@ -597,6 +625,10 @@
   },
   "chimera-summoner-goblin-summoner-book-4": {
    "t": "Chimera Summoner",
+   "m": "audio"
+  },
+  "chrysalis-books-1-3-part-1-a-litrpg-adventure-box-set": {
+   "t": "Chrysalis, Books 1-3: A LitRPG Adventure Box Set",
    "m": "audio"
   },
   "cinder-x-bella-damsels-of-distress-book-2": {
@@ -655,6 +687,10 @@
    "t": "Crown of Midnight",
    "m": "audio"
   },
+  "cul-de-sac-carnage-discount-dan-s-backroom-bargains-book-2": {
+   "t": "Cul-de-Sac Carnage: Discount Dan's Backroom Bargains, Book 2",
+   "m": "audio"
+  },
   "culmination-a-fantasy-litrpg-adventure-battle-mage-farmer-book-9": {
    "t": "Culmination: A Fantasy LitRPG Adventure",
    "m": "audio"
@@ -699,6 +735,10 @@
    "t": "Daughter of Shades",
    "m": "audio"
   },
+  "daunting-arcane-pathfinder-book-5": {
+   "t": "Daunting: Arcane Pathfinder, Book 5",
+   "m": "audio"
+  },
   "dawn-of-wonder-the-wakening-book-1": {
    "t": "Dawn of Wonder",
    "m": "audio"
@@ -728,8 +768,8 @@
    "m": "audio"
   },
   "death-row-alibis-collection": {
-   "t": "Death Row",
-   "m": "audio"
+   "t": "Death Row (Alibis collection)",
+   "m": "ebook"
   },
   "death-s-mantle": {
    "t": "Death's Mantle",
@@ -789,6 +829,10 @@
   },
   "disciple-of-the-lich-or-how-i-was-cursed-by-the-gods-and-dropped-into-the-abyss-light-novel-vol-1": {
    "t": "Disciple of the Lich: Or How I Was Cursed by the Gods and Dropped into the Abyss! (Light Novel), Vol. 1",
+   "m": "audio"
+  },
+  "discount-dan-discount-dan-s-backroom-bargains-book-1": {
+   "t": "Discount Dan: Discount Dan’s Backroom Bargains, Book 1",
    "m": "audio"
   },
   "disney-fairies-new-friends": {
@@ -857,7 +901,7 @@
   },
   "dracula-amazonclassics-edition": {
    "t": "Dracula (AmazonClassics Edition)",
-   "m": "audio"
+   "m": "both"
   },
   "dragon-s-justice": {
    "t": "Dragon's Justice",
@@ -885,7 +929,7 @@
   },
   "dungeon-born-divine-dungeon-series-book-1": {
    "t": "Dungeon Born",
-   "m": "audio"
+   "m": "both"
   },
   "dungeon-bound-dungeon-bound-book-1": {
    "t": "Dungeon Bound",
@@ -1067,6 +1111,18 @@
    "t": "Fairy Tale",
    "m": "audio"
   },
+  "fall-at-once-a-cozy-creek-collection-standalone": {
+   "t": "Fall at Once: A Cozy Creek Collection Standalone",
+   "m": "audio"
+  },
+  "fall-i-want-a-cozy-creek-collection-standalone": {
+   "t": "Fall I Want: A Cozy Creek Collection Standalone",
+   "m": "audio"
+  },
+  "fall-shook-up-a-cozy-creek-collection-standalone": {
+   "t": "Fall Shook Up: A Cozy Creek Collection Standalone",
+   "m": "audio"
+  },
   "falling-scared-sexy-collection": {
    "t": "Falling",
    "m": "audio"
@@ -1185,6 +1241,10 @@
   },
   "galaxy-outlaws-the-complete-black-ocean-mobius-missions-1-16-5": {
    "t": "Galaxy Outlaws: The Complete Black Ocean Mobius Missions, 1-16.5",
+   "m": "audio"
+  },
+  "game-on-an-into-darkness-novel": {
+   "t": "Game On",
    "m": "audio"
   },
   "gamer-for-life-alpha-world-book-1": {
@@ -1379,6 +1439,10 @@
    "t": "Harry Potter and the Sorcerer’s Stone (Full-Cast Edition)",
    "m": "audio"
   },
+  "haunting-adeline-cat-and-mouse-duet-book-1": {
+   "t": "Haunting Adeline",
+   "m": "audio"
+  },
   "he-who-fights-with-monsters-10-a-litrpg-adventure-he-who-fights-with-monsters-book-10": {
    "t": "He Who Fights with Monsters 10",
    "m": "both"
@@ -1390,6 +1454,10 @@
   "he-who-fights-with-monsters-12-a-litrpg-adventure-he-who-fights-with-monsters-book-12": {
    "t": "He Who Fights with Monsters 12: A LitRPG Adventure",
    "m": "both"
+  },
+  "he-who-fights-with-monsters-13-a-litrpg-adventure-he-who-fights-with-monsters-book-13": {
+   "t": "He Who Fights with Monsters 13: A LitRPG Adventure: He Who Fights with Monsters, Book 13",
+   "m": "audio"
   },
   "he-who-fights-with-monsters-2-a-litrpg-adventure-he-who-fights-with-monsters-book-2": {
    "t": "He Who Fights with Monsters 2",
@@ -1449,7 +1517,7 @@
   },
   "heavenly-bodies-heavenly-bodies-book-1": {
    "t": "Heavenly Bodies",
-   "m": "audio"
+   "m": "both"
   },
   "heavenly-chaos-heavenly-chaos-book-1": {
    "t": "Heavenly Chaos",
@@ -1531,6 +1599,10 @@
    "t": "Hunters Dream Online: Ascension",
    "m": "audio"
   },
+  "hunting-adeline-cat-and-mouse-duet-book-2": {
+   "t": "Hunting Adeline",
+   "m": "audio"
+  },
   "huntsong-singer-of-terandria-series-book-2": {
    "t": "Huntsong",
    "m": "audio"
@@ -1581,7 +1653,7 @@
   },
   "immortal-moments-beneath-the-dragoneye-moons-book-6": {
    "t": "Immortal Moments",
-   "m": "audio"
+   "m": "both"
   },
   "immortal-war-beneath-the-dragoneye-moons-book-14": {
    "t": "Immortal War",
@@ -1629,7 +1701,7 @@
   },
   "invent-the-completionist-chronicles-book-7": {
    "t": "Invent",
-   "m": "audio"
+   "m": "both"
   },
   "iron-flame-empyrean-book-2": {
    "t": "Iron Flame",
@@ -1679,6 +1751,10 @@
    "t": "King of Duels",
    "m": "audio"
   },
+  "kiosk-kingdom-discount-dan-s-backroom-bargains-book-3": {
+   "t": "Kiosk Kingdom: Discount Dan’s Backroom Bargains, Book 3",
+   "m": "audio"
+  },
   "knightmare-arcanist-frith-chronicles-book-1": {
    "t": "Knightmare Arcanist",
    "m": "audio"
@@ -1705,7 +1781,7 @@
   },
   "legion-the-many-lives-of-stephen-leeds": {
    "t": "Legion: The Many Lives of Stephen Leeds",
-   "m": "audio"
+   "m": "both"
   },
   "lessons-in-chemistry-a-novel": {
    "t": "Lessons in Chemistry",
@@ -1872,28 +1948,28 @@
    "m": "audio"
   },
   "melody-of-mana-2-a-progression-fantasy": {
-   "t": "Melody of Mana 2",
-   "m": "audio"
+   "t": "Melody of Mana 2: A Progression Fantasy",
+   "m": "ebook"
   },
   "melody-of-mana-3-a-progression-fantasy": {
-   "t": "Melody of Mana 3",
-   "m": "audio"
+   "t": "Melody of Mana 3: A Progression Fantasy",
+   "m": "ebook"
   },
   "melody-of-mana-4-a-progression-fantasy-melody-of-mana-book-4": {
    "t": "Melody of Mana 4: A Progression Fantasy",
-   "m": "audio"
+   "m": "both"
   },
   "melody-of-mana-5-a-progression-fantasy-melody-of-mana-book-5": {
    "t": "Melody of Mana 5: A Progression Fantasy",
-   "m": "audio"
+   "m": "both"
   },
   "melody-of-mana-6-a-progression-fantasy-melody-of-mana-book-6": {
    "t": "Melody of Mana 6: A Progression Fantasy",
-   "m": "audio"
+   "m": "both"
   },
   "melody-of-mana-a-progression-fantasy": {
-   "t": "Melody of Mana",
-   "m": "audio"
+   "t": "Melody of Mana: A Progression Fantasy",
+   "m": "ebook"
   },
   "memoirs-aren-t-fairytales-a-story-of-addiction": {
    "t": "Memoirs Aren't Fairytales",
@@ -1909,6 +1985,10 @@
   },
   "mickey-mouse-mixed-up-adventures-minnie-one-unicorny-day": {
    "t": "Mickey Mouse Mixed-Up Adventures: Minnie: One Unicorny Day",
+   "m": "audio"
+  },
+  "mile-high-windy-city-series-book-1": {
+   "t": "Mile High: Windy City Series, Book 1",
    "m": "audio"
   },
   "mimic-me": {
@@ -1985,11 +2065,11 @@
   },
   "moonfall-beneath-the-dragoneye-moons-book-13": {
    "t": "Moonfall",
-   "m": "audio"
+   "m": "both"
   },
   "moonveiled-journeys-beneath-the-dragoneye-moons-book-5": {
    "t": "Moonveiled Journeys",
-   "m": "audio"
+   "m": "both"
   },
   "morgana-everybody-loves-large-chests-book-4": {
    "t": "Morgana",
@@ -2105,7 +2185,7 @@
   },
   "oathbound-healer-beneath-the-dragoneye-moons-book-1": {
    "t": "Oathbound Healer",
-   "m": "audio"
+   "m": "both"
   },
   "oathbringer": {
    "t": "Oathbringer",
@@ -2117,7 +2197,7 @@
   },
   "of-gods-and-dragons-beneath-the-dragoneye-moons-book-16": {
    "t": "Of Gods and Dragons",
-   "m": "audio"
+   "m": "both"
   },
   "off-to-be-the-wizard-magic-2-0-book-1": {
    "t": "Off to Be the Wizard",
@@ -2297,7 +2377,7 @@
   },
   "ranger-s-dawn-beneath-the-dragoneye-moons-book-3": {
    "t": "Ranger's Dawn",
-   "m": "audio"
+   "m": "both"
   },
   "raze-completionist-chronicles-series-book-4": {
    "t": "Raze",
@@ -2475,6 +2555,10 @@
    "t": "Rhythm of War",
    "m": "both"
   },
+  "rickshaw-riot-a-litrpg-adventure-series": {
+   "t": "Rickshaw Riot: A LitRPG Adventure Series",
+   "m": "audio"
+  },
   "right-of-retribution": {
    "t": "Right of Retribution",
    "m": "audio"
@@ -2489,7 +2573,7 @@
   },
   "rise-from-the-ashes-beneath-the-dragoneye-moons-book-15": {
    "t": "Rise from the Ashes",
-   "m": "audio"
+   "m": "both"
   },
   "rise-of-the-cheat-potion-maker-omnibus-books-1-3": {
    "t": "Rise of the Cheat Potion Maker Omnibus: Books 1-3",
@@ -2671,6 +2755,10 @@
    "t": "Skeleton Knight in Another World, Vol. 6: Light Novel",
    "m": "audio"
   },
+  "skeleton-knight-in-another-world-vol-7-light-novel": {
+   "t": "Skeleton Knight in Another World, Vol. 7: Light Novel",
+   "m": "audio"
+  },
   "skin-game-a-novel-of-the-dresden-files-book-15": {
    "t": "Skin Game",
    "m": "audio"
@@ -2697,6 +2785,10 @@
   },
   "so-i-m-a-spider-so-what-vol-1": {
    "t": "So I'm a Spider, So What?, Vol. 1",
+   "m": "audio"
+  },
+  "so-not-meant-to-be": {
+   "t": "So Not Meant to Be",
    "m": "audio"
   },
   "something-full-murderhobo-book-1": {
@@ -3023,6 +3115,10 @@
    "t": "Survival in Another World with My Mistress!, Vol. 6",
    "m": "audio"
   },
+  "survival-in-another-world-with-my-mistress-vol-9-light-novel": {
+   "t": "Survival in Another World with My Mistress!, Vol. 9: Light Novel",
+   "m": "audio"
+  },
   "survival-quest-way-of-the-shaman-series-1": {
    "t": "Survival Quest",
    "m": "audio"
@@ -3037,6 +3133,10 @@
   },
   "swing-shift-book-3": {
    "t": "Swing Shift: Book 3",
+   "m": "audio"
+  },
+  "syl-catalysis-a-monster-evolution-litrpg-adventure": {
+   "t": "Syl: Catalysis: A Monster Evolution LitRPG Adventure!",
    "m": "audio"
   },
   "syl-diffusion-a-monster-evolution-litrpg-adventure": {
@@ -3075,9 +3175,13 @@
    "t": "Taken by the Wolf Audiobook",
    "m": "audio"
   },
+  "tales-from-the-territory": {
+   "t": "Tales from the Territory",
+   "m": "audio"
+  },
   "tamer-king-of-dinosaurs": {
    "t": "Tamer: King of Dinosaurs",
-   "m": "audio"
+   "m": "both"
   },
   "tamer-king-of-dinosaurs-1": {
    "t": "Tamer: King of Dinosaurs",
@@ -3125,6 +3229,10 @@
   },
   "that-time-i-got-reincarnated-as-a-slime-vol-1": {
    "t": "That Time I Got Reincarnated as a Slime, Vol. 1",
+   "m": "audio"
+  },
+  "the-7-1-2-deaths-of-evelyn-hardcastle": {
+   "t": "The 7 1/2 Deaths of Evelyn Hardcastle",
    "m": "audio"
   },
   "the-accidental-dating-experiment": {
@@ -3181,6 +3289,10 @@
   },
   "the-blood-of-olympus-the-heroes-of-olympus-book-5": {
    "t": "The Blood of Olympus",
+   "m": "audio"
+  },
+  "the-bog-wife-a-novel": {
+   "t": "The Bog Wife: A Novel",
    "m": "audio"
   },
   "the-bound-demon-black-summoner-volume-1": {
@@ -3457,7 +3569,7 @@
   },
   "the-gladiator-gauntlet-beneath-the-dragoneye-moons-book-9": {
    "t": "The Gladiator Gauntlet",
-   "m": "audio"
+   "m": "both"
   },
   "the-golden-couple-a-novel": {
    "t": "The Golden Couple",
@@ -3695,8 +3807,16 @@
    "t": "The Night Circus",
    "m": "audio"
   },
+  "the-night-we-met": {
+   "t": "The Night We Met",
+   "m": "audio"
+  },
   "the-nightingale": {
    "t": "The Nightingale",
+   "m": "audio"
+  },
+  "the-odyssey-audible-iliad-odyssey-book-2": {
+   "t": "The Odyssey: Audible Iliad & Odyssey, Book 2",
    "m": "audio"
   },
   "the-old-family-rise-of-the-cheat-potion-maker-book-6": {
@@ -3804,8 +3924,8 @@
    "m": "audio"
   },
   "the-serpent-and-the-wings-of-night-crowns-of-nyaxia-book-1": {
-   "t": "The Serpent and the Wings of Night",
-   "m": "audio"
+   "t": "The Serpent and the Wings of Night (Crowns of Nyaxia Book 1)",
+   "m": "ebook"
   },
   "the-seven-year-slip": {
    "t": "The Seven Year Slip",
@@ -3841,7 +3961,7 @@
   },
   "the-sun-and-the-starmaker": {
    "t": "The Sun and the Starmaker",
-   "m": "audio"
+   "m": "both"
   },
   "the-sunlit-man": {
    "t": "The Sunlit Man",
@@ -4003,6 +4123,10 @@
    "t": "Threads of Fate: Book 1",
    "m": "audio"
   },
+  "threshing-day-wing-and-claw-collection": {
+   "t": "Threshing Day (Wing and Claw Collection)",
+   "m": "audio"
+  },
   "throne-of-glass-throne-of-glass-book-1": {
    "t": "Throne of Glass",
    "m": "audio"
@@ -4085,7 +4209,7 @@
   },
   "under-ashen-skies-beneath-the-dragoneye-moons-book-10": {
    "t": "Under Ashen Skies",
-   "m": "audio"
+   "m": "both"
   },
   "unexpected-healer-earthen-contenders-book-1": {
    "t": "Unexpected Healer",
@@ -4153,6 +4277,10 @@
   },
   "web-of-eyes": {
    "t": "Web of Eyes",
+   "m": "audio"
+  },
+  "werewolves-hate-clogs": {
+   "t": "Werewolves Hate Clogs",
    "m": "audio"
   },
   "west-peak-a-litrpg-adventure-fallen-lands-book-2": {
@@ -4249,7 +4377,7 @@
   },
   "world-s-only-hero-an-apocalyptic-litrpg-adventure": {
    "t": "World's Only Hero: An Apocalyptic LitRPG Adventure",
-   "m": "audio"
+   "m": "both"
   },
   "world-tree-online-world-tree-trilogy-book-1": {
    "t": "World-Tree Online",
@@ -4315,6 +4443,10 @@
    "t": "Zodiac Academy 8",
    "m": "audio"
   },
+  "zodiac-academy-8-5-beyond-the-veil-zodiac-academy": {
+   "t": "Zodiac Academy 8.5: Beyond the Veil",
+   "m": "audio"
+  },
   "zodiac-academy-live-and-let-lionel": {
    "t": "Zodiac Academy",
    "m": "audio"
@@ -4324,7 +4456,7 @@
    "m": "audio"
   },
   "zodiac-academy-the-awakening-as-told-by-the-boys": {
-   "t": "Zodiac Academy 8.5: Beyond the Veil",
+   "t": "Zodiac Academy",
    "m": "audio"
   },
   "zodiac-academy-the-big-a-s-s-party": {
