@@ -1788,6 +1788,9 @@ def _run_pipeline_body(
             # the busy path would mean "always match" held only on the cycles
             # that happened to upload something.
             _run_drive_parity()
+            # STEP 8b — shelf collections mirror people's lists, which move
+            # whether or not a book arrived this cycle (same reason as parity).
+            _run_shelf_collections()
             # STEP 9 — the estate docs snapshot, on the IDLE path for a
             # stronger reason still than parity's: docs have nothing to do with
             # books, and the days nobody buys an audiobook are precisely the
@@ -2097,6 +2100,9 @@ def _run_pipeline_body(
         # gate: it reconciles PEOPLE, so nothing earlier in this cycle is a
         # precondition for it and nothing later depends on it.
         _run_drive_parity()
+
+        # STEP 8b — the shelf's collections follow TBR / read / reviews / clubs.
+        _run_shelf_collections()
 
         # STEP 9 — the estate docs snapshot (GABI docs assistant, phase 5).
         # Genuinely last: nothing in this cycle is a precondition for it and
@@ -3004,6 +3010,39 @@ def _mirror_estate_backups(label: str = "[STEP 10] Mirroring the estate backups 
                   "still stands. Next cycle retries.")
     except Exception as e:  # noqa: BLE001 — own failure domain, by design
         print(f"  [WARN] Drive mirror failed: {e}")
+
+
+SHELF_COLLECTIONS_SCRIPT = PROJECT_ROOT / "scripts" / "sync_shelf_collections.py"
+SHELF_COLLECTIONS_TIMEOUT_S = 600
+
+
+def _run_shelf_collections() -> None:
+    """STEP 8b — keep the shelf's auto-made collections (each person's TBR and
+    Read & reviewed, each book club) in step with the catalog. Owner ask
+    2026-10-16. Soft and never raises: a failure WARNs and the next cycle
+    retries. It only ever edits collections carrying its own marker."""
+    import subprocess
+
+    print("\n[STEP 8b] Shelf collections (TBR / read & reviewed / book clubs)...")
+    env = dict(os.environ)
+    env["PYTHONIOENCODING"] = "utf-8"
+    try:
+        proc = subprocess.run(
+            [sys.executable, str(SHELF_COLLECTIONS_SCRIPT), "--commit", "--json-summary"],
+            cwd=str(PROJECT_ROOT), env=env, capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=SHELF_COLLECTIONS_TIMEOUT_S,
+        )
+    except Exception as e:  # noqa: BLE001 — independent failure domain
+        print(f"  [WARN] Shelf collections did not run: {e}")
+        return
+    for line in (proc.stdout or "").splitlines():
+        if line.startswith("SHELF_COLLECTIONS_JSON "):
+            print(f"  {line[len('SHELF_COLLECTIONS_JSON '):]}")
+        elif line.strip():
+            print(f"  | {line}")
+    if proc.returncode != 0:
+        tail = (proc.stderr or "").strip().splitlines()[-1:] or ["no stderr"]
+        print(f"  [WARN] Shelf collections failed (exit {proc.returncode}): {tail[0]}")
 
 
 def _run_drive_parity(label: str = "[STEP 8] Drive ⇄ role parity (report + auto-apply role→Drive)") -> None:

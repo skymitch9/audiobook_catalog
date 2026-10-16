@@ -409,12 +409,23 @@ def _pick_from_group(group: List[Dict]) -> List[Dict]:
     return picked
 
 
-def _record(books: Dict[str, Dict[str, str]], slug: str, item: Dict, stats: Dict[str, int]) -> None:
+def _record(
+    books: Dict[str, Dict[str, str]],
+    slug: str,
+    item: Dict,
+    stats: Dict[str, int],
+    ids: Optional[Dict[str, List[str]]] = None,
+) -> None:
     """
     Write one entry, merging kinds: a second item for the same slug with a
     different kind (or a 'both' item) promotes the entry to 'both'. That covers
     a slug in both libraries AND two same-titled items in one library.
     """
+    if ids is not None and item.get("id"):
+        # Every ABS item claimed for this slug, in claim order. Consumers that
+        # need item ids (scripts/sync_shelf_collections.py) read this; the map
+        # file itself never carries ids.
+        ids.setdefault(slug, []).append(item["id"])
     kind = media_kind(item)
     existing = books.get(slug)
     if existing is not None:
@@ -435,6 +446,7 @@ def build_books_block(
     audio_items: List[Dict],
     ebook_items: List[Dict],
     verbose: bool = False,
+    ids: Optional[Dict[str, List[str]]] = None,
 ) -> Tuple[Dict[str, Dict[str, str]], Dict[str, int]]:
     """
     Join the catalog to whatever ABS holds, and return (books, stats).
@@ -476,7 +488,7 @@ def build_books_block(
             matched_slugs.add(slug)
             for item in _pick_from_group(group):
                 matched_abs_ids.add(item.get("id", ""))
-                _record(books, slug, item, stats)
+                _record(books, slug, item, stats, ids)
             stats["exact"] += 1
 
         # --- fuzzy pass ------------------------------------------------------
@@ -486,7 +498,7 @@ def build_books_block(
         unmatched_items = [i for i in items if i.get("id") not in matched_abs_ids]
         if unmatched_rows and unmatched_items:
             for slug, (item, _sig) in run_fuzzy_pass(unmatched_rows, unmatched_items, verbose).items():
-                _record(books, slug, item, stats)
+                _record(books, slug, item, stats, ids)
                 stats["fuzzy"] += 1
 
     stats["unmatched"] = len(catalog_row_by_slug) - len(books)
