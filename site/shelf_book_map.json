@@ -1,5 +1,5 @@
 {
- "generatedAt": "2026-10-16T17:44:35Z",
+ "generatedAt": "2026-10-16T18:09:22Z",
  "libraryId": "69bed7b1-89b1-422d-92de-c27d7c9087db",
  "ebookLibraryId": "340b8d35-6f4f-4551-9912-66dd3b58956b",
  "books": {
@@ -480,8 +480,8 @@
    "m": "audio"
   },
   "board-conquest-a-kingdom-building-litrpg": {
-   "t": "Board & Conquest: [A Kingdom Building LitRPG]",
-   "m": "ebook"
+   "t": "Board & Conquest",
+   "m": "both"
   },
   "bog-standard-isekai-benighted": {
    "t": "Bog Standard Isekai: Benighted",
@@ -768,8 +768,8 @@
    "m": "audio"
   },
   "death-row-alibis-collection": {
-   "t": "Death Row (Alibis collection)",
-   "m": "ebook"
+   "t": "Death Row",
+   "m": "both"
   },
   "death-s-mantle": {
    "t": "Death's Mantle",
@@ -1948,12 +1948,12 @@
    "m": "audio"
   },
   "melody-of-mana-2-a-progression-fantasy": {
-   "t": "Melody of Mana 2: A Progression Fantasy",
-   "m": "ebook"
+   "t": "Melody of Mana 2",
+   "m": "both"
   },
   "melody-of-mana-3-a-progression-fantasy": {
-   "t": "Melody of Mana 3: A Progression Fantasy",
-   "m": "ebook"
+   "t": "Melody of Mana 3",
+   "m": "both"
   },
   "melody-of-mana-4-a-progression-fantasy-melody-of-mana-book-4": {
    "t": "Melody of Mana 4: A Progression Fantasy",
@@ -1968,8 +1968,8 @@
    "m": "both"
   },
   "melody-of-mana-a-progression-fantasy": {
-   "t": "Melody of Mana: A Progression Fantasy",
-   "m": "ebook"
+   "t": "Melody of Mana",
+   "m": "both"
   },
   "memoirs-aren-t-fairytales-a-story-of-addiction": {
    "t": "Memoirs Aren't Fairytales",
@@ -2044,8 +2044,8 @@
    "m": "audio"
   },
   "monster-empire-book-2": {
-   "t": "Monster Empire Book 2",
-   "m": "ebook"
+   "t": "Monster Empire",
+   "m": "both"
   },
   "monster-girl-islands-monster-girl-islands-series-book-1": {
    "t": "Monster Girl Islands",
@@ -2864,12 +2864,12 @@
    "m": "audio"
   },
   "space-knight-book-5": {
-   "t": "Space Knight Book 5",
-   "m": "ebook"
+   "t": "Space Knight",
+   "m": "both"
   },
   "space-knight-book-6": {
-   "t": "Space Knight Book 6",
-   "m": "ebook"
+   "t": "Space Knight",
+   "m": "both"
   },
   "space-knight-book-7": {
    "t": "Space Knight",
@@ -3308,8 +3308,8 @@
    "m": "audio"
   },
   "the-captain-the-last-horizon-book-1": {
-   "t": "The Captain (The Last Horizon Book 1)",
-   "m": "ebook"
+   "t": "The Captain",
+   "m": "both"
   },
   "the-city-of-spires-a-progression-fantasy-litrpg-newly-summoned-demoness-book-3": {
    "t": "The City of Spires",
@@ -3472,8 +3472,8 @@
    "m": "audio"
   },
   "the-engineer-the-last-horizon-book-2": {
-   "t": "The Engineer (The Last Horizon Book 2)",
-   "m": "ebook"
+   "t": "The Engineer",
+   "m": "both"
   },
   "the-eye-of-the-bedlam-bride-dungeon-crawler-carl-book-6": {
    "t": "The Eye of the Bedlam Bride",
@@ -3692,8 +3692,8 @@
    "m": "audio"
   },
   "the-knight-the-last-horizon-book-3": {
-   "t": "The Knight (The Last Horizon Book 3)",
-   "m": "ebook"
+   "t": "The Knight",
+   "m": "both"
   },
   "the-lake": {
    "t": "The Lake",
@@ -3924,8 +3924,8 @@
    "m": "audio"
   },
   "the-serpent-and-the-wings-of-night-crowns-of-nyaxia-book-1": {
-   "t": "The Serpent and the Wings of Night (Crowns of Nyaxia Book 1)",
-   "m": "ebook"
+   "t": "The Serpent and the Wings of Night",
+   "m": "both"
   },
   "the-seven-year-slip": {
    "t": "The Seven Year Slip",
@@ -4220,12 +4220,12 @@
    "m": "audio"
   },
   "unmapped": {
-   "t": "Unmapped",
-   "m": "ebook"
+   "t": "Completionist Chronicles",
+   "m": "both"
   },
   "untapped": {
-   "t": "Untapped",
-   "m": "ebook"
+   "t": "Completionist Chronicles",
+   "m": "both"
   },
   "valentine-s-slay-the-improbable-meet-cute-second-chances": {
    "t": "Valentine's Slay",
