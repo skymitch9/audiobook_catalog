@@ -64,6 +64,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import os
 import random
 import sys
@@ -83,13 +84,11 @@ import requests
 
 PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
+sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
 
-# ⚠️ The canonical author-name resolver, NOT a local reimplementation. A shelf
-# has one folder per body of work and Drive has one folder per human being;
-# app/author_names.py's header records the 2026-08-09 incident caused by
-# collapsing those two maps. ABS's author names come from the shelf tree, so
-# the catalogue's spelling has to travel through the SHELF aliases to match.
-from app.author_names import load_shelf_aliases, resolve_shelf_author  # noqa: E402
+# (2026-10-16) The catalogue-name lookup through app/author_names.py's shelf
+# aliases is gone: authors are now matched through their own shelf ITEMS (see
+# rows_for_items), which needs no name translation at all.
 
 CATALOG_CSV: Path = PROJECT_ROOT / "site" / "catalog.csv"
 
@@ -189,26 +188,62 @@ def pick_cover_for_author(author: str, books: List[Dict[str, str]]) -> str:
     return cover_url_from_href(rng.choice(standalones).get("cover_href", ""))
 
 
-def pick_covers(rows: List[Dict[str, str]]) -> Dict[str, str]:
-    """
-    Group the catalogue by SHELF author name and pick one cover each.
+def rows_for_items(item_ids: List[str], row_by_item: Dict[str, Dict[str, str]]) -> List[Dict[str, str]]:
+    """The catalogue rows behind an author's shelf items, one per title.
 
-    Returns {shelf_author_name: cover_url}.
-    """
-    aliases = load_shelf_aliases()
-    by_author: Dict[str, List[Dict[str, str]]] = {}
+    ⚠️ WHY ITEMS AND NOT NAMES (2026-10-16). The first version grouped the
+    catalogue by its author STRING and looked that string up in ABS. ABS
+    splits a credit like "Amie Kaufman, Jay Kristoff" into two people, so
+    neither matched — 103 of 183 blank authors (KI-10). Starting from the
+    author's own shelf items makes every co-author, and every shelf spelling
+    the catalogue does not use, resolve the same way."""
+    out: Dict[str, Dict[str, str]] = {}
+    for iid in item_ids:
+        row = row_by_item.get(iid)
+        if row is not None:
+            out.setdefault((row.get("title") or "").strip().lower(), row)
+    return list(out.values())
+
+
+def name_key(name: str) -> str:
+    """Comparable form of an author name across the two libraries. The
+    Ebooks library takes names from epub metadata, which often spells them
+    "Atwood, Margaret" where Audio has "Margaret Atwood" (measured
+    2026-10-16), so a single "Last, First" comma is flipped."""
+    name = " ".join((name or "").split()).lower()
+    if name.count(",") == 1:
+        last, first = (p.strip() for p in name.split(","))
+        if last and first:
+            name = f"{first} {last}"
+    return name
+
+
+def is_empty_author(author: Dict) -> bool:
+    """An author record holding nothing at all: no books, no image, no
+    description, no ASIN. Deleting one loses nothing — ABS recreates the
+    author on the next scan if a book of theirs ever returns. Anything with
+    an image or hand-written metadata is kept, whatever its book count.
+    Owner approved the prune 2026-10-16."""
+    return (not author.get("numBooks") and not author.get("imagePath")
+            and not (author.get("description") or "").strip()
+            and not (author.get("asin") or "").strip())
+
+
+def item_row_map(rows: List[Dict[str, str]], audio_items: List[Dict],
+                 ebook_items: List[Dict]) -> Dict[str, Dict[str, str]]:
+    """ABS item id -> catalogue row, through the SAME join the site's shelf
+    buttons use (scripts/build_shelf_map.py, exact + fuzzy). Only catalogue
+    rows carry a public cover, so an item with no row has no usable cover."""
+    import build_shelf_map as shelf  # noqa: E402 — scripts/ is on the path
+    row_by_slug: Dict[str, Dict[str, str]] = {}
     for row in rows:
-        author = (row.get("author") or "").strip()
-        if not author or not (row.get("cover_href") or "").strip():
-            continue
-        by_author.setdefault(resolve_shelf_author(author, aliases), []).append(row)
-
-    out: Dict[str, str] = {}
-    for author, books in by_author.items():
-        url = pick_cover_for_author(author, books)
-        if url:
-            out[author] = url
-    return out
+        slug = shelf.book_id_from_title((row.get("title") or "").strip())
+        if slug and slug not in row_by_slug:
+            row_by_slug[slug] = row
+    claimed: Dict[str, List[str]] = {}
+    shelf.build_books_block(rows, audio_items, ebook_items, ids=claimed)
+    return {iid: row_by_slug[slug] for slug, iids in claimed.items()
+            if slug in row_by_slug for iid in iids}
 
 
 # ---------------------------------------------------------------------------
@@ -237,13 +272,21 @@ def abs_login(session: requests.Session) -> str:
     return token
 
 
-def abs_get_authors(session: requests.Session) -> List[Dict]:
+def abs_get_authors(session: requests.Session, library_id: str) -> List[Dict]:
     resp = session.get(
-        f"{ABS_BASE_URL.rstrip('/')}/api/libraries/{ABS_LIBRARY_ID}/authors", timeout=120
+        f"{ABS_BASE_URL.rstrip('/')}/api/libraries/{library_id}/authors", timeout=120
     )
     resp.raise_for_status()
     data = resp.json()
     return data.get("authors", data if isinstance(data, list) else [])
+
+
+def abs_author_item_ids(session: requests.Session, author_id: str) -> List[str]:
+    resp = session.get(
+        f"{ABS_BASE_URL.rstrip('/')}/api/authors/{author_id}?include=items", timeout=120
+    )
+    resp.raise_for_status()
+    return [i["id"] for i in resp.json().get("libraryItems") or [] if i.get("id")]
 
 
 def abs_set_author_image(session: requests.Session, author_id: str, image_url: str):
@@ -254,6 +297,11 @@ def abs_set_author_image(session: requests.Session, author_id: str, image_url: s
     `OPTIONS /api/authors/<id>/image` answers `Allow: GET,HEAD,POST,DELETE`, so
     POST is the verb and DELETE is the undo. (`PATCH /api/authors/<id>` exists
     too but is for metadata, not the image.)
+
+    ⚠️ The body takes a URL only, and ABS fetches it itself, server-side — so
+    the cover must be on the public covers CDN. That is why an ebook-only
+    author stays blank: putting their cover there would put an ebook title on
+    a public host (the owner's no-public-ebook-titles rule).
 
     Returns (ok, detail).
     """
@@ -280,6 +328,9 @@ def main(argv: Optional[List[str]] = None) -> int:
                     help="re-set authors who already have an image (⚠️ overwrites hand-set portraits)")
     ap.add_argument("--limit", type=int, default=0,
                     help="stop after N writes — use --limit 1 to try one before the rest")
+    ap.add_argument("--prune-empty", action="store_true",
+                    help="delete author records that hold nothing (see is_empty_author)")
+    ap.add_argument("--json-summary", action="store_true")
     args = ap.parse_args(argv)
 
     missing = [
@@ -291,83 +342,87 @@ def main(argv: Optional[List[str]] = None) -> int:
         say(f"[ERROR] missing env vars: {', '.join(missing)}")
         return 1
 
-    say(f"Reading catalog: {CATALOG_CSV}")
+    import build_shelf_map as shelf  # noqa: E402
+
     rows = load_catalog()
-    covers = pick_covers(rows)
-    say(f"  {len(rows)} books in catalog")
-    say(f"  {len(covers)} shelf authors with a chosen cover")
-    if not covers:
-        say("[WARN] no covers to set — nothing to do")
-        return 0
-
     session = abs_session()
-    say("\nLogging in to Audiobookshelf...")
     session.headers["Authorization"] = f"Bearer {abs_login(session)}"
-    say("  logged in OK")
+    ebook_lib = os.getenv("ABS_EBOOK_LIBRARY_ID", "")
+    audio_items = shelf.abs_get_library_items(session, ABS_LIBRARY_ID)
+    ebook_items = shelf.abs_get_library_items(session, ebook_lib) if ebook_lib else []
+    row_by_item = item_row_map(rows, audio_items, ebook_items)
+    say(f"{len(rows)} catalogue books; {len(row_by_item)} shelf items joined to one")
 
-    say("Fetching ABS author list...")
-    abs_authors = abs_get_authors(session)
-    already = sum(1 for a in abs_authors if a.get("imagePath"))
-    say(f"  {len(abs_authors)} authors in ABS ({already} already have an image)")
+    libraries = [("Audio", ABS_LIBRARY_ID)] + ([("Ebooks", ebook_lib)] if ebook_lib else [])
+    authors = {lab: abs_get_authors(session, lib) for lab, lib in libraries}
+    # ⚠️ Two Audio records can share a key ("Brandon Sanderson" with 38 books
+    # beside an empty "Sanderson, Brandon", measured 2026-10-16); the one
+    # holding books must win, or the Ebooks twin inherits the empty one.
+    audio_by_name: Dict[str, Dict] = {}
+    # Empty records never count as a twin: they hold no books, and with
+    # --prune-empty they are deleted before the Ebooks pass reaches them
+    # (a 404 that killed the first full run, 2026-10-16).
+    for a in sorted(authors["Audio"], key=lambda x: x.get("numBooks") or 0):
+        if not is_empty_author(a):
+            audio_by_name[name_key(a.get("name") or "")] = a
 
-    abs_map: Dict[str, Dict] = {}
-    for a in abs_authors:
-        name = (a.get("name") or "").strip().lower()
-        if name:
-            abs_map[name] = a
+    totals = {"set": 0, "had_image": 0, "no_cover": 0, "failed": 0, "pruned": 0}
+    for lab, _lib in libraries:
+        blank: List[str] = []
+        for a in sorted(authors[lab], key=lambda x: (x.get("name") or "")):
+            name = (a.get("name") or "").strip()
+            if is_empty_author(a):
+                # Re-check against the author's own items before deleting:
+                # a numBooks of 0 from the list is a count, not proof.
+                if not args.prune_empty or abs_author_item_ids(session, a["id"]):
+                    continue
+                if args.dry_run:
+                    say(f"  [DRY] prune [{lab}] {name}")
+                else:
+                    r = session.delete(f"{ABS_BASE_URL.rstrip('/')}/api/authors/{a['id']}", timeout=60)
+                    if r.status_code != 200:
+                        totals["failed"] += 1
+                        say(f"  [FAIL] prune [{lab}] {name} — HTTP {r.status_code}")
+                        continue
+                totals["pruned"] += 1
+                continue
+            if a.get("imagePath") and not args.force:
+                totals["had_image"] += 1
+                continue
+            # ⚠️ An Ebooks author who also has audiobooks gets the AUDIO
+            # author's pick, so one person wears one cover on both shelves.
+            source = audio_by_name.get(name_key(name)) if lab != "Audio" else None
+            item_ids = abs_author_item_ids(session, (source or a)["id"])
+            url = pick_cover_for_author(name, rows_for_items(item_ids, row_by_item))
+            if not url:
+                totals["no_cover"] += 1
+                blank.append(name)
+                continue
+            if args.limit and totals["set"] >= args.limit:
+                break
+            if args.dry_run:
+                say(f"  [DRY] [{lab}] {name} -> {url}")
+                totals["set"] += 1
+                continue
+            ok, detail = abs_set_author_image(session, a["id"], url)
+            if ok:
+                totals["set"] += 1
+                say(f"  [SET] [{lab}] {name}")
+            else:
+                totals["failed"] += 1
+                say(f"  [FAIL] [{lab}] {name} — {detail}")
+            time.sleep(RATE_LIMIT_SECONDS)
+        if blank:
+            # ⚠️ Named, never a silent skip. In Audio this means a book the
+            # catalogue does not hold; in Ebooks it is expected (ebook-only).
+            say(f"  [{lab}] no public cover for {len(blank)}: " + ", ".join(blank[:15])
+                + (" ..." if len(blank) > 15 else ""))
 
-    set_count = skipped_has_image = 0
-    failures: List[str] = []
-    not_found: List[str] = []
-
-    for author_name, cover_url in sorted(covers.items()):
-        abs_author = abs_map.get(author_name.lower())
-        if not abs_author:
-            not_found.append(author_name)
-            continue
-
-        if abs_author.get("imagePath") and not args.force:
-            # ⚠️ Default is fill-the-blanks. Overwriting an image somebody set
-            # by hand needs --force and should be a decision, not a side effect.
-            skipped_has_image += 1
-            continue
-
-        if args.limit and set_count >= args.limit:
-            break
-
-        if args.dry_run:
-            say(f"  [DRY] {author_name} -> {cover_url}")
-            set_count += 1
-            continue
-
-        ok, detail = abs_set_author_image(session, abs_author["id"], cover_url)
-        if ok:
-            set_count += 1
-            say(f"  [SET] {author_name}")
-        else:
-            failures.append(f"{author_name}: {detail}")
-            say(f"  [FAIL] {author_name} — {detail}")
-        time.sleep(RATE_LIMIT_SECONDS)
-
-    say(f"\n{'--- DRY RUN SUMMARY ---' if args.dry_run else '--- SUMMARY ---'}")
-    say(f"  images set              : {set_count}")
-    say(f"  skipped (already had one): {skipped_has_image}   (use --force to overwrite)")
-    say(f"  failed                  : {len(failures)}")
-    say(f"  not found in ABS        : {len(not_found)}")
-    if failures:
-        say("  Failures:")
-        for f in failures[:20]:
-            say(f"    - {f}")
-    if not_found:
-        # ⚠️ Named, never a silent skip: an author here means the catalogue and
-        # the shelf disagree about a name, which is an alias question.
-        say("  Authors in the catalogue but not on the shelf (alias mismatch?):")
-        for name in sorted(not_found)[:20]:
-            say(f"    - {name}")
-        if len(not_found) > 20:
-            say(f"    ... and {len(not_found) - 20} more")
-
-    return 0
+    say(f"{'DRY RUN' if args.dry_run else 'DONE'}: "
+        + ", ".join(f"{k} {v}" for k, v in totals.items()))
+    if args.json_summary:
+        print("AUTHOR_IMAGES_JSON " + json.dumps(dict(totals, dry_run=args.dry_run)))
+    return 1 if totals["failed"] else 0
 
 
 if __name__ == "__main__":

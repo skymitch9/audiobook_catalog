@@ -166,3 +166,39 @@ def test_cover_url_encodes_characters_that_would_truncate_it(ch, enc):
     """⚠️ ABS fetches this URL server-side; a bare # or ? silently truncates it
     and the author quietly keeps the silhouette."""
     assert enc in cover_url_from_href(f"covers/A/Title{ch}x.jpg")
+
+
+# ---------------------------------------------------------------------------
+# 2026-10-16 — authors matched through their own shelf ITEMS, not names
+# ---------------------------------------------------------------------------
+from set_author_images import is_empty_author, name_key, rows_for_items  # noqa: E402
+
+
+def test_a_co_author_finds_the_shared_book_through_the_item():
+    """KI-10: "Amie Kaufman, Jay Kristoff" is one catalogue credit but two ABS
+    authors. Each one's own item id leads to the same row."""
+    shared = book("Illuminae", "The Illuminae Files", 1)
+    row_by_item = {"item-1": shared}
+    for _who in ("Amie Kaufman", "Jay Kristoff"):
+        got = pick_cover_for_author(_who, rows_for_items(["item-1"], row_by_item))
+        assert "Illuminae" in got
+
+
+def test_items_without_a_catalogue_row_are_ignored_and_titles_dedupe():
+    one = book("Unsouled", "Cradle", 1)
+    rows = rows_for_items(["a", "b", "ghost"], {"a": one, "b": dict(one)})
+    assert rows == [one]
+
+
+def test_empty_author_means_nothing_at_all_is_held():
+    assert is_empty_author({"numBooks": 0})
+    assert not is_empty_author({"numBooks": 1})
+    assert not is_empty_author({"numBooks": 0, "imagePath": "/x.jpg"})
+    assert not is_empty_author({"numBooks": 0, "description": "bio"})
+    assert not is_empty_author({"numBooks": 0, "asin": "B00X"})
+
+
+def test_last_first_names_meet_their_first_last_twin():
+    assert name_key("Atwood, Margaret") == name_key("Margaret  Atwood")
+    assert name_key("Haver MD, Mary Claire") == "mary claire haver md"
+    assert name_key("Amie Kaufman, Jay Kristoff, X") != name_key("Jay Kristoff")
