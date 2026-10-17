@@ -1791,6 +1791,8 @@ def _run_pipeline_body(
             # STEP 8b — shelf collections mirror people's lists, which move
             # whether or not a book arrived this cycle (same reason as parity).
             _run_shelf_collections()
+            # STEP 8c — author covers: a cycle that failed to set one retries.
+            _run_author_images()
             # STEP 9 — the estate docs snapshot, on the IDLE path for a
             # stronger reason still than parity's: docs have nothing to do with
             # books, and the days nobody buys an audiobook are precisely the
@@ -2103,6 +2105,9 @@ def _run_pipeline_body(
 
         # STEP 8b — the shelf's collections follow TBR / read / reviews / clubs.
         _run_shelf_collections()
+
+        # STEP 8c — shelf author covers (fills blanks, prunes empty records).
+        _run_author_images()
 
         # STEP 9 — the estate docs snapshot (GABI docs assistant, phase 5).
         # Genuinely last: nothing in this cycle is a precondition for it and
@@ -3043,6 +3048,40 @@ def _run_shelf_collections() -> None:
     if proc.returncode != 0:
         tail = (proc.stderr or "").strip().splitlines()[-1:] or ["no stderr"]
         print(f"  [WARN] Shelf collections failed (exit {proc.returncode}): {tail[0]}")
+
+
+AUTHOR_IMAGES_SCRIPT = PROJECT_ROOT / "scripts" / "set_author_images.py"
+AUTHOR_IMAGES_TIMEOUT_S = 900
+
+
+def _run_author_images() -> None:
+    """STEP 8c — give every shelf author without an image a book cover (the
+    owner's rule: #1 of a series, else the lowest held, else a stable pick),
+    and delete author records that hold nothing. Owner ask 2026-08-21, made
+    automatic 2026-10-16 so new authors stop arriving as silhouettes. Soft
+    and never raises; it never overwrites an existing image."""
+    import subprocess
+
+    print("\n[STEP 8c] Shelf author covers...")
+    env = dict(os.environ)
+    env["PYTHONIOENCODING"] = "utf-8"
+    try:
+        proc = subprocess.run(
+            [sys.executable, str(AUTHOR_IMAGES_SCRIPT), "--prune-empty", "--json-summary"],
+            cwd=str(PROJECT_ROOT), env=env, capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=AUTHOR_IMAGES_TIMEOUT_S,
+        )
+    except Exception as e:  # noqa: BLE001 — independent failure domain
+        print(f"  [WARN] Author covers did not run: {e}")
+        return
+    for line in (proc.stdout or "").splitlines():
+        if line.startswith("AUTHOR_IMAGES_JSON "):
+            print(f"  {line[len('AUTHOR_IMAGES_JSON '):]}")
+        elif line.startswith(("  [SET]", "  [FAIL]")) or "no public cover" in line:
+            print(f"  | {line.strip()}")
+    if proc.returncode != 0:
+        tail = (proc.stderr or proc.stdout or "").strip().splitlines()[-1:] or ["no output"]
+        print(f"  [WARN] Author covers failed (exit {proc.returncode}): {tail[0]}")
 
 
 def _run_drive_parity(label: str = "[STEP 8] Drive ⇄ role parity (report + auto-apply role→Drive)") -> None:
