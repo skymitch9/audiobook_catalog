@@ -252109,5 +252109,71 @@
    }
   ],
   "parts": []
+ },
+ "Skeleton Knight in Another World, Vol. 8: Light Novel": {
+  "source": "m4b",
+  "chapters": [
+   {
+    "title": "Chapter 1",
+    "start_min": 0.0,
+    "start_sec": 0.0
+   },
+   {
+    "title": "Chapter 2",
+    "start_min": 0.6,
+    "start_sec": 34.458
+   },
+   {
+    "title": "Chapter 3",
+    "start_min": 13.2,
+    "start_sec": 790.129
+   },
+   {
+    "title": "Chapter 4",
+    "start_min": 89.0,
+    "start_sec": 5337.199
+   },
+   {
+    "title": "Chapter 5",
+    "start_min": 99.7,
+    "start_sec": 5982.064
+   },
+   {
+    "title": "Chapter 6",
+    "start_min": 121.5,
+    "start_sec": 7292.807
+   },
+   {
+    "title": "Chapter 7",
+    "start_min": 191.0,
+    "start_sec": 11457.144
+   },
+   {
+    "title": "Chapter 8",
+    "start_min": 224.3,
+    "start_sec": 13457.218
+   },
+   {
+    "title": "Chapter 9",
+    "start_min": 275.5,
+    "start_sec": 16527.221
+   },
+   {
+    "title": "Chapter 10",
+    "start_min": 337.9,
+    "start_sec": 20273.157
+   },
+   {
+    "title": "Chapter 11",
+    "start_min": 367.4,
+    "start_sec": 22042.564
+   },
+   {
+    "title": "Chapter 12",
+    "start_min": 376.0,
+    "start_sec": 22562.435
+   }
+  ],
+  "parts": []
  }
 }
