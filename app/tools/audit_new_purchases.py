@@ -101,13 +101,26 @@ def newest_purchases(books, top):
     return sorted(real, key=key, reverse=True)[:top]
 
 
+def title_matches(n, c):
+    """Is one normalized title contained in the other as WHOLE WORDS?
+
+    ⚠️ Was a bare substring test (`n in c or c in n`) until 2026-10-20, and
+    that hid real purchases: the book "Bound" matched "Bog Standard Isekai:
+    Warbound", and "Mine" matched "The Eminence in Shadow, Vol. 6", so both
+    read as owned and never downloaded. Measured over all 1,077 purchases on
+    the three profiles: whole-word containment changes exactly 4 verdicts,
+    all of them those false matches."""
+    a, b = (c, n) if len(c) <= len(n) else (n, c)
+    return re.search(r"(?<![a-z0-9])" + re.escape(a) + r"(?![a-z0-9])", b) is not None
+
+
 def missing_purchases(books, catalog_titles, top=50):
     """[(purchase_date, title)] of recent purchases with no local match."""
     out = []
     for b in newest_purchases(books, top):
         title = b.get("title_short") or b.get("title") or ""
         n = norm(title)
-        have = any(n in c or c in n for c in catalog_titles) if n else False
+        have = any(title_matches(n, c) for c in catalog_titles) if n else False
         if not have:
             date = (b.get("purchase_date") or b.get("release_date") or "")[:10]
             out.append((date, title))
