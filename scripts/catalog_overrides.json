@@ -3339,6 +3339,458 @@
           "https://www.risingshadow.net/book/87452-taken-by-the-wolf"
         ]
       }
+    },
+    {
+      "book": "Bog Standard Isekai: Scarred - Miles English",
+      "match": {
+        "author": "Miles English",
+        "title": "Bog Standard Isekai: Scarred"
+      },
+      "set": {
+        "series": "Bog Standard Isekai",
+        "series_index": "1"
+      },
+      "added": "2026-10-20",
+      "evidence": {
+        "series": "m4b carries no usable series tag (blank, or the malformed 'Bog Standard Isekai, Book'); Goodreads + FantasticFiction + Rising Shadow list it in Bog Standard Isekai",
+        "series_index": "Rising Shadow and FantasticFiction both order the series Scarred 1, Illusionist 2, Nightmares 3, Benighted 4, Warbound 5",
+        "tags_read": {
+          "©nam": "Bog Standard Isekai: Scarred",
+          "©alb": "Bog Standard Isekai: Scarred",
+          "©ART": "Miles English",
+          "©wrt": "Johnathan McClain",
+          "©day": "2024",
+          "©gen": "Audiobook",
+          "trkn": "absent",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "Bog Standard Isekai- Scarred",
+        "sources": [
+          "https://www.goodreads.com/series/398069-bog-standard-isekai",
+          "https://www.fantasticfiction.com/e/miles-english",
+          "https://www.risingshadow.net/book/75751-scarred"
+        ],
+        "note": "owner report 2026-10-20: series books missing from their series"
+      }
+    },
+    {
+      "book": "Bog Standard Isekai: Illusionist: A LitRPG Isekai Adventure - Miles English",
+      "match": {
+        "author": "Miles English",
+        "title": "Bog Standard Isekai: Illusionist: A LitRPG Isekai Adventure"
+      },
+      "set": {
+        "series": "Bog Standard Isekai",
+        "series_index": "2"
+      },
+      "added": "2026-10-20",
+      "evidence": {
+        "series": "m4b carries no usable series tag (blank, or the malformed 'Bog Standard Isekai, Book'); Goodreads + FantasticFiction + Rising Shadow list it in Bog Standard Isekai",
+        "series_index": "Rising Shadow and FantasticFiction both order the series Scarred 1, Illusionist 2, Nightmares 3, Benighted 4, Warbound 5",
+        "tags_read": {
+          "©nam": "Bog Standard Isekai: Illusionist: A LitRPG Isekai Adventure",
+          "©alb": "Bog Standard Isekai: Illusionist: A LitRPG Isekai Adventure",
+          "©ART": "Miles English",
+          "©wrt": "Johnathan McClain",
+          "©day": "2024",
+          "©gen": "Audiobook",
+          "trkn": "absent",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "Bog Standard Isekai- Illusionist",
+        "sources": [
+          "https://www.goodreads.com/series/398069-bog-standard-isekai",
+          "https://www.fantasticfiction.com/e/miles-english",
+          "https://www.risingshadow.net/book/75752-illusionist"
+        ],
+        "note": "owner report 2026-10-20: series books missing from their series"
+      }
+    },
+    {
+      "book": "Bog Standard Isekai: Nightmares: A LitRPG Isekai Adventure (Bog Standard Isekai, Book 3) - Miles English",
+      "match": {
+        "author": "Miles English",
+        "title": "Bog Standard Isekai: Nightmares: A LitRPG Isekai Adventure (Bog Standard Isekai, Book 3)"
+      },
+      "set": {
+        "series": "Bog Standard Isekai",
+        "series_index": "3"
+      },
+      "added": "2026-10-20",
+      "evidence": {
+        "series": "m4b carries no usable series tag (blank, or the malformed 'Bog Standard Isekai, Book'); Goodreads + FantasticFiction + Rising Shadow list it in Bog Standard Isekai",
+        "series_index": "Rising Shadow and FantasticFiction both order the series Scarred 1, Illusionist 2, Nightmares 3, Benighted 4, Warbound 5",
+        "tags_read": {
+          "©nam": "Bog Standard Isekai: Nightmares: A LitRPG Isekai Adventure (Bog Standard Isekai, Book 3)",
+          "©alb": "Bog Standard Isekai: Nightmares: A LitRPG Isekai Adventure (Bog Standard Isekai, Book 3)",
+          "©ART": "Miles English",
+          "©wrt": "Johnathan McClain",
+          "©day": "2025",
+          "©gen": "Audiobook",
+          "trkn": "absent",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "Bog Standard Isekai- Nightmares",
+        "sources": [
+          "https://www.goodreads.com/series/398069-bog-standard-isekai",
+          "https://www.fantasticfiction.com/e/miles-english",
+          "https://www.risingshadow.net/book/75753-nightmares"
+        ],
+        "note": "owner report 2026-10-20: series books missing from their series"
+      }
+    },
+    {
+      "book": "Bog Standard Isekai: Benighted - Miles English",
+      "match": {
+        "author": "Miles English",
+        "title": "Bog Standard Isekai: Benighted"
+      },
+      "set": {
+        "series": "Bog Standard Isekai",
+        "series_index": "4"
+      },
+      "added": "2026-10-20",
+      "evidence": {
+        "series": "m4b carries no usable series tag (blank, or the malformed 'Bog Standard Isekai, Book'); Goodreads + FantasticFiction + Rising Shadow list it in Bog Standard Isekai",
+        "series_index": "Rising Shadow and FantasticFiction both order the series Scarred 1, Illusionist 2, Nightmares 3, Benighted 4, Warbound 5",
+        "tags_read": {
+          "©nam": "Bog Standard Isekai: Benighted",
+          "©alb": "Bog Standard Isekai: Benighted",
+          "©ART": "Miles English",
+          "©wrt": "Johnathan McClain",
+          "©day": "2026",
+          "©gen": "Audiobook",
+          "trkn": "absent",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "Bog Standard Isekai- Benighted",
+        "sources": [
+          "https://www.goodreads.com/series/398069-bog-standard-isekai",
+          "https://www.fantasticfiction.com/e/miles-english",
+          "https://www.risingshadow.net/book/76883-benighted"
+        ],
+        "note": "owner report 2026-10-20: series books missing from their series"
+      }
+    },
+    {
+      "book": "Eight: The Saint of Water: Eight, Book 5 - Samer Rabadi",
+      "match": {
+        "author": "Samer Rabadi",
+        "title": "Eight: The Saint of Water: Eight, Book 5"
+      },
+      "set": {
+        "series": "Eight",
+        "series_index": "5"
+      },
+      "added": "2026-10-20",
+      "evidence": {
+        "series": "the book's own ©nam/©alb tag reads 'Eight: The Saint of Water: Eight, Book 5'; the pipeline does not parse that suffix",
+        "series_index": "same tag: 'Eight, Book 5'; follows Book 4 New Blood, Old Bones (2025)",
+        "tags_read": {
+          "©nam": "Eight: The Saint of Water: Eight, Book 5",
+          "©alb": "Eight: The Saint of Water: Eight, Book 5",
+          "©ART": "Samer Rabadi",
+          "©wrt": "Gary Tiedemann",
+          "©day": "2026",
+          "©gen": "Audiobook",
+          "trkn": "absent",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "Eight- The Saint of Water",
+        "sources": [],
+        "note": "owner report 2026-10-20: series books missing from their series"
+      }
+    },
+    {
+      "book": "Bookbound Bunny - Lunadea",
+      "match": {
+        "asin": "B0FJ36SFC5"
+      },
+      "set": {
+        "series": "Bookbound Bunny",
+        "series_index": "1"
+      },
+      "added": "2026-10-20",
+      "evidence": {
+        "series": "Audible lists a Bookbound Bunny series by Lunadea; the sibling file is tagged series Bookbound Bunny, Book 2",
+        "series_index": "Audible: Book 1 released 2025-11-17, matching this file's ©day; Book 2 is the other file",
+        "tags_read": {
+          "©nam": "Bookbound Bunny",
+          "©alb": "Bookbound Bunny",
+          "©ART": "Lunadea",
+          "©wrt": "Hannah Schooner, Giancarlo Herrera",
+          "©day": "2025-11-17",
+          "©gen": "Science Fiction & Fantasy:Fantasy:Action & Adventure",
+          "trkn": "(1, 0)",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "B0FJ36SFC5"
+        },
+        "filename_said": "Bookbound Bunny",
+        "sources": [
+          "https://www.audible.co.uk/series/B0H1DBZXD1",
+          "https://www.audible.com.au/pd/B0FJ46BMVM"
+        ],
+        "note": "owner report 2026-10-20: series books missing from their series"
+      }
+    },
+    {
+      "book": "Syl: Catalysis: A Monster Evolution LitRPG Adventure! - Lunadea",
+      "match": {
+        "author": "Lunadea",
+        "title": "Syl: Catalysis: A Monster Evolution LitRPG Adventure!"
+      },
+      "set": {
+        "series": "Syl"
+      },
+      "added": "2026-10-20",
+      "evidence": {
+        "series": "title tag 'Syl: Catalysis: A Monster Evolution LitRPG Adventure!' and the Audible listing place it in Lunadea's Syl series. Volume deliberately left blank: no source states it (books 1-4 are Nucleus, Osmosis, Diffusion, Synthesis, so 5 is likely but unconfirmed)",
+        "tags_read": {
+          "©nam": "Syl: Catalysis: A Monster Evolution LitRPG Adventure!",
+          "©alb": "Syl: Catalysis: A Monster Evolution LitRPG Adventure!",
+          "©ART": "Lunadea",
+          "©wrt": "Ellory Lane, Matt Hicks",
+          "©day": "2026",
+          "©gen": "Audiobook",
+          "trkn": "absent",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "Syl- Catalysis",
+        "sources": [
+          "https://www.audible.com/pd/B0HJY6TBTM"
+        ],
+        "note": "owner report 2026-10-20: series books missing from their series; re-check the volume number when Audible's series page lists it"
+      }
+    },
+    {
+      "book": "Caged Wolf: Darkmore Penitentiary, Book 1 - Caroline Peckham, Susanne Valenti",
+      "match": {
+        "author": "Caroline Peckham",
+        "title": "Caged Wolf: Darkmore Penitentiary, Book 1"
+      },
+      "set": {
+        "series": "Darkmore Penitentiary",
+        "series_index": "1"
+      },
+      "added": "2026-10-20",
+      "evidence": {
+        "series": "the book's own title tag names the series ('Darkmore Penitentiary, Book 1'); the pipeline only reads SRNM/free-form tags, which are absent. Spelling matches the series' other rows in this catalog where they exist",
+        "series_index": "same title tag states the number (1)",
+        "tags_read": {
+          "©nam": "Caged Wolf: Darkmore Penitentiary, Book 1",
+          "©alb": "Caged Wolf: Darkmore Penitentiary, Book 1",
+          "©ART": "Caroline Peckham, Susanne Valenti",
+          "©wrt": "Bridget Bordeaux, Jake Bordeaux",
+          "©day": "2022",
+          "©gen": "Audiobook",
+          "trkn": "absent",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "Caged Wolf",
+        "sources": [],
+        "note": "owner report 2026-10-20: series books missing from their series (swept after Bog Standard Isekai)"
+      }
+    },
+    {
+      "book": "Discount Dan: Discount Dan’s Backroom Bargains, Book 1 - James Hunter",
+      "match": {
+        "author": "James Hunter",
+        "title": "Discount Dan: Discount Dan’s Backroom Bargains, Book 1"
+      },
+      "set": {
+        "series": "Discount Dan's Backroom Bargains",
+        "series_index": "1"
+      },
+      "added": "2026-10-20",
+      "evidence": {
+        "series": "the book's own title tag names the series ('Discount Dan's Backroom Bargains, Book 1'); the pipeline only reads SRNM/free-form tags, which are absent. Spelling matches the series' other rows in this catalog where they exist",
+        "series_index": "same title tag states the number (1)",
+        "tags_read": {
+          "©nam": "Discount Dan: Discount Dan’s Backroom Bargains, Book 1",
+          "©alb": "Discount Dan: Discount Dan’s Backroom Bargains, Book 1",
+          "©ART": "James Hunter",
+          "©wrt": "Steve Campbell",
+          "©day": "2025",
+          "©gen": "Audiobook",
+          "trkn": "absent",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "Discount Dan",
+        "sources": [],
+        "note": "owner report 2026-10-20: series books missing from their series (swept after Bog Standard Isekai)"
+      }
+    },
+    {
+      "book": "Cul-de-Sac Carnage: Discount Dan's Backroom Bargains, Book 2 - James Hunter",
+      "match": {
+        "author": "James Hunter",
+        "title": "Cul-de-Sac Carnage: Discount Dan's Backroom Bargains, Book 2"
+      },
+      "set": {
+        "series": "Discount Dan's Backroom Bargains",
+        "series_index": "2"
+      },
+      "added": "2026-10-20",
+      "evidence": {
+        "series": "the book's own title tag names the series ('Discount Dan's Backroom Bargains, Book 2'); the pipeline only reads SRNM/free-form tags, which are absent. Spelling matches the series' other rows in this catalog where they exist",
+        "series_index": "same title tag states the number (2)",
+        "tags_read": {
+          "©nam": "Cul-de-Sac Carnage: Discount Dan's Backroom Bargains, Book 2",
+          "©alb": "Cul-de-Sac Carnage: Discount Dan's Backroom Bargains, Book 2",
+          "©ART": "James Hunter",
+          "©wrt": "Steve Campbell",
+          "©day": "2025",
+          "©gen": "Audiobook",
+          "trkn": "absent",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "Cul-de-Sac Carnage",
+        "sources": [],
+        "note": "owner report 2026-10-20: series books missing from their series (swept after Bog Standard Isekai)"
+      }
+    },
+    {
+      "book": "Kiosk Kingdom: Discount Dan’s Backroom Bargains, Book 3 - James Hunter",
+      "match": {
+        "author": "James Hunter",
+        "title": "Kiosk Kingdom: Discount Dan’s Backroom Bargains, Book 3"
+      },
+      "set": {
+        "series": "Discount Dan's Backroom Bargains",
+        "series_index": "3"
+      },
+      "added": "2026-10-20",
+      "evidence": {
+        "series": "the book's own title tag names the series ('Discount Dan's Backroom Bargains, Book 3'); the pipeline only reads SRNM/free-form tags, which are absent. Spelling matches the series' other rows in this catalog where they exist",
+        "series_index": "same title tag states the number (3)",
+        "tags_read": {
+          "©nam": "Kiosk Kingdom: Discount Dan’s Backroom Bargains, Book 3",
+          "©alb": "Kiosk Kingdom: Discount Dan’s Backroom Bargains, Book 3",
+          "©ART": "James Hunter",
+          "©wrt": "Steve Campbell",
+          "©day": "2026",
+          "©gen": "Audiobook",
+          "trkn": "absent",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "Kiosk Kingdom",
+        "sources": [],
+        "note": "owner report 2026-10-20: series books missing from their series (swept after Bog Standard Isekai)"
+      }
+    },
+    {
+      "book": "Mile High: Windy City Series, Book 1 - Liz Tomforde",
+      "match": {
+        "author": "Liz Tomforde",
+        "title": "Mile High: Windy City Series, Book 1"
+      },
+      "set": {
+        "series": "Windy City",
+        "series_index": "1"
+      },
+      "added": "2026-10-20",
+      "evidence": {
+        "series": "the book's own title tag names the series ('Windy City Series, Book 1'); the pipeline only reads SRNM/free-form tags, which are absent. Spelling matches the series' other rows in this catalog where they exist",
+        "series_index": "same title tag states the number (1)",
+        "tags_read": {
+          "©nam": "Mile High: Windy City Series, Book 1",
+          "©alb": "Mile High: Windy City Series, Book 1",
+          "©ART": "Liz Tomforde",
+          "©wrt": "Winston James, Mari",
+          "©day": "2023",
+          "©gen": "Audiobook",
+          "trkn": "absent",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "Mile High",
+        "sources": [],
+        "note": "owner report 2026-10-20: series books missing from their series (swept after Bog Standard Isekai)"
+      }
+    },
+    {
+      "book": "Daunting: Arcane Pathfinder, Book 5 - Mashton Xx",
+      "match": {
+        "author": "Mashton Xx",
+        "title": "Daunting: Arcane Pathfinder, Book 5"
+      },
+      "set": {
+        "series": "Arcane Pathfinder",
+        "series_index": "5"
+      },
+      "added": "2026-10-20",
+      "evidence": {
+        "series": "the book's own title tag names the series ('Arcane Pathfinder, Book 5'); the pipeline only reads SRNM/free-form tags, which are absent. Spelling matches the series' other rows in this catalog where they exist",
+        "series_index": "same title tag states the number (5)",
+        "tags_read": {
+          "©nam": "Daunting: Arcane Pathfinder, Book 5",
+          "©alb": "Daunting: Arcane Pathfinder, Book 5",
+          "©ART": "Mashton XX",
+          "©wrt": "Azur Studios, Hendrik Britton",
+          "©day": "2026",
+          "©gen": "Audiobook",
+          "trkn": "absent",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "Daunting",
+        "sources": [],
+        "note": "owner report 2026-10-20: series books missing from their series (swept after Bog Standard Isekai)"
+      }
+    },
+    {
+      "book": "Burn of the Everflame: The Kindred's Curse Saga, Book 4 - Penn Cole",
+      "match": {
+        "author": "Penn Cole",
+        "title": "Burn of the Everflame: The Kindred's Curse Saga, Book 4"
+      },
+      "set": {
+        "series": "The Kindred's Curse Saga",
+        "series_index": "4"
+      },
+      "added": "2026-10-20",
+      "evidence": {
+        "series": "the book's own title tag names the series ('The Kindred's Curse Saga, Book 4'); the pipeline only reads SRNM/free-form tags, which are absent. Spelling matches the series' other rows in this catalog where they exist",
+        "series_index": "same title tag states the number (4)",
+        "tags_read": {
+          "©nam": "Burn of the Everflame: The Kindred's Curse Saga, Book 4",
+          "©alb": "Burn of the Everflame: The Kindred's Curse Saga, Book 4",
+          "©ART": "Penn Cole",
+          "©wrt": "Amanda Dolan, Will M. Watt, Bahni Turpin, Tim Campbell, Katherine Littrell, Kieran Regan, Keval Shah",
+          "©day": "2026",
+          "©gen": "Audiobook",
+          "trkn": "absent",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "Burn of the Everflame",
+        "sources": [],
+        "note": "owner report 2026-10-20: series books missing from their series (swept after Bog Standard Isekai)"
+      }
     }
   ],
   "_not_corrected_on_purpose": {
