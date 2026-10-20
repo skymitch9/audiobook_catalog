@@ -183,9 +183,9 @@
    "source": "pipeline"
   },
   {
-   "key": "Daunting: Arcane Pathfinder, Book 5|Mashton Xx",
+   "key": "Daunting: Arcane Pathfinder, Book 5|Mashton XX",
    "title": "Daunting: Arcane Pathfinder, Book 5",
-   "author": "Mashton Xx",
+   "author": "Mashton XX",
    "added": "2026-09-10",
    "source": "pipeline"
   },
@@ -2283,9 +2283,9 @@
    "source": "git"
   },
   {
-   "key": "Arcane Pathfinder Book 4: Exploration|Mashton Xx, Mashton Xy",
+   "key": "Arcane Pathfinder Book 4: Exploration|Mashton XX, Mashton XY",
    "title": "Arcane Pathfinder Book 4: Exploration",
-   "author": "Mashton Xx, Mashton Xy",
+   "author": "Mashton XX, Mashton XY",
    "added": "2026-01-06",
    "source": "git"
   },
@@ -2633,9 +2633,9 @@
    "source": "git"
   },
   {
-   "key": "Evolution - Arcane Pathfinder, Book 3|Mashton X X, Mashton X Y",
+   "key": "Evolution - Arcane Pathfinder, Book 3|Mashton XX, Mashton XY",
    "title": "Evolution - Arcane Pathfinder, Book 3",
-   "author": "Mashton X X, Mashton X Y",
+   "author": "Mashton XX, Mashton XY",
    "added": "2025-11-24",
    "source": "git"
   },
@@ -3172,16 +3172,16 @@
    "source": "purchase"
   },
   {
-   "key": "The Beastlands - Arcane Pathfinder, Book 2|Mashton Xx, Mashton Xy",
+   "key": "The Beastlands - Arcane Pathfinder, Book 2|Mashton XX, Mashton XY",
    "title": "The Beastlands - Arcane Pathfinder, Book 2",
-   "author": "Mashton Xx, Mashton Xy",
+   "author": "Mashton XX, Mashton XY",
    "added": "2025-09-04",
    "source": "purchase"
   },
   {
-   "key": "Arcane Pathfinder - Arcane Magic, Book 1|Mashton Xx, Mashton Xy",
+   "key": "Arcane Pathfinder - Arcane Magic, Book 1|Mashton XX, Mashton XY",
    "title": "Arcane Pathfinder - Arcane Magic, Book 1",
-   "author": "Mashton Xx, Mashton Xy",
+   "author": "Mashton XX, Mashton XY",
    "added": "2025-09-04",
    "source": "purchase"
   },

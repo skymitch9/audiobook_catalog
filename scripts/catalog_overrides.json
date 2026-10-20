@@ -3738,7 +3738,8 @@
       },
       "set": {
         "series": "Arcane Pathfinder",
-        "series_index": "5"
+        "series_index": "5",
+        "author": "Mashton XX"
       },
       "added": "2026-10-20",
       "evidence": {
@@ -3758,7 +3759,8 @@
         },
         "filename_said": "Daunting",
         "sources": [],
-        "note": "owner report 2026-10-20: series books missing from their series (swept after Bog Standard Isekai)"
+        "note": "owner order 2026-10-20: fix mashton",
+        "author": "one author spelled three ways across this series (Mashton Xx, Mashton X X, ...); scripts/author_aliases.json, the ebook and the author folder all use 'Mashton XX' / 'Mashton XY'"
       }
     },
     {
@@ -3790,6 +3792,118 @@
         "filename_said": "Burn of the Everflame",
         "sources": [],
         "note": "owner report 2026-10-20: series books missing from their series (swept after Bog Standard Isekai)"
+      }
+    },
+    {
+      "book": "Arcane Pathfinder - Arcane Magic, Book 1 - Mashton Xx, Mashton Xy",
+      "match": {
+        "asin": "B0D34GDDK2"
+      },
+      "set": {
+        "author": "Mashton XX, Mashton XY"
+      },
+      "added": "2026-10-20",
+      "evidence": {
+        "author": "one author spelled three ways across this series (Mashton Xx, Mashton X X, ...); scripts/author_aliases.json, the ebook and the author folder all use 'Mashton XX' / 'Mashton XY'",
+        "tags_read": {
+          "©nam": "Arcane Pathfinder - Arcane Magic, Book 1",
+          "©alb": "Arcane Pathfinder",
+          "©ART": "Mashton XX, Mashton XY",
+          "©wrt": "Azur Studios/Erin Neil",
+          "©day": "2024-05-03",
+          "©gen": "Science Fiction & Fantasy:Fantasy:Action & Adventure",
+          "trkn": "(1, 0)",
+          "SRNM": "Arcane Pathfinder",
+          "SRSQ": "1",
+          "CDEK": "B0D34GDDK2"
+        },
+        "filename_said": "Arcane Pathfinder - Arcane Magic, Book 1",
+        "sources": [],
+        "note": "owner order 2026-10-20: fix mashton"
+      }
+    },
+    {
+      "book": "The Beastlands - Arcane Pathfinder, Book 2 - Mashton Xx, Mashton Xy",
+      "match": {
+        "asin": "B0DQ33X34L"
+      },
+      "set": {
+        "author": "Mashton XX, Mashton XY"
+      },
+      "added": "2026-10-20",
+      "evidence": {
+        "author": "one author spelled three ways across this series (Mashton Xx, Mashton X X, ...); scripts/author_aliases.json, the ebook and the author folder all use 'Mashton XX' / 'Mashton XY'",
+        "tags_read": {
+          "©nam": "The Beastlands - Arcane Pathfinder, Book 2",
+          "©alb": "The Beastlands",
+          "©ART": "Mashton XX, Mashton XY",
+          "©wrt": "Azur Studios/Erin Neil",
+          "©day": "2024-12-12",
+          "©gen": "Science Fiction & Fantasy:Fantasy:Action & Adventure",
+          "trkn": "(1, 0)",
+          "SRNM": "Arcane Pathfinder",
+          "SRSQ": "2",
+          "CDEK": "B0DQ33X34L"
+        },
+        "filename_said": "The Beastlands - Arcane Pathfinder, Book 2",
+        "sources": [],
+        "note": "owner order 2026-10-20: fix mashton"
+      }
+    },
+    {
+      "book": "Evolution - Arcane Pathfinder, Book 3 - Mashton X X, Mashton X Y",
+      "match": {
+        "asin": "B0G3BVFLQW"
+      },
+      "set": {
+        "author": "Mashton XX, Mashton XY"
+      },
+      "added": "2026-10-20",
+      "evidence": {
+        "author": "one author spelled three ways across this series (Mashton Xx, Mashton X X, ...); scripts/author_aliases.json, the ebook and the author folder all use 'Mashton XX' / 'Mashton XY'",
+        "tags_read": {
+          "©nam": "Evolution - Arcane Pathfinder, Book 3",
+          "©alb": "Evolution",
+          "©ART": "Mashton X X, Mashton X Y",
+          "©wrt": "Erin Neal",
+          "©day": "2025-11-21",
+          "©gen": "Science Fiction & Fantasy:Fantasy:Action & Adventure",
+          "trkn": "(1, 0)",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "B0G3BVFLQW"
+        },
+        "filename_said": "Evolution - Arcane Pathfinder, Book 3",
+        "sources": [],
+        "note": "owner order 2026-10-20: fix mashton"
+      }
+    },
+    {
+      "book": "Arcane Pathfinder Book 4: Exploration - Mashton Xx, Mashton Xy",
+      "match": {
+        "asin": "B0GBY9MQGF"
+      },
+      "set": {
+        "author": "Mashton XX, Mashton XY"
+      },
+      "added": "2026-10-20",
+      "evidence": {
+        "author": "one author spelled three ways across this series (Mashton Xx, Mashton X X, ...); scripts/author_aliases.json, the ebook and the author folder all use 'Mashton XX' / 'Mashton XY'",
+        "tags_read": {
+          "©nam": "Arcane Pathfinder Book 4: Exploration",
+          "©alb": "Arcane Pathfinder Book 4: Exploration",
+          "©ART": "Mashton XX, Mashton XY",
+          "©wrt": "Erin Neal",
+          "©day": "2025-12-22",
+          "©gen": "Science Fiction & Fantasy:Fantasy:Action & Adventure",
+          "trkn": "(1, 0)",
+          "SRNM": "Arcane Pathfinder",
+          "SRSQ": "4",
+          "CDEK": "B0GBY9MQGF"
+        },
+        "filename_said": "Arcane Pathfinder Book 4- Exploration",
+        "sources": [],
+        "note": "owner order 2026-10-20: fix mashton"
       }
     }
   ],
