@@ -3905,6 +3905,102 @@
         "sources": [],
         "note": "owner order 2026-10-20: fix mashton"
       }
+    },
+    {
+      "book": "Bog Standard Isekai: Warbound: A LitRPG Isekai Adventure - Miles English",
+      "match": {
+        "author": "Miles English",
+        "title": "Bog Standard Isekai: Warbound: A LitRPG Isekai Adventure"
+      },
+      "set": {
+        "series": "Bog Standard Isekai",
+        "series_index": "5"
+      },
+      "added": "2026-10-20",
+      "evidence": {
+        "series": "no series tag; Goodreads, FantasticFiction and Rising Shadow list Warbound in Bog Standard Isekai",
+        "series_index": "Rising Shadow and FantasticFiction order the series Scarred 1, Illusionist 2, Nightmares 3, Benighted 4, Warbound 5; the cover reads Volume 5",
+        "tags_read": {
+          "©nam": "Bog Standard Isekai: Warbound: A LitRPG Isekai Adventure",
+          "©alb": "Bog Standard Isekai: Warbound: A LitRPG Isekai Adventure",
+          "©ART": "Miles English",
+          "©wrt": "Johnathan McClain",
+          "©day": "2026",
+          "©gen": "Audiobook",
+          "trkn": "absent",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "Bog Standard Isekai- Warbound",
+        "sources": [
+          "https://www.risingshadow.net/book/87185-warbound",
+          "https://www.fantasticfiction.com/e/miles-english"
+        ],
+        "note": "owner order 2026-10-20: download anything missing; new downloads arrived with no series tag"
+      }
+    },
+    {
+      "book": "The Eminence in Shadow, Vol. 6 - Daisuke Aizawa, Touzai, Nathaniel Hiroshi Thrasher - Translator",
+      "match": {
+        "author": "Daisuke Aizawa",
+        "title": "The Eminence in Shadow, Vol. 6"
+      },
+      "set": {
+        "series": "The Eminence in Shadow",
+        "series_index": "6"
+      },
+      "added": "2026-10-20",
+      "evidence": {
+        "series": "title tag 'The Eminence in Shadow, Vol. 6'; spelling matches Vol. 1-5 in this catalog",
+        "series_index": "title tag says Vol. 6",
+        "tags_read": {
+          "©nam": "The Eminence in Shadow, Vol. 6",
+          "©alb": "The Eminence in Shadow, Vol. 6",
+          "©ART": "Daisuke Aizawa, Touzai, Nathaniel Hiroshi Thrasher - translator",
+          "©wrt": "Eddy Lee",
+          "©day": "2026",
+          "©gen": "Audiobook",
+          "trkn": "absent",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "The Eminence in Shadow, Vol. 6",
+        "sources": [],
+        "note": "owner order 2026-10-20: download anything missing; new downloads arrived with no series tag"
+      }
+    },
+    {
+      "book": "Arsenal: A Divine Dungeon Series: Artorian's Archives, Book 4 - Dakota Krout, Dennis Vanderkerken",
+      "match": {
+        "author": "Dakota Krout",
+        "title": "Arsenal: A Divine Dungeon Series: Artorian's Archives, Book 4"
+      },
+      "set": {
+        "series": "Artorian's Archives",
+        "series_index": "4"
+      },
+      "added": "2026-10-20",
+      "evidence": {
+        "series": "title tag 'Arsenal: A Divine Dungeon Series: Artorian's Archives, Book 4'; spelling matches books 1-3 and 6 here",
+        "series_index": "same title tag: Book 4",
+        "tags_read": {
+          "©nam": "Arsenal: A Divine Dungeon Series: Artorian's Archives, Book 4",
+          "©alb": "Arsenal: A Divine Dungeon Series: Artorian's Archives, Book 4",
+          "©ART": "Dennis Vanderkerken, Dakota Krout",
+          "©wrt": "Travis Baldree",
+          "©day": "2020",
+          "©gen": "Audiobook",
+          "trkn": "absent",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "Arsenal- A Divine Dungeon Series",
+        "sources": [],
+        "note": "owner order 2026-10-20: download anything missing; new downloads arrived with no series tag"
+      }
     }
   ],
   "_not_corrected_on_purpose": {
