@@ -4001,6 +4001,37 @@
         "sources": [],
         "note": "owner order 2026-10-20: download anything missing; new downloads arrived with no series tag"
       }
+    },
+    {
+      "book": "Letters From Camp - Jamie Lee Curtis",
+      "match": {
+        "author": "Jamie Lee Curtis",
+        "title": "Letters From Camp"
+      },
+      "set": {
+        "narrator": "Jamie Lee Curtis, Sunny Sandler, Edi Patterson, Sam Haft, Kirby, full cast"
+      },
+      "added": "2026-10-20",
+      "evidence": {
+        "narrator": "Audible's library record carries no narrator for this title (export narrator empty), so the promote audit's every-book-has-a-narrator rule would reject it; Audible's product page credits Jamie Lee Curtis, Sunny Sandler, Edi Patterson, Sam Haft, Kirby, full cast",
+        "tags_read": {
+          "©nam": "Letters From Camp",
+          "©alb": "Letters From Camp",
+          "©ART": "Jamie Lee Curtis",
+          "©wrt": "absent",
+          "©day": "2020",
+          "©gen": "Audiobook",
+          "trkn": "absent",
+          "SRNM": "absent",
+          "SRSQ": "absent",
+          "CDEK": "absent"
+        },
+        "filename_said": "Letters From Camp",
+        "sources": [
+          "https://apx-security-de.audible.de/pd/B08GQ7T2PW"
+        ],
+        "note": "multi-part download 2026-10-20 (owner: download anything missing)"
+      }
     }
   ],
   "_not_corrected_on_purpose": {
