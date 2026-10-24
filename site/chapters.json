@@ -253677,5 +253677,201 @@
    }
   ],
   "parts": []
+ },
+ "Libriohexer: Wolfman Warlock, Book 2": {
+  "source": "m4b",
+  "chapters": [
+   {
+    "title": "Chapter 1",
+    "start_min": 0.0,
+    "start_sec": 0.0
+   },
+   {
+    "title": "Chapter 2",
+    "start_min": 0.3,
+    "start_sec": 19.783
+   },
+   {
+    "title": "Chapter 3",
+    "start_min": 22.2,
+    "start_sec": 1330.666
+   },
+   {
+    "title": "Chapter 4",
+    "start_min": 38.9,
+    "start_sec": 2331.4
+   },
+   {
+    "title": "Chapter 5",
+    "start_min": 57.2,
+    "start_sec": 3431.004
+   },
+   {
+    "title": "Chapter 6",
+    "start_min": 72.8,
+    "start_sec": 4367.186
+   },
+   {
+    "title": "Chapter 7",
+    "start_min": 90.8,
+    "start_sec": 5450.165
+   },
+   {
+    "title": "Chapter 8",
+    "start_min": 113.4,
+    "start_sec": 6802.193
+   },
+   {
+    "title": "Chapter 9",
+    "start_min": 130.3,
+    "start_sec": 7819.807
+   },
+   {
+    "title": "Chapter 10",
+    "start_min": 148.9,
+    "start_sec": 8931.37
+   },
+   {
+    "title": "Chapter 11",
+    "start_min": 173.2,
+    "start_sec": 10389.119
+   },
+   {
+    "title": "Chapter 12",
+    "start_min": 193.1,
+    "start_sec": 11586.781
+   },
+   {
+    "title": "Chapter 13",
+    "start_min": 210.6,
+    "start_sec": 12635.974
+   },
+   {
+    "title": "Chapter 14",
+    "start_min": 233.8,
+    "start_sec": 14030.727
+   },
+   {
+    "title": "Chapter 15",
+    "start_min": 255.2,
+    "start_sec": 15309.357
+   },
+   {
+    "title": "Chapter 16",
+    "start_min": 275.3,
+    "start_sec": 16515.355
+   },
+   {
+    "title": "Chapter 17",
+    "start_min": 296.6,
+    "start_sec": 17794.009
+   },
+   {
+    "title": "Chapter 18",
+    "start_min": 314.8,
+    "start_sec": 18888.76
+   },
+   {
+    "title": "Chapter 19",
+    "start_min": 331.5,
+    "start_sec": 19892.419
+   },
+   {
+    "title": "Chapter 20",
+    "start_min": 349.6,
+    "start_sec": 20973.517
+   },
+   {
+    "title": "Chapter 21",
+    "start_min": 369.7,
+    "start_sec": 22182.928
+   },
+   {
+    "title": "Chapter 22",
+    "start_min": 393.5,
+    "start_sec": 23609.887
+   },
+   {
+    "title": "Chapter 23",
+    "start_min": 414.9,
+    "start_sec": 24896.993
+   },
+   {
+    "title": "Chapter 24",
+    "start_min": 431.6,
+    "start_sec": 25898.585
+   },
+   {
+    "title": "Chapter 25",
+    "start_min": 451.4,
+    "start_sec": 27083.175
+   },
+   {
+    "title": "Chapter 26",
+    "start_min": 470.5,
+    "start_sec": 28229.312
+   },
+   {
+    "title": "Chapter 27",
+    "start_min": 481.9,
+    "start_sec": 28911.096
+   },
+   {
+    "title": "Chapter 28",
+    "start_min": 496.4,
+    "start_sec": 29785.884
+   },
+   {
+    "title": "Chapter 29",
+    "start_min": 513.1,
+    "start_sec": 30786.804
+   },
+   {
+    "title": "Chapter 30",
+    "start_min": 543.3,
+    "start_sec": 32600.514
+   },
+   {
+    "title": "Chapter 31",
+    "start_min": 558.0,
+    "start_sec": 33477.3
+   },
+   {
+    "title": "Chapter 32",
+    "start_min": 571.5,
+    "start_sec": 34290.834
+   },
+   {
+    "title": "Chapter 33",
+    "start_min": 589.6,
+    "start_sec": 35375.647
+   },
+   {
+    "title": "Chapter 34",
+    "start_min": 614.2,
+    "start_sec": 36853.574
+   },
+   {
+    "title": "Chapter 35",
+    "start_min": 632.1,
+    "start_sec": 37926.174
+   },
+   {
+    "title": "Chapter 36",
+    "start_min": 648.5,
+    "start_sec": 38910.421
+   },
+   {
+    "title": "Chapter 37",
+    "start_min": 671.3,
+    "start_sec": 40279.33
+   },
+   {
+    "title": "Chapter 38",
+    "start_min": 680.7,
+    "start_sec": 40843.505
+   }
+  ],
+  "parts": []
  }
 }
