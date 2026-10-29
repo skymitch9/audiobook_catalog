@@ -8257,5 +8257,177 @@
   "warnings": [],
   "source": "none",
   "checked_at": 1793258599
+ },
+ "Dragonfall: Dragon Scales, Book 1": {
+  "warnings": [
+   {
+    "label": "Death",
+    "source_url": "https://app.thestorygraph.com/book_reviews/dfa75455-0db6-407b-98ee-5cde2468ee71"
+   },
+   {
+    "label": "Violence",
+    "source_url": "https://app.thestorygraph.com/book_reviews/dfa75455-0db6-407b-98ee-5cde2468ee71"
+   },
+   {
+    "label": "Murder",
+    "source_url": "https://app.thestorygraph.com/book_reviews/6fd15bb9-8a8d-4f42-918e-bfa06e006ff1/content_warning/78?page=2"
+   },
+   {
+    "label": "Pandemic/Epidemic (plague)",
+    "source_url": "https://app.thestorygraph.com/book_reviews/6fd15bb9-8a8d-4f42-918e-bfa06e006ff1/content_warning/78?page=2"
+   },
+   {
+    "label": "Blood",
+    "source_url": "https://app.thestorygraph.com/book_reviews/6fd15bb9-8a8d-4f42-918e-bfa06e006ff1/content_warning/78?page=2"
+   },
+   {
+    "label": "Injury/Injury detail",
+    "source_url": "https://app.thestorygraph.com/book_reviews/6fd15bb9-8a8d-4f42-918e-bfa06e006ff1/content_warning/78?page=2"
+   },
+   {
+    "label": "Sexual content",
+    "source_url": "https://app.thestorygraph.com/book_reviews/dfa75455-0db6-407b-98ee-5cde2468ee71/content_warning/45"
+   },
+   {
+    "label": "Cannibalism",
+    "source_url": "https://app.thestorygraph.com/book_reviews/dfa75455-0db6-407b-98ee-5cde2468ee71/content_warning/45"
+   },
+   {
+    "label": "Torture",
+    "source_url": "https://app.thestorygraph.com/book_reviews/dfa75455-0db6-407b-98ee-5cde2468ee71/content_warning/45"
+   },
+   {
+    "label": "Suicide",
+    "source_url": "https://app.thestorygraph.com/book_reviews/dfa75455-0db6-407b-98ee-5cde2468ee71/content_warning/45"
+   },
+   {
+    "label": "Emotional abuse",
+    "source_url": "https://app.thestorygraph.com/book_reviews/dfa75455-0db6-407b-98ee-5cde2468ee71/content_warning/45"
+   },
+   {
+    "label": "Classism",
+    "source_url": "https://app.thestorygraph.com/book_reviews/dfa75455-0db6-407b-98ee-5cde2468ee71/content_warning/45"
+   },
+   {
+    "label": "Animal death",
+    "source_url": "https://app.thestorygraph.com/book_reviews/dd7efe13-be22-45a5-8bd3-9cc840af01a6/content_warning/6"
+   },
+   {
+    "label": "Self harm",
+    "source_url": "https://app.thestorygraph.com/book_reviews/dd7efe13-be22-45a5-8bd3-9cc840af01a6/content_warning/6"
+   },
+   {
+    "label": "War",
+    "source_url": "https://app.thestorygraph.com/book_reviews/dd7efe13-be22-45a5-8bd3-9cc840af01a6/content_warning/6"
+   },
+   {
+    "label": "Death of parent",
+    "source_url": "https://app.thestorygraph.com/book_reviews/dd7efe13-be22-45a5-8bd3-9cc840af01a6/content_warning/6"
+   },
+   {
+    "label": "Body horror",
+    "source_url": "https://app.thestorygraph.com/book_reviews/dd7efe13-be22-45a5-8bd3-9cc840af01a6/content_warning/6"
+   },
+   {
+    "label": "Child death",
+    "source_url": "https://app.thestorygraph.com/book_reviews/dd7efe13-be22-45a5-8bd3-9cc840af01a6/content_warning/6"
+   },
+   {
+    "label": "Transphobia",
+    "source_url": "https://app.thestorygraph.com/book_reviews/dd7efe13-be22-45a5-8bd3-9cc840af01a6/content_warning/6"
+   },
+   {
+    "label": "Animal cruelty",
+    "source_url": "https://app.thestorygraph.com/book_reviews/dd7efe13-be22-45a5-8bd3-9cc840af01a6/content_warning/6"
+   },
+   {
+    "label": "Drug use",
+    "source_url": "https://app.thestorygraph.com/book_reviews/dd7efe13-be22-45a5-8bd3-9cc840af01a6/content_warning/6"
+   },
+   {
+    "label": "Sexism",
+    "source_url": "https://app.thestorygraph.com/book_reviews/dfa75455-0db6-407b-98ee-5cde2468ee71/content_warning/43"
+   },
+   {
+    "label": "Religious bigotry",
+    "source_url": "https://app.thestorygraph.com/book_reviews/dfa75455-0db6-407b-98ee-5cde2468ee71/content_warning/43"
+   },
+   {
+    "label": "Xenophobia",
+    "source_url": "https://app.thestorygraph.com/book_reviews/dfa75455-0db6-407b-98ee-5cde2468ee71/content_warning/43"
+   },
+   {
+    "label": "Gore",
+    "source_url": "https://geeking-by.net/dragon-scales-duology-by-l-r-lam/"
+   },
+   {
+    "label": "Mass murder / plague",
+    "source_url": "https://geeking-by.net/dragon-scales-duology-by-l-r-lam/"
+   },
+   {
+    "label": "Ableism",
+    "source_url": "https://geeking-by.net/dragon-scales-duology-by-l-r-lam/"
+   },
+   {
+    "label": "Manipulative/abusive relationship",
+    "source_url": "https://geeking-by.net/dragon-scales-duology-by-l-r-lam/"
+   },
+   {
+    "label": "Vomit",
+    "source_url": "https://geeking-by.net/dragon-scales-duology-by-l-r-lam/"
+   },
+   {
+    "label": "Addiction/withdrawal",
+    "source_url": "https://geeking-by.net/dragon-scales-duology-by-l-r-lam/"
+   },
+   {
+    "label": "Alcohol consumption",
+    "source_url": "https://geeking-by.net/dragon-scales-duology-by-l-r-lam/"
+   },
+   {
+    "label": "Chemical burn accident",
+    "source_url": "https://geeking-by.net/dragon-scales-duology-by-l-r-lam/"
+   },
+   {
+    "label": "Suicidal ideation",
+    "source_url": "https://geeking-by.net/dragon-scales-duology-by-l-r-lam/"
+   },
+   {
+    "label": "Mind control",
+    "source_url": "https://geeking-by.net/dragon-scales-duology-by-l-r-lam/"
+   },
+   {
+    "label": "Memory manipulation",
+    "source_url": "https://geeking-by.net/dragon-scales-duology-by-l-r-lam/"
+   },
+   {
+    "label": "Captivity/confinement",
+    "source_url": "https://geeking-by.net/dragon-scales-duology-by-l-r-lam/"
+   },
+   {
+    "label": "Strong language",
+    "source_url": "https://thequaintbooknook.wordpress.com/2023/05/18/review-dragonfall-by-l-r-lam/"
+   },
+   {
+    "label": "Loss of parents",
+    "source_url": "https://thequaintbooknook.wordpress.com/2023/05/18/review-dragonfall-by-l-r-lam/"
+   }
+  ],
+  "source": "web",
+  "checked_at": 1793295673
+ },
+ "Emberclaw: Dragon Scales, Book 2": {
+  "warnings": [
+   {
+    "label": "Violence",
+    "source_url": "https://app.thestorygraph.com/book_reviews/7f408ec8-0131-45d3-8416-65f3f427bca7/content_warning/54"
+   },
+   {
+    "label": "Gaslighting",
+    "source_url": "https://app.thestorygraph.com/book_reviews/7f408ec8-0131-45d3-8416-65f3f427bca7/content_warning/85"
+   }
+  ],
+  "source": "web",
+  "checked_at": 1793295785
  }
 }
