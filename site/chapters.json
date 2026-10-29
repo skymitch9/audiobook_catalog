@@ -253873,5 +253873,61 @@
    }
   ],
   "parts": []
+ },
+ "Skeleton Knight in Another World (Light Novel) Vol. 9": {
+  "source": "m4b",
+  "chapters": [
+   {
+    "title": "Chapter 1",
+    "start_min": 0.0,
+    "start_sec": 0.0
+   },
+   {
+    "title": "Chapter 2",
+    "start_min": 0.5,
+    "start_sec": 30.952
+   },
+   {
+    "title": "Chapter 3",
+    "start_min": 10.4,
+    "start_sec": 621.923
+   },
+   {
+    "title": "Chapter 4",
+    "start_min": 76.4,
+    "start_sec": 4583.178
+   },
+   {
+    "title": "Chapter 5",
+    "start_min": 119.5,
+    "start_sec": 7170.043
+   },
+   {
+    "title": "Chapter 6",
+    "start_min": 161.5,
+    "start_sec": 9687.806
+   },
+   {
+    "title": "Chapter 7",
+    "start_min": 224.4,
+    "start_sec": 13462.024
+   },
+   {
+    "title": "Chapter 8",
+    "start_min": 297.4,
+    "start_sec": 17845.743
+   },
+   {
+    "title": "Chapter 9",
+    "start_min": 322.9,
+    "start_sec": 19376.077
+   },
+   {
+    "title": "Chapter 10",
+    "start_min": 342.8,
+    "start_sec": 20566.518
+   }
+  ],
+  "parts": []
  }
 }
