@@ -254842,5 +254842,121 @@
    }
   ],
   "parts": []
+ },
+ "Abandon Hope: Cutters Notch, Book 1": {
+  "source": "m4b",
+  "chapters": [
+   {
+    "title": "Chapter 1",
+    "start_min": 0.0,
+    "start_sec": 0.0
+   },
+   {
+    "title": "Chapter 2",
+    "start_min": 0.3,
+    "start_sec": 15.163
+   },
+   {
+    "title": "Chapter 3",
+    "start_min": 0.9,
+    "start_sec": 51.641
+   },
+   {
+    "title": "Chapter 4",
+    "start_min": 4.1,
+    "start_sec": 243.508
+   },
+   {
+    "title": "Chapter 5",
+    "start_min": 32.8,
+    "start_sec": 1966.103
+   },
+   {
+    "title": "Chapter 6",
+    "start_min": 53.3,
+    "start_sec": 3196.413
+   },
+   {
+    "title": "Chapter 7",
+    "start_min": 80.6,
+    "start_sec": 4834.766
+   },
+   {
+    "title": "Chapter 8",
+    "start_min": 120.5,
+    "start_sec": 7231.367
+   },
+   {
+    "title": "Chapter 9",
+    "start_min": 144.4,
+    "start_sec": 8665.292
+   },
+   {
+    "title": "Chapter 10",
+    "start_min": 185.1,
+    "start_sec": 11107.381
+   },
+   {
+    "title": "Chapter 11",
+    "start_min": 213.6,
+    "start_sec": 12818.042
+   },
+   {
+    "title": "Chapter 12",
+    "start_min": 250.7,
+    "start_sec": 15043.396
+   },
+   {
+    "title": "Chapter 13",
+    "start_min": 265.8,
+    "start_sec": 15947.999
+   },
+   {
+    "title": "Chapter 14",
+    "start_min": 286.1,
+    "start_sec": 17166.652
+   },
+   {
+    "title": "Chapter 15",
+    "start_min": 312.7,
+    "start_sec": 18764.417
+   },
+   {
+    "title": "Chapter 16",
+    "start_min": 326.3,
+    "start_sec": 19579.6
+   },
+   {
+    "title": "Chapter 17",
+    "start_min": 344.4,
+    "start_sec": 20662.741
+   },
+   {
+    "title": "Chapter 18",
+    "start_min": 359.1,
+    "start_sec": 21544.38
+   },
+   {
+    "title": "Chapter 19",
+    "start_min": 378.6,
+    "start_sec": 22717.823
+   },
+   {
+    "title": "Chapter 20",
+    "start_min": 384.7,
+    "start_sec": 23083.909
+   },
+   {
+    "title": "Chapter 21",
+    "start_min": 388.3,
+    "start_sec": 23295.652
+   },
+   {
+    "title": "Chapter 22",
+    "start_min": 397.2,
+    "start_sec": 23831.174
+   }
+  ],
+  "parts": []
  }
 }
