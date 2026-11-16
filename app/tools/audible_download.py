@@ -14,8 +14,10 @@ remuxes (-c copy) via ffmpeg.
 
 import glob
 import json
+import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -51,6 +53,28 @@ def _run(args, timeout=7200):
 
 def _audible(profile, *args, timeout=7200):
     return _run([sys.executable, "-m", "audible_cli", "-P", profile, *args], timeout=timeout)
+
+
+def _clear_readonly_and_retry(func, path, _exc):
+    os.chmod(path, stat.S_IWRITE)
+    func(path)
+
+
+def _rmtree(path, ignore_errors=False):
+    """shutil.rmtree that also removes READ-ONLY entries.
+
+    ⚠️ This repo lives inside OneDrive, which marks the `_dl_<ASIN>` temp dirs
+    read-only. Windows then refuses rmdir with WinError 5, a plain rmtree left
+    the dir behind, and the NEXT attempt at the same book died on it before
+    contacting Audible (three paige titles blocked for weeks, 38 dirs piled up
+    — measured 2026-11-15: plain rmdir fails, rmdir after clearing the
+    attribute succeeds)."""
+    hook = "onexc" if sys.version_info >= (3, 12) else "onerror"
+    try:
+        shutil.rmtree(path, **{hook: _clear_readonly_and_retry})
+    except OSError:
+        if not ignore_errors:
+            raise
 
 
 def profile_for(user_id):
@@ -196,7 +220,7 @@ def download_and_convert(asin, title, profile=None, out_dir=DEFAULT_OUT, narrato
     out_dir.mkdir(parents=True, exist_ok=True)
     tmp = out_dir / f"_dl_{asin}"
     if tmp.exists():
-        shutil.rmtree(tmp)
+        _rmtree(tmp)
     tmp.mkdir()
 
     profiles = [profile] if profile else ALL_PROFILES
@@ -216,7 +240,7 @@ def download_and_convert(asin, title, profile=None, out_dir=DEFAULT_OUT, narrato
             break
         last_err = (r.stderr or r.stdout or "")[-400:]
     if not got:
-        shutil.rmtree(tmp, ignore_errors=True)
+        _rmtree(tmp, ignore_errors=True)
         raise RuntimeError(f"download failed for {asin} ({title}): {last_err}")
 
     safe_title = re.sub(r'[<>:"/\\|?*]', "-", title).strip() or asin
@@ -224,7 +248,7 @@ def download_and_convert(asin, title, profile=None, out_dir=DEFAULT_OUT, narrato
 
     if len(audio) > 1:
         _join_parts(ffmpeg, sorted(audio, key=natural_key), profile, title, narrator, tmp, dest)
-        shutil.rmtree(tmp, ignore_errors=True)
+        _rmtree(tmp, ignore_errors=True)
         return dest
 
     src = audio[0]
@@ -241,7 +265,7 @@ def download_and_convert(asin, title, profile=None, out_dir=DEFAULT_OUT, narrato
     r = _run(cmd, timeout=3600)
     if r.returncode != 0 or not dest.exists():
         raise RuntimeError(f"ffmpeg convert failed: {(r.stderr or '')[-400:]}")
-    shutil.rmtree(tmp, ignore_errors=True)
+    _rmtree(tmp, ignore_errors=True)
     return dest
 
 
