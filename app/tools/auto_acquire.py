@@ -101,8 +101,14 @@ def wait_idle(timeout_s=900, settle_s=15):
 def download_missing(missing, books=None):
     """Auto-download each missing purchase with the owning account's
     profile; converted m4bs land in runtime/openaudible/books for the
-    sync to ingest. Returns (downloaded_titles, [(title, error)])."""
+    sync to ingest. Returns (downloaded_titles, [(title, error)], refused_titles).
+
+    A title Audible will no longer license ("License not granted to
+    customer") is recorded in app/tools/license_refused.py's store and NOT
+    reported as a failure: the audit skips it from then on, so it is tried
+    exactly once instead of on every tick."""
     from app.tools.audible_download import download_and_convert, profile_for
+    from app.tools.license_refused import is_license_refusal, record
     lookup = {}
     for b in books or []:  # audible-cli export rows carry asin + profile + narrator
         title = b.get("title_short") or b.get("title") or ""
@@ -117,7 +123,7 @@ def download_missing(missing, books=None):
         except (OSError, json.JSONDecodeError):
             pass
 
-    downloaded, failed = [], []
+    downloaded, failed, refused = [], [], []
     for _date, title in missing:
         asin, profile, narrator = lookup.get(title, (None, None, ""))
         if not asin:
@@ -128,9 +134,14 @@ def download_missing(missing, books=None):
             downloaded.append(title)
             print(f"DOWNLOADED: {title} -> {dest.name}")
         except Exception as e:
+            if is_license_refusal(e):
+                record(asin, title, profile, str(e))
+                refused.append(title)
+                print(f"NO LICENCE: {title}: Audible refuses the licence — recorded, will not be retried")
+                continue
             failed.append((title, str(e)[:200]))
             print(f"FAILED: {title}: {e}")
-    return downloaded, failed
+    return downloaded, failed, refused
 
 
 def notify_discord_lines(header, lines):
@@ -209,12 +220,15 @@ def main():
             notify_discord(missing)
         return 1
 
-    downloaded, failed = download_missing(missing, books)
+    downloaded, failed, refused = download_missing(missing, books)
     print(f"\nRESULT: {len(downloaded)} downloaded, {len(failed)} failed — "
           "the sync step ingests downloads into the library.")
+    if refused:
+        print(f"{len(refused)} title(s) Audible no longer licenses — recorded, not retried.")
     if args.notify:
         lines = ([f"- ⬇️ downloaded: {t}" for t in downloaded]
-                 + [f"- ⚠️ FAILED {t}: {err}" for t, err in failed])
+                 + [f"- ⚠️ FAILED {t}: {err}" for t, err in failed]
+                 + [f"- 🚫 no licence (will not retry): {t}" for t in refused])
         notify_discord_lines(f"📚 Auto-acquire: {len(downloaded)} downloaded, {len(failed)} failed", lines)
     return 0 if not failed else 1
 

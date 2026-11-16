@@ -41,16 +41,6 @@ PROJECT_ROOT = SITE_DIR.parent
 AUDIBLE_PROFILES = ("skylar", "samantha", "paige")
 
 
-# Purchases the audit must NOT report as missing, by ASIN -> why. A title
-# listed here is never downloaded and never counts as an error.
-# Owner order 2026-11-16 ("ignore the bram stoker's"): Audible refuses the
-# licence on every tick ("License not granted to customer"), which was the
-# one error keeping the purchase audit backed off. Remove the entry to retry.
-IGNORED_ASINS = {
-    "B0H956N76W": "Bram Stoker's Dracula (skylar) - licence refused by Audible",
-}
-
-
 def audible_cli_books():
     """FRESH library rows straight from Audible via audible-cli exports for
     every registered profile. Returns [] when no profile works (fall back to
@@ -124,11 +114,13 @@ def title_matches(n, c):
     return re.search(r"(?<![a-z0-9])" + re.escape(a) + r"(?![a-z0-9])", b) is not None
 
 
-def missing_purchases(books, catalog_titles, top=50):
-    """[(purchase_date, title)] of recent purchases with no local match."""
+def missing_purchases(books, catalog_titles, top=50, skip_asins=()):
+    """[(purchase_date, title)] of recent purchases with no local match.
+    Rows whose ASIN is in skip_asins (titles Audible no longer licenses, see
+    app/tools/license_refused.py) are left out: they cannot be downloaded."""
     out = []
     for b in newest_purchases(books, top):
-        if b.get("asin") in IGNORED_ASINS:
+        if b.get("asin") and b.get("asin") in skip_asins:
             continue
         title = b.get("title_short") or b.get("title") or ""
         n = norm(title)
@@ -163,8 +155,14 @@ def run_audit(top=50, books=None):
             return None
         books = json.loads(path.read_text(encoding="utf-8"))
         src = str(path)
-    missing = missing_purchases(books, load_catalog_titles(), top)
+    from app.tools.license_refused import load as load_refused
+    refused = load_refused()
+    missing = missing_purchases(books, load_catalog_titles(), top, skip_asins=refused)
     print(f"newest {top} purchases in {src} vs catalog: {len(missing)} missing")
+    for b in newest_purchases(books, top):
+        if b.get("asin") in refused:
+            print(f"  [NO LICENCE] {b.get('title_short') or b.get('title')} — Audible refuses the "
+                  f"licence; not retried (python -m app.tools.license_refused --forget {b.get('asin')})")
     for date, title in missing:
         print(f"  [MISSING] {date} | {title}")
     if not missing:
