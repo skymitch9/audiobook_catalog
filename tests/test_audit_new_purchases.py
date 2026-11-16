@@ -38,6 +38,14 @@ class PurchaseAuditTestCase(unittest.TestCase):
         catalog = {norm("Have New")}
         self.assertEqual(missing_purchases(books, catalog, top=1), [])
 
+    def test_ignored_asin_is_never_reported_missing(self):
+        from app.tools.audit_new_purchases import IGNORED_ASINS
+        asin = next(iter(IGNORED_ASINS))
+        ignored = dict(book("Refused Title", "2026-07-02"), asin=asin)
+        other = dict(book("Wanted Title", "2026-07-01"), asin="B000000000")
+        missing = missing_purchases([ignored, other], set(), top=50)
+        self.assertEqual([t for _, t in missing], ["Wanted Title"])
+
 
 if __name__ == "__main__":
     unittest.main()

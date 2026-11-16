@@ -41,6 +41,16 @@ PROJECT_ROOT = SITE_DIR.parent
 AUDIBLE_PROFILES = ("skylar", "samantha", "paige")
 
 
+# Purchases the audit must NOT report as missing, by ASIN -> why. A title
+# listed here is never downloaded and never counts as an error.
+# Owner order 2026-11-16 ("ignore the bram stoker's"): Audible refuses the
+# licence on every tick ("License not granted to customer"), which was the
+# one error keeping the purchase audit backed off. Remove the entry to retry.
+IGNORED_ASINS = {
+    "B0H956N76W": "Bram Stoker's Dracula (skylar) - licence refused by Audible",
+}
+
+
 def audible_cli_books():
     """FRESH library rows straight from Audible via audible-cli exports for
     every registered profile. Returns [] when no profile works (fall back to
@@ -118,6 +128,8 @@ def missing_purchases(books, catalog_titles, top=50):
     """[(purchase_date, title)] of recent purchases with no local match."""
     out = []
     for b in newest_purchases(books, top):
+        if b.get("asin") in IGNORED_ASINS:
+            continue
         title = b.get("title_short") or b.get("title") or ""
         n = norm(title)
         have = any(title_matches(n, c) for c in catalog_titles) if n else False
