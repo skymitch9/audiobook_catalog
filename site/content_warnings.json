@@ -8439,5 +8439,66 @@
   "warnings": [],
   "source": "none",
   "checked_at": 1794504255
+ },
+ "Bad in Bed": {
+  "warnings": [
+   {
+    "label": "Explicit sexual content / dirty talk (reviewer notes Max is 'a bit of a dirty talker')",
+    "source_url": "https://1girl2manybooks.wordpress.com/2026/11/04/review-bad-in-bed-by-ali-hazelwood/"
+   }
+  ],
+  "source": "web",
+  "checked_at": 1794863771
+ },
+ "My Husband's Wife: A Novel": {
+  "warnings": [
+   {
+    "label": "Cancer",
+    "source_url": "https://hardcover.app/books/my-husbands-wife-2026"
+   },
+   {
+    "label": "Death",
+    "source_url": "https://hardcover.app/books/my-husbands-wife-2026"
+   },
+   {
+    "label": "Sexual content",
+    "source_url": "https://hardcover.app/books/my-husbands-wife-2026"
+   },
+   {
+    "label": "Gore",
+    "source_url": "https://hardcover.app/books/my-husbands-wife-2026"
+   },
+   {
+    "label": "Grief",
+    "source_url": "https://hardcover.app/books/my-husbands-wife-2026"
+   },
+   {
+    "label": "Death of parent",
+    "source_url": "https://hardcover.app/books/my-husbands-wife-2026"
+   },
+   {
+    "label": "Alcohol",
+    "source_url": "https://hardcover.app/books/my-husbands-wife-2026"
+   },
+   {
+    "label": "gaslighting",
+    "source_url": "https://hardcover.app/books/my-husbands-wife-2026"
+   },
+   {
+    "label": "Blood",
+    "source_url": "https://hardcover.app/books/my-husbands-wife-2026"
+   },
+   {
+    "label": "Car accident",
+    "source_url": "https://hardcover.app/books/my-husbands-wife-2026"
+   }
+  ],
+  "source": "hardcover",
+  "checked_at": 1794863771
+ },
+ "The Hopeless Romantic’s Guide to Enchantment": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1794863808
  }
 }
