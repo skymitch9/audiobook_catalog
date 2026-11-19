@@ -8505,5 +8505,39 @@
   "warnings": [],
   "source": "none",
   "checked_at": 1794904235
+ },
+ "The True Confessions of First Lady Freeman: A Novel": {
+  "warnings": [
+   {
+    "label": "Explicit sexual encounters",
+    "source_url": "https://www.goodreads.com/en/book/show/245901502-the-true-confessions-of-first-lady-freeman"
+   },
+   {
+    "label": "Infidelity",
+    "source_url": "https://www.goodreads.com/en/book/show/245901502-the-true-confessions-of-first-lady-freeman"
+   },
+   {
+    "label": "Grooming of young women by older, powerful men",
+    "source_url": "https://www.goodreads.com/en/book/show/245901502-the-true-confessions-of-first-lady-freeman"
+   },
+   {
+    "label": "Systemic trauma",
+    "source_url": "https://www.goodreads.com/en/book/show/245901502-the-true-confessions-of-first-lady-freeman"
+   },
+   {
+    "label": "Pervasive religious bigotry",
+    "source_url": "https://www.goodreads.com/en/book/show/245901502-the-true-confessions-of-first-lady-freeman"
+   },
+   {
+    "label": "Abuse and violence",
+    "source_url": "https://www.goodreads.com/en/book/show/245901502-the-true-confessions-of-first-lady-freeman"
+   },
+   {
+    "label": "Profanity",
+    "source_url": "https://www.goodreads.com/en/book/show/245901502-the-true-confessions-of-first-lady-freeman"
+   }
+  ],
+  "source": "web",
+  "checked_at": 1795122295
  }
 }
