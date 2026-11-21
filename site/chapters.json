@@ -256128,5 +256128,146 @@
    }
   ],
   "parts": []
+ },
+ "Dragon Forged": {
+  "source": "m4b",
+  "chapters": [
+   {
+    "title": "Chapter 1",
+    "start_min": 0.0,
+    "start_sec": 0.0
+   },
+   {
+    "title": "Chapter 2",
+    "start_min": 0.2,
+    "start_sec": 13.56
+   },
+   {
+    "title": "Chapter 3",
+    "start_min": 11.5,
+    "start_sec": 689.424
+   },
+   {
+    "title": "Chapter 4",
+    "start_min": 33.2,
+    "start_sec": 1994.594
+   },
+   {
+    "title": "Chapter 5",
+    "start_min": 52.2,
+    "start_sec": 3132.674
+   },
+   {
+    "title": "Chapter 6",
+    "start_min": 70.6,
+    "start_sec": 4235.273
+   },
+   {
+    "title": "Chapter 7",
+    "start_min": 89.4,
+    "start_sec": 5361.929
+   },
+   {
+    "title": "Chapter 8",
+    "start_min": 112.7,
+    "start_sec": 6762.046
+   },
+   {
+    "title": "Chapter 9",
+    "start_min": 127.8,
+    "start_sec": 7669.644
+   },
+   {
+    "title": "Chapter 10",
+    "start_min": 146.9,
+    "start_sec": 8811.439
+   },
+   {
+    "title": "Chapter 11",
+    "start_min": 165.7,
+    "start_sec": 9939.998
+   },
+   {
+    "title": "Chapter 12",
+    "start_min": 185.0,
+    "start_sec": 11099.324
+   },
+   {
+    "title": "Chapter 13",
+    "start_min": 206.3,
+    "start_sec": 12376.677
+   },
+   {
+    "title": "Chapter 14",
+    "start_min": 225.9,
+    "start_sec": 13556.924
+   },
+   {
+    "title": "Chapter 15",
+    "start_min": 245.7,
+    "start_sec": 14744.95
+   },
+   {
+    "title": "Chapter 16",
+    "start_min": 266.8,
+    "start_sec": 16009.764
+   },
+   {
+    "title": "Chapter 17",
+    "start_min": 289.8,
+    "start_sec": 17390.167
+   },
+   {
+    "title": "Chapter 18",
+    "start_min": 301.3,
+    "start_sec": 18079.568
+   },
+   {
+    "title": "Chapter 19",
+    "start_min": 320.2,
+    "start_sec": 19209.915
+   },
+   {
+    "title": "Chapter 20",
+    "start_min": 343.5,
+    "start_sec": 20612.888
+   },
+   {
+    "title": "Chapter 21",
+    "start_min": 362.6,
+    "start_sec": 21753.034
+   },
+   {
+    "title": "Chapter 22",
+    "start_min": 384.3,
+    "start_sec": 23058.947
+   },
+   {
+    "title": "Chapter 23",
+    "start_min": 398.3,
+    "start_sec": 23898.419
+   },
+   {
+    "title": "Chapter 24",
+    "start_min": 415.6,
+    "start_sec": 24933.471
+   },
+   {
+    "title": "Chapter 25",
+    "start_min": 429.9,
+    "start_sec": 25794.862
+   },
+   {
+    "title": "Chapter 26",
+    "start_min": 448.5,
+    "start_sec": 26909.907
+   },
+   {
+    "title": "Chapter 27",
+    "start_min": 462.4,
+    "start_sec": 27741.716
+   }
+  ],
+  "parts": []
  }
 }
