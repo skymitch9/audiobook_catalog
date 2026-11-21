@@ -8544,5 +8544,52 @@
   "warnings": [],
   "source": "none",
   "checked_at": 1795219257
+ },
+ "King of Wrath: Kings of Sin": {
+  "warnings": [
+   {
+    "label": "Sexual content",
+    "source_url": "https://hardcover.app/books/king-of-wrath"
+   },
+   {
+    "label": "Arguments/Conflict",
+    "source_url": "https://hardcover.app/books/king-of-wrath"
+   },
+   {
+    "label": "Controlling Behavior",
+    "source_url": "https://hardcover.app/books/king-of-wrath"
+   },
+   {
+    "label": "Anxiety/Stress",
+    "source_url": "https://hardcover.app/books/king-of-wrath"
+   },
+   {
+    "label": "Emotional manipulation",
+    "source_url": "https://hardcover.app/books/king-of-wrath"
+   },
+   {
+    "label": "Blackmail/Coercion Themes",
+    "source_url": "https://hardcover.app/books/king-of-wrath"
+   },
+   {
+    "label": "Toxic Family Dynamics",
+    "source_url": "https://hardcover.app/books/king-of-wrath"
+   },
+   {
+    "label": "Sexual Content/Explicit Scenes",
+    "source_url": "https://hardcover.app/books/king-of-wrath"
+   },
+   {
+    "label": "Mentions of Infidelity Concerns/Suspicion",
+    "source_url": "https://hardcover.app/books/king-of-wrath"
+   }
+  ],
+  "source": "hardcover",
+  "checked_at": 1795233326
+ },
+ "Christmas Staycation": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1795233369
  }
 }

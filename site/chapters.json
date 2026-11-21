@@ -256269,5 +256269,482 @@
    }
   ],
   "parts": []
+ },
+ "King of Wrath: Kings of Sin": {
+  "source": "m4b",
+  "chapters": [
+   {
+    "title": "Chapter 1",
+    "start_min": 0.0,
+    "start_sec": 0.0
+   },
+   {
+    "title": "Chapter 2",
+    "start_min": 0.3,
+    "start_sec": 15.766
+   },
+   {
+    "title": "Chapter 3",
+    "start_min": 10.0,
+    "start_sec": 600.956
+   },
+   {
+    "title": "Chapter 4",
+    "start_min": 26.2,
+    "start_sec": 1569.53
+   },
+   {
+    "title": "Chapter 5",
+    "start_min": 43.1,
+    "start_sec": 2584.636
+   },
+   {
+    "title": "Chapter 6",
+    "start_min": 60.1,
+    "start_sec": 3606.988
+   },
+   {
+    "title": "Chapter 7",
+    "start_min": 84.1,
+    "start_sec": 5046.114
+   },
+   {
+    "title": "Chapter 8",
+    "start_min": 96.4,
+    "start_sec": 5786.204
+   },
+   {
+    "title": "Chapter 9",
+    "start_min": 113.9,
+    "start_sec": 6834.213
+   },
+   {
+    "title": "Chapter 10",
+    "start_min": 137.3,
+    "start_sec": 8239.02
+   },
+   {
+    "title": "Chapter 11",
+    "start_min": 153.1,
+    "start_sec": 9186.789
+   },
+   {
+    "title": "Chapter 12",
+    "start_min": 170.4,
+    "start_sec": 10225.998
+   },
+   {
+    "title": "Chapter 13",
+    "start_min": 188.2,
+    "start_sec": 11290.657
+   },
+   {
+    "title": "Chapter 14",
+    "start_min": 216.6,
+    "start_sec": 12995.233
+   },
+   {
+    "title": "Chapter 15",
+    "start_min": 231.7,
+    "start_sec": 13900.161
+   },
+   {
+    "title": "Chapter 16",
+    "start_min": 248.1,
+    "start_sec": 14887.195
+   },
+   {
+    "title": "Chapter 17",
+    "start_min": 262.4,
+    "start_sec": 15742.433
+   },
+   {
+    "title": "Chapter 18",
+    "start_min": 273.8,
+    "start_sec": 16430.138
+   },
+   {
+    "title": "Chapter 19",
+    "start_min": 294.1,
+    "start_sec": 17645.912
+   },
+   {
+    "title": "Chapter 20",
+    "start_min": 305.9,
+    "start_sec": 18352.216
+   },
+   {
+    "title": "Chapter 21",
+    "start_min": 325.3,
+    "start_sec": 19518.949
+   },
+   {
+    "title": "Chapter 22",
+    "start_min": 336.9,
+    "start_sec": 20214.735
+   },
+   {
+    "title": "Chapter 23",
+    "start_min": 352.8,
+    "start_sec": 21166.15
+   },
+   {
+    "title": "Chapter 24",
+    "start_min": 360.5,
+    "start_sec": 21630.34
+   },
+   {
+    "title": "Chapter 25",
+    "start_min": 385.5,
+    "start_sec": 23129.443
+   },
+   {
+    "title": "Chapter 26",
+    "start_min": 395.6,
+    "start_sec": 23738.085
+   },
+   {
+    "title": "Chapter 27",
+    "start_min": 409.1,
+    "start_sec": 24546.255
+   },
+   {
+    "title": "Chapter 28",
+    "start_min": 424.3,
+    "start_sec": 25459.31
+   },
+   {
+    "title": "Chapter 29",
+    "start_min": 454.5,
+    "start_sec": 27270.513
+   },
+   {
+    "title": "Chapter 30",
+    "start_min": 465.9,
+    "start_sec": 27955.107
+   },
+   {
+    "title": "Chapter 31",
+    "start_min": 485.7,
+    "start_sec": 29141.252
+   },
+   {
+    "title": "Chapter 32",
+    "start_min": 500.8,
+    "start_sec": 30045.646
+   },
+   {
+    "title": "Chapter 33",
+    "start_min": 515.1,
+    "start_sec": 30904.877
+   },
+   {
+    "title": "Chapter 34",
+    "start_min": 526.5,
+    "start_sec": 31590.539
+   },
+   {
+    "title": "Chapter 35",
+    "start_min": 542.6,
+    "start_sec": 32557.256
+   },
+   {
+    "title": "Chapter 36",
+    "start_min": 564.4,
+    "start_sec": 33862.844
+   },
+   {
+    "title": "Chapter 37",
+    "start_min": 585.3,
+    "start_sec": 35119.763
+   },
+   {
+    "title": "Chapter 38",
+    "start_min": 599.7,
+    "start_sec": 35983.197
+   },
+   {
+    "title": "Chapter 39",
+    "start_min": 622.7,
+    "start_sec": 37362.974
+   },
+   {
+    "title": "Chapter 40",
+    "start_min": 638.0,
+    "start_sec": 38280.812
+   },
+   {
+    "title": "Chapter 41",
+    "start_min": 651.3,
+    "start_sec": 39079.532
+   },
+   {
+    "title": "Chapter 42",
+    "start_min": 664.8,
+    "start_sec": 39885.055
+   },
+   {
+    "title": "Chapter 43",
+    "start_min": 673.7,
+    "start_sec": 40421.97
+   },
+   {
+    "title": "Chapter 44",
+    "start_min": 693.7,
+    "start_sec": 41622.674
+   },
+   {
+    "title": "Chapter 45",
+    "start_min": 703.8,
+    "start_sec": 42229.249
+   },
+   {
+    "title": "Chapter 46",
+    "start_min": 711.5,
+    "start_sec": 42687.774
+   },
+   {
+    "title": "Chapter 47",
+    "start_min": 725.2,
+    "start_sec": 43510.155
+   }
+  ],
+  "parts": []
+ },
+ "Christmas Staycation": {
+  "source": "m4b",
+  "chapters": [
+   {
+    "title": "Chapter 1",
+    "start_min": 0.0,
+    "start_sec": 0.0
+   },
+   {
+    "title": "Chapter 2",
+    "start_min": 0.4,
+    "start_sec": 26.331
+   },
+   {
+    "title": "Chapter 3",
+    "start_min": 19.4,
+    "start_sec": 1161.276
+   },
+   {
+    "title": "Chapter 4",
+    "start_min": 39.6,
+    "start_sec": 2376.957
+   },
+   {
+    "title": "Chapter 5",
+    "start_min": 53.8,
+    "start_sec": 3228.015
+   },
+   {
+    "title": "Chapter 6",
+    "start_min": 60.1,
+    "start_sec": 3605.966
+   },
+   {
+    "title": "Chapter 7",
+    "start_min": 86.8,
+    "start_sec": 5207.632
+   },
+   {
+    "title": "Chapter 8",
+    "start_min": 97.8,
+    "start_sec": 5868.867
+   },
+   {
+    "title": "Chapter 9",
+    "start_min": 122.4,
+    "start_sec": 7342.01
+   },
+   {
+    "title": "Chapter 10",
+    "start_min": 136.2,
+    "start_sec": 8173.424
+   },
+   {
+    "title": "Chapter 11",
+    "start_min": 160.7,
+    "start_sec": 9641.877
+   },
+   {
+    "title": "Chapter 12",
+    "start_min": 172.2,
+    "start_sec": 10333.135
+   },
+   {
+    "title": "Chapter 13",
+    "start_min": 190.8,
+    "start_sec": 11449.226
+   },
+   {
+    "title": "Chapter 14",
+    "start_min": 208.9,
+    "start_sec": 12532.135
+   },
+   {
+    "title": "Chapter 15",
+    "start_min": 217.4,
+    "start_sec": 13046.41
+   },
+   {
+    "title": "Chapter 16",
+    "start_min": 236.4,
+    "start_sec": 14185.72
+   },
+   {
+    "title": "Chapter 17",
+    "start_min": 256.2,
+    "start_sec": 15372.074
+   },
+   {
+    "title": "Chapter 18",
+    "start_min": 277.4,
+    "start_sec": 16642.276
+   },
+   {
+    "title": "Chapter 19",
+    "start_min": 307.6,
+    "start_sec": 18453.873
+   },
+   {
+    "title": "Chapter 20",
+    "start_min": 338.6,
+    "start_sec": 20315.835
+   },
+   {
+    "title": "Chapter 21",
+    "start_min": 355.6,
+    "start_sec": 21335.144
+   },
+   {
+    "title": "Chapter 22",
+    "start_min": 374.0,
+    "start_sec": 22441.227
+   },
+   {
+    "title": "Chapter 23",
+    "start_min": 393.7,
+    "start_sec": 23624.795
+   },
+   {
+    "title": "Chapter 24",
+    "start_min": 410.3,
+    "start_sec": 24617.332
+   },
+   {
+    "title": "Chapter 25",
+    "start_min": 431.8,
+    "start_sec": 25907.246
+   },
+   {
+    "title": "Chapter 26",
+    "start_min": 442.2,
+    "start_sec": 26530.122
+   },
+   {
+    "title": "Chapter 27",
+    "start_min": 470.3,
+    "start_sec": 28220.929
+   },
+   {
+    "title": "Chapter 28",
+    "start_min": 499.6,
+    "start_sec": 29973.827
+   },
+   {
+    "title": "Chapter 29",
+    "start_min": 517.4,
+    "start_sec": 31043.477
+   },
+   {
+    "title": "Chapter 30",
+    "start_min": 548.8,
+    "start_sec": 32928.241
+   },
+   {
+    "title": "Chapter 31",
+    "start_min": 555.9,
+    "start_sec": 33352.052
+   },
+   {
+    "title": "Chapter 32",
+    "start_min": 586.4,
+    "start_sec": 35183.897
+   },
+   {
+    "title": "Chapter 33",
+    "start_min": 611.3,
+    "start_sec": 36680.632
+   },
+   {
+    "title": "Chapter 34",
+    "start_min": 628.0,
+    "start_sec": 37679.299
+   },
+   {
+    "title": "Chapter 35",
+    "start_min": 642.8,
+    "start_sec": 38570.272
+   },
+   {
+    "title": "Chapter 36",
+    "start_min": 669.7,
+    "start_sec": 40184.361
+   },
+   {
+    "title": "Chapter 37",
+    "start_min": 685.7,
+    "start_sec": 41139.583
+   },
+   {
+    "title": "Chapter 38",
+    "start_min": 698.2,
+    "start_sec": 41891.956
+   },
+   {
+    "title": "Chapter 39",
+    "start_min": 740.7,
+    "start_sec": 44444.99
+   },
+   {
+    "title": "Chapter 40",
+    "start_min": 756.0,
+    "start_sec": 45359.671
+   },
+   {
+    "title": "Chapter 41",
+    "start_min": 779.4,
+    "start_sec": 46764.106
+   },
+   {
+    "title": "Chapter 42",
+    "start_min": 796.5,
+    "start_sec": 47787.294
+   },
+   {
+    "title": "Chapter 43",
+    "start_min": 812.2,
+    "start_sec": 48732.346
+   },
+   {
+    "title": "Chapter 44",
+    "start_min": 835.8,
+    "start_sec": 50146.209
+   },
+   {
+    "title": "Chapter 45",
+    "start_min": 848.8,
+    "start_sec": 50926.91
+   },
+   {
+    "title": "Chapter 46",
+    "start_min": 855.0,
+    "start_sec": 51298.824
+   }
+  ],
+  "parts": []
  }
 }

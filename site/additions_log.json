@@ -1,9 +1,23 @@
 {
  "entries": [
   {
+   "key": "King of Wrath: Kings of Sin|Ana Huang",
+   "title": "King of Wrath: Kings of Sin",
+   "author": "Ana Huang",
+   "added": "2026-11-20",
+   "source": "pipeline"
+  },
+  {
    "key": "Dragon Forged|Dan Michaelson, D.k. Holmberg",
    "title": "Dragon Forged",
    "author": "Dan Michaelson, D.k. Holmberg",
+   "added": "2026-11-20",
+   "source": "pipeline"
+  },
+  {
+   "key": "Christmas Staycation|Meghan Quinn",
+   "title": "Christmas Staycation",
+   "author": "Meghan Quinn",
    "added": "2026-11-20",
    "source": "pipeline"
   },
