@@ -8591,5 +8591,301 @@
   "warnings": [],
   "source": "none",
   "checked_at": 1795233369
+ },
+ "The Bad Date Before Christmas": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1795456696
+ },
+ "SOS Hotel: For a Supernaturally Safe Stay!: SOS Hotel, Book 1 (Unabridged)": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1795456846
+ },
+ "The Hedge Wizard: A LitRPG / Progression Fantasy Adventure (The Hedge Wizard, Book 1) (Unabridged)": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1795456893
+ },
+ "Wait with Me (Unabridged)": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1795456918
+ },
+ "Exoplanet": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1795456948
+ },
+ "Across the Vanishing Sky: Starlight Grove, Book 1 (Unabridged)": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1795457163
+ },
+ "Dragon Blood": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1795457330
+ },
+ "Dragon Heart": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1795457757
+ },
+ "Dragon Mind": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1795457787
+ },
+ "Dragon Skin": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1795457851
+ },
+ "Dragon Touched": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1795458274
+ },
+ "The Caged Dragon: Cycle of Dragons Series, Book 1 (Unabridged)": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1795458528
+ },
+ "Queen's Kestrel 1 (Unabridged)": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1795458562
+ },
+ "His Tesoro: Empire of Royals, Book 1 (Unabridged)": {
+  "warnings": [
+   {
+    "label": "Torture",
+    "source_url": "https://app.thestorygraph.com/book_reviews/1ca690bc-5ef5-46fe-913d-18753d6b85a5/content_warning/51"
+   }
+  ],
+  "source": "web",
+  "checked_at": 1795458831
+ },
+ "A Very Good Bad Idea": {
+  "warnings": [
+   {
+    "label": "Discussions of past child abuse",
+    "source_url": "https://www.goodreads.com/book/show/251582458-a-very-good-bad-idea"
+   },
+   {
+    "label": "Suicide",
+    "source_url": "https://www.goodreads.com/book/show/251582458-a-very-good-bad-idea"
+   },
+   {
+    "label": "Multiple parental deaths",
+    "source_url": "https://www.goodreads.com/book/show/251582458-a-very-good-bad-idea"
+   },
+   {
+    "label": "Death from cancer",
+    "source_url": "https://www.goodreads.com/book/show/251582458-a-very-good-bad-idea"
+   },
+   {
+    "label": "Lack of health insurance",
+    "source_url": "https://www.goodreads.com/book/show/251582458-a-very-good-bad-idea"
+   },
+   {
+    "label": "Homelessness",
+    "source_url": "https://www.goodreads.com/book/show/251582458-a-very-good-bad-idea"
+   },
+   {
+    "label": "Abuse of power by an employer following a serious workplace accident",
+    "source_url": "https://www.goodreads.com/book/show/251582458-a-very-good-bad-idea"
+   },
+   {
+    "label": "Spiders",
+    "source_url": "https://goodreads.com/book/show/251582458"
+   }
+  ],
+  "source": "web",
+  "checked_at": 1795458880
+ },
+ "Magus Reborn (Unabridged)": {
+  "warnings": [
+   {
+    "label": "Profanity",
+    "source_url": "https://www.royalroad.com/fiction/81569/magus-reborn-stubbed"
+   },
+   {
+    "label": "Strong Language",
+    "source_url": "https://www.scribblehub.com/series/1005973/magus-reborn-stubbing-in-seven-weeks/"
+   }
+  ],
+  "source": "web",
+  "checked_at": 1795458916
+ },
+ "Vigil's Justice: Vigil Bound, Book 1 (Unabridged)": {
+  "warnings": [
+   {
+    "label": "Graphic Violence",
+    "source_url": "https://www.royalroad.com/fiction/38587/vigils-justice-vigil-bound-book-1"
+   },
+   {
+    "label": "Profanity",
+    "source_url": "https://www.royalroad.com/fiction/38587/vigils-justice-vigil-bound-book-1"
+   }
+  ],
+  "source": "web",
+  "checked_at": 1795458948
+ },
+ "Emma: An Audible Original Drama": {
+  "warnings": [
+   {
+    "label": "Classism",
+    "source_url": "https://hardcover.app/books/emma"
+   },
+   {
+    "label": "Racism",
+    "source_url": "https://hardcover.app/books/emma"
+   },
+   {
+    "label": "Emotional abuse",
+    "source_url": "https://hardcover.app/books/emma"
+   },
+   {
+    "label": "Sexual assault",
+    "source_url": "https://hardcover.app/books/emma"
+   },
+   {
+    "label": "gaslighting",
+    "source_url": "https://hardcover.app/books/emma"
+   },
+   {
+    "label": "Adult/minor relationship",
+    "source_url": "https://hardcover.app/books/emma"
+   }
+  ],
+  "source": "hardcover",
+  "checked_at": 1795458949
+ },
+ "Sense and Sensibility (Unabridged)": {
+  "warnings": [
+   {
+    "label": "misogyny",
+    "source_url": "https://hardcover.app/books/pride-and-prejudice"
+   },
+   {
+    "label": "Classism",
+    "source_url": "https://hardcover.app/books/pride-and-prejudice"
+   },
+   {
+    "label": "Adult/minor relationship",
+    "source_url": "https://hardcover.app/books/pride-and-prejudice"
+   },
+   {
+    "label": "Death of parent",
+    "source_url": "https://hardcover.app/books/pride-and-prejudice"
+   }
+  ],
+  "source": "hardcover",
+  "checked_at": 1795458949
+ },
+ "Rejected: Shadow Beast Shifters, Book 1 (Unabridged)": {
+  "warnings": [
+   {
+    "label": "Domestic abuse",
+    "source_url": "https://app.thestorygraph.com/book_reviews/6c0073af-0a6d-4be5-b86f-1f232bcc5605/content_warning/19"
+   }
+  ],
+  "source": "web",
+  "checked_at": 1795459808
+ },
+ "Crown of Shadows: Court of Midnight and Deception, Book 1 (Unabridged)": {
+  "warnings": [
+   {
+    "label": "gambling",
+    "source_url": "https://www.romance.io/books/5fb77787e7771d0dfecae6c0/crown-of-shadows-k-m-shea"
+   },
+   {
+    "label": "death / grief",
+    "source_url": "https://www.romance.io/books/5fb77787e7771d0dfecae6c0/crown-of-shadows-k-m-shea"
+   },
+   {
+    "label": "racism",
+    "source_url": "https://www.romance.io/books/5fb77787e7771d0dfecae6c0/crown-of-shadows-k-m-shea"
+   },
+   {
+    "label": "animal abuse",
+    "source_url": "https://www.romance.io/books/5fb77787e7771d0dfecae6c0/crown-of-shadows-k-m-shea"
+   }
+  ],
+  "source": "web",
+  "checked_at": 1795459929
+ },
+ "Mender Magic: Tales of Simple Magic, Book 1 (Unabridged)": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1795459966
+ },
+ "Lovers & Liars": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1795459993
+ },
+ "All She Wants for Christmas: A simmering story of obsession (Unabridged)": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1795460029
+ },
+ "The Holiday Book Club": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1795460166
+ },
+ "Awakening Horde: Shieldwall Academy, Book 1 (Unabridged)": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1795460307
+ },
+ "Meetings with the Minotaur: Love at Labyrinth Solutions, Book 1 (Unabridged)": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1795460357
+ },
+ "Battleforged: Survivor: Battleforged, Book 1 (Unabridged)": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1795460383
+ },
+ "Unwanted: Men and Monsters, Book 1 (Unabridged)": {
+  "warnings": [
+   {
+    "label": "animal death",
+    "source_url": "https://hardcover.app/books/unwanted-11c524c4-792d-4926-afe6-eed3c5417395"
+   },
+   {
+    "label": "Child abuse",
+    "source_url": "https://hardcover.app/books/unwanted-11c524c4-792d-4926-afe6-eed3c5417395"
+   }
+  ],
+  "source": "hardcover",
+  "checked_at": 1795460384
+ },
+ "The Bright Side of Christmas: Holly Ridge, Book 1 (Unabridged)": {
+  "warnings": [
+   {
+    "label": "Sexual content (Graphic)",
+    "source_url": "https://app.thestorygraph.com/book_reviews/f5fad514-b9d1-4eb7-869e-389706e3948d/content_warning/45"
+   },
+   {
+    "label": "Cursing (Moderate)",
+    "source_url": "https://app.thestorygraph.com/book_reviews/f5fad514-b9d1-4eb7-869e-389706e3948d/content_warning/45"
+   },
+   {
+    "label": "Grief (Moderate)",
+    "source_url": "https://app.thestorygraph.com/book_reviews/f5fad514-b9d1-4eb7-869e-389706e3948d/content_warning/45"
+   },
+   {
+    "label": "Death (Minor)",
+    "source_url": "https://app.thestorygraph.com/book_reviews/f5fad514-b9d1-4eb7-869e-389706e3948d/content_warning/45"
+   }
+  ],
+  "source": "web",
+  "checked_at": 1795460431
  }
 }
