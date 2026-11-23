@@ -266,6 +266,105 @@ def test_lock_held_defers_watcher_and_completion_rebaselines(env):
     assert st["foreign_run"] is None
 
 
+FAKE_PID = 987654  # never a real pid: liveness is always monkeypatched below
+
+
+def _write_foreign_lock(env, alive: bool):
+    """A foreign run's lock with a fake pid whose liveness the test controls —
+    never the machine's real pids."""
+    from datetime import datetime, timezone
+
+    pl.LOCK_PATH.write_text(json.dumps({
+        "pid": FAKE_PID, "host": "TESTHOST", "trigger": "scheduled",
+        "started_at": datetime.now(timezone.utc).isoformat(),
+    }), encoding="utf-8")
+    liveness = {"alive": alive}
+    env.monkeypatch.setattr(pl, "pid_alive", lambda pid: liveness["alive"] if pid == FAKE_PID else False)
+    return liveness
+
+
+def test_live_foreign_holder_is_observed_exactly_as_before(env, capsys):
+    _init_baseline(env)
+    _add_book(env.root, "Author/Book.m4b")
+    fsw.poll_once()
+    _settle(env)
+    _write_foreign_lock(env, alive=True)
+    assert fsw.poll_once() == 0
+    assert fsw.poll_once() == 0
+    assert env.calls == []
+    st = _state()
+    assert st["pending"] != {}
+    assert st["foreign_run"].startswith(f"pid {FAKE_PID} on TESTHOST")
+    out = capsys.readouterr().out
+    assert out.count("observing, not evaluating") == 1
+    assert "leftover" not in out
+
+
+def test_dead_holder_with_lock_present_is_not_in_flight(env, capsys):
+    """2026-11-23: a killed run's lock stays on disk. It must not freeze the
+    watcher — and the watcher must not delete it (acquire() reclaims)."""
+    _init_baseline(env)
+    _write_foreign_lock(env, alive=False)
+    _add_book(env.root, "Author/Book.m4b")
+    fsw.poll_once()
+    _settle(env)
+    assert fsw.poll_once() == 0
+    assert len(env.calls) == 1  # fired: the leftover is not a run in flight
+    assert pl.LOCK_PATH.exists()  # left for the child's acquire() to reclaim
+    out = capsys.readouterr().out
+    assert out.count("pipeline lock is a leftover") == 1  # said once, not per tick
+    assert f"pid {FAKE_PID} is not running" in out
+    assert "observing" not in out
+    assert _state()["foreign_run"] is None
+
+
+def test_observed_run_that_died_keeps_pending_and_fires(env, capsys):
+    """The incident itself: the watcher observed a live run, the run was
+    killed (lock left, pid dead). Pending must survive and a run must fire
+    after cooldown — never 're-baselining without firing'."""
+    _init_baseline(env)
+    _add_book(env.root, "Author/Book.m4b")
+    fsw.poll_once()
+    _settle(env)
+    liveness = _write_foreign_lock(env, alive=True)
+    fsw.poll_once()  # observing
+    assert env.calls == []
+    liveness["alive"] = False  # killed mid-run; lock stays on disk
+    fsw.poll_once()
+    out = capsys.readouterr().out
+    assert "did NOT finish" in out
+    assert "re-baselining" not in out
+    st = _state()
+    assert "f:Author/Book.m4b" in st["pending"]
+    assert "Author/Book.m4b" not in st["baseline"]["files"]
+    assert st["foreign_run"] is None
+    assert st["fail_streak"] == 1  # the one shared fail-streak model
+    assert env.calls == []  # cooling down, as after our own failed child
+    fsw.poll_once()
+    assert env.calls == [] and _state()["fail_streak"] == 1  # counted once, not per tick
+    env.clock["t"] += fsw.COOLDOWN_MIN * 60 + 1
+    fsw.poll_once()
+    assert len(env.calls) == 1
+    assert _state()["pending"] == {} and _state()["fail_streak"] == 0
+
+
+def test_observed_run_that_released_its_lock_still_rebaselines(env, capsys):
+    _init_baseline(env)
+    _add_book(env.root, "Author/Book.m4b")
+    fsw.poll_once()
+    _settle(env)
+    _write_foreign_lock(env, alive=True)
+    fsw.poll_once()  # observing
+    pl.LOCK_PATH.unlink()  # the run's finally released it; its pid then exits
+    env.monkeypatch.setattr(pl, "pid_alive", lambda pid: False)
+    fsw.poll_once()
+    assert env.calls == []
+    st = _state()
+    assert st["pending"] == {}
+    assert "Author/Book.m4b" in st["baseline"]["files"]
+    assert "completed — re-baselining without firing" in capsys.readouterr().out
+
+
 def test_scheduled_defer_machinery_defers_around_a_reactive_holder(env, tmp_path):
     """The other direction: while OUR reactive run holds the single-flight
     lock, the true 8h slot must defer-not-skip around it — the existing

@@ -160,6 +160,54 @@ def _iso_now() -> str:
 
 
 # ---------------------------------------------------------------------------
+# lock_status() — the observers' one answer to "is a run in flight?"
+# (incidents 2026-11-21 / 2026-11-23). Liveness is monkeypatched: these must
+# not depend on which pids happen to exist on this machine.
+# ---------------------------------------------------------------------------
+
+
+def test_lock_status_free_when_no_file():
+    assert pl.lock_status() == (pl.LOCK_FREE, None)
+
+
+def test_lock_status_held_for_live_fresh_holder(monkeypatch):
+    monkeypatch.setattr(pl, "pid_alive", lambda pid: True)
+    _write_raw_lock(pid=4242, started_at=_iso_now())
+    state, holder = pl.lock_status()
+    assert state == pl.LOCK_HELD and holder.pid == 4242
+
+
+def test_lock_status_leftover_for_dead_holder_and_never_deletes(monkeypatch):
+    monkeypatch.setattr(pl, "pid_alive", lambda pid: False)
+    _write_raw_lock(pid=4242, started_at=_iso_now(), trigger="reactive")
+    state, holder = pl.lock_status()
+    assert state == pl.LOCK_LEFTOVER and holder.pid == 4242
+    assert pl.LOCK_PATH.exists()
+    line = pl.describe_leftover(holder)
+    assert "pid 4242 is not running" in line and "trigger=reactive" in line
+    assert "acquire() reclaims it" in line
+
+
+def test_lock_status_leftover_for_live_holder_past_ceiling(monkeypatch):
+    monkeypatch.setattr(pl, "pid_alive", lambda pid: True)
+    old = datetime.now(timezone.utc) - timedelta(hours=pl.STALE_LOCK_HOURS + 0.5)
+    _write_raw_lock(pid=4242, started_at=old.isoformat())
+    state, holder = pl.lock_status()
+    assert state == pl.LOCK_LEFTOVER
+    assert "stale ceiling" in pl.describe_leftover(holder)
+    assert "not running" not in pl.describe_leftover(holder)
+
+
+def test_lock_status_unreadable_fresh_is_held_old_is_leftover():
+    pl.LOCK_PATH.write_text("{not valid json", encoding="utf-8")
+    assert pl.lock_status() == (pl.LOCK_HELD, None)  # same answer acquire() gives
+    old_ts = time.time() - (pl.STALE_LOCK_HOURS + 1) * 3600
+    os.utime(pl.LOCK_PATH, (old_ts, old_ts))
+    assert pl.lock_status() == (pl.LOCK_LEFTOVER, None)
+    assert "unreadable" in pl.describe_leftover(None)
+
+
+# ---------------------------------------------------------------------------
 # REAL cross-process exercises (no mocks) — see tests/_pipeline_lock_holder.py
 # ---------------------------------------------------------------------------
 

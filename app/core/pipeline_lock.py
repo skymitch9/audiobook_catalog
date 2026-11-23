@@ -215,6 +215,56 @@ def current_holder() -> LockHolder | None:
     return _read_holder()
 
 
+# ⚠️ "The lock file exists" is NOT "a run is in flight" (incidents 2026-11-21
+# and 2026-11-23). A run that is killed — Task Manager, a reboot, a closed
+# console — never reaches its `finally`, so its lock stays on disk with a dead
+# pid in it. acquire() has always known that (it reclaims via _is_stale()),
+# but the OBSERVERS tested LOCK_PATH.exists(): on 2026-11-21 a reboot's
+# leftover made every 15-minute purchase-audit tick skip for 7.5 hours, and on
+# 2026-11-23 fs_watcher sat "observing" dead pid 65744 and then dropped 19
+# audiobooks + 22 ebooks of pending changes as "already ingested". This is the
+# ONE answer to "is a run genuinely in flight?" — it applies acquire()'s own
+# reclaim rule, so an observer and the next run can never disagree about it.
+LOCK_FREE = "free"
+LOCK_HELD = "held"          # a run is genuinely in flight — acquire() would refuse
+LOCK_LEFTOVER = "leftover"  # file present, but acquire() would reclaim it
+
+
+def lock_status() -> tuple[str, LockHolder | None]:
+    """(state, holder) for the lock right now. state is LOCK_FREE, LOCK_HELD
+    or LOCK_LEFTOVER; holder is None when free or when the file is unreadable.
+
+    An unreadable lock younger than STALE_LOCK_HOURS is HELD (a run may be
+    mid-write of its own lock file) — the same answer acquire() gives.
+    Never deletes anything: reclaiming stays acquire()'s job."""
+    if not LOCK_PATH.exists():
+        return LOCK_FREE, None
+    holder = _read_holder()
+    if holder is None and not LOCK_PATH.exists():
+        return LOCK_FREE, None  # released between the two reads
+    if _is_stale(holder):
+        return LOCK_LEFTOVER, holder
+    return LOCK_HELD, holder
+
+
+def describe_leftover(holder: LockHolder | None) -> str:
+    """The one log line an observer prints for a LOCK_LEFTOVER lock. True for
+    both reclaim signals — a dead pid OR a live-but-wedged run past the
+    ceiling — because "not live" alone would be false for the second."""
+    if holder is None:
+        why = f"unreadable and older than the {STALE_LOCK_HOURS:g}h stale ceiling"
+        who = "unreadable lock file"
+    else:
+        why = (f"pid {holder.pid} is not running" if not pid_alive(holder.pid)
+               else f"past the {STALE_LOCK_HOURS:g}h stale ceiling")
+        who = holder.describe()
+    return (
+        f"pipeline lock is a leftover, not a run in flight ({who}): {why} — "
+        "proceeding as if no run is in flight. Leaving the file alone: the next "
+        "run's acquire() reclaims it."
+    )
+
+
 class PipelineLock:
     """Context manager for the single-flight lock.
 

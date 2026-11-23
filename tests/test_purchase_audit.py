@@ -169,18 +169,55 @@ def test_classify_treats_no_source_and_a_timeout_as_failing():
 # ---------------------------------------------------------------------------
 
 
-def test_a_pipeline_run_in_flight_defers_and_changes_nothing(tick, monkeypatch):
-    calls = _wire(monkeypatch, pa.TickOutcome(True, 0, 0, "0 new"))
-    _seed(interval_minutes=15, last_attempt=0.0)
+def _foreign_lock(monkeypatch, *, alive: bool, hours_ago: float = 0.0) -> None:
+    """A lock with a fake pid whose liveness the test controls (never a real
+    pid of this machine). Liveness is now consulted — see
+    pipeline_lock.lock_status() and the 2026-11-21 incident."""
+    from datetime import datetime, timedelta, timezone
+
+    started = datetime.now(timezone.utc) - timedelta(hours=hours_ago)
     pl.LOCK_PATH.write_text(json.dumps(
         {"pid": 999999, "host": "h", "trigger": "scheduled",
-         "started_at": "2026-09-05T20:00:00+00:00"}), encoding="utf-8")
+         "started_at": started.isoformat()}), encoding="utf-8")
+    monkeypatch.setattr(pl, "pid_alive", lambda pid: alive and pid == 999999)
+
+
+def test_a_pipeline_run_in_flight_defers_and_changes_nothing(tick, monkeypatch, capsys):
+    calls = _wire(monkeypatch, pa.TickOutcome(True, 0, 0, "0 new"))
+    _seed(interval_minutes=15, last_attempt=0.0)
+    _foreign_lock(monkeypatch, alive=True)
 
     assert pa.poll_once() == 0
     assert calls["audits"] == 0, "a deferred tick must not contact Audible"
     assert _state()["last_attempt"] == 0.0, "a deferral is not a completed tick"
     assert _state()["interval_minutes"] == 15, "a deferral is not a failure"
     assert _state()["consecutive_errors"] == 0
+    assert "skipped-locked — a pipeline run is in flight (pid 999999" in capsys.readouterr().out
+
+
+def test_a_dead_runs_leftover_lock_does_not_skip_the_audit(tick, monkeypatch, capsys):
+    """⚠️ 2026-11-21: a reboot left the lock on disk and every 15-minute tick
+    skipped for 7.5 hours. A dead holder is not a run in flight."""
+    calls = _wire(monkeypatch, pa.TickOutcome(True, 0, 0, "0 new — library is current"))
+    _seed(last_attempt=0.0)
+    _foreign_lock(monkeypatch, alive=False)
+
+    assert pa.poll_once() == 0
+    assert calls["audits"] == 1
+    out = capsys.readouterr().out
+    assert "skipped-locked" not in out
+    assert "pipeline lock is a leftover" in out and "pid 999999 is not running" in out
+    assert pl.LOCK_PATH.exists(), "an observer never deletes the lock — acquire() reclaims it"
+
+
+def test_a_live_but_wedged_holder_past_the_ceiling_is_a_leftover_too(tick, monkeypatch, capsys):
+    calls = _wire(monkeypatch, pa.TickOutcome(True, 0, 0, "0 new — library is current"))
+    _seed(last_attempt=0.0)
+    _foreign_lock(monkeypatch, alive=True, hours_ago=pl.STALE_LOCK_HOURS + 1)
+
+    assert pa.poll_once() == 0
+    assert calls["audits"] == 1
+    assert "stale ceiling" in capsys.readouterr().out
 
 
 def test_the_8h_task_running_defers_even_though_the_pipeline_lock_is_free(tick, monkeypatch):
