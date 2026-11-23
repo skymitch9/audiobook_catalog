@@ -303,6 +303,126 @@ def test_ambiguous_is_a_tuple_so_callers_must_isinstance_first():
 
 
 # ---------------------------------------------------------------------------
+# The AI author check is TRI-STATE (2026-11-23: 'Alex Maher' scored 80 against
+# the different author 'Alex Aster' and was skipped at [REVIEW]). No real
+# network: requests.post is always faked.
+# ---------------------------------------------------------------------------
+
+
+class _FakeResponse:
+    def __init__(self, status_code=200, text="NONE"):
+        self.status_code = status_code
+        self.text = text
+
+    def json(self):
+        return {"content": [{"text": self.text}]}
+
+
+def _fake_claude(monkeypatch, *, answer="NONE", status=200, raises=None):
+    """Fake the Messages API; records the folder list each prompt carried."""
+    import requests
+
+    seen: list[str] = []
+
+    def post(url, headers=None, json=None, timeout=None):
+        seen.append(json["messages"][0]["content"])
+        if raises:
+            raise raises
+        return _FakeResponse(status, answer)
+
+    monkeypatch.setattr(sync, "CLAUDE_API_KEY", "test-key")
+    monkeypatch.setattr(requests, "post", post)
+    return seen
+
+
+def _headless_no_input(monkeypatch):
+    monkeypatch.setattr(sync, "NON_INTERACTIVE", True)
+    monkeypatch.setattr("builtins.input", lambda *a, **k: pytest.fail("must not prompt"))
+
+
+def test_explicit_no_match_on_a_fuzzy_80_is_a_new_author(monkeypatch, capsys):
+    """The incident: the model's explicit NONE is the verdict — new folder
+    (None), no prompt, no AmbiguousAuthorFolder."""
+    _headless_no_input(monkeypatch)
+    _fake_claude(monkeypatch, answer="NONE")
+    from thefuzz import fuzz
+    monkeypatch.setattr(fuzz, "token_sort_ratio", lambda a, b: 80)
+
+    result = sync.resolve_author_to_drive_folder("Alex Maher", {"Alex Aster": "fid-aster"})
+
+    assert result is None
+    out = capsys.readouterr().out
+    assert "[CLAUDE] 'Alex Maher' is not any existing folder (closest: 'Alex Aster' 80) — new author" in out
+    assert "[REVIEW]" not in out
+
+
+def test_unavailable_on_a_fuzzy_80_unattended_is_still_review(monkeypatch):
+    _headless_no_input(monkeypatch)
+    _fake_claude(monkeypatch, status=529, answer="overloaded")
+    from thefuzz import fuzz
+    monkeypatch.setattr(fuzz, "token_sort_ratio", lambda a, b: 80)
+
+    result = sync.resolve_author_to_drive_folder("Alex Maher", {"Alex Aster": "fid-aster"})
+
+    assert isinstance(result, sync.AmbiguousAuthorFolder)
+    assert (result.best_name, result.score) == ("Alex Aster", 80)
+
+
+def test_claude_match_returns_that_folder(monkeypatch):
+    _headless_no_input(monkeypatch)
+    _fake_claude(monkeypatch, answer='"Robert Jordamn"')
+    from thefuzz import fuzz
+    monkeypatch.setattr(fuzz, "token_sort_ratio", lambda a, b: 85)
+
+    result = sync.resolve_author_to_drive_folder(
+        "Robert Jordan", {"Robert Jordamn": "folder-xyz", "Other": "o"},
+    )
+    assert result == ("Robert Jordamn", "folder-xyz")
+
+
+def test_api_exception_is_unavailable(monkeypatch):
+    _fake_claude(monkeypatch, raises=ConnectionError("network down"))
+    verdict = sync.ask_claude_for_match("Alex Maher", ["Alex Aster"])
+    assert verdict.kind == sync.CLAUDE_UNAVAILABLE and verdict.folder is None
+
+
+def test_no_key_is_unavailable(monkeypatch):
+    monkeypatch.setattr(sync, "CLAUDE_API_KEY", None)
+    assert sync.ask_claude_for_match("A", ["B"]).kind == sync.CLAUDE_UNAVAILABLE
+
+
+@pytest.mark.parametrize("answer, kind", [
+    ("NONE", sync.CLAUDE_NO_MATCH),
+    ('"NONE"', sync.CLAUDE_NO_MATCH),
+    ("None.", sync.CLAUDE_NO_MATCH),
+    ("NONE of these, but maybe Alex Aster", sync.CLAUDE_UNAVAILABLE),
+    ("I am not sure", sync.CLAUDE_UNAVAILABLE),
+    ("", sync.CLAUDE_UNAVAILABLE),
+    ("Alex Asterisk", sync.CLAUDE_UNAVAILABLE),  # names a folder that does not exist
+    ("Alex Aster", sync.CLAUDE_MATCH),
+])
+def test_answer_parsing_is_strict(monkeypatch, answer, kind):
+    _fake_claude(monkeypatch, answer=answer)
+    verdict = sync.ask_claude_for_match("Alex Maher", ["Alex Aster", "Brandon Sanderson"])
+    assert verdict.kind == kind
+    if kind == sync.CLAUDE_MATCH:
+        assert verdict.folder == "Alex Aster"
+
+
+def test_the_closest_folder_is_always_among_those_shown(monkeypatch):
+    """A NONE only speaks for the folders the model saw, and only the first
+    CLAUDE_MAX_FOLDERS_SHOWN are sent. The matcher orders closest-first, so a
+    near match deep in Drive order is still in the prompt."""
+    _headless_no_input(monkeypatch)
+    seen = _fake_claude(monkeypatch, answer="NONE")
+    folders = {f"Unrelated Author {i:03d}": f"id{i}" for i in range(120)}
+    folders["Alex Aster"] = "fid-aster"  # last in Drive order
+    result = sync.resolve_author_to_drive_folder("Alex Maher", folders)
+    assert '"Alex Aster"' in seen[0]
+    assert result is None  # real fuzz: 'Alex Maher' ~ 'Alex Aster' is 80, and the NONE covers it
+
+
+# ---------------------------------------------------------------------------
 # F3 — corrupt manifest degrades to empty; writes are atomic
 # ---------------------------------------------------------------------------
 
