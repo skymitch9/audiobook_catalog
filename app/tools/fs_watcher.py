@@ -332,14 +332,24 @@ def _fire(state: dict, summary: str) -> None:
     auto_acquire is not prepended) with PIPELINE_TRIGGER=reactive. The child
     takes the single-flight lock itself; a lost race exits nonzero and the
     pending state simply persists for the next tick."""
-    env = dict(os.environ, PYTHONIOENCODING="utf-8", PIPELINE_TRIGGER="reactive")
+    # ⚠️ SYNC_NON_INTERACTIVE + stdin=DEVNULL (2026-11-23). A reactive run has
+    # nobody at a keyboard, but this child used to inherit the watcher's console
+    # stdin and no override, so sync_to_drive.is_interactive() said True and
+    # STEP 4 blocked on `Use 'Alex Aster'? (y/n):` for a fuzzy author match —
+    # holding the single-flight lock (a LIVE holder keeps it for 4 hours) with
+    # 19 downloads unfiled. The three .bat launchers set this flag; this was
+    # the one launch path that did not. Both halves on purpose: the flag is the
+    # decision, DEVNULL makes a stray input() fail fast instead of hanging.
+    env = dict(os.environ, PYTHONIOENCODING="utf-8", PIPELINE_TRIGGER="reactive",
+               SYNC_NON_INTERACTIVE="1")
     LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
     cmd = [sys.executable, str(PROJECT_ROOT / "scripts" / "sync_to_drive.py")]
     with open(LOG_PATH, "a", encoding="utf-8", errors="replace") as log:
         log.write(f"\n================= REACTIVE RUN {datetime.now()} ({summary}) =================\n")
         log.flush()
         _log(f"settled ({summary}) — running: {' '.join(cmd[1:])} (trigger=reactive)")
-        rc = subprocess.call(cmd, cwd=str(PROJECT_ROOT), env=env, stdout=log, stderr=log)
+        rc = subprocess.call(cmd, cwd=str(PROJECT_ROOT), env=env, stdout=log, stderr=log,
+                             stdin=subprocess.DEVNULL)
         _log(f"  exit={rc}")
     state["last_fire"] = _now()
     if rc == 0:
