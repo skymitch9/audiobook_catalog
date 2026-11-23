@@ -816,25 +816,56 @@ def detect_new_books(
 # ---------------------------------------------------------------------------
 
 
+# ⚠️ TRI-STATE, NOT str|None (2026-11-23). 'Alex Maher' (The Hedge Wizard)
+# scored 80 against the existing folder 'Alex Aster' — a different person —
+# and the file was skipped at [REVIEW] until a human created the folder.
+# ask_claude_for_match() returned None for BOTH "the model said NONE" and "the
+# call failed / no key", so the matcher could not tell a verdict from an
+# outage and had to treat every None as "ask a human". An explicit NONE is now
+# NO_MATCH (the owner-approved judgement call: a new author); anything short of
+# a clean answer is UNAVAILABLE and keeps the old prompt/REVIEW path.
+CLAUDE_MATCH = "match"
+CLAUDE_NO_MATCH = "no_match"
+CLAUDE_UNAVAILABLE = "unavailable"
+CLAUDE_MAX_FOLDERS_SHOWN = 50
+
+
+class ClaudeVerdict(NamedTuple):
+    """ask_claude_for_match()'s answer. ``folder`` is set only for MATCH;
+    ``shown`` is exactly the folder names the model was asked about — a NONE
+    only speaks for those."""
+
+    kind: str
+    folder: str | None = None
+    shown: tuple[str, ...] = ()
+
+
 def ask_claude_for_match(
     author_name: str, drive_folder_names: list[str]
-) -> str | None:
+) -> ClaudeVerdict:
     """
-    Ask Claude to determine if an author name matches any existing Drive folder.
-    Returns the matched folder name, or None if it's a genuinely new author.
+    Ask Claude whether an author name matches an existing Drive folder.
+
+    Returns ClaudeVerdict(MATCH, folder) / ClaudeVerdict(NO_MATCH) only on a
+    clean answer: an exact folder name from the list, or the single word NONE.
+    No key, an API error, an exception, or any other answer (including a folder
+    name that is not in the list) is UNAVAILABLE. Only the first
+    CLAUDE_MAX_FOLDERS_SHOWN names are sent, so callers pass the list ordered
+    closest-first.
     """
+    shown = tuple(drive_folder_names[:CLAUDE_MAX_FOLDERS_SHOWN])
+    unavailable = ClaudeVerdict(CLAUDE_UNAVAILABLE, None, shown)
     if not CLAUDE_API_KEY:
-        return None
+        return unavailable
 
     import requests
 
-    # Only send top 20 candidates (pre-filtered by fuzzy) to keep prompt small
     prompt = f"""I have an audiobook library on Google Drive organized by author folders.
 I need to file a book by the author "{author_name}".
 
 Here are the existing folder names on Drive (some may have multiple authors, dashes with extra info, or slight name variations):
 
-{json.dumps(drive_folder_names[:50], indent=2)}
+{json.dumps(list(shown), indent=2)}
 
 Does "{author_name}" match any of these existing folders? Consider:
 - Name variations (J.K. Rowling vs JK Rowling vs J. K. Rowling)
@@ -864,25 +895,23 @@ Your response (just the folder name or NONE):"""
             },
             timeout=30,
         )
-        if response.status_code == 200:
-            result = response.json()
-            answer = result["content"][0]["text"].strip()
-            if answer == "NONE" or answer == '"NONE"':
-                return None
-            # Verify the answer is actually in our folder list
-            if answer in drive_folder_names:
-                return answer
-            # Try stripping quotes
-            cleaned = answer.strip('"').strip("'")
-            if cleaned in drive_folder_names:
-                return cleaned
-            return None
-        else:
+        if response.status_code != 200:
             print(f"  [WARN] Claude API error {response.status_code}: {response.text[:100]}")
-            return None
+            return unavailable
+        answer = response.json()["content"][0]["text"].strip()
     except Exception as e:
         print(f"  [WARN] Claude API call failed: {e}")
-        return None
+        return unavailable
+    # A folder name must be one it was SHOWN, copied exactly (quotes allowed).
+    cleaned = answer.strip('"').strip("'").strip()
+    for candidate in (answer, cleaned):
+        if candidate in shown:
+            return ClaudeVerdict(CLAUDE_MATCH, candidate, shown)
+    # NONE must be the whole answer — "NONE of these, but maybe X" is not one.
+    if cleaned.rstrip(".").strip().upper() == "NONE":
+        return ClaudeVerdict(CLAUDE_NO_MATCH, None, shown)
+    print(f"  [WARN] Claude answer not usable for '{author_name}': {answer[:100]!r}")
+    return unavailable
 
 
 # ---------------------------------------------------------------------------
@@ -946,13 +975,12 @@ def resolve_author_to_drive_folder(
     # 4. Fuzzy match
     from thefuzz import fuzz
 
-    scored = []
-    for folder_name in drive_folders:
-        score = fuzz.token_sort_ratio(author_name.lower(), folder_name.lower())
-        if score >= FUZZY_THRESHOLD:
-            scored.append((folder_name, score))
-
-    scored.sort(key=lambda x: x[1], reverse=True)
+    all_scored = sorted(
+        ((folder_name, fuzz.token_sort_ratio(author_name.lower(), folder_name.lower()))
+         for folder_name in drive_folders),
+        key=lambda x: x[1], reverse=True,
+    )
+    scored = [(name, score) for name, score in all_scored if score >= FUZZY_THRESHOLD]
 
     # If we have a very high fuzzy match (>=92), use it directly
     if scored and scored[0][1] >= 92:
@@ -960,14 +988,25 @@ def resolve_author_to_drive_folder(
         print(f"  [MATCH] '{author_name}' -> '{match_name}' (score: {scored[0][1]})")
         return (match_name, drive_folders[match_name])
 
-    # 5. Ask Claude for ambiguous cases
+    # 5. Ask Claude for ambiguous cases. Folder names go closest-first: the
+    # prompt carries only the first CLAUDE_MAX_FOLDERS_SHOWN, and a NONE only
+    # speaks for the folders the model actually saw (2026-11-23 — before this
+    # it got the first 50 in Drive order, which need not include the match).
     if CLAUDE_API_KEY:
-        # Send all folder names for Claude to consider
-        all_folder_names = list(drive_folders.keys())
-        claude_match = ask_claude_for_match(author_name, all_folder_names)
-        if claude_match and claude_match in drive_folders:
-            print(f"  [CLAUDE] '{author_name}' -> '{claude_match}'")
-            return (claude_match, drive_folders[claude_match])
+        verdict = ask_claude_for_match(author_name, [name for name, _s in all_scored])
+        if verdict.kind == CLAUDE_MATCH and verdict.folder in drive_folders:
+            print(f"  [CLAUDE] '{author_name}' -> '{verdict.folder}'")
+            return (verdict.folder, drive_folders[verdict.folder])
+        # NO_MATCH: the model was asked and explicitly said none of these is
+        # this author. That verdict IS the judgement step 6 would otherwise
+        # wait for a human to make, so it is a new author — no prompt, no
+        # REVIEW (owner-approved 2026-11-23). Guarded: if the closest fuzzy
+        # candidate was somehow not among the names shown, the verdict does
+        # not cover it and we fall through as UNAVAILABLE.
+        if verdict.kind == CLAUDE_NO_MATCH and (not scored or scored[0][0] in verdict.shown):
+            closest = f"'{all_scored[0][0]}' {all_scored[0][1]}" if all_scored else "none"
+            print(f"  [CLAUDE] '{author_name}' is not any existing folder (closest: {closest}) — new author")
+            return None
 
     # 6. If we have a decent fuzzy match, confirm with a HUMAN — but only when
     # one is actually at the console. (F2, 2026-08-24; outcome corrected
@@ -981,8 +1020,9 @@ def resolve_author_to_drive_folder(
     # blocks rather than EOFs, it hangs instead, holding the single-flight lock
     # until STALE_LOCK_HOURS reclaims it. Either way one ambiguous author must
     # never take down the run. This path is far more reachable than it looks
-    # whenever the Claude key is dead (ask_claude_for_match returns None on any
-    # API error), which is exactly the state commit db62d65 flags.
+    # whenever the Claude key is dead (ask_claude_for_match returns UNAVAILABLE
+    # on any API error), which is exactly the state commit db62d65 flags. An
+    # explicit NO_MATCH never reaches here (step 5 returns None for it).
     #
     # So: only prompt when is_interactive() (a real TTY and no explicit
     # --non-interactive / SYNC_NON_INTERACTIVE override).

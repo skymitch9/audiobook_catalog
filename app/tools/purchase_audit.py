@@ -509,12 +509,17 @@ def _tick(dry_run: bool = False) -> int:
     # ⚠️ DEFER, DON'T COLLIDE — and do NOT touch the back-off or last_attempt.
     # A deferral is not a failure and not a completed tick: the next tick
     # should try again as soon as the way is clear.
-    if pipeline_lock.LOCK_PATH.exists():
-        holder = pipeline_lock.current_holder()
+    # ⚠️ Liveness, not existence (2026-11-21: a reboot's leftover lock made
+    # every tick skip for 7.5h). pipeline_lock.lock_status() is the canonical
+    # answer; a leftover is logged and audited past, never deleted here.
+    lock_state, holder = pipeline_lock.lock_status()
+    if lock_state == pipeline_lock.LOCK_HELD:
         who = holder.describe() if holder else "unreadable lock file"
         _log(f"skipped-locked — a pipeline run is in flight ({who}). "
              "Nothing audited; the back-off is unchanged.")
         return 0
+    if lock_state == pipeline_lock.LOCK_LEFTOVER:
+        _log(pipeline_lock.describe_leftover(holder))
 
     running = sync_task_running()
     if running:

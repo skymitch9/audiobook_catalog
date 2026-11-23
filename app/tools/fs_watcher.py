@@ -57,7 +57,9 @@ firing — a completed full run already ingested whatever the tree held (its
 own sort step is what moved the files, which would otherwise look like fresh
 deltas and trigger a pointless run after every scheduled slot). The
 vanishingly rare race (a book settling in the final minute of a foreign run)
-is precisely what the retained 8h self-heal pass covers.
+is precisely what the retained 8h self-heal pass covers. A run that DIED
+holding the lock is not a completed run — see _handle_pipeline_lock()
+(incident 2026-11-23).
 
 Accepted consequence (owner-stated): book-only commits auto-promote, so
 reactive means PROD PUBLISHES ON ARRIVAL. That is desired; there is no
@@ -279,6 +281,7 @@ _EMPTY_STATE: dict = {
     "last_fire": 0.0,
     "fail_streak": 0,
     "foreign_run": None,
+    "leftover_lock": None,  # pid@started_at of a leftover lock already logged
 }
 
 
@@ -359,6 +362,15 @@ def _fire(state: dict, summary: str) -> None:
             state["baseline"] = rescan  # the run moved files; that is the new truth
         state["pending"] = {}
         return
+    _record_failed_run(state, f"reactive run exited {rc}")
+
+
+def _record_failed_run(state: dict, what: str) -> None:
+    """The one fail-streak / retry model: keep the pending deltas and retry
+    after cooldown, until MAX_FAIL_STREAK in a row hands them to self-heal.
+    Used for our own nonzero child AND (2026-11-23) for an observed foreign
+    run that died holding the lock — a dead run is a failed run, not a
+    completed one. Caller has already stamped last_fire."""
     streak = int(state.get("fail_streak", 0)) + 1
     state["fail_streak"] = streak
     if streak >= MAX_FAIL_STREAK:
@@ -372,7 +384,7 @@ def _fire(state: dict, summary: str) -> None:
         state["pending"] = {}
         state["fail_streak"] = 0
     else:
-        _log(f"reactive run exited {rc} (attempt {streak}/{MAX_FAIL_STREAK}) — will retry after cooldown")
+        _log(f"{what} (attempt {streak}/{MAX_FAIL_STREAK}) — will retry after cooldown")
 
 
 # ---------------------------------------------------------------------------
@@ -398,9 +410,39 @@ def _handle_pipeline_lock(state: dict, current: dict) -> bool:
     """Foreign-run rule (module docstring). Returns True when this tick must
     stop here: either a run is in flight (observe, don't evaluate — the run
     is mutating the tree under us), or one just completed (re-baseline; it
-    already ingested whatever the tree held)."""
-    if pipeline_lock.LOCK_PATH.exists():
-        holder = pipeline_lock.current_holder()
+    already ingested whatever the tree held).
+
+    ⚠️ DEAD RUN ≠ COMPLETED RUN (incident 2026-11-23). Pid 65744 was killed
+    mid-run; its lock stayed on disk, this watcher kept "observing" a dead
+    pid, and when a human moved the lock aside it re-baselined — dropping 19
+    downloaded audiobooks and 22 ebooks from pending until someone started the
+    scheduled task by hand. There is no LOCAL record of how a run ended
+    (pipeline_status is Firestore-only and silently no-ops), so the signal is
+    the lock itself: a run that exits — success OR exception — releases it in
+    its `finally`; a killed run leaves it behind with a non-live holder. So:
+    lock GONE after being seen live ⇒ completed (re-baseline, as before);
+    lock still PRESENT but LEFTOVER (pipeline_lock.lock_status()) ⇒ that run
+    died: keep the pending deltas, count it on the fail streak, and fall
+    through to the normal settle/cooldown evaluation. The fired child's
+    acquire() reclaims the leftover; this watcher never deletes it."""
+    lock_state, holder = pipeline_lock.lock_status()
+    if lock_state == pipeline_lock.LOCK_LEFTOVER:
+        key = f"{holder.pid}@{holder.started_at}" if holder else "unreadable"
+        if state.get("leftover_lock") != key:  # a leftover persists; say it once
+            _log(pipeline_lock.describe_leftover(holder))
+            state["leftover_lock"] = key
+        if state.get("foreign_run"):
+            _log(
+                f"run by {state['foreign_run']} did NOT finish (its lock was left behind) — "
+                "keeping the pending changes; a run fires after the normal settle/cooldown"
+            )
+            state["foreign_run"] = None
+            state["last_fire"] = _now()
+            _record_failed_run(state, "observed pipeline run died")
+        _save_state(state)
+        return False
+    state["leftover_lock"] = None
+    if lock_state == pipeline_lock.LOCK_HELD:
         who = holder.describe() if holder else "unreadable lock file"
         if state.get("foreign_run") is None:
             _log(f"pipeline run in flight ({who}) — observing, not evaluating")
