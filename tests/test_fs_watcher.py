@@ -342,6 +342,10 @@ def test_observed_run_that_died_keeps_pending_and_fires(env, capsys):
     assert env.calls == []  # cooling down, as after our own failed child
     fsw.poll_once()
     assert env.calls == [] and _state()["fail_streak"] == 1  # counted once, not per tick
+    pl.LOCK_PATH.unlink()  # then a human moves the leftover aside (the literal incident)
+    fsw.poll_once()
+    assert "re-baselining" not in capsys.readouterr().out
+    assert "f:Author/Book.m4b" in _state()["pending"]
     env.clock["t"] += fsw.COOLDOWN_MIN * 60 + 1
     fsw.poll_once()
     assert len(env.calls) == 1
