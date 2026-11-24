@@ -255,8 +255,12 @@ def test_collect_FAILS_when_the_manifest_is_missing_rather_than_listing(monkeypa
     assert got["ok"] is False and "ownership check unavailable" in got["error"]
 
 
-def test_collect_verifies_against_the_manifest_and_the_committed_map(monkeypatch, tmp_path):
+def test_collect_verifies_against_the_manifest_and_an_owned_as_map(monkeypatch, tmp_path):
+    # The committed map is empty since 2026-11-24, so the mapping route is fed
+    # a map here; the end-to-end path (manifest + disk + map) is what is pinned.
     man = _stub_collect(monkeypatch, tmp_path, _owned_books())
+    monkeypatch.setattr(mpr, "load_owned_as", lambda *a, **k: {
+        "B002V1NINC": {"file": PERCY.replace("\\", "/"), "why": "test"}})
     man.write_text(json.dumps({PERCY: {"drive_file_id": "d1"}}), encoding="utf-8")
     got = mpr.collect()
     assert got["ok"] is True
