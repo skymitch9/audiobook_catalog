@@ -157,7 +157,7 @@ def probe_file(path: Path) -> TwinProbe:
     from mutagen.mp4 import MP4  # local: keeps this module importable in tests
 
     from app.core.catalog_overrides import apply_overrides
-    from app.metadata import K_ASIN, derive_correctable_fields, get_tag_any, sec_to_hhmm
+    from app.metadata import derive_correctable_fields, get_tag_any, resolve_asin, sec_to_hhmm
 
     audio = MP4(str(path))
     tags = audio.tags or {}
@@ -165,7 +165,7 @@ def probe_file(path: Path) -> TwinProbe:
     corrected = apply_overrides(
         derive_correctable_fields(tags),
         path=path,
-        asin=get_tag_any(tags, [K_ASIN]),
+        asin=resolve_asin(tags),
     )
     return TwinProbe(
         title=corrected.get("title") or "",

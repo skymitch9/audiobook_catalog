@@ -160,8 +160,10 @@ class TestPipelineEndToEnd(unittest.TestCase):
         csv_content = csv_path.read_text(encoding="utf-8")
         self.assertIn("E2E Pipeline Book", csv_content)
         self.assertIn("E2E Series", csv_content)
-        # Author/narrator get normalized (capitalized) by the metadata extractor
-        self.assertIn("E2e Author", csv_content)
+        # Author/narrator get normalized by the metadata extractor. Since
+        # 2026-11-24 a short all-caps token keeps its case ("E2E", like "XX"),
+        # where it used to be flattened to "E2e" — the same damage as "M.a.".
+        self.assertIn("E2E Author", csv_content)
         # file_mtime should NOT be in CSV (internal only)
         self.assertNotIn("file_mtime", csv_content)
 
@@ -197,7 +199,7 @@ class TestPipelineEndToEnd(unittest.TestCase):
 
         # Book embed has correct title and author
         self.assertEqual(embeds[1]["title"], "E2E Pipeline Book")
-        self.assertIn("E2e Author", embeds[1]["description"])
+        self.assertIn("E2E Author", embeds[1]["description"])
         self.assertIn("E2E Series", embeds[1]["description"])
 
     def test_html_recently_added_with_test_book(self):

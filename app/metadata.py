@@ -17,6 +17,9 @@ from app.config import OUTPUT_DIR, ROOT_DIR
 # The corrections layer — scripts/catalog_overrides.json wins over the tags.
 from app.core.catalog_overrides import apply_overrides
 
+# Audible product data for files that carry Audible's container placeholders.
+from app.core import audible_backfill
+
 # ---------- Tag keys ----------
 # MP4/iTunes atoms
 K_TITLE = "\xa9nam"  # Title
@@ -122,21 +125,9 @@ def _load_priority_authors() -> list[str]:
 _PRIORITY_AUTHORS: list[str] = _load_priority_authors()
 
 
-def normalize_people_field(s: Optional[str]) -> Optional[str]:
-    if not s:
-        return None
-    parts = re.split(r"[;,/&]| and ", s, flags=re.IGNORECASE)
-    cleaned, seen = [], set()
-    for p in parts:
-        name = re.sub(r"\s+", " ", p).strip()
-        if not name:
-            continue
-        norm = name if (name.isupper() and len(name) <= 5) else " ".join(w.capitalize() for w in name.split())
-        key = norm.lower()
-        if key not in seen:
-            seen.add(key)
-            cleaned.append(norm)
-    return ", ".join(cleaned) if cleaned else None
+# One implementation of the people-name rule (it was copied here and in
+# app/core/people.py, and the copies were free to drift).
+from app.core.people import normalize_people_field  # noqa: E402
 
 
 def resolve_primary_author(author_field: Optional[str]) -> Optional[str]:
@@ -313,6 +304,38 @@ def _find_companion_files(audio_path: Path) -> str:
     return " | ".join(companions)
 
 
+# Audible's container tags end every title in "(Unabridged)" — OpenAudible
+# strips it, a raw `ffmpeg -c copy` remux (app/tools/audible_download.py)
+# does not. Unabridged is the default edition, so it carries no information.
+# "(Abridged)" is deliberately NOT stripped: that one tells a listener something.
+_UNABRIDGED_SUFFIX = re.compile(r"\s*\(\s*unabridged\s*\)\s*$", re.IGNORECASE)
+
+
+def strip_edition_suffix(title: str) -> str:
+    """'X (Unabridged)' -> 'X'. Also tidies the ' :' a bad tag leaves behind."""
+    t = _UNABRIDGED_SUFFIX.sub("", title or "")
+    return re.sub(r"\s+:", ":", t).strip()
+
+
+# ⚠️ OFF ON PURPOSE (2026-11-24). The SERIES is always parsed from the
+# suffix-free title (below), but the DISPLAYED title keeps "(Unabridged)" until
+# the title-keyed stores are migrated, because the catalogue title is a
+# persisted key in far more places than the catalogue:
+#   * site/chapters.json and site/content_warnings.json are keyed by the exact
+#     title — a retitled book reads as NEW, and fetch_content_warnings would
+#     re-run its PAID lookup chain (the owner's 2026-08-17 order: never re-look
+#     them up); content_warnings is also read by the ebook shelf and the
+#     physical-book catalogue (audiobook_holding.raw_title);
+#   * site/shelf_book_map.json (the Audiobookshelf join) carries title slugs;
+#   * Firestore reviews / reading lists and the ingest state key on the title
+#     slug (site/reviews.js:bookIdFromTitle, app/core/review_join.py).
+# Flip this only together with that migration. Measured on the live library:
+# 27 rows would be retitled. Files the converter creates from now on never
+# carry the suffix (app/tools/audible_download.audible_tags), so this only
+# concerns the 27 already in the library.
+STRIP_UNABRIDGED_FROM_TITLE = False
+
+
 def derive_correctable_fields(tags: Dict[str, Any]) -> Dict[str, Optional[str]]:
     """
     The seven correctable fields exactly as the pipeline derives them from a
@@ -323,7 +346,12 @@ def derive_correctable_fields(tags: Dict[str, Any]) -> Dict[str, Optional[str]]:
     editor keys entries on the same values the build will match — a second copy
     of these rules would drift and produce entries that silently never fire.
     """
-    title = get_tag_any(tags, [K_TITLE]) or ""
+    title_tag = get_tag_any(tags, [K_TITLE]) or ""
+    # The series parse always sees the suffix-free title: "(Unabridged)" is on
+    # the parser's exclusion list, which is why 27 Audible downloads carrying a
+    # plain "Title: Series, Book N" got no series at all.
+    parse_title = strip_edition_suffix(title_tag)
+    title = parse_title if STRIP_UNABRIDGED_FROM_TITLE else title_tag
     author = resolve_primary_author(normalize_people_field(get_tag_any(tags, [K_ARTIST])))
     narrator = normalize_people_field(get_tag_any(tags, [K_WRITER]))
     year = get_tag_any(tags, [K_DAY]) or ""
@@ -343,21 +371,46 @@ def derive_correctable_fields(tags: Dict[str, Any]) -> Dict[str, Optional[str]]:
 
     # 3) Finally, conservative title parsing
     if not series or not series_index_display:
-        ts, ti = parse_series_and_index_from_title(title)
+        ts, ti = parse_series_and_index_from_title(parse_title)
         if not series and ts:
             series = ts
         if not series_index_display and ti:
             series_index_display = _normalize_index(ti)
 
-    return {
-        "title": title,
-        "author": author,
-        "narrator": narrator,
-        "year": year,
-        "genre": genre,
-        "series": series,
-        "series_index": series_index_display,
-    }
+    # 3a) Audible product data over Audible's container PLACEHOLDERS only
+    #     (genre "Audiobook", year "2000"/"2200"). Fill-only; see
+    #     app/core/audible_backfill.py. Keyed on the RAW tags, never on the
+    #     derived values above, so a rule change cannot unkey an entry.
+    return audible_backfill.fill(
+        {
+            "title": title,
+            "author": author,
+            "narrator": narrator,
+            "year": year,
+            "genre": genre,
+            "series": series,
+            "series_index": series_index_display,
+        },
+        _backfill_entry(tags),
+    )
+
+
+def _backfill_entry(tags: Dict[str, Any]) -> Optional[dict]:
+    return audible_backfill.lookup(
+        get_tag_any(tags, [K_TITLE]), get_tag_any(tags, [K_ARTIST]), get_tag_any(tags, [K_ASIN])
+    )
+
+
+def resolve_asin(tags: Dict[str, Any]) -> Optional[str]:
+    """The file's ASIN: its own CDEK tag, else the one scripts/audible_backfill.json
+    identified for it. Every caller of the corrections layer passes THIS, so an
+    ASIN-keyed override fires for an untagged Audible download too — and the
+    build, the editor and the twin table all see the same key."""
+    own = get_tag_any(tags, [K_ASIN])
+    if own:
+        return own
+    entry = _backfill_entry(tags)
+    return entry.get("asin") if entry else None
 
 
 def extract_metadata(path: Path) -> Dict[str, str]:
@@ -380,7 +433,7 @@ def extract_metadata(path: Path) -> Dict[str, str]:
     corrected = apply_overrides(
         derived,
         path=path,
-        asin=get_tag_any(tags, [K_ASIN]),
+        asin=resolve_asin(tags),
     )
     title = corrected["title"] or ""
     author = corrected["author"]
