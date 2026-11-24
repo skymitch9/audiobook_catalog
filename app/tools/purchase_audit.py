@@ -654,8 +654,12 @@ def _daily_missing_report(state: dict, outcome: TickOutcome) -> None:
 
     ⚠️ Discord hears about it only when the set of missing ASINs differs from
     the set last POSTED — so a standing list (titles Audible says are "not
-    downloadable", titles owned under a different catalogue title) is said once
-    and then stays quiet. A failed post is not recorded, so it is retried.
+    downloadable") is said once and then stays quiet. A failed post is not
+    recorded, so it is retried — and until one succeeds the log says "never
+    posted", not "first report" (it said "first report" every day while no
+    webhook existed). Titles owned under a different catalogue title are no
+    longer on the list once VERIFIED on Drive and on disk (see the module);
+    they are kept in the report file's ``verified_owned``.
     """
     from app.tools import missing_purchases_report as mpr
 
@@ -677,9 +681,11 @@ def _daily_missing_report(state: dict, outcome: TickOutcome) -> None:
         return
 
     items = report["items"]
+    verified = report.get("verified_owned") or []
     _write_report({"date": today, "generated_at": datetime.now(timezone.utc).isoformat(),
                    "checked": report["checked"], "covered_all": report["covered_all"],
-                   "items": items})
+                   "items": items, "verified_owned": verified,
+                   **({"asin_index": report["asin_index"]} if report.get("asin_index") else {})})
     state["missing_report_date"] = today
     state["missing_report_error"] = None
     state["missing_report_count"] = len(items)
@@ -687,12 +693,13 @@ def _daily_missing_report(state: dict, outcome: TickOutcome) -> None:
     keys = sorted({mpr.asin_key(i) for i in items})
     posted = state.get("missing_report_posted")
     truncated = "" if report["covered_all"] else f" ⚠️ ONLY the newest {report['checked']} checked"
+    owned = f" ({len(verified)} owned under another title, verified on Drive)" if verified else ""
     if posted is not None and set(posted) == set(keys):
-        _log(f"full-library check: {len(items)} missing of {report['checked']} purchases{truncated} — "
+        _log(f"full-library check: {len(items)} missing of {report['checked']} purchases{truncated}{owned} — "
              f"unchanged since last posted, not posted ({MISSING_REPORT_PATH.name})")
         return
 
-    was = "first report" if posted is None else f"was {len(posted)}"
+    was = "never posted before" if posted is None else f"was {len(posted)}"
     header = (f"📚 Full-library check: {len(items)} purchase(s) not in the catalogue ({was}){truncated}"
               if items else f"✅ Full-library check: every purchase is in the catalogue ({was})")
     new_keys = set(keys) - set(posted or ())
@@ -700,8 +707,11 @@ def _daily_missing_report(state: dict, outcome: TickOutcome) -> None:
     if sent:
         state["missing_report_posted"] = keys
     said = "posted" if sent else "NOT posted (tried again with the next daily report)"
-    _log(f"full-library check: {len(items)} missing of {report['checked']} purchases{truncated} — "
-         f"changed ({was}); Discord {said}")
+    # ⚠️ Not "changed (first report)": while no post has ever succeeded there
+    # is no earlier list to have changed from, and it is not the first report.
+    status = "never posted before" if posted is None else f"changed since last posted ({was})"
+    _log(f"full-library check: {len(items)} missing of {report['checked']} purchases{truncated}{owned} — "
+         f"{status}; Discord {said}")
 
 
 def _weekly_version_check(state: dict, outcome: TickOutcome) -> None:
