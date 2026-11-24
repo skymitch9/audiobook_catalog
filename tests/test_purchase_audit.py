@@ -197,6 +197,8 @@ def _foreign_lock(monkeypatch, *, alive: bool, hours_ago: float = 0.0) -> None:
         {"pid": 999999, "host": "h", "trigger": "scheduled",
          "started_at": started.isoformat()}), encoding="utf-8")
     monkeypatch.setattr(pl, "pid_alive", lambda pid: alive and pid == 999999)
+    # the fake holder is the same process that took the lock (no pid reuse)
+    monkeypatch.setattr(pl, "process_start_time", lambda pid: started.timestamp() - 5)
 
 
 def test_a_pipeline_run_in_flight_defers_and_changes_nothing(tick, monkeypatch, capsys):
@@ -227,14 +229,26 @@ def test_a_dead_runs_leftover_lock_does_not_skip_the_audit(tick, monkeypatch, ca
     assert pl.LOCK_PATH.exists(), "an observer never deletes the lock — acquire() reclaims it"
 
 
-def test_a_live_but_wedged_holder_past_the_ceiling_is_a_leftover_too(tick, monkeypatch, capsys):
+def test_a_live_holder_past_the_old_4h_ceiling_still_defers(tick, monkeypatch, capsys):
+    """Review fix 2026-11-24: age alone no longer makes a LIVE run a leftover —
+    auditing past a 5-hour-old live run is how two runs end up at once."""
+    calls = _wire(monkeypatch, pa.TickOutcome(True, 0, 0, "0 new"))
+    _seed(last_attempt=0.0)
+    _foreign_lock(monkeypatch, alive=True, hours_ago=5)
+
+    assert pa.poll_once() == 0
+    assert calls["audits"] == 0
+    assert "skipped-locked" in capsys.readouterr().out
+
+
+def test_a_live_but_wedged_holder_past_the_safety_net_is_a_leftover(tick, monkeypatch, capsys):
     calls = _wire(monkeypatch, pa.TickOutcome(True, 0, 0, "0 new — library is current"))
     _seed(last_attempt=0.0)
-    _foreign_lock(monkeypatch, alive=True, hours_ago=pl.STALE_LOCK_HOURS + 1)
+    _foreign_lock(monkeypatch, alive=True, hours_ago=pl.WEDGED_LOCK_HOURS + 1)
 
     assert pa.poll_once() == 0
     assert calls["audits"] == 1
-    assert "stale ceiling" in capsys.readouterr().out
+    assert "safety net" in capsys.readouterr().out
 
 
 def test_the_8h_task_running_defers_even_though_the_pipeline_lock_is_free(tick, monkeypatch):

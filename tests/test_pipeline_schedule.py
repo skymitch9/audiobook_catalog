@@ -93,13 +93,15 @@ def test_retry_interval_is_inside_owners_10_to_15_minute_band():
 
 
 def test_worst_case_delay_fits_inside_one_8h_schedule_cycle():
-    """This is WHY a deferral never drifts the 8h grid: the worst-case time
-    to resolve one blocked slot (stale-lock reclaim ceiling + the full 2h
-    defer window) must stay comfortably under 8 hours, so this process
-    always finishes — run or abandon — long before the next scheduled
-    trigger fires. Nothing here ever needs to touch Task Scheduler."""
-    worst_case_hours = pl.STALE_LOCK_HOURS + (sched.DEFER_WINDOW_MIN / 60.0)
-    assert worst_case_hours < 8.0
+    """This is WHY a deferral never drifts the 8h grid: one blocked slot
+    resolves — run or abandon — within the 2h defer window, long before the
+    next scheduled trigger fires. (Until 2026-11-24 this also leaned on a 4h
+    stale-lock reclaim; a live holder is no longer reclaimed on age, so a
+    wedged run now costs whole slots — each still abandoning inside its own
+    window — until pipeline_lock.WEDGED_LOCK_HOURS. Nothing here ever needs
+    to touch Task Scheduler.)"""
+    assert sched.DEFER_WINDOW_MIN / 60.0 < 8.0
+    assert pl.WEDGED_LOCK_HOURS >= 8.0  # never reclaims a live run inside one slot
 
 
 # ---------------------------------------------------------------------------

@@ -280,6 +280,7 @@ def _write_foreign_lock(env, alive: bool):
     }), encoding="utf-8")
     liveness = {"alive": alive}
     env.monkeypatch.setattr(pl, "pid_alive", lambda pid: liveness["alive"] if pid == FAKE_PID else False)
+    env.monkeypatch.setattr(pl, "process_start_time", lambda pid: None)  # no pid-reuse verdict
     return liveness
 
 

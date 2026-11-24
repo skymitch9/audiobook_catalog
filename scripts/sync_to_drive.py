@@ -135,7 +135,7 @@ DRIVE_PARENT_FOLDER_ID: str = "1yZHU_UryCZkuhg9zFzu5uOadx3NI0FJv"
 # The one place this pipeline ever waits for a person is the ambiguous-author
 # confirm in resolve_author_to_drive_folder(). A scheduled run has no stdin, so
 # a prompt there either EOFErrors out of the whole upload batch or blocks until
-# the 4h stale-lock rule reclaims the lock — silently, hours later.
+# pipeline_lock's WEDGED_LOCK_HOURS (24h) safety net reclaims the lock — hours later.
 #
 # `sys.stdin.isatty()` is the automatic signal and covers the scheduled task on
 # its own. NON_INTERACTIVE is the EXPLICIT override on top of it, because
@@ -1105,7 +1105,7 @@ def resolve_author_to_drive_folder(
     # UNCAUGHT in the upload loop and aborts the ENTIRE upload batch (every book
     # queued after this one is skipped that run). In a context where stdin
     # blocks rather than EOFs, it hangs instead, holding the single-flight lock
-    # until STALE_LOCK_HOURS reclaims it. Either way one ambiguous author must
+    # until pipeline_lock.WEDGED_LOCK_HOURS reclaims it. Either way one ambiguous author must
     # never take down the run. This path is far more reachable than it looks
     # whenever the Claude key is dead (ask_claude_for_match returns UNAVAILABLE
     # on any API error), which is exactly the state commit db62d65 flags. An
