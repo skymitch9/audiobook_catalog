@@ -164,6 +164,8 @@ MISSING_REPORT_TIMEOUT_S = _int_env("MISSING_REPORT_TIMEOUT_S", 1800)
 # double the tick's Audible traffic for the rest of the day.
 MISSING_REPORT_RETRY_HOURS = _int_env("MISSING_REPORT_RETRY_HOURS", 3)
 NOTIFY_TIMEOUT_S = 60
+VERSION_CHECK_DAYS = _int_env("VERSION_CHECK_DAYS", 7)
+VERSION_CHECK_TIMEOUT_S = 90  # two 20 s GETs; the child bound also covers DNS
 MISSING_REPORT_PATH: Path = OUTPUT_DIR / "missing_purchases_report.json"
 
 STATE_PATH: Path = OUTPUT_DIR / "purchase_audit_state.json"
@@ -192,6 +194,10 @@ _EMPTY_STATE: dict = {
     "missing_report_error": None,     # why the last attempt failed, or None
     "missing_report_count": None,     # how many titles the last good report listed
     "missing_report_posted": None,    # sorted ASINs last POSTED to Discord (None = never)
+    # Weekly PyPI check for audible / audible-cli (see _weekly_version_check).
+    "version_check_at": 0.0,          # epoch of the last attempt, success or not
+    "version_check_line": None,       # its one-line result (or why it failed)
+    "version_reported": {},           # {dist: newest version already POSTED}
 }
 
 # Markers in auto_acquire's own output. audit_new_purchases.audible_cli_books()
@@ -606,7 +612,7 @@ def _run_extras(state: dict, outcome: TickOutcome) -> None:
     """The slow, rare, REPORT-ONLY checks. ⚠️ Each is caught on its own: a
     failure here must never fail the tick or touch the back-off — the 15-minute
     audit has already finished and saved its state by the time these run."""
-    for extra in (_daily_missing_report,):
+    for extra in (_daily_missing_report, _weekly_version_check):
         try:
             extra(state, outcome)
         except Exception as e:
@@ -698,6 +704,43 @@ def _daily_missing_report(state: dict, outcome: TickOutcome) -> None:
          f"changed ({was}); Discord {said}")
 
 
+def _weekly_version_check(state: dict, outcome: TickOutcome) -> None:
+    """At most once per VERSION_CHECK_DAYS: are newer ``audible`` /
+    ``audible-cli`` releases on PyPI (``app/tools/audible_version_check.py``)?
+    Report only — nothing is ever installed.
+
+    Logs a line every time it runs. Discord hears only about a newer version
+    that was not already POSTED, so one release is announced once, not weekly.
+    ⚠️ The attempt is stamped BEFORE the call, so a PyPI outage is retried in
+    the next weekly window rather than on every 15-minute tick.
+    """
+    from app.tools import audible_version_check as avc
+
+    since_days = (_now() - float(state.get("version_check_at") or 0.0)) / 86400
+    if since_days < VERSION_CHECK_DAYS:
+        return
+    state["version_check_at"] = _now()
+    got = bounded_call.call(avc.check, timeout=VERSION_CHECK_TIMEOUT_S, python=AUDIT_PYTHON, relay=False)
+    if not got.ok:
+        state["version_check_line"] = f"FAILED: {got.error}"[:300]
+        _log(f"audible version check FAILED — {got.error}. Next try in {VERSION_CHECK_DAYS} days; "
+             "the tick is unaffected.")
+        return
+    result = got.value or {}
+    state["version_check_line"] = avc.describe(result)[:300]
+    _log(f"audible version check: {state['version_check_line']}")
+
+    reported = dict(state.get("version_reported") or {})
+    fresh = {d: e for d, e in result.items() if e.get("newer") and reported.get(d) != e.get("latest")}
+    if not fresh:
+        return
+    lines = [f"- {d}: installed {e.get('installed')}, PyPI has {e.get('latest')}" for d, e in fresh.items()]
+    lines.append(f"- Not installed automatically. Interpreter: {AUDIT_PYTHON}")
+    if _notify("⬆️ Newer Audible package(s) on PyPI", lines):
+        reported.update({d: e.get("latest") for d, e in fresh.items()})
+        state["version_reported"] = reported
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -750,6 +793,9 @@ def _print_status() -> None:
           f"({state.get('missing_report_count') if state.get('missing_report_count') is not None else '?'} missing)"
           f"{'; last attempt FAILED: ' + str(state.get('missing_report_error')) if state.get('missing_report_error') else ''}")
     print(f"  report file    : {MISSING_REPORT_PATH}")
+    vc_at = float(state.get("version_check_at") or 0.0)
+    vc_when = datetime.fromtimestamp(vc_at).strftime("%Y-%m-%d %H:%M") if vc_at else "never"
+    print(f"  audible pkgs   : checked {vc_when} — {state.get('version_check_line') or 'no result yet'}")
     print(f"  state file     : {STATE_PATH}")
 
 

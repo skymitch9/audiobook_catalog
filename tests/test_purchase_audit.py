@@ -629,3 +629,77 @@ def test_a_real_tick_runs_the_extras_after_saving_its_own_state(tick, monkeypatc
     _wire(monkeypatch, _CLEAN)
     pa.poll_once()
     assert seen == [_CLEAN.summary]
+
+
+# ---------------------------------------------------------------------------
+# Weekly PyPI version check (report only)
+# ---------------------------------------------------------------------------
+
+from app.tools import audible_version_check as avc  # noqa: E402
+
+
+def _wire_versions(monkeypatch, result=None, *, sent=True, error=None):
+    calls = {"checks": 0, "posts": []}
+
+    def _check(fetch=None):
+        calls["checks"] += 1
+        if error:
+            raise RuntimeError(error)
+        return result
+
+    monkeypatch.setattr(avc, "check", _check)
+    monkeypatch.setattr(pa, "_notify", lambda header, lines: calls["posts"].append((header, lines)) or sent)
+    return calls
+
+
+_NEWER = {"audible": {"installed": "0.10.0", "latest": "0.10.0", "newer": False, "error": None},
+          "audible-cli": {"installed": "0.3.3", "latest": "0.3.4", "newer": True, "error": None}}
+
+
+def test_the_version_check_posts_a_new_release_once_and_logs_every_run(tick, monkeypatch, capsys):
+    calls = _wire_versions(monkeypatch, _NEWER)
+    state = dict(pa._EMPTY_STATE)
+    pa._weekly_version_check(state, _CLEAN)
+    assert len(calls["posts"]) == 1 and "0.3.4" in "\n".join(calls["posts"][0][1])
+    assert state["version_reported"] == {"audible-cli": "0.3.4"}
+    assert "0.3.3 -> 0.3.4 AVAILABLE" in capsys.readouterr().out
+
+    state["version_check_at"] -= 8 * 86400  # next week, same release still out
+    pa._weekly_version_check(state, _CLEAN)
+    assert calls["checks"] == 2 and len(calls["posts"]) == 1
+    assert "AVAILABLE" in capsys.readouterr().out, "it still LOGS every run"
+
+
+def test_the_version_check_runs_at_most_once_a_week(tick, monkeypatch):
+    calls = _wire_versions(monkeypatch, _NEWER)
+    state = dict(pa._EMPTY_STATE)
+    pa._weekly_version_check(state, _CLEAN)
+    pa._weekly_version_check(state, _CLEAN)
+    assert calls["checks"] == 1
+
+
+def test_a_version_check_failure_is_logged_and_waits_for_next_week(tick, monkeypatch, capsys):
+    calls = _wire_versions(monkeypatch, error="getaddrinfo failed")
+    state = dict(pa._EMPTY_STATE)
+    pa._weekly_version_check(state, _CLEAN)
+    assert calls["posts"] == []
+    assert state["version_check_at"] > 0
+    assert "FAILED" in state["version_check_line"]
+    assert "version check FAILED" in capsys.readouterr().out
+    pa._weekly_version_check(state, _CLEAN)
+    assert calls["checks"] == 1
+
+
+def test_a_failed_version_post_is_not_recorded(tick, monkeypatch):
+    _wire_versions(monkeypatch, _NEWER, sent=False)
+    state = dict(pa._EMPTY_STATE)
+    pa._weekly_version_check(state, _CLEAN)
+    assert state["version_reported"] == {}
+
+
+def test_the_new_state_fields_survive_a_save_and_load(tick):
+    _seed(missing_report_posted=["B1"], version_reported={"audible": "1.0"}, version_check_at=5.0)
+    got = pa._load_state()
+    assert got["missing_report_posted"] == ["B1"]
+    assert got["version_reported"] == {"audible": "1.0"}
+    assert got["version_check_at"] == 5.0
