@@ -580,6 +580,53 @@ def test_a_FAILED_post_is_not_recorded_so_it_is_said_next_time(tick, monkeypatch
     assert state["missing_report_posted"] is None
 
 
+def test_an_unposted_report_says_NEVER_POSTED_not_first_report(tick, monkeypatch, capsys):
+    """While no webhook works, missing_report_posted stays None and every
+    daily log said "changed (first report)" — wrong on both words."""
+    _wire_report(monkeypatch, [_item("B1")], sent=False)
+    state = {**pa._EMPTY_STATE, "missing_report_date": "2000-01-01"}
+    pa._daily_missing_report(state, _CLEAN)
+    out = capsys.readouterr().out
+    assert "never posted before" in out
+    assert "first report" not in out and "changed" not in out
+
+
+def test_a_changed_list_still_says_changed_and_what_it_was(tick, monkeypatch, capsys):
+    _wire_report(monkeypatch, [_item("B1"), _item("B2")])
+    state = {**pa._EMPTY_STATE, "missing_report_date": "2000-01-01", "missing_report_posted": ["B1"]}
+    pa._daily_missing_report(state, _CLEAN)
+    assert "changed since last posted (was 1)" in capsys.readouterr().out
+
+
+def test_verified_owned_titles_are_kept_in_the_report_file_not_posted(tick, monkeypatch, capsys):
+    owned = {"date": "2024-05-01", "title": "Percy Jackson: The Demigod Files", "asin": "B002V1NINC",
+             "profile": "skylar", "how": "owned_as", "file": "Rick Riordan\\Percy.m4b"}
+    posts = []
+
+    def _collect(top=mpr.FULL_TOP):
+        return {"ok": True, "checked": 1077, "covered_all": True, "items": [_item("B1")],
+                "verified_owned": [owned], "asin_index": "ASIN tag index: 1 ASINs from 1 files"}
+
+    monkeypatch.setattr(mpr, "collect", _collect)
+    monkeypatch.setattr(pa, "_notify", lambda header, lines: posts.append((header, lines)) or True)
+    state = dict(pa._EMPTY_STATE)
+    pa._daily_missing_report(state, _CLEAN)
+
+    report = json.loads(pa.MISSING_REPORT_PATH.read_text(encoding="utf-8"))
+    assert report["verified_owned"] == [owned]
+    assert state["missing_report_posted"] == ["B1"]
+    assert not any("Percy" in ln for ln in posts[0][1])
+    assert "1 owned under another title, verified on Drive" in capsys.readouterr().out
+
+
+def test_a_failed_ownership_check_is_a_failed_report_not_a_longer_list(tick, monkeypatch):
+    calls = _wire_report(monkeypatch, ok=False,
+                         error="ownership check unavailable: FileNotFoundError: upload manifest x not found")
+    state = dict(pa._EMPTY_STATE)
+    pa._daily_missing_report(state, _CLEAN)
+    assert calls["posts"] == [] and not pa.MISSING_REPORT_PATH.exists()
+    assert "ownership" in state["missing_report_error"]
+
 def test_a_failed_report_writes_nothing_posts_nothing_and_waits_before_retrying(tick, monkeypatch, capsys):
     calls = _wire_report(monkeypatch, ok=False, error="no library rows exported for profile(s) paige")
     state = dict(pa._EMPTY_STATE)

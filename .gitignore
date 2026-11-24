@@ -35,6 +35,11 @@ docs/
 # be tracked: it is build input, so an untracked copy would give this machine
 # covers that CI and every other checkout silently lack.
 !scripts/ebook_cover_overrides.json
+# The "owned under another title" map (app/tools/missing_purchases_report.py).
+# MUST be tracked: tests/test_missing_purchases_report.py loads THIS FILE to
+# assert every entry has a file and evidence. ASINs, titles and author/title
+# paths the public catalogue already serves — never a credential.
+!scripts/owned_as.json
 !last_catalog_snapshot.json
 # The ebook twin (app/tools/detect_new_ebooks.py). Tracked like the audiobook
 # one, but it holds sha256("title|author") ONLY — never a title: the ebook
