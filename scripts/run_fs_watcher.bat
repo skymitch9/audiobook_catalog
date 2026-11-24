@@ -20,5 +20,18 @@ rem bare name resolved to the WindowsApps Store stub and the first tick
 rem HUNG invisibly forever - every later tick was then refused with
 rem 0x800710E0 ("instance already running"), which read as a conditions
 rem problem and was not one. Found 2026-08-16, the day it was registered.
-rem The venv also guarantees mutagen for settle-validation.
-"C:\Users\nbasl\OneDrive\Documents\vs-code-repos\bookbuddy\audiobook_catalog\.venv\Scripts\python.exe" -m app.tools.fs_watcher >> output_files\fs_watcher.log 2>&1
+rem
+rem !! AND IT IS THE STORE PYTHON 3.12, NOT .venv (changed 2026-11-23).
+rem This interpreter is inherited by the pipeline the watcher fires
+rem (fs_watcher._fire runs sync_to_drive.py with sys.executable), and
+rem .venv has NO audible-cli: every reactive run logged
+rem   [audible-cli] export failed ... No module named audible_cli
+rem in its STEP 0, i.e. a reactive run could never reach Audible.
+rem audible-cli lives in the Store Python 3.12 below - the same one
+rem run_purchase_audit.bat uses and the 8h sync_pipeline_8h.bat bare
+rem "python" resolves to. Measured 2026-11-23 before changing this line:
+rem mutagen 1.47.0 (settle-validation), audible_cli, app.tools.fs_watcher
+rem and scripts.sync_to_drive all import under it, and
+rem "-m app.tools.fs_watcher --status" runs. The old line said the venv
+rem "guarantees mutagen"; the Store Python has it too.
+"C:\Users\nbasl\AppData\Local\Microsoft\WindowsApps\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\python.exe" -m app.tools.fs_watcher >> output_files\fs_watcher.log 2>&1
