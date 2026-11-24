@@ -330,6 +330,12 @@ def _preflight_target(name):
     (audible_dir, activation_bytes, authenticator)."""
     audible_dir = resolve_audible_dir()
     _check_writable(audible_dir)
+    cfg = audible_dir / "config.toml"
+    if cfg.exists():
+        try:
+            cfg.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as e:
+            raise Refused(f"{cfg} cannot be read ({type(e).__name__}); the profile could not be added to it")
     auth_file = audible_dir / f"{name}.json"
     old_key = None
     if auth_file.exists():
