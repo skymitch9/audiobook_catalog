@@ -207,6 +207,7 @@ def _join_parts(ffmpeg, parts, profile, title, narrator, tmp, dest):
 
 
 _UNABRIDGED = re.compile(r"\s*\(\s*unabridged\s*\)\s*$", re.IGNORECASE)
+_SUBTITLE_SERIES = re.compile(r"^([^:,()]+?),\s*Book\s+(\d+(?:\.\d+)?)$", re.IGNORECASE)
 
 
 def audible_tags(asin, meta, existing_title="", known_genre_paths=()):
@@ -237,10 +238,20 @@ def audible_tags(asin, meta, existing_title="", known_genre_paths=()):
     out = {}
     if asin:
         out["CDEK"] = asin
-    if (meta.get("series_title") or "").strip():
+    # Series: the export's ``series_title`` is Audible's FIRST series, which is
+    # sometimes the umbrella ("The Cosmere", "Realm of the Elderlings 4") rather
+    # than the series the book is numbered in. Measured 2026-11-24 against the
+    # 728 OpenAudible files that carry both: equal 685 times; most of the 43
+    # misses are umbrellas, and those come with NO sequence. So: a subtitle of
+    # the exact form "Series, Book N" wins (it is how Audible numbers the book
+    # on its own page); otherwise the export series is written only WITH a
+    # sequence, never bare.
+    m = _SUBTITLE_SERIES.match((meta.get("subtitle") or "").strip())
+    if m:
+        out["SRNM"], out["SRSQ"] = m.group(1).strip(), m.group(2)
+    elif (meta.get("series_title") or "").strip() and str(meta.get("series_sequence") or "").strip():
         out["SRNM"] = meta["series_title"].strip()
-        if str(meta.get("series_sequence") or "").strip():
-            out["SRSQ"] = str(meta["series_sequence"]).strip()
+        out["SRSQ"] = str(meta["series_sequence"]).strip()
     genre = ab.first_known_ladder(meta.get("genres") or "", list(known_genre_paths))
     if genre:
         out["\xa9gen"] = genre

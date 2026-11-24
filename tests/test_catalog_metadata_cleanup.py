@@ -233,6 +233,19 @@ def test_audible_tags_pure():
     }
 
 
+def test_audible_tags_series_prefers_the_numbered_subtitle():
+    from app.tools.audible_download import audible_tags
+    t = audible_tags("B003894ZK6", {"subtitle": "The Liveship Traders, Book 1",
+                                    "series_title": "Realm of the Elderlings", "series_sequence": "4"}, "", PATHS)
+    assert (t["SRNM"], t["SRSQ"]) == ("The Liveship Traders", "1")
+
+
+def test_audible_tags_never_write_an_unnumbered_umbrella_series():
+    from app.tools.audible_download import audible_tags
+    t = audible_tags("B0X", {"series_title": "The Cosmere", "series_sequence": ""}, "", PATHS)
+    assert "SRNM" not in t and "SRSQ" not in t
+
+
 def test_audible_tags_leave_placeholders_out():
     from app.tools.audible_download import audible_tags
     t = audible_tags("B0X", {"genres": "Sports & Outdoors", "release_date": "2200-01-01"}, "Plain Title", PATHS)

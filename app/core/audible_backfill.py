@@ -157,12 +157,11 @@ def split_ladders(flat: str, known_paths: list) -> list:
     library's own OpenAudible tags already contain (``known_paths``, each a
     ``Top:Sub:Leaf`` string).
 
-    Measured 2026-11-24 on the 913 files that carry both an OpenAudible genre
-    and an export row: the FIRST rebuilt ladder equals OpenAudible's own pick
-    730 times, the OpenAudible pick is among the rebuilt ladders 857 times,
-    and the first ladder is a real library path 912 times. So it always yields
-    a genuine Audible category for the book, but not always the one OpenAudible
-    chose."""
+    Measured 2026-11-24 through ``first_known_ladder`` on the 906 files that
+    carry both an OpenAudible ``Top:Sub`` genre and an export row: it returns
+    a ladder for all 906 and equals OpenAudible's own pick 726 times. So it
+    yields a genuine Audible category for the book, but in ~20% of cases not
+    the one OpenAudible chose."""
     paths = {tuple(p.split(":")) for p in known_paths}
     prefixes = {pp[:k] for pp in paths for k in range(1, len(pp) + 1)}
     roots = {pp[0] for pp in paths}
