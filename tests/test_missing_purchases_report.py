@@ -8,7 +8,8 @@ adds hid two older gaps for weeks. The properties pinned:
   3. a profile with no rows is a FAILED report, never a shorter list;
   4. the Discord lines stay under the message limit and name the overflow.
 
-Nothing here contacts Audible: ``collect`` is not called, ``summarise`` is pure.
+Nothing here contacts Audible: ``summarise`` is pure, and ``collect`` is only
+called with the Audible export stubbed out.
 """
 
 from __future__ import annotations
@@ -229,3 +230,33 @@ def test_the_manifest_path_matches_the_sync_owner(monkeypatch):
     assert mpr.manifest_path() == Path(__file__).resolve().parents[1] / "scripts" / "upload_manifest.json"
     monkeypatch.setenv("SYNC_DATA_DIR", "D:/elsewhere")
     assert mpr.manifest_path() == Path("D:/elsewhere") / "upload_manifest.json"
+
+
+def _stub_collect(monkeypatch, tmp_path, books):
+    import app.config
+    import app.tools.license_refused as lr
+    monkeypatch.setattr(anp, "audible_cli_books", lambda: books)
+    monkeypatch.setattr(anp, "load_catalog_titles", lambda: CATALOG)
+    monkeypatch.setattr(lr, "load", lambda: {})
+    lib = tmp_path / "books"
+    (lib / "Rick Riordan").mkdir(parents=True)
+    (lib / "Rick Riordan" / "Percy Jackson & the Olympians - The Demigod Files.m4b").write_bytes(b"x")
+    monkeypatch.setattr(app.config, "ROOT_DIR", lib)
+    monkeypatch.setenv("SYNC_DATA_DIR", str(tmp_path / "sync"))
+    (tmp_path / "sync").mkdir()
+    return tmp_path / "sync" / "upload_manifest.json"
+
+
+def test_collect_FAILS_when_the_manifest_is_missing_rather_than_listing(monkeypatch, tmp_path):
+    _stub_collect(monkeypatch, tmp_path, _owned_books())
+    got = mpr.collect()
+    assert got["ok"] is False and "ownership check unavailable" in got["error"]
+
+
+def test_collect_verifies_against_the_manifest_and_the_committed_map(monkeypatch, tmp_path):
+    man = _stub_collect(monkeypatch, tmp_path, _owned_books())
+    man.write_text(json.dumps({PERCY: {"drive_file_id": "d1"}}), encoding="utf-8")
+    got = mpr.collect()
+    assert got["ok"] is True
+    assert [i["title"] for i in got["items"]] == ["The Forgotten One"]
+    assert [v["asin"] for v in got["verified_owned"]] == ["B002V1NINC"]
