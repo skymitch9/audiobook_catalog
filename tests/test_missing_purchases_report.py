@@ -216,9 +216,11 @@ def test_without_mutagen_the_tag_index_is_empty_and_says_so(monkeypatch, tmp_pat
 
 
 def test_the_committed_owned_as_map_is_complete_and_evidenced():
+    # Empty of entries since 2026-11-24 (the ASIN-tag route covers the seeds);
+    # every entry added later must still name a file and carry evidence.
     data = json.loads(mpr.OWNED_AS_PATH.read_text(encoding="utf-8"))
     entries = mpr.load_owned_as(mpr.OWNED_AS_PATH)
-    assert entries, "scripts/owned_as.json must be tracked and seeded"
+    assert data, "scripts/owned_as.json must be tracked (its _ rule keys at least)"
     for asin, e in entries.items():
         assert asin == asin.strip() and asin in data
         assert e.get("file", "").lower().endswith(mpr.AUDIOBOOK_EXTS), asin

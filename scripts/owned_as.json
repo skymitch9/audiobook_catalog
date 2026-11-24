@@ -1,25 +1,5 @@
 {
   "_description": "OWNED UNDER ANOTHER TITLE. Audible purchases (keyed by Audible ASIN) that the library holds under a different catalogue title, so the title matcher in app/tools/audit_new_purchases.py cannot see them. Read by app/tools/missing_purchases_report.py (the daily full-library missing-purchases report) ONLY. It never affects the 15-minute download decision.",
   "_verification": "An entry suppresses its title ONLY when, on that day's report, 'file' (library-relative, under ROOT_DIR) is an AUDIOBOOK entry with a Drive id in scripts/upload_manifest.json AND is on local disk. An entry that fails that check keeps the title on the list with a note saying why. Owner order 2026-11-24: 'do 1 but add checking the drive manifest to verify we have it'.",
-  "_evidence_rule": "Every entry carries 'why': what was on disk and what settled it. Prefer an entry only where the file's own CDEK (ASIN) tag does NOT already equal the Audible ASIN — the report's ASIN-tag route covers those by itself — or where the owner wants the mapping pinned. The four seeds below (2026-11-24) are such owner-ordered pins: each file's CDEK DOES equal the Audible ASIN, so the tag route would also catch them; the pin is checked first, and if a pinned file is renamed or moved the title is listed again with a note rather than silently re-found. tests/test_missing_purchases_report.py fails if an entry has no file or no why.",
-  "B002V1NINC": {
-    "audible_title": "Percy Jackson: The Demigod Files",
-    "file": "Rick Riordan/Percy Jackson & the Olympians - The Demigod Files.m4b",
-    "why": "2026-11-24: the file's CDEK tag reads B002V1NINC (read-only mutagen), equal to the Audible ASIN; in upload_manifest.json with a Drive id (folder Rick Riordan); OpenAudible books.json records this ASIN with filename 'Percy Jackson & the Olympians - The Demigod Files'."
-  },
-  "B0D6P455PH": {
-    "audible_title": "Sunrise on the Reaping (The Hunger Games)",
-    "file": "Suzanne Collins/Sunrise on the Reaping - A Hunger Games Novel.m4b",
-    "why": "2026-11-24: the file's CDEK tag reads B0D6P455PH, equal to the Audible ASIN; in upload_manifest.json with a Drive id (folder Suzanne Collins); OpenAudible books.json records this ASIN with filename 'Sunrise on the Reaping - A Hunger Games Novel'."
-  },
-  "1039402313": {
-    "audible_title": "Beneath the Dragoneye Moons 2",
-    "file": "Selkie Myth/Adventures in the Argo - Beneath the Dragoneye Moons, Book 2.m4b",
-    "why": "2026-11-24: identity checked, not inferred from the series number: the file's CDEK tag reads 1039402313, equal to the Audible ASIN; in upload_manifest.json with a Drive id (folder Selkie Myth); OpenAudible books.json records this ASIN as 'Adventures in the Argo - Beneath the Dragoneye Moons, Book 2'. The companion EPUB 'BtDEM 2 Adventures in the Argo' in the same folder does NOT count."
-  },
-  "B09CF14FKD": {
-    "audible_title": "Beneath the Dragoneye Moons 3",
-    "file": "Selkie Myth/Ranger's Dawn - Beneath the Dragoneye Moons, Book 3.m4b",
-    "why": "2026-11-24: identity checked, not inferred from the series number: the file's CDEK tag reads B09CF14FKD, equal to the Audible ASIN; in upload_manifest.json with a Drive id (folder Selkie Myth); OpenAudible books.json records this ASIN as 'Ranger's Dawn - Beneath the Dragoneye Moons, Book 3'. The companion EPUB 'BtDEM 3 Ranger's Dawn' does NOT count."
-  }
+  "_evidence_rule": "Every entry carries 'why': what was on disk and what settled it. Add an entry ONLY for a purchase the ASIN-tag route cannot verify (the library file has no CDEK tag, or a different one). Empty on purpose (owner decision 2026-11-24): the four titles first found here (Demigod Files, Sunrise on the Reaping, Beneath the Dragoneye Moons 2 and 3) all carry CDEK = their Audible ASIN, so the tag route verifies them and also follows a rename, which a pin would not. tests/test_missing_purchases_report.py fails if an entry has no file or no why."
 }
