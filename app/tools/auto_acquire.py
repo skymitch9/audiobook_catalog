@@ -145,10 +145,13 @@ def download_missing(missing, books=None):
 
 
 def notify_discord_lines(header, lines):
+    """Post one message. Returns True only when Discord accepted it — the
+    daily missing-purchases report records a set as "reported" only then, so
+    a failed post is retried rather than silently counted as said."""
     webhook = os.getenv("DISCORD_WEBHOOK")
     if not webhook:
         print("[notify] DISCORD_WEBHOOK not set — skipping")
-        return
+        return False
     import urllib.request
     body = {"content": f"**{header}**\n" + "\n".join(lines)}
     req = urllib.request.Request(webhook, data=json.dumps(body).encode(),
@@ -156,8 +159,10 @@ def notify_discord_lines(header, lines):
     try:
         with urllib.request.urlopen(req, timeout=20):
             print("[notify] Discord pinged")
+            return True
     except Exception as e:
         print(f"[notify] failed: {e}")
+        return False
 
 
 def notify_discord(missing):

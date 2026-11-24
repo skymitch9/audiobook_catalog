@@ -102,7 +102,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from app.config import OUTPUT_DIR, PROJECT_ROOT
-from app.core import pipeline_lock, pipeline_requests
+from app.core import bounded_call, pipeline_lock, pipeline_requests
 
 # ---------------------------------------------------------------------------
 # Tunables — env-overridable so an operator can retune without a code change.
@@ -157,6 +157,15 @@ SYNC_TASK_NAME = os.getenv("PURCHASE_AUDIT_SYNC_TASK", "AudiobookSyncPipeline")
 # escape hatch for a machine where the two are not the same.
 AUDIT_PYTHON = (os.getenv("PURCHASE_AUDIT_PYTHON") or "").strip() or sys.executable
 
+# Daily full-library report. Three library exports at up to 600 s each is the
+# worst honest case; the timeout is a wedge-breaker above that.
+MISSING_REPORT_TIMEOUT_S = _int_env("MISSING_REPORT_TIMEOUT_S", 1800)
+# A failed report is retried no sooner than this, so an Audible outage does not
+# double the tick's Audible traffic for the rest of the day.
+MISSING_REPORT_RETRY_HOURS = _int_env("MISSING_REPORT_RETRY_HOURS", 3)
+NOTIFY_TIMEOUT_S = 60
+MISSING_REPORT_PATH: Path = OUTPUT_DIR / "missing_purchases_report.json"
+
 STATE_PATH: Path = OUTPUT_DIR / "purchase_audit_state.json"
 TICK_LOCK_PATH: Path = OUTPUT_DIR / "purchase_audit.lock"
 NOTICE_PATH: Path = OUTPUT_DIR / "purchase_audit_notice.txt"
@@ -177,6 +186,12 @@ _EMPTY_STATE: dict = {
     # The `last_attempt` value whose throttled window has already been
     # announced — see _log_throttle().
     "throttle_logged_for": None,
+    # Daily full-library missing-purchases report (see _daily_missing_report).
+    "missing_report_date": None,      # local YYYY-MM-DD of the last report that SUCCEEDED
+    "missing_report_attempt": 0.0,    # epoch of the last attempt, success or not
+    "missing_report_error": None,     # why the last attempt failed, or None
+    "missing_report_count": None,     # how many titles the last good report listed
+    "missing_report_posted": None,    # sorted ASINs last POSTED to Discord (None = never)
 }
 
 # Markers in auto_acquire's own output. audit_new_purchases.audible_cli_books()
@@ -577,7 +592,110 @@ def _tick(dry_run: bool = False) -> int:
             f"{outcome.downloaded} new purchase(s) downloaded from Audible ({shown}{more})",
             source="purchase-audit", log=_log, notice=_notice,
         )
+
+    _run_extras(state, outcome)
     return 0
+
+
+# ---------------------------------------------------------------------------
+# Report-only extras that ride on a tick that actually ran
+# ---------------------------------------------------------------------------
+
+
+def _run_extras(state: dict, outcome: TickOutcome) -> None:
+    """The slow, rare, REPORT-ONLY checks. ⚠️ Each is caught on its own: a
+    failure here must never fail the tick or touch the back-off — the 15-minute
+    audit has already finished and saved its state by the time these run."""
+    for extra in (_daily_missing_report,):
+        try:
+            extra(state, outcome)
+        except Exception as e:
+            _log(f"{extra.__name__} failed (the tick is unaffected): {type(e).__name__}: {e}")
+    try:
+        _save_state(state)
+    except Exception as e:
+        _log(f"could not save the extras' state: {type(e).__name__}: {e}")
+
+
+def _notify(header: str, lines: list[str]) -> bool:
+    """``auto_acquire.notify_discord_lines``, bounded: its urlopen timeout does
+    not cover DNS resolution, and this tick must always exit."""
+    from app.tools.auto_acquire import notify_discord_lines
+    got = bounded_call.call(notify_discord_lines, header, lines, timeout=NOTIFY_TIMEOUT_S)
+    return bool(got.ok and got.value)
+
+
+def _write_report(report: dict) -> None:
+    MISSING_REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    tmp = MISSING_REPORT_PATH.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
+    os.replace(tmp, MISSING_REPORT_PATH)
+
+
+def _daily_missing_report(state: dict, outcome: TickOutcome) -> None:
+    """Once per local calendar day: the FULL-library missing-purchases check
+    (``app/tools/missing_purchases_report.py``). Report only — never downloads.
+
+    Skipped on a tick that failed (Audible is not answering; do not add load)
+    and on a tick that downloaded (those titles are not in catalog.csv until
+    the queued run publishes them, and would flap in and out of the set).
+
+    ⚠️ It does NOT reuse the tick's library rows: they live inside the
+    ``auto_acquire`` subprocess and never reach this process. Getting them out
+    would mean changing the 8h pipeline's own acquisition command, which both
+    cadences deliberately share unchanged. Three extra exports once a day is
+    the cheaper price.
+
+    ⚠️ Discord hears about it only when the set of missing ASINs differs from
+    the set last POSTED — so a standing list (titles Audible says are "not
+    downloadable", titles owned under a different catalogue title) is said once
+    and then stays quiet. A failed post is not recorded, so it is retried.
+    """
+    from app.tools import missing_purchases_report as mpr
+
+    today = datetime.now().strftime("%Y-%m-%d")
+    if state.get("missing_report_date") == today or not outcome.ok or outcome.downloaded:
+        return
+    since_attempt_h = (_now() - float(state.get("missing_report_attempt") or 0.0)) / 3600
+    if state.get("missing_report_error") and since_attempt_h < MISSING_REPORT_RETRY_HOURS:
+        return
+
+    state["missing_report_attempt"] = _now()
+    got = bounded_call.call(mpr.collect, mpr.FULL_TOP, timeout=MISSING_REPORT_TIMEOUT_S,
+                            python=AUDIT_PYTHON, relay=False)
+    report = got.value if got.ok else {"ok": False, "error": got.error}
+    if not report.get("ok"):
+        state["missing_report_error"] = str(report.get("error"))[:300]
+        _log(f"full-library missing-purchases report FAILED — {state['missing_report_error']}. "
+             f"Retrying after {MISSING_REPORT_RETRY_HOURS}h; the tick is unaffected.")
+        return
+
+    items = report["items"]
+    _write_report({"date": today, "generated_at": datetime.now(timezone.utc).isoformat(),
+                   "checked": report["checked"], "covered_all": report["covered_all"],
+                   "items": items})
+    state["missing_report_date"] = today
+    state["missing_report_error"] = None
+    state["missing_report_count"] = len(items)
+
+    keys = sorted({mpr.asin_key(i) for i in items})
+    posted = state.get("missing_report_posted")
+    truncated = "" if report["covered_all"] else f" ⚠️ ONLY the newest {report['checked']} checked"
+    if posted is not None and set(posted) == set(keys):
+        _log(f"full-library check: {len(items)} missing of {report['checked']} purchases{truncated} — "
+             f"unchanged since last posted, not posted ({MISSING_REPORT_PATH.name})")
+        return
+
+    was = "first report" if posted is None else f"was {len(posted)}"
+    header = (f"📚 Full-library check: {len(items)} purchase(s) not in the catalogue ({was}){truncated}"
+              if items else f"✅ Full-library check: every purchase is in the catalogue ({was})")
+    new_keys = set(keys) - set(posted or ())
+    sent = _notify(header, mpr.discord_lines(items, new_keys))
+    if sent:
+        state["missing_report_posted"] = keys
+    said = "posted" if sent else "NOT posted (tried again with the next daily report)"
+    _log(f"full-library check: {len(items)} missing of {report['checked']} purchases{truncated} — "
+         f"changed ({was}); Discord {said}")
 
 
 # ---------------------------------------------------------------------------
@@ -628,6 +746,10 @@ def _print_status() -> None:
           f"{'RUNNING' if running else ('not running' if running is False else 'status unreadable')}")
     print(f"  pipeline lock  : {holder.describe() if holder else ('held (unreadable)' if pipeline_lock.LOCK_PATH.exists() else 'free')}")
     print(f"  trigger token  : {'set' if (os.getenv('PIPELINE_TRIGGER_TOKEN') or '').strip() else 'NOT SET'}")
+    print(f"  full-library   : last report {state.get('missing_report_date') or 'never'} "
+          f"({state.get('missing_report_count') if state.get('missing_report_count') is not None else '?'} missing)"
+          f"{'; last attempt FAILED: ' + str(state.get('missing_report_error')) if state.get('missing_report_error') else ''}")
+    print(f"  report file    : {MISSING_REPORT_PATH}")
     print(f"  state file     : {STATE_PATH}")
 
 
