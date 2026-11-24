@@ -8315,6 +8315,30 @@
    "author": "Ernest Cline",
    "added": "2018-03-22",
    "source": "purchase"
+  },
+  {
+   "key": "Disney Pixar Toy Story: Moon Menace (Unabridged)|Disney Books",
+   "title": "Disney Pixar Toy Story: Moon Menace (Unabridged)",
+   "author": "Disney Books",
+   "added": "2026-11-23",
+   "source": "pipeline",
+   "carried_from": "Disney Pixar Toy Story: Moon Menace (Unabridged)|Disney Book Group"
+  },
+  {
+   "key": "Disney: Winnie the Pooh and the Ever So Frightening Dus-Torr (Unabridged)|Disney Books",
+   "title": "Disney: Winnie the Pooh and the Ever So Frightening Dus-Torr (Unabridged)",
+   "author": "Disney Books",
+   "added": "2026-11-23",
+   "source": "pipeline",
+   "carried_from": "Disney: Winnie the Pooh and the Ever So Frightening Dus-Torr (Unabridged)|Disney Book Group"
+  },
+  {
+   "key": "Loner Life in Another World, Vol. 1: Light Novel (Unabridged)|Shoji Goji",
+   "title": "Loner Life in Another World, Vol. 1: Light Novel (Unabridged)",
+   "author": "Shoji Goji",
+   "added": "2026-11-23",
+   "source": "pipeline",
+   "carried_from": "Loner Life in Another World, Vol. 1: Light Novel (Unabridged)|五示正司"
   }
  ]
 }
