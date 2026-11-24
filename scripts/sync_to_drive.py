@@ -842,13 +842,18 @@ CLAUDE_MAX_FOLDERS_SHOWN = 50
 # the library folders under OpenAudible\books:
 #   * distinct people score up to 89 — 'Stephen Hawking' ~ 'Stephen King' 89
 #     (both real names in the library), 'Alex Maher' ~ 'Alex Aster' 80 (the
-#     2026-11-23 case), 'Jim Butcher' ~ 'James Butcher' 83. A bound <= 89
-#     would send a genuinely new author to [REVIEW] again.
-#   * every CONFIRMED variant (author_drive_map keys sharing one folder id)
-#     scoring 80..91 is a role-suffix / contributor-order variant ('... -
-#     Translator', '-translated By', reordered co-authors). All of them are
-#     now caught deterministically by _contributor_key() before the model is
-#     asked, so the score bound is the second line, not the first.
+#     2026-11-23 case); synthetic: 'Jim Butcher' ~ 'James Butcher' 83. A
+#     bound <= 89 would send a genuinely new author to [REVIEW] again.
+#   * the CONFIRMED variants (author_drive_map keys sharing one folder id)
+#     scoring 80..91 are role-suffix / contributor-order variants ('... -
+#     Translator', '-translated By', reordered co-authors) — filed
+#     deterministically by _contributor_key() (step 3b) before the model is
+#     asked — plus three contributor SUBSET pairs ('Daisuke Aizawa' ~
+#     'Daisuke Aizawa, Touzai' 80, 'Kugane Maruyama' ~ '..., So-bin' 81, a
+#     Yulia Kuzmina translator pair 89). Step 3 already files the solo name
+#     into the co-author folder; the other direction (the AUTHOR lists more
+#     people) step 5 refuses to settle with a NONE. So the score bound is the
+#     last line, not the first.
 #   * synthetic single-person variants that land at 90-91 ('Kurt Vonnegut
 #     Jr.' ~ 'Kurt Vonnegut' 90, 'Sir Arthur Conan Doyle' 90) are now REVIEW,
 #     not a silent duplicate. ≥92 already auto-matches (step 4).
@@ -1083,13 +1088,29 @@ def resolve_author_to_drive_folder(
         # a silent duplicate folder while a [REVIEW] is loud and re-tried.
         # (The old `scored[0][0] in verdict.shown` check is kept but is
         # always true — shown is the head of the same sort.)
+        # Also overruled: an in-band folder (>= FUZZY_THRESHOLD) whose people
+        # strictly contain, or are contained in, this author's — e.g. author
+        # 'Kugane Maruyama, So-bin' vs the existing folder 'Kugane Maruyama'
+        # (81), which author_drive_map.json files to the SAME folder (step 3
+        # only catches the reverse direction). With this rule the
+        # only real 80-89 pairs a NONE still settles are Alex Maher ~ Alex
+        # Aster and Stephen Hawking ~ Stephen King (measured 2026-11-24).
         if verdict.kind == CLAUDE_NO_MATCH:
             closest = f"'{all_scored[0][0]}' {all_scored[0][1]}" if all_scored else "none"
             top_score = all_scored[0][1] if all_scored else 0
+            overlap = [s for s in scored if author_key and author_key != _contributor_key(s[0])
+                       and (author_key < _contributor_key(s[0]) or _contributor_key(s[0]) < author_key)]
             if top_score >= CLAUDE_NONE_TRUSTED_BELOW:
                 print(
                     f"  [CLAUDE] said NONE for '{author_name}' but the closest folder is {closest} "
                     f"(>= {CLAUDE_NONE_TRUSTED_BELOW}) — not trusting it to create a second folder"
+                )
+            elif overlap:
+                scored = overlap + [s for s in scored if s not in overlap]
+                print(
+                    f"  [CLAUDE] said NONE for '{author_name}' but '{overlap[0][0]}' "
+                    f"(score {overlap[0][1]}) shares its contributors — not trusting it to "
+                    "create a second folder"
                 )
             elif not scored or scored[0][0] in verdict.shown:
                 print(f"  [CLAUDE] '{author_name}' is not any existing folder (closest: {closest}) — new author")

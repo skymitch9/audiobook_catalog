@@ -102,6 +102,36 @@ def test_a_match_answer_at_90_is_still_used(headless, claude):
         "Kurt Vonnegut Jr.", {"Kurt Vonnegut": "fid"}) == ("Kurt Vonnegut", "fid")
 
 
+def test_a_solo_author_already_files_into_their_co_author_folder(headless, claude):
+    """Pre-existing step 3 (sub-author equality) — no model call."""
+    assert sync.resolve_author_to_drive_folder(
+        "Daisuke Aizawa", {"Daisuke Aizawa, Touzai": "fid"}) == ("Daisuke Aizawa, Touzai", "fid")
+    assert claude.calls == 0
+
+
+@pytest.mark.parametrize("author, folder, score", [
+    # real pairs that author_drive_map.json files to ONE folder, in the
+    # direction step 3 does not catch (the AUTHOR lists more people)
+    ("Daisuke Aizawa, Touzai", "Daisuke Aizawa", 80),
+    ("Kugane Maruyama, So-bin", "Kugane Maruyama", 81),
+    ("Alex Toxic, Nadya Lee, Yulia Kuzmina - Translator, Dan Veksler - Translator",
+     "Alex Toxic, Nadya Lee, Dan Veksler - Translator - Translator", 89),
+])
+def test_none_against_a_contributor_subset_is_overruled(headless, claude, capsys, author, folder, score):
+    result = sync.resolve_author_to_drive_folder(author, {folder: "fid", "Stephen King": "x"})
+    assert isinstance(result, sync.AmbiguousAuthorFolder)
+    assert (result.best_name, result.score) == (folder, score)
+    assert "shares its contributors" in capsys.readouterr().out
+
+
+def test_subset_rule_does_not_catch_the_distinct_pairs(headless, claude):
+    """The only real 80-89 pairs a NONE still settles (measured 2026-11-24)."""
+    assert sync.resolve_author_to_drive_folder(
+        "Alex Maher", {"Alex Aster": "a", "Stephen King": "k"}) is None
+    assert sync.resolve_author_to_drive_folder(
+        "Stephen Hawking", {"Alex Aster": "a", "Stephen King": "k"}) is None
+
+
 # --- deterministic contributor-set pre-check ---------------------------------
 
 
