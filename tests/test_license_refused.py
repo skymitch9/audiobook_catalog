@@ -27,7 +27,7 @@ def test_download_missing_records_refusal_and_keeps_real_failures(tmp_path, monk
     store = tmp_path / "license_refused.json"
     monkeypatch.setattr(license_refused, "STORE", store)
 
-    def fake(asin, title, profile, narrator=None):
+    def fake(asin, title, profile, narrator=None, meta=None):  # meta: the export row (2026-11-24)
         if asin == "B0X":
             raise RuntimeError(REFUSAL)
         raise RuntimeError("ffmpeg convert failed: boom")

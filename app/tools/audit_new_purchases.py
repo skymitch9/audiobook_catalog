@@ -69,6 +69,12 @@ def audible_cli_books():
                             "release_date": row.get("release_date") or "",
                             "asin": row.get("asin") or "",
                             "profile": prof,
+                            # Product data the converter writes into a new
+                            # m4b (app/tools/audible_download.audible_tags).
+                            "subtitle": row.get("subtitle") or "",
+                            "genres": row.get("genres") or "",
+                            "series_title": row.get("series_title") or "",
+                            "series_sequence": row.get("series_sequence") or "",
                         })
         except Exception as e:
             print(f"  [audible-cli] export error for {prof}: {e}")
