@@ -490,8 +490,15 @@ def _tick(dry_run: bool = False) -> int:
     # ⚠️ DEFER, DON'T COLLIDE — and do not advance the token. A run in flight is
     # already mutating the library and may be mid-upload; the same changes are
     # re-seen next tick, so deferring costs latency and nothing else.
-    if pipeline_lock.LOCK_PATH.exists():
-        holder = pipeline_lock.current_holder()
+    # ⚠️ Liveness, not existence (review fix 2026-11-24): a killed run's lock
+    # stays on disk, and testing LOCK_PATH.exists() deferred every tick behind
+    # it until a run reclaimed it (the 2026-11-21 purchase_audit shape).
+    # lock_status() is the one answer purchase_audit and fs_watcher use too; a
+    # leftover is logged and pulled past, never deleted here.
+    lock_state, holder = pipeline_lock.lock_status()
+    if lock_state == pipeline_lock.LOCK_LEFTOVER:
+        _log(pipeline_lock.describe_leftover(holder))
+    if lock_state == pipeline_lock.LOCK_HELD:
         who = holder.describe() if holder else "unreadable lock file"
         _log(
             f"DEFERRED: a pipeline run is in flight ({who}). {len(set(candidates))} "

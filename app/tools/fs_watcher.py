@@ -339,7 +339,7 @@ def _fire(state: dict, summary: str) -> None:
     # nobody at a keyboard, but this child used to inherit the watcher's console
     # stdin and no override, so sync_to_drive.is_interactive() said True and
     # STEP 4 blocked on `Use 'Alex Aster'? (y/n):` for a fuzzy author match —
-    # holding the single-flight lock (a LIVE holder keeps it for 4 hours) with
+    # holding the single-flight lock (a LIVE holder keeps it — up to pipeline_lock.WEDGED_LOCK_HOURS, 24h) with
     # 19 downloads unfiled. The three .bat launchers set this flag; this was
     # the one launch path that did not. Both halves on purpose: the flag is the
     # decision, DEVNULL makes a stray input() fail fast instead of hanging.

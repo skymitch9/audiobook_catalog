@@ -114,23 +114,73 @@ def test_dead_pid_reclaimed_regardless_of_age():
     lock.release()
 
 
-def test_stale_lock_older_than_ceiling_is_reclaimed_even_if_pid_is_alive():
-    """Isolates the SECOND signal (age ceiling) from the first (pid-alive):
-    use this test process's own (genuinely alive) pid, but back-date
-    started_at past STALE_LOCK_HOURS."""
-    old = datetime.now(timezone.utc) - timedelta(hours=pl.STALE_LOCK_HOURS + 0.5)
+def test_live_pid_whose_process_started_after_the_lock_is_pid_reuse():
+    """This test process's own (genuinely alive) pid, but a started_at from
+    before this process existed: whoever wrote that lock is gone and the pid
+    now belongs to someone else (here, us). Real GetProcessTimes, no mock."""
+    old = datetime.now(timezone.utc) - timedelta(hours=1)
     _write_raw_lock(pid=os.getpid(), started_at=old.isoformat())
-    lock = pl.acquire("manual")  # must not raise, must reclaim on age alone
+    assert pl._classify(pl._read_holder()) == (True, pl._LEFT_REUSED)
+    lock = pl.acquire("manual")  # must not raise: reclaimed as a reused pid
     lock.release()
 
 
-def test_lock_within_stale_ceiling_and_alive_pid_is_not_reclaimed():
-    """Sanity check for the ceiling boundary: comfortably inside
-    STALE_LOCK_HOURS with a live pid must still refuse."""
-    recent = datetime.now(timezone.utc) - timedelta(hours=pl.STALE_LOCK_HOURS - 1)
-    _write_raw_lock(pid=os.getpid(), started_at=recent.isoformat())
+def test_live_run_past_the_old_4h_ceiling_is_still_held(monkeypatch):
+    """THE review defect (2026-11-24): a live run 5 h in used to read
+    LEFTOVER and get its lock reclaimed from under it. Liveness decides now."""
+    started = datetime.now(timezone.utc) - timedelta(hours=5)
+    monkeypatch.setattr(pl, "process_start_time", lambda pid: started.timestamp() - 3)
+    _write_raw_lock(pid=os.getpid(), started_at=started.isoformat())
     with pytest.raises(pl.PipelineLockHeld):
         pl.acquire("manual")
+    assert pl.lock_status()[0] == pl.LOCK_HELD
+
+
+def test_live_fresh_holder_is_not_reclaimed():
+    """Our own pid with started_at = now: same process (created before the
+    lock), alive -> refused. Real liveness and real creation time."""
+    _write_raw_lock(pid=os.getpid(), started_at=_iso_now())
+    with pytest.raises(pl.PipelineLockHeld):
+        pl.acquire("manual")
+
+
+def test_unreadable_creation_time_fails_toward_held(monkeypatch):
+    monkeypatch.setattr(pl, "process_start_time", lambda pid: None)
+    old = datetime.now(timezone.utc) - timedelta(hours=3)
+    _write_raw_lock(pid=os.getpid(), started_at=old.isoformat())
+    assert pl.lock_status()[0] == pl.LOCK_HELD
+
+
+def test_creation_time_within_the_slack_is_still_the_holder(monkeypatch):
+    started = datetime.now(timezone.utc) - timedelta(minutes=10)
+    monkeypatch.setattr(pl, "process_start_time",
+                        lambda pid: started.timestamp() + pl.PID_REUSE_SLACK_SECONDS - 1)
+    _write_raw_lock(pid=os.getpid(), started_at=started.isoformat())
+    assert pl.lock_status()[0] == pl.LOCK_HELD
+
+
+def test_wedged_live_holder_past_the_safety_net_is_reclaimed_loudly(monkeypatch, capsys):
+    started = datetime.now(timezone.utc) - timedelta(hours=pl.WEDGED_LOCK_HOURS + 1)
+    monkeypatch.setattr(pl, "process_start_time", lambda pid: started.timestamp() - 3)
+    _write_raw_lock(pid=os.getpid(), started_at=started.isoformat())
+    lock = pl.acquire("manual")
+    lock.release()
+    err = capsys.readouterr().err
+    assert "RECLAIMING the lock from a process that is STILL RUNNING" in err
+
+
+def test_proc_stat_parser_handles_a_comm_with_spaces_and_parens():
+    """The Linux path (CI is ubuntu; this box never runs it). Canned
+    /proc/<pid>/stat: starttime (field 22) = 250000 ticks, btime 1700000000."""
+    fields_after_comm = ["S"] + [str(i) for i in range(4, 22)] + ["250000"] + ["0"] * 30
+    pid_stat = "1234 (python (weird) name) " + " ".join(fields_after_comm)
+    proc_stat = "cpu  1 2 3\nbtime 1700000000\nprocesses 99\n"
+    assert pl._parse_proc_start(pid_stat, proc_stat, 100) == 1700000000 + 2500.0
+
+
+def test_safety_net_is_much_larger_than_any_observed_run():
+    # longest single step seen: ~1h45 (2026-11-23); 24h = 3 schedule slots
+    assert pl.WEDGED_LOCK_HOURS >= 3 * 8
 
 
 def test_corrupt_lock_file_falls_back_to_mtime_age():
@@ -141,7 +191,7 @@ def test_corrupt_lock_file_falls_back_to_mtime_age():
     with pytest.raises(pl.PipelineLockHeld):
         pl.acquire("manual")
     # Back-date the file's mtime past the ceiling -> reclaimed.
-    old_ts = time.time() - (pl.STALE_LOCK_HOURS + 1) * 3600
+    old_ts = time.time() - (pl.UNREADABLE_LOCK_HOURS + 1) * 3600
     os.utime(pl.LOCK_PATH, (old_ts, old_ts))
     lock = pl.acquire("manual")
     lock.release()
@@ -172,6 +222,7 @@ def test_lock_status_free_when_no_file():
 
 def test_lock_status_held_for_live_fresh_holder(monkeypatch):
     monkeypatch.setattr(pl, "pid_alive", lambda pid: True)
+    monkeypatch.setattr(pl, "process_start_time", lambda pid: None)
     _write_raw_lock(pid=4242, started_at=_iso_now())
     state, holder = pl.lock_status()
     assert state == pl.LOCK_HELD and holder.pid == 4242
@@ -188,20 +239,35 @@ def test_lock_status_leftover_for_dead_holder_and_never_deletes(monkeypatch):
     assert "acquire() reclaims it" in line
 
 
-def test_lock_status_leftover_for_live_holder_past_ceiling(monkeypatch):
+def test_lock_status_leftover_for_reused_pid(monkeypatch):
+    """A dead holder's pid reused by a newer process used to read HELD for 4 h."""
+    started = datetime.now(timezone.utc) - timedelta(minutes=30)
     monkeypatch.setattr(pl, "pid_alive", lambda pid: True)
-    old = datetime.now(timezone.utc) - timedelta(hours=pl.STALE_LOCK_HOURS + 0.5)
-    _write_raw_lock(pid=4242, started_at=old.isoformat())
+    monkeypatch.setattr(pl, "process_start_time", lambda pid: started.timestamp() + 600)
+    _write_raw_lock(pid=4242, started_at=started.isoformat())
     state, holder = pl.lock_status()
     assert state == pl.LOCK_LEFTOVER
-    assert "stale ceiling" in pl.describe_leftover(holder)
-    assert "not running" not in pl.describe_leftover(holder)
+    line = pl.describe_leftover(holder)
+    assert "pid reuse" in line and "not running" not in line
+    assert pl.LOCK_PATH.exists()
+
+
+def test_lock_status_leftover_for_live_holder_past_safety_net(monkeypatch):
+    started = datetime.now(timezone.utc) - timedelta(hours=pl.WEDGED_LOCK_HOURS + 0.5)
+    monkeypatch.setattr(pl, "pid_alive", lambda pid: True)
+    monkeypatch.setattr(pl, "process_start_time", lambda pid: started.timestamp() - 1)
+    _write_raw_lock(pid=4242, started_at=started.isoformat())
+    state, holder = pl.lock_status()
+    assert state == pl.LOCK_LEFTOVER
+    line = pl.describe_leftover(holder)
+    assert "IS STILL RUNNING" in line and "safety net" in line
+    assert "is not running" not in line
 
 
 def test_lock_status_unreadable_fresh_is_held_old_is_leftover():
     pl.LOCK_PATH.write_text("{not valid json", encoding="utf-8")
     assert pl.lock_status() == (pl.LOCK_HELD, None)  # same answer acquire() gives
-    old_ts = time.time() - (pl.STALE_LOCK_HOURS + 1) * 3600
+    old_ts = time.time() - (pl.UNREADABLE_LOCK_HOURS + 1) * 3600
     os.utime(pl.LOCK_PATH, (old_ts, old_ts))
     assert pl.lock_status() == (pl.LOCK_LEFTOVER, None)
     assert "unreadable" in pl.describe_leftover(None)
@@ -266,10 +332,34 @@ def test_real_crashed_holder_pid_is_reclaimed_instantly():
         "this is the OpenProcess+GetExitCodeProcess check, not a mock"
     )
 
-    lock = pl.acquire("manual")  # must reclaim instantly, no 4h wait
+    lock = pl.acquire("manual")  # must reclaim instantly, no waiting
     holder_pid_now = json.loads(pl.LOCK_PATH.read_text())["pid"]
     assert holder_pid_now == os.getpid()
     lock.release()
+
+
+def test_real_live_process_with_a_lock_from_before_it_existed_is_leftover():
+    """Real pid reuse, no mocks: a genuinely running OS process, named in a
+    lock whose started_at predates that process. Real OpenProcess +
+    GetProcessTimes (Windows) / procfs (Linux) must call it a different
+    process than the one that took the lock."""
+    proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    try:
+        time.sleep(0.5)
+        assert pl.pid_alive(proc.pid)
+        created = pl.process_start_time(proc.pid)
+        if created is None:
+            pytest.skip("process creation time not readable on this platform")
+        assert abs(created - time.time()) < 60, "creation time must be the real, recent one"
+        before = datetime.now(timezone.utc) - timedelta(hours=2)
+        _write_raw_lock(pid=proc.pid, started_at=before.isoformat())
+        assert pl.lock_status()[0] == pl.LOCK_LEFTOVER
+        # and the same live process with an honest started_at is HELD
+        _write_raw_lock(pid=proc.pid, started_at=_iso_now())
+        assert pl.lock_status()[0] == pl.LOCK_HELD
+    finally:
+        proc.kill()
+        proc.wait(timeout=10)
 
 
 def _wait_for_line(proc: subprocess.Popen, prefix: str, timeout: float) -> int:

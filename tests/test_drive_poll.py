@@ -278,6 +278,32 @@ def test_lock_held_defers_and_does_not_advance_the_token(poll, monkeypatch, caps
     assert "token was NOT advanced" in out, "the deferral must be a NAMED line, not silence"
 
 
+def test_a_dead_runs_leftover_lock_does_not_defer_the_pull(poll, monkeypatch, capsys):
+    """Review fix 2026-11-24: this used to test LOCK_PATH.exists(), so a killed
+    run's lock deferred every tick. lock_status() says it is a leftover."""
+    from datetime import datetime, timezone
+
+    _seed_token("tok-start")
+    pl.LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
+    pl.LOCK_PATH.write_text(json.dumps({
+        "pid": 999999, "host": "h", "trigger": "scheduled",
+        "started_at": datetime.now(timezone.utc).isoformat()}), encoding="utf-8")
+    monkeypatch.setattr(pl, "pid_alive", lambda pid: False)
+    service = _FakeService(pages=[
+        {"changes": [_change("Fresh Drop.m4b")], "newStartPageToken": "tok-1"},
+    ])
+    calls = _wire(monkeypatch, service, pulled=1)
+
+    assert dp.poll_once() == 0
+
+    assert calls["pull"] == 1
+    assert _state(poll)["page_token"] == "tok-1"
+    out = capsys.readouterr().out
+    assert "pipeline lock is a leftover" in out and "pid 999999 is not running" in out
+    assert "DEFERRED" not in out
+    assert pl.LOCK_PATH.exists(), "an observer never deletes the lock"
+
+
 def test_a_failed_pull_does_not_advance_the_token(poll, monkeypatch):
     """Same property, second route in: a pull that exits nonzero has not dealt
     with the changes, so they must be re-seen."""
