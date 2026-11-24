@@ -829,6 +829,62 @@ CLAUDE_NO_MATCH = "no_match"
 CLAUDE_UNAVAILABLE = "unavailable"
 CLAUDE_MAX_FOLDERS_SHOWN = 50
 
+# ⚠️ A NONE IS HONOURED ONLY BELOW THIS FUZZY SCORE (review fix, 2026-11-24).
+# Before this the only "guard" on a NONE was `scored[0][0] in verdict.shown`,
+# which is always true (shown is the head of the same closest-first sort), so
+# the model alone decided whether a near-identical name got a SECOND folder.
+# Now: if the closest existing folder scores >= this, a NONE does not create a
+# folder — it falls through to step 6 (prompt at a terminal, [REVIEW] +
+# AmbiguousAuthorFolder headless), exactly like an UNAVAILABLE.
+#
+# Why 90, measured 2026-11-24 with thefuzz 0.22.1 / rapidfuzz 3.14.5 (same in
+# py -3.12 and .venv) over the 608 real names in author_drive_map.json keys +
+# the library folders under OpenAudible\books:
+#   * distinct people score up to 89 — 'Stephen Hawking' ~ 'Stephen King' 89
+#     (both real names in the library), 'Alex Maher' ~ 'Alex Aster' 80 (the
+#     2026-11-23 case), 'Jim Butcher' ~ 'James Butcher' 83. A bound <= 89
+#     would send a genuinely new author to [REVIEW] again.
+#   * every CONFIRMED variant (author_drive_map keys sharing one folder id)
+#     scoring 80..91 is a role-suffix / contributor-order variant ('... -
+#     Translator', '-translated By', reordered co-authors). All of them are
+#     now caught deterministically by _contributor_key() before the model is
+#     asked, so the score bound is the second line, not the first.
+#   * synthetic single-person variants that land at 90-91 ('Kurt Vonnegut
+#     Jr.' ~ 'Kurt Vonnegut' 90, 'Sir Arthur Conan Doyle' 90) are now REVIEW,
+#     not a silent duplicate. ≥92 already auto-matches (step 4).
+# ⚠️ RESIDUAL RISK, not fixed: a real variant at 80-89 ('George R.R. Martin' ~
+# 'George Martin' 87) still rests on the model's NONE, because score alone
+# cannot tell it from Hawking/King at 89.
+CLAUDE_NONE_TRUSTED_BELOW = 90
+
+# Role annotations seen on real contributor strings in this library ("Dan
+# Veksler - Translator", "-translated By", "Stephen Fry - Introductions").
+# Fitted to THIS library's names on 2026-11-24 — extend it when a new role
+# word shows up; an unknown role only means the pre-check misses, not misfiles.
+_ROLE_SUFFIX = re.compile(
+    r"\s*-\s*(?:translator|translated\s+by|editor|adaptation|contributor"
+    r"|introductions?|narrator|foreword|illustrator)\b.*$",
+    re.IGNORECASE,
+)
+_CONTRIBUTOR_SPLIT = re.compile(r"\s*(?:,|&|/|\band\b)\s*", re.IGNORECASE)
+
+
+def _contributor_key(name: str) -> frozenset[str]:
+    """The SET of people a name string lists, each normalised to letters and
+    digits only (Unicode-aware, so non-Latin names do not collapse to '').
+
+    Order, punctuation, spacing, case and role annotations do not count:
+    'Alex Toxic, Nadya Lee, Dan Veksler - Translator' and 'Nadya Lee, Alex
+    Toxic, Dan Veksler' are the same key. Middle initials, Jr./Sr. and
+    honorifics DO count — 'Martin Luther King Jr.' and '... Sr.' are two people.
+    """
+    people = set()
+    for part in _CONTRIBUTOR_SPLIT.split(name):
+        norm = re.sub(r"[\W_]+", "", _ROLE_SUFFIX.sub("", part).casefold())
+        if norm:
+            people.add(norm)
+    return frozenset(people)
+
 
 class ClaudeVerdict(NamedTuple):
     """ask_claude_for_match()'s answer. ``folder`` is set only for MATCH;
@@ -972,6 +1028,18 @@ def resolve_author_to_drive_folder(
                     if sub.lower() == author_name.lower():
                         return (folder_name, folder_id)
 
+    # 3b. Same SET of people (order / role annotations / punctuation ignored),
+    # deterministic and before the model is asked (review fix, 2026-11-24).
+    # Every confirmed variant pair in author_drive_map.json that scored in the
+    # 80-91 band was this shape. Only a UNIQUE hit auto-files; two or more
+    # folders with the same people means Drive already holds a duplicate, and
+    # picking one is a judgement for a human.
+    author_key = _contributor_key(author_name)
+    key_hits = [f for f in drive_folders if author_key and _contributor_key(f) == author_key]
+    if len(key_hits) == 1:
+        print(f"  [SET] '{author_name}' -> '{key_hits[0]}' (same contributors)")
+        return (key_hits[0], drive_folders[key_hits[0]])
+
     # 4. Fuzzy match
     from thefuzz import fuzz
 
@@ -981,9 +1049,17 @@ def resolve_author_to_drive_folder(
         key=lambda x: x[1], reverse=True,
     )
     scored = [(name, score) for name, score in all_scored if score >= FUZZY_THRESHOLD]
+    multi_hit = len(key_hits) > 1
+    if multi_hit:
+        # Step 3b's multi-hit: those folders ARE this author set, so this is
+        # never a new author and nothing below may pick one silently — skip
+        # the >=92 auto-match and the model, go straight to step 6 naming the
+        # closest of them.
+        hit_set = set(key_hits)
+        scored = [s for s in all_scored if s[0] in hit_set]
 
     # If we have a very high fuzzy match (>=92), use it directly
-    if scored and scored[0][1] >= 92:
+    if not multi_hit and scored and scored[0][1] >= 92:
         match_name = scored[0][0]
         print(f"  [MATCH] '{author_name}' -> '{match_name}' (score: {scored[0][1]})")
         return (match_name, drive_folders[match_name])
@@ -992,7 +1068,7 @@ def resolve_author_to_drive_folder(
     # prompt carries only the first CLAUDE_MAX_FOLDERS_SHOWN, and a NONE only
     # speaks for the folders the model actually saw (2026-11-23 — before this
     # it got the first 50 in Drive order, which need not include the match).
-    if CLAUDE_API_KEY:
+    if CLAUDE_API_KEY and not multi_hit:
         verdict = ask_claude_for_match(author_name, [name for name, _s in all_scored])
         if verdict.kind == CLAUDE_MATCH and verdict.folder in drive_folders:
             print(f"  [CLAUDE] '{author_name}' -> '{verdict.folder}'")
@@ -1000,13 +1076,24 @@ def resolve_author_to_drive_folder(
         # NO_MATCH: the model was asked and explicitly said none of these is
         # this author. That verdict IS the judgement step 6 would otherwise
         # wait for a human to make, so it is a new author — no prompt, no
-        # REVIEW (owner-approved 2026-11-23). Guarded: if the closest fuzzy
-        # candidate was somehow not among the names shown, the verdict does
-        # not cover it and we fall through as UNAVAILABLE.
-        if verdict.kind == CLAUDE_NO_MATCH and (not scored or scored[0][0] in verdict.shown):
+        # REVIEW (owner-approved 2026-11-23) — BUT only below
+        # CLAUDE_NONE_TRUSTED_BELOW (review fix 2026-11-24, numbers at the
+        # constant): a NONE against a 90-91 neighbour is overruled and falls
+        # through to step 6 like an UNAVAILABLE, because a wrong NONE there is
+        # a silent duplicate folder while a [REVIEW] is loud and re-tried.
+        # (The old `scored[0][0] in verdict.shown` check is kept but is
+        # always true — shown is the head of the same sort.)
+        if verdict.kind == CLAUDE_NO_MATCH:
             closest = f"'{all_scored[0][0]}' {all_scored[0][1]}" if all_scored else "none"
-            print(f"  [CLAUDE] '{author_name}' is not any existing folder (closest: {closest}) — new author")
-            return None
+            top_score = all_scored[0][1] if all_scored else 0
+            if top_score >= CLAUDE_NONE_TRUSTED_BELOW:
+                print(
+                    f"  [CLAUDE] said NONE for '{author_name}' but the closest folder is {closest} "
+                    f"(>= {CLAUDE_NONE_TRUSTED_BELOW}) — not trusting it to create a second folder"
+                )
+            elif not scored or scored[0][0] in verdict.shown:
+                print(f"  [CLAUDE] '{author_name}' is not any existing folder (closest: {closest}) — new author")
+                return None
 
     # 6. If we have a decent fuzzy match, confirm with a HUMAN — but only when
     # one is actually at the console. (F2, 2026-08-24; outcome corrected
