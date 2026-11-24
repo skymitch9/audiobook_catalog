@@ -114,21 +114,32 @@ def title_matches(n, c):
     return re.search(r"(?<![a-z0-9])" + re.escape(a) + r"(?![a-z0-9])", b) is not None
 
 
-def missing_purchases(books, catalog_titles, top=50, skip_asins=()):
-    """[(purchase_date, title)] of recent purchases with no local match.
+def missing_purchase_rows(books, catalog_titles, top=50, skip_asins=()):
+    """The library ROWS (asin, profile and all) of recent purchases with no
+    local match — the one "is it missing" decision. ``missing_purchases`` is
+    this, shaped as (date, title); the daily full-library report needs the
+    asin and profile too, and must not grow a second matcher to get them.
     Rows whose ASIN is in skip_asins (titles Audible no longer licenses, see
     app/tools/license_refused.py) are left out: they cannot be downloaded."""
     out = []
     for b in newest_purchases(books, top):
         if b.get("asin") and b.get("asin") in skip_asins:
             continue
-        title = b.get("title_short") or b.get("title") or ""
-        n = norm(title)
+        n = norm(b.get("title_short") or b.get("title") or "")
         have = any(title_matches(n, c) for c in catalog_titles) if n else False
         if not have:
-            date = (b.get("purchase_date") or b.get("release_date") or "")[:10]
-            out.append((date, title))
+            out.append(b)
     return out
+
+
+def purchase_date(b):
+    return (b.get("purchase_date") or b.get("release_date") or "")[:10]
+
+
+def missing_purchases(books, catalog_titles, top=50, skip_asins=()):
+    """[(purchase_date, title)] of recent purchases with no local match."""
+    return [(purchase_date(b), b.get("title_short") or b.get("title") or "")
+            for b in missing_purchase_rows(books, catalog_titles, top, skip_asins)]
 
 
 def load_catalog_titles():

@@ -34,9 +34,12 @@ from typing import Optional
 from datetime import datetime, timedelta, timezone
 
 from app.config import PROJECT_ROOT
+from app.core import bounded_call
 from app.pipeline_status import _client, _lane_suffix  # shared credential path
 
 COOLDOWN_MIN = int(os.getenv("PIPELINE_COOLDOWN_MIN", "10"))
+# One small Firestore read + a few deletes; two minutes is a wedge-breaker.
+CLAIM_TIMEOUT_S = int(os.getenv("PIPELINE_WATCHER_CLAIM_TIMEOUT_S", "120"))
 MAX_REQUEST_AGE_MIN = int(os.getenv("PIPELINE_MAX_REQUEST_AGE_MIN", "60"))
 LOCK_PATH = PROJECT_ROOT / "output_files" / "pipeline_watcher.lock"
 LAST_RUN_PATH = PROJECT_ROOT / "output_files" / "pipeline_last_manual_run.txt"
@@ -237,41 +240,77 @@ def _accept_requests(docs, token: str) -> list:
     return valid
 
 
-def poll_once() -> int:
-    """Check for a valid pending request and run the pipeline if there is one.
+def claim_request() -> dict:
+    """Every Firestore call one poll makes, in ONE function, so it can run in
+    a killable child (``app/core/bounded_call.py``). Reads the pending
+    requests, deletes the rejects, CONSUMES every valid one, and returns
+    JSON-only data for the first:
 
-    Returns 0 = nothing to do / ran fine, 1 = misconfigured.
+      * ``{"status": "unconfigured", "why": ...}``
+      * ``{"status": "read-error", "error": ...}``
+      * ``{"status": "none"}`` — nothing valid pending
+      * ``{"status": "claimed", "who": ..., "step": ...}``
+
+    ⚠️ The deletes happen here, before the parent decides anything — the same
+    "consume up front" rule as before: a double-click must not queue two runs,
+    and a run that dies must not be retried forever. A child killed mid-delete
+    can at worst leave a request for the next poll (still subject to the
+    MAX_REQUEST_AGE_MIN replay rule) or consume one without running it; either
+    beats one hung read wedging every later poll (2026-10-19).
     """
-    # Unconfigured is a normal state (fresh clone, credentials not added yet).
-    # This runs every few minutes, so complain at most once every NOTICE_HOURS
-    # and still exit 0 — otherwise the scheduled task shows permanently failed
-    # and the log fills with the same line 480 times a day.
     token = _token()
     db = _client() if token else None
     if not token or db is None:
         why = "PIPELINE_TRIGGER_TOKEN not set in .env" if not token else "no Firestore credentials"
-        _notice(f"idle — {why} (see docs/access/FIREBASE.md)")
-        return 0
+        return {"status": "unconfigured", "why": why}
 
     coll = f"pipeline_requests{_lane_suffix()}"
     try:
         docs = list(db.collection(coll).limit(25).stream())
     except Exception as e:
-        _log(f"could not read {coll}: {type(e).__name__}: {e}")
-        return 1
+        return {"status": "read-error", "error": f"could not read {coll}: {type(e).__name__}: {e}"}
 
-    if not docs:
-        return 0
-
-    valid = _accept_requests(docs, token)
-
+    valid = _accept_requests(docs, token) if docs else []
     if not valid:
-        return 0
+        return {"status": "none"}
 
-    # Consume every valid request up front — a double-click must not queue two
-    # runs, and if this run dies the request should not be retried forever.
     for d, _data in valid:
         d.reference.delete()
+    first = valid[0][1]
+    return {"status": "claimed", "who": str(first.get("requestedBy", "?")),
+            "step": first.get("step") or None}
+
+
+def poll_once() -> int:
+    """Check for a valid pending request and run the pipeline if there is one.
+
+    Returns 0 = nothing to do / ran fine, 1 = misconfigured or Firestore
+    unreachable.
+    """
+    # ⚠️ BOUNDED (2026-11-23). This is the call that wedged AudiobookPipelineWatcher
+    # from 2026-10-19 17:06: Firestore DNS failed, one read never returned, the
+    # .bat's >> kept the log open, and every later 3-minute run exited 1 for
+    # days. The Firestore section now runs in a child killed at CLAIM_TIMEOUT_S;
+    # the pipeline run itself (_run_pipeline) stays unbounded on purpose.
+    got = bounded_call.call(claim_request, timeout=CLAIM_TIMEOUT_S)
+    if not got.ok:
+        _log(f"could not poll pipeline_requests{_lane_suffix()}: {got.error}")
+        return 1
+    claim = got.value or {}
+    status = claim.get("status")
+
+    # Unconfigured is a normal state (fresh clone, credentials not added yet).
+    # This runs every few minutes, so complain at most once every NOTICE_HOURS
+    # and still exit 0 — otherwise the scheduled task shows permanently failed
+    # and the log fills with the same line 480 times a day.
+    if status == "unconfigured":
+        _notice(f"idle — {claim.get('why')} (see docs/access/FIREBASE.md)")
+        return 0
+    if status == "read-error":
+        _log(str(claim.get("error")))
+        return 1
+    if status != "claimed":
+        return 0
 
     if _lock_held():
         _log("a pipeline run is already in flight — request consumed, not re-running")
@@ -282,8 +321,8 @@ def poll_once() -> int:
         _log(f"cooldown active, {remaining:.1f} min left — request consumed, not running")
         return 0
 
-    who = valid[0][1].get("requestedBy", "?")
-    step = valid[0][1].get("step") or None
+    who = claim.get("who", "?")
+    step = claim.get("step") or None
     if step == FORCE_UPLOAD_STEP:
         _log(f"valid force-upload-to-server request from {who} — running")
         _run_force_upload()

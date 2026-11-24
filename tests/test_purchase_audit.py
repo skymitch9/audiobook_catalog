@@ -37,6 +37,9 @@ import pytest
 from app.core import pipeline_lock as pl
 from app.tools import purchase_audit as pa
 
+# The real extras runner, kept before the fixture stubs it out of tick tests.
+_REAL_RUN_EXTRAS = pa._run_extras
+
 
 @pytest.fixture
 def tick(tmp_path, monkeypatch):
@@ -48,6 +51,20 @@ def tick(tmp_path, monkeypatch):
     monkeypatch.delenv("PURCHASE_AUDIT_ENABLED", raising=False)
     # Default: the 8h task is idle. Individual tests override.
     monkeypatch.setattr(pa, "sync_task_running", lambda: False)
+    # The daily/weekly report-only extras contact Audible and PyPI; they have
+    # their own tests below and are stubbed out of every tick test.
+    monkeypatch.setattr(pa, "_run_extras", lambda state, outcome: None)
+    monkeypatch.setattr(pa, "MISSING_REPORT_PATH", tmp_path / "missing_purchases_report.json")
+    # Belt and braces: even a test that restores the real extras must not reach
+    # Audible or PyPI. Tests that exercise an extra replace these themselves.
+    from app.tools import audible_version_check as _avc
+    from app.tools import missing_purchases_report as _mpr
+
+    def _no_network(*a, **k):
+        raise AssertionError("a purchase-audit test tried to reach the network")
+
+    monkeypatch.setattr(_mpr, "collect", _no_network)
+    monkeypatch.setattr(_avc, "check", _no_network)
     return tmp_path
 
 
@@ -470,3 +487,230 @@ def test_sync_task_running_is_unknown_when_schtasks_fails(monkeypatch):
 
     monkeypatch.setattr(pa.subprocess, "run", _boom)
     assert pa.sync_task_running() is None
+
+
+# ---------------------------------------------------------------------------
+# Daily full-library missing-purchases report (report only)
+# ---------------------------------------------------------------------------
+
+from app.tools import missing_purchases_report as mpr  # noqa: E402
+
+_CLEAN = pa.TickOutcome(True, 0, 0, "0 new — library is current")
+
+
+def _item(asin, title="T", date="2026-01-01", profile="skylar"):
+    return {"date": date, "title": title, "asin": asin, "profile": profile}
+
+
+def _wire_report(monkeypatch, items=None, *, ok=True, sent=True, error="boom"):
+    """A canned full-library result and a recorded Discord."""
+    calls = {"collect": 0, "posts": []}
+
+    def _collect(top=mpr.FULL_TOP):
+        calls["collect"] += 1
+        calls["top"] = top
+        if not ok:
+            return {"ok": False, "error": error}
+        return {"ok": True, "checked": 1077, "covered_all": True, "items": list(items or [])}
+
+    monkeypatch.setattr(mpr, "collect", _collect)
+    monkeypatch.setattr(pa, "_notify", lambda header, lines: calls["posts"].append((header, lines)) or sent)
+    return calls
+
+
+def test_the_first_report_writes_the_file_and_posts_once(tick, monkeypatch):
+    calls = _wire_report(monkeypatch, [_item("B1", "Old Book"), _item("B2", "Older Book")])
+    state = dict(pa._EMPTY_STATE)
+    pa._daily_missing_report(state, _CLEAN)
+
+    assert calls["collect"] == 1 and calls["top"] >= 5000
+    report = json.loads(pa.MISSING_REPORT_PATH.read_text(encoding="utf-8"))
+    assert [i["asin"] for i in report["items"]] == ["B1", "B2"]
+    assert set(report["items"][0]) == {"date", "title", "asin", "profile"}
+    assert report["date"] == state["missing_report_date"]
+    assert len(calls["posts"]) == 1 and "2 purchase(s)" in calls["posts"][0][0]
+    assert state["missing_report_posted"] == ["B1", "B2"]
+
+
+def test_it_runs_at_most_once_per_calendar_day(tick, monkeypatch):
+    calls = _wire_report(monkeypatch, [_item("B1")])
+    state = dict(pa._EMPTY_STATE)
+    pa._daily_missing_report(state, _CLEAN)
+    pa._daily_missing_report(state, _CLEAN)
+    assert calls["collect"] == 1
+
+
+def test_an_UNCHANGED_standing_list_is_not_posted_again_the_next_day(tick, monkeypatch, capsys):
+    calls = _wire_report(monkeypatch, [_item("B2"), _item("B1")])
+    state = {**pa._EMPTY_STATE, "missing_report_date": "2000-01-01",
+             "missing_report_posted": ["B1", "B2"]}
+    pa._daily_missing_report(state, _CLEAN)
+
+    assert calls["collect"] == 1
+    assert calls["posts"] == []
+    assert "unchanged" in capsys.readouterr().out
+    assert state["missing_report_date"] != "2000-01-01"
+    assert pa.MISSING_REPORT_PATH.exists(), "the local file is refreshed daily even when quiet"
+
+
+def test_a_CHANGED_list_is_posted_and_the_new_title_is_marked(tick, monkeypatch):
+    calls = _wire_report(monkeypatch, [_item("B1", "Standing"), _item("B9", "Fresh gap")])
+    state = {**pa._EMPTY_STATE, "missing_report_date": "2000-01-01", "missing_report_posted": ["B1"]}
+    pa._daily_missing_report(state, _CLEAN)
+
+    header, lines = calls["posts"][0]
+    assert "was 1" in header
+    assert any("🆕" in ln and "Fresh gap" in ln for ln in lines)
+    assert not any("🆕" in ln and "Standing" in ln for ln in lines)
+    assert state["missing_report_posted"] == ["B1", "B9"]
+
+
+def test_a_list_that_EMPTIED_says_so_once(tick, monkeypatch):
+    calls = _wire_report(monkeypatch, [])
+    state = {**pa._EMPTY_STATE, "missing_report_date": "2000-01-01", "missing_report_posted": ["B1"]}
+    pa._daily_missing_report(state, _CLEAN)
+    assert "every purchase is in the catalogue" in calls["posts"][0][0]
+    assert state["missing_report_posted"] == []
+
+
+def test_a_FAILED_post_is_not_recorded_so_it_is_said_next_time(tick, monkeypatch):
+    _wire_report(monkeypatch, [_item("B1")], sent=False)
+    state = dict(pa._EMPTY_STATE)
+    pa._daily_missing_report(state, _CLEAN)
+    assert state["missing_report_posted"] is None
+
+
+def test_a_failed_report_writes_nothing_posts_nothing_and_waits_before_retrying(tick, monkeypatch, capsys):
+    calls = _wire_report(monkeypatch, ok=False, error="no library rows exported for profile(s) paige")
+    state = dict(pa._EMPTY_STATE)
+    pa._daily_missing_report(state, _CLEAN)
+
+    assert not pa.MISSING_REPORT_PATH.exists()
+    assert calls["posts"] == []
+    assert state["missing_report_date"] is None
+    assert "paige" in state["missing_report_error"]
+    assert "FAILED" in capsys.readouterr().out
+
+    pa._daily_missing_report(state, _CLEAN)  # inside the retry window
+    assert calls["collect"] == 1
+    state["missing_report_attempt"] -= pa.MISSING_REPORT_RETRY_HOURS * 3600 + 1
+    pa._daily_missing_report(state, _CLEAN)
+    assert calls["collect"] == 2
+
+
+def test_it_is_skipped_on_a_failing_tick_and_on_a_tick_that_downloaded(tick, monkeypatch):
+    calls = _wire_report(monkeypatch, [_item("B1")])
+    pa._daily_missing_report(dict(pa._EMPTY_STATE), pa.TickOutcome(False, 0, 0, "FAILED"))
+    pa._daily_missing_report(dict(pa._EMPTY_STATE), pa.TickOutcome(True, 1, 0, "found 1", ("X",)))
+    assert calls["collect"] == 0
+
+
+def test_an_exploding_extra_never_fails_the_tick_or_moves_the_back_off(tick, monkeypatch, capsys):
+    def _explode(state, outcome):
+        raise RuntimeError("report blew up")
+
+    monkeypatch.setattr(pa, "_run_extras", _REAL_RUN_EXTRAS)
+    monkeypatch.setattr(pa, "_daily_missing_report", _explode)
+    monkeypatch.setattr(pa, "_weekly_version_check", _explode)
+    _wire(monkeypatch, _CLEAN)
+    _seed(interval_minutes=30, consecutive_errors=1)
+
+    assert pa.poll_once() == 0
+    state = _state()
+    assert state["interval_minutes"] == pa.BASE_MINUTES  # the clean tick still reset it
+    assert state["consecutive_errors"] == 0
+    assert "report blew up" in capsys.readouterr().out
+
+
+def test_a_dry_run_never_runs_the_extras(tick, monkeypatch):
+    seen = []
+    monkeypatch.setattr(pa, "_run_extras", lambda state, outcome: seen.append(1))
+    _wire(monkeypatch, _CLEAN)
+    pa.poll_once(dry_run=True)
+    assert seen == []
+
+
+def test_a_real_tick_runs_the_extras_after_saving_its_own_state(tick, monkeypatch):
+    seen = []
+
+    def _extras(state, outcome):
+        seen.append(_state()["last_result"])  # already on disk by now
+
+    monkeypatch.setattr(pa, "_run_extras", _extras)
+    _wire(monkeypatch, _CLEAN)
+    pa.poll_once()
+    assert seen == [_CLEAN.summary]
+
+
+# ---------------------------------------------------------------------------
+# Weekly PyPI version check (report only)
+# ---------------------------------------------------------------------------
+
+from app.tools import audible_version_check as avc  # noqa: E402
+
+
+def _wire_versions(monkeypatch, result=None, *, sent=True, error=None):
+    calls = {"checks": 0, "posts": []}
+
+    def _check(fetch=None):
+        calls["checks"] += 1
+        if error:
+            raise RuntimeError(error)
+        return result
+
+    monkeypatch.setattr(avc, "check", _check)
+    monkeypatch.setattr(pa, "_notify", lambda header, lines: calls["posts"].append((header, lines)) or sent)
+    return calls
+
+
+_NEWER = {"audible": {"installed": "0.10.0", "latest": "0.10.0", "newer": False, "error": None},
+          "audible-cli": {"installed": "0.3.3", "latest": "0.3.4", "newer": True, "error": None}}
+
+
+def test_the_version_check_posts_a_new_release_once_and_logs_every_run(tick, monkeypatch, capsys):
+    calls = _wire_versions(monkeypatch, _NEWER)
+    state = dict(pa._EMPTY_STATE)
+    pa._weekly_version_check(state, _CLEAN)
+    assert len(calls["posts"]) == 1 and "0.3.4" in "\n".join(calls["posts"][0][1])
+    assert state["version_reported"] == {"audible-cli": "0.3.4"}
+    assert "0.3.3 -> 0.3.4 AVAILABLE" in capsys.readouterr().out
+
+    state["version_check_at"] -= 8 * 86400  # next week, same release still out
+    pa._weekly_version_check(state, _CLEAN)
+    assert calls["checks"] == 2 and len(calls["posts"]) == 1
+    assert "AVAILABLE" in capsys.readouterr().out, "it still LOGS every run"
+
+
+def test_the_version_check_runs_at_most_once_a_week(tick, monkeypatch):
+    calls = _wire_versions(monkeypatch, _NEWER)
+    state = dict(pa._EMPTY_STATE)
+    pa._weekly_version_check(state, _CLEAN)
+    pa._weekly_version_check(state, _CLEAN)
+    assert calls["checks"] == 1
+
+
+def test_a_version_check_failure_is_logged_and_waits_for_next_week(tick, monkeypatch, capsys):
+    calls = _wire_versions(monkeypatch, error="getaddrinfo failed")
+    state = dict(pa._EMPTY_STATE)
+    pa._weekly_version_check(state, _CLEAN)
+    assert calls["posts"] == []
+    assert state["version_check_at"] > 0
+    assert "FAILED" in state["version_check_line"]
+    assert "version check FAILED" in capsys.readouterr().out
+    pa._weekly_version_check(state, _CLEAN)
+    assert calls["checks"] == 1
+
+
+def test_a_failed_version_post_is_not_recorded(tick, monkeypatch):
+    _wire_versions(monkeypatch, _NEWER, sent=False)
+    state = dict(pa._EMPTY_STATE)
+    pa._weekly_version_check(state, _CLEAN)
+    assert state["version_reported"] == {}
+
+
+def test_the_new_state_fields_survive_a_save_and_load(tick):
+    _seed(missing_report_posted=["B1"], version_reported={"audible": "1.0"}, version_check_at=5.0)
+    got = pa._load_state()
+    assert got["missing_report_posted"] == ["B1"]
+    assert got["version_reported"] == {"audible": "1.0"}
+    assert got["version_check_at"] == 5.0
