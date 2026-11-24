@@ -55,6 +55,16 @@ def tick(tmp_path, monkeypatch):
     # their own tests below and are stubbed out of every tick test.
     monkeypatch.setattr(pa, "_run_extras", lambda state, outcome: None)
     monkeypatch.setattr(pa, "MISSING_REPORT_PATH", tmp_path / "missing_purchases_report.json")
+    # Belt and braces: even a test that restores the real extras must not reach
+    # Audible or PyPI. Tests that exercise an extra replace these themselves.
+    from app.tools import audible_version_check as _avc
+    from app.tools import missing_purchases_report as _mpr
+
+    def _no_network(*a, **k):
+        raise AssertionError("a purchase-audit test tried to reach the network")
+
+    monkeypatch.setattr(_mpr, "collect", _no_network)
+    monkeypatch.setattr(_avc, "check", _no_network)
     return tmp_path
 
 
@@ -601,6 +611,7 @@ def test_an_exploding_extra_never_fails_the_tick_or_moves_the_back_off(tick, mon
 
     monkeypatch.setattr(pa, "_run_extras", _REAL_RUN_EXTRAS)
     monkeypatch.setattr(pa, "_daily_missing_report", _explode)
+    monkeypatch.setattr(pa, "_weekly_version_check", _explode)
     _wire(monkeypatch, _CLEAN)
     _seed(interval_minutes=30, consecutive_errors=1)
 
