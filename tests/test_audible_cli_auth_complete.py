@@ -143,6 +143,13 @@ def test_backup_failure_refuses(env, monkeypatch):
     assert env.posts == 0
 
 
+def test_unreadable_config_toml_refuses(env):
+    (env.dir / "config.toml").write_bytes(b"\xff\xfe\x00bad")
+    with pytest.raises(cli.Refused, match="config.toml"):
+        cli.cmd_complete("tester", GOOD_URL)
+    assert env.posts == 0
+
+
 def test_interpreter_without_audible_cli_refuses(monkeypatch):
     """The real resolver, with audible_cli made unimportable."""
     import sys
