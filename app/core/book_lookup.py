@@ -201,7 +201,7 @@ def tags_summary(tags: Dict[str, Any]) -> Dict[str, str]:
 
 def load_book(row: Dict[str, str], root: Path = ROOT_DIR) -> Book:
     """A catalog row enriched with the file's own view of itself, when findable."""
-    from app.metadata import K_ASIN, derive_correctable_fields, get_tag_any
+    from app.metadata import derive_correctable_fields, get_tag_any, resolve_asin
 
     book = Book(row=row, path=locate_file(row, root))
     if book.path is None:
@@ -211,14 +211,14 @@ def load_book(row: Dict[str, str], root: Path = ROOT_DIR) -> Book:
     except Exception:
         return book
     book.uncorrected = derive_correctable_fields(tags)
-    book.asin = get_tag_any(tags, [K_ASIN])
+    book.asin = resolve_asin(tags)
     book.tags_read = tags_summary(tags)
     return book
 
 
 def load_book_from_file(path: Path) -> Book:
     """Same, starting from a file path instead of a catalog row."""
-    from app.metadata import K_ASIN, derive_correctable_fields, get_tag_any
+    from app.metadata import derive_correctable_fields, get_tag_any, resolve_asin
 
     tags = read_tags(path)
     derived = derive_correctable_fields(tags)
@@ -236,6 +236,6 @@ def load_book_from_file(path: Path) -> Book:
         row=row,
         path=path,
         uncorrected=derived,
-        asin=get_tag_any(tags, [K_ASIN]),
+        asin=resolve_asin(tags),
         tags_read=tags_summary(tags),
     )

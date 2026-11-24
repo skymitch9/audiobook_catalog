@@ -312,6 +312,16 @@ class TestCatalogCompleteness(unittest.TestCase):
         """Renamed 2026-09-07 (audit §4.2). It was `test_all_authors_have_drive_links`
         and it asserted nothing at all; 1 author legitimately has no map entry, so
         this is a THRESHOLD test and now says so in its name."""
+        # ⚠️ CHANGED 2026-11-24: this used an EXACT, case-sensitive lookup,
+        # which the site never did — index.html's _resolveAuthorFolder (and its
+        # mirror, app.tools.audit_site.resolve_author_link) matches exactly,
+        # then case-insensitively, then on any one author of a multi-author
+        # string. So "M.a. Wardell" vs the map's "M.A. Wardell" failed here
+        # while the page linked it fine, and fixing the catalogue's casing
+        # (M.A., McGough, DeCamp ...) would have failed it the other way. The
+        # test now asks the site's own question.
+        from app.tools.audit_site import resolve_author_link
+
         missing_links = []
         authors_seen = set()
 
@@ -322,16 +332,7 @@ class TestCatalogCompleteness(unittest.TestCase):
 
             authors_seen.add(author)
 
-            # Check if author has drive link
-            if author not in self.author_map:
-                # Check if this is a co-author situation (contains comma)
-                if "," in author:
-                    # Split and check if primary (first) author has a link
-                    primary_author = author.split(",")[0].strip()
-                    if primary_author in self.author_map and self.author_map[primary_author]:
-                        # Primary author has link, co-author entry not needed
-                        continue
-
+            if not resolve_author_link(author, self.author_map):
                 missing_links.append(author)
 
         print(f"\n[REPORT] {len(missing_links)} authors missing from author_drive_map.json "

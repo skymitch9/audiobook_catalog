@@ -4032,6 +4032,80 @@
         ],
         "note": "multi-part download 2026-10-20 (owner: download anything missing)"
       }
+    },
+    {
+      "book": "Loner Life in Another World, Vol. 1: Light Novel - Shoji Goji",
+      "match": {
+        "asin": "B0FVMMZB5W"
+      },
+      "set": {
+        "author": "Shoji Goji",
+        "series": "Loner Life in Another World",
+        "series_index": "1"
+      },
+      "added": "2026-11-24",
+      "evidence": {
+        "author": "The tag (and Audible's own author credit) is the Japanese-script name 五示正司; the English edition's copyright line in the file itself reads '©2018 Shoji Goji (P)2018 Shoji Goji', which is the romanised name the English edition credits. The shelf folder and Drive folder stay 五示正司 - this only corrects the catalogue's display name.",
+        "series": "Audible's library export for ASIN B0FVMMZB5W gives series_title 'Loner Life in Another World'. The title parser alone reads 'Loner Life in Another World, Vol.' (a trailing 'Vol.' it does not strip), so the series is set here.",
+        "series_index": "Audible series_sequence '1'; the title says 'Vol. 1'.",
+        "tags_read": {
+          "©nam": "Loner Life in Another World, Vol. 1: Light Novel (Unabridged)",
+          "©ART": "五示正司",
+          "cprt": "©2018 Shoji Goji (P)2018 Shoji Goji",
+          "CDEK": "absent"
+        },
+        "filename_said": "Loner Life in Another World, Vol. 1",
+        "note": "Keyed on ASIN although the file has no CDEK: scripts/audible_backfill.json identifies it (title + author + runtime), and app/metadata.resolve_asin passes that ASIN to this layer.",
+        "sources": [
+          "https://www.audible.com/pd/B0FVMMZB5W"
+        ]
+      }
+    },
+    {
+      "book": "Disney Pixar Toy Story: Moon Menace - Disney Books",
+      "match": {
+        "asin": "B0FS9LJCDJ"
+      },
+      "set": {
+        "author": "Disney Books"
+      },
+      "added": "2026-11-24",
+      "evidence": {
+        "author": "Audible credits this title to 'Disney Book Group'. It is the same Disney Publishing Worldwide audio line as the 20 books filed under 'Disney Books' (same Buena Vista Books narration credit, same release run). Proof the two credits are one shelf: Audible ALSO credits 'Disney Pixar Cars: Hitting the Speedway' (B0FDMSXM9L) to 'Disney Book Group' in its library export, yet that file is tagged and filed 'Disney Books'. The shelf alias 'Disney Book Group' -> 'Disney Books' (scripts/author_shelf_aliases.json) files future downloads there.",
+        "tags_read": {
+          "©nam": "Disney Pixar Toy Story: Moon Menace (Unabridged)",
+          "©ART": "Disney Book Group",
+          "CDEK": "absent"
+        },
+        "filename_said": "Disney Pixar Toy Story- Moon Menace",
+        "note": "Keyed on ASIN via scripts/audible_backfill.json (the file has no CDEK).",
+        "sources": [
+          "https://www.audible.com/pd/B0FS9LJCDJ"
+        ]
+      }
+    },
+    {
+      "book": "Disney: Winnie the Pooh and the Ever So Frightening Dus-Torr - Disney Books",
+      "match": {
+        "asin": "B0FSB417RS"
+      },
+      "set": {
+        "author": "Disney Books"
+      },
+      "added": "2026-11-24",
+      "evidence": {
+        "author": "Same evidence as Toy Story: Moon Menace - Audible credits 'Disney Book Group', the established shelf for this Disney audio line is 'Disney Books' (Cars: Hitting the Speedway carries the same Audible credit and is filed there).",
+        "tags_read": {
+          "©nam": "Disney: Winnie the Pooh and the Ever So Frightening Dus-Torr (Unabridged)",
+          "©ART": "Disney Book Group",
+          "CDEK": "absent"
+        },
+        "filename_said": "Disney- Winnie the Pooh and the Ever So Frightening Dus-Torr",
+        "note": "Keyed on ASIN via scripts/audible_backfill.json (the file has no CDEK).",
+        "sources": [
+          "https://www.audible.com/pd/B0FSB417RS"
+        ]
+      }
     }
   ],
   "_not_corrected_on_purpose": {

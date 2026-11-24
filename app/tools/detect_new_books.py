@@ -87,10 +87,16 @@ def main():
             json.dump(output, f, indent=2)
         return
 
-    # Find new books (in current but not in snapshot)
+    # Find new books (in current but not in snapshot). A key that changed only
+    # cosmetically (letter case, a dropped "(Unabridged)" — the 2026-11-24
+    # metadata clean-up) is the SAME book and must not be announced again.
+    from app.additions_log import identity_fold
+
+    previous_folds = {identity_fold(k) for k in previous_ids}
     new_books = []
     for book in current_books:
-        if book_id(book) not in previous_ids:
+        bid = book_id(book)
+        if bid not in previous_ids and identity_fold(bid) not in previous_folds:
             new_books.append(
                 {
                     "title": book.get("title", ""),

@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import date
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -24,6 +25,37 @@ LOG_NAME = "additions_log.json"
 def book_key(title: str, author: str) -> str:
     """Same identity key detect_new_books.py uses for the Discord snapshot."""
     return f"{title or ''}|{author or ''}"
+
+
+_UNABRIDGED = re.compile(r"\s*\(\s*unabridged\s*\)\s*$", re.IGNORECASE)
+
+
+def identity_fold(key: str) -> str:
+    """A ``book_key`` with the two cosmetic differences the 2026-11-24 metadata
+    clean-up introduces folded away: letter CASE (``M.a. Wardell`` ->
+    ``M.A. Wardell``) and a trailing "(Unabridged)" on the title.
+
+    ⚠️ NOT an identity. ``book_key`` stays exactly as it was — it is persisted
+    in this log, in last_catalog_snapshot.json and as estate search's
+    source_id, and changing it would be a migration. This is only consulted on
+    a MISS, so a book whose key changed cosmetically inherits its old record
+    instead of reading as brand new (re-dated "Recently Added", re-announced
+    on Discord). Measured 2026-11-24: no two of the 1,180 catalogue rows share
+    a fold, so it cannot merge two real books today."""
+    title, _, author = (key or "").partition("|")
+    title = re.sub(r"\s+", " ", _UNABRIDGED.sub("", title)).strip()
+    title = re.sub(r"\s+:", ":", title)
+    author = re.sub(r"\s+", " ", author).strip()
+    return f"{title}|{author}".casefold()
+
+
+def fold_index(keys) -> Dict[str, Optional[str]]:
+    """{fold: the ONE key with that fold, or None when several share it}."""
+    idx: Dict[str, Optional[str]] = {}
+    for k in keys:
+        f = identity_fold(k)
+        idx[f] = k if f not in idx else None
+    return idx
 
 
 def log_path(site_dir: Path) -> Path:
@@ -63,10 +95,25 @@ def update_additions_log(
     """
     today = today or date.today().isoformat()
     entries = load_log(site_dir)
-    new_count = 0
+    folds = fold_index(entries.keys())
+    new_count = carried = 0
     for r in rows:
         key = book_key(r.get("title", ""), r.get("author", ""))
         if key == "|" or key in entries:
+            continue
+        # A cosmetic key change (case, "(Unabridged)") inherits the old date.
+        # The old entry is left as it is — entries are never modified.
+        old = folds.get(identity_fold(key))
+        if old and old in entries:
+            entries[key] = {
+                "key": key,
+                "title": r.get("title", ""),
+                "author": r.get("author", ""),
+                "added": entries[old].get("added", today),
+                "source": entries[old].get("source", "pipeline"),
+                "carried_from": old,
+            }
+            carried += 1
             continue
         entries[key] = {
             "key": key,
@@ -76,7 +123,10 @@ def update_additions_log(
             "source": "pipeline",
         }
         new_count += 1
-    if new_count:
+    if new_count or carried:
         save_log(site_dir, entries)
+    if new_count:
         print(f"[additions-log] Logged {new_count} new book(s) dated {today}")
+    if carried:
+        print(f"[additions-log] Carried {carried} re-keyed book(s) over at their original date")
     return entries

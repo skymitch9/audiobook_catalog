@@ -110,9 +110,12 @@ def download_missing(missing, books=None):
     from app.tools.audible_download import download_and_convert, profile_for
     from app.tools.license_refused import is_license_refusal, record
     lookup = {}
+    rows_by_asin = {}
     for b in books or []:  # audible-cli export rows carry asin + profile + narrator
         title = b.get("title_short") or b.get("title") or ""
         lookup[title] = (b.get("asin"), b.get("profile"), b.get("narrator") or "")
+        if b.get("asin"):
+            rows_by_asin[b["asin"]] = b
     if not lookup:  # container books.json fallback (user_id -> profile)
         try:
             raw = json.loads((RUNTIME / "books.json").read_text(encoding="utf-8"))
@@ -130,7 +133,10 @@ def download_missing(missing, books=None):
             failed.append((title, "no ASIN in library list"))
             continue
         try:
-            dest = download_and_convert(asin, title, profile, narrator=narrator)
+            # The export row also carries genre/series/release date — the
+            # converter writes them into the new file (2026-11-24).
+            dest = download_and_convert(asin, title, profile, narrator=narrator,
+                                        meta=rows_by_asin.get(asin))
             downloaded.append(title)
             print(f"DOWNLOADED: {title} -> {dest.name}")
         except Exception as e:

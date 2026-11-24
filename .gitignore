@@ -13,6 +13,11 @@ docs/
 !scripts/author_shelf_aliases.json
 !scripts/priority_authors.json
 !scripts/catalog_overrides.json
+# GENERATED Audible product data (app/tools/build_audible_backfill.py) for the
+# files whose tags carry Audible's placeholders. MUST be tracked: it is build
+# input (genre/year for 123 rows) and tests/test_catalog_metadata_cleanup.py
+# asserts it holds product facts only — no purchase dates, no account names.
+!scripts/audible_backfill.json
 !scripts/bookfunnel_books.json
 !scripts/audit_exclusions.json
 # The hand-written Audiobookshelf author merge table (scripts/merge_abs_authors.py).

@@ -206,7 +206,87 @@ def _join_parts(ffmpeg, parts, profile, title, narrator, tmp, dest):
         raise RuntimeError(f"ffmpeg join failed: {(r.stderr or '')[-400:]}")
 
 
-def download_and_convert(asin, title, profile=None, out_dir=DEFAULT_OUT, narrator=None):
+_UNABRIDGED = re.compile(r"\s*\(\s*unabridged\s*\)\s*$", re.IGNORECASE)
+_SUBTITLE_SERIES = re.compile(r"^([^:,()]+?),\s*Book\s+(\d+(?:\.\d+)?)$", re.IGNORECASE)
+
+
+def audible_tags(asin, meta, existing_title="", known_genre_paths=()):
+    """The tags this converter writes into the NEW m4b, from the audible-cli
+    library export row (``meta``). Pure, so it is unit-tested.
+
+    ⚠️ WHY (2026-11-24): a bare ``ffmpeg -c copy`` keeps Audible's CONTAINER
+    tags, which are placeholders — ``©gen = "Audiobook"``, sometimes
+    ``©day = "2000"`` (or the export's own "2200"), a title ending
+    "(Unabridged)" — and writes no ASIN or series at all. 132 library files
+    came out like that before this existed, and each needed a catalogue-side
+    backfill (scripts/audible_backfill.json). OpenAudible, which tagged the
+    rest of the library, writes Audible's real product data; this brings the
+    converter level with it:
+
+    * ``CDEK`` = ASIN (the corrections layer's preferred key);
+    * ``SRNM``/``SRSQ`` = Audible's series and sequence, when it has one;
+    * ``©gen`` = one Audible category ladder (``Top:Sub:Leaf``, OpenAudible's
+      shape), only when it is a ladder the library already knows;
+    * ``©day`` = the release date, unless Audible's is a placeholder;
+    * ``©nam``/``©alb`` = the container title minus "(Unabridged)".
+
+    Returns {atom: str}. Atoms with nothing real to say are left out, so the
+    container's own value stays rather than being replaced by a guess."""
+    from app.core import audible_backfill as ab
+
+    meta = meta or {}
+    out = {}
+    if asin:
+        out["CDEK"] = asin
+    # Series: the export's ``series_title`` is Audible's FIRST series, which is
+    # sometimes the umbrella ("The Cosmere", "Realm of the Elderlings 4") rather
+    # than the series the book is numbered in. Measured 2026-11-24 against the
+    # 728 OpenAudible files that carry both: equal 685 times; most of the 43
+    # misses are umbrellas, and those come with NO sequence. So: a subtitle of
+    # the exact form "Series, Book N" wins (it is how Audible numbers the book
+    # on its own page); otherwise the export series is written only WITH a
+    # sequence, never bare.
+    m = _SUBTITLE_SERIES.match((meta.get("subtitle") or "").strip())
+    if m:
+        out["SRNM"], out["SRSQ"] = m.group(1).strip(), m.group(2)
+    elif (meta.get("series_title") or "").strip() and str(meta.get("series_sequence") or "").strip():
+        out["SRNM"] = meta["series_title"].strip()
+        out["SRSQ"] = str(meta["series_sequence"]).strip()
+    genre = ab.first_known_ladder(meta.get("genres") or "", list(known_genre_paths))
+    if genre:
+        out["\xa9gen"] = genre
+    rd = (meta.get("release_date") or "").strip()
+    if rd and not ab.is_placeholder_year(rd):
+        out["\xa9day"] = rd
+    t = _UNABRIDGED.sub("", existing_title or "").strip()
+    if t and t != (existing_title or "").strip():
+        out["\xa9nam"] = t
+        out["\xa9alb"] = t
+    return out
+
+
+def write_audible_tags(dest, asin, meta):
+    """Write ``audible_tags`` into the m4b this converter just CREATED.
+
+    Only ever called on our own fresh output file, never on a library file —
+    purchased media in the library is not retagged."""
+    from mutagen.mp4 import MP4
+
+    from app.core import audible_backfill as ab
+
+    mp4 = MP4(str(dest))
+    if mp4.tags is None:
+        mp4.add_tags()
+    current = mp4.tags.get("\xa9nam")
+    current_title = str(current[0]) if current else ""
+    tags = audible_tags(asin, meta, current_title, ab.genre_paths())
+    for atom, value in tags.items():
+        mp4.tags[atom] = [value]
+    mp4.save()
+    return tags
+
+
+def download_and_convert(asin, title, profile=None, out_dir=DEFAULT_OUT, narrator=None, meta=None):
     """Download one book and place <safe title>.m4b in out_dir.
     Returns the m4b Path. Raises on failure.
 
@@ -214,7 +294,12 @@ def download_and_convert(asin, title, profile=None, out_dir=DEFAULT_OUT, narrato
     from the m4b's composer (\\xa9wrt) tag — so when we know the narrator (from
     the audible-cli library export) we write it in during the remux. Without
     this the promote guard's core-features audit rejects the book for a
-    missing narrator."""
+    missing narrator.
+
+    ``meta`` is the audible-cli library export row for this ASIN; when given,
+    the new file also gets the ASIN, series, genre, release date and a clean
+    title (``write_audible_tags``). A tagging failure is reported, not fatal:
+    the audio is fine and the catalogue backfill still covers it."""
     ffmpeg = find_ffmpeg()
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -249,6 +334,7 @@ def download_and_convert(asin, title, profile=None, out_dir=DEFAULT_OUT, narrato
     if len(audio) > 1:
         _join_parts(ffmpeg, sorted(audio, key=natural_key), profile, title, narrator, tmp, dest)
         _rmtree(tmp, ignore_errors=True)
+        _tag_new_file(dest, asin, meta)
         return dest
 
     src = audio[0]
@@ -266,7 +352,16 @@ def download_and_convert(asin, title, profile=None, out_dir=DEFAULT_OUT, narrato
     if r.returncode != 0 or not dest.exists():
         raise RuntimeError(f"ffmpeg convert failed: {(r.stderr or '')[-400:]}")
     _rmtree(tmp, ignore_errors=True)
+    _tag_new_file(dest, asin, meta)
     return dest
+
+
+def _tag_new_file(dest, asin, meta):
+    try:
+        written = write_audible_tags(dest, asin, meta)
+        print(f"  [TAGS] {dest.name}: wrote {', '.join(sorted(written)) or 'nothing'}")
+    except Exception as e:  # noqa: BLE001 — the audio is good; the catalogue backfill still covers it
+        print(f"  [WARN] could not write Audible tags into {dest.name}: {e}")
 
 
 def main():
