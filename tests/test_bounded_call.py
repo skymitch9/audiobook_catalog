@@ -172,3 +172,25 @@ def test_request_run_reports_missing_firestore_credentials_once(monkeypatch):
     assert pipeline_requests.request_run("r", source="s", log=lines.append, notice=notices.append) is False
     assert notices and "no Firestore credentials" in notices[0]
     assert lines == []
+
+
+def _hang_no_args():
+    """claim_request() takes no arguments, so the pid file comes from env."""
+    return _hang(os.environ["BOUNDED_TEST_PID_PATH"])
+
+
+def test_pipeline_watcher_poll_returns_when_its_firestore_read_never_answers(real_child, tmp_path, monkeypatch):
+    from app.tools import pipeline_watcher as watcher
+
+    pid_path = tmp_path / "pid.txt"
+    monkeypatch.setenv("BOUNDED_TEST_PID_PATH", str(pid_path))
+    monkeypatch.setattr(watcher, "CLAIM_TIMEOUT_S", 4)
+    monkeypatch.setattr(watcher, "claim_request", _hang_no_args)
+    runs = []
+    monkeypatch.setattr(watcher, "_run_pipeline", lambda: runs.append("full"))
+
+    started = time.monotonic()
+    assert watcher.poll_once() == 1
+    assert time.monotonic() - started < 4 + bounded_call.REAP_WAIT_S + 5
+    assert runs == []
+    assert pl.pid_alive(_child_pid(pid_path)) is False
