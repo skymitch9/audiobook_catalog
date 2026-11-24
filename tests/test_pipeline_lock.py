@@ -169,6 +169,15 @@ def test_wedged_live_holder_past_the_safety_net_is_reclaimed_loudly(monkeypatch,
     assert "RECLAIMING the lock from a process that is STILL RUNNING" in err
 
 
+def test_proc_stat_parser_handles_a_comm_with_spaces_and_parens():
+    """The Linux path (CI is ubuntu; this box never runs it). Canned
+    /proc/<pid>/stat: starttime (field 22) = 250000 ticks, btime 1700000000."""
+    fields_after_comm = ["S"] + [str(i) for i in range(4, 22)] + ["250000"] + ["0"] * 30
+    pid_stat = "1234 (python (weird) name) " + " ".join(fields_after_comm)
+    proc_stat = "cpu  1 2 3\nbtime 1700000000\nprocesses 99\n"
+    assert pl._parse_proc_start(pid_stat, proc_stat, 100) == 1700000000 + 2500.0
+
+
 def test_safety_net_is_much_larger_than_any_observed_run():
     # longest single step seen: ~1h45 (2026-11-23); 24h = 3 schedule slots
     assert pl.WEDGED_LOCK_HOURS >= 3 * 8

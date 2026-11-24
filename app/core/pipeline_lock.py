@@ -226,15 +226,19 @@ def _win_process_created(pid: int) -> float | None:
         kernel32.CloseHandle(handle)
 
 
+def _parse_proc_start(pid_stat: str, proc_stat: str, clk_tck: int) -> float:
+    """Epoch start time from /proc/<pid>/stat + /proc/stat text. comm (field
+    2) may hold spaces and parens, so split after the LAST ')'; starttime is
+    field 22 overall = index 19 of what follows."""
+    start_ticks = int(pid_stat.rsplit(")", 1)[1].split()[19])
+    btime = next(int(line.split()[1]) for line in proc_stat.splitlines() if line.startswith("btime "))
+    return btime + start_ticks / clk_tck
+
+
 def _linux_process_created(pid: int) -> float | None:
     try:
-        stat = Path(f"/proc/{pid}/stat").read_text()
-        # comm (field 2) may hold spaces/parens: split after the LAST ')';
-        # starttime is field 22 overall = index 19 of what follows.
-        start_ticks = int(stat.rsplit(")", 1)[1].split()[19])
-        btime = next(int(line.split()[1]) for line in Path("/proc/stat").read_text().splitlines()
-                     if line.startswith("btime "))
-        return btime + start_ticks / os.sysconf("SC_CLK_TCK")
+        return _parse_proc_start(Path(f"/proc/{pid}/stat").read_text(),
+                                 Path("/proc/stat").read_text(), os.sysconf("SC_CLK_TCK"))
     except Exception:
         return None
 
