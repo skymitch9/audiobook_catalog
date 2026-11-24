@@ -30,7 +30,15 @@ import os
 from datetime import datetime, timezone
 from typing import Callable
 
+from app.core import bounded_call
+
 Logger = Callable[[str], None]
+
+# A Firestore add is one small write; two minutes is a wedge-breaker, not a budget.
+try:
+    REQUEST_TIMEOUT_S = int(os.getenv("PIPELINE_REQUEST_TIMEOUT_S") or 120)
+except ValueError:
+    REQUEST_TIMEOUT_S = 120
 
 
 def request_run(
@@ -49,17 +57,43 @@ def request_run(
     it passes its own rate-limited notice function here. It defaults to
     ``log``.
     """
-    from app.pipeline_status import _client, _lane_suffix
-
     say_once = notice or log
 
     token = (os.getenv("PIPELINE_TRIGGER_TOKEN") or "").strip()
-    db = _client() if token else None
-    if not token or db is None:
-        why = "PIPELINE_TRIGGER_TOKEN not set in .env" if not token else "no Firestore credentials"
-        say_once(f"wanted a pipeline run but CANNOT request one — {why} (see docs/access/FIREBASE.md)")
+    if not token:
+        say_once("wanted a pipeline run but CANNOT request one — PIPELINE_TRIGGER_TOKEN "
+                 "not set in .env (see docs/access/FIREBASE.md)")
         return False
 
+    # ⚠️ Bounded (2026-11-23): the Firestore client build and the .add() run in a
+    # child that is killed at REQUEST_TIMEOUT_S. See app/core/bounded_call.py —
+    # an unbounded Firestore call during a DNS outage is what wedged a watcher
+    # for hours on 2026-10-19.
+    got = bounded_call.call(add_request, reason, source, timeout=REQUEST_TIMEOUT_S)
+    if not got.ok:
+        log(f"could not enqueue a run request: {got.error}")
+        return False
+    if got.value == "no-credentials":
+        say_once("wanted a pipeline run but CANNOT request one — no Firestore credentials "
+                 "(see docs/access/FIREBASE.md)")
+        return False
+    if got.value != "ok":
+        log(f"could not enqueue a run request: {got.value}")
+        return False
+    log(f"queued a pipeline run — {reason}")
+    return True
+
+
+def add_request(reason: str, source: str) -> str:
+    """The Firestore write itself — run inside the bounded child. Returns
+    ``"ok"``, ``"no-credentials"``, or ``"error: <why>"`` (never raises, so a
+    Firestore error and a child crash stay distinguishable)."""
+    from app.pipeline_status import _client, _lane_suffix
+
+    token = (os.getenv("PIPELINE_TRIGGER_TOKEN") or "").strip()
+    db = _client()
+    if db is None:
+        return "no-credentials"
     try:
         db.collection(f"pipeline_requests{_lane_suffix()}").add({
             "token": token,
@@ -67,7 +101,5 @@ def request_run(
             "requestedBy": f"{source}: {reason}",
         })
     except Exception as e:
-        log(f"could not enqueue a run request: {type(e).__name__}: {e}")
-        return False
-    log(f"queued a pipeline run — {reason}")
-    return True
+        return f"error: {type(e).__name__}: {e}"
+    return "ok"

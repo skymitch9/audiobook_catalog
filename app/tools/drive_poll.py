@@ -78,7 +78,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from app.config import OUTPUT_DIR, PROJECT_ROOT
-from app.core import pipeline_lock, pipeline_requests
+from app.core import bounded_call, pipeline_lock, pipeline_requests
 from app.core.drive_pull import ALL_EXTS, is_copy_name
 
 # ---------------------------------------------------------------------------
@@ -98,6 +98,9 @@ def _flag(name: str, default: bool = True) -> bool:
 # hammering the Changes API, so the documented default is true either way.
 POLL_MINUTES = int(os.getenv("DRIVE_POLL_MINUTES", "15"))
 PULL_TIMEOUT_S = int(os.getenv("DRIVE_PULL_TIMEOUT_S", "1800"))
+# The tick's own Drive calls (auth + Changes + folder listing). Normally a few
+# seconds; five minutes is a wedge-breaker, not a budget.
+PROBE_TIMEOUT_S = int(os.getenv("DRIVE_POLL_PROBE_TIMEOUT_S", "300"))
 
 STATE_PATH: Path = OUTPUT_DIR / "drive_poll_state.json"
 TICK_LOCK_PATH: Path = OUTPUT_DIR / "drive_poll.lock"
@@ -312,6 +315,27 @@ def new_book_files(changes: list[dict], folder_ids: set[str]) -> list[str]:
     return out
 
 
+def probe_drive(page_token: str | None) -> dict:
+    """Every Drive call one tick needs, in ONE function, so it can run inside
+    a killable child (``bounded_call``). Returns JSON-only data:
+
+      * ``{"auth": False}`` — no usable Drive credentials;
+      * ``{"baseline": <token>}`` — no token yet, here is the current one;
+      * ``{"changes": n, "next_token": t, "candidates": [names]}`` otherwise.
+
+    Pure orchestration of the functions above — no decision moves in here
+    except "which names are candidates", which is the pure filter.
+    """
+    service = drive_service()
+    if not service:
+        return {"auth": False}
+    if not page_token:
+        return {"baseline": start_page_token(service)}
+    changes, next_token = list_changes(service, str(page_token))
+    candidates = new_book_files(changes, library_folder_ids(service)) if changes else []
+    return {"changes": len(changes), "next_token": next_token, "candidates": candidates}
+
+
 # ---------------------------------------------------------------------------
 # Acting on a change
 # ---------------------------------------------------------------------------
@@ -410,34 +434,49 @@ def _tick(dry_run: bool = False) -> int:
         _log_throttle(state, elapsed_min)
         return 0
 
-    service = drive_service()
-    if not service:
+    # ⚠️ BOUNDED (2026-11-23). Every Drive call this tick makes — OAuth refresh
+    # (which can even open an interactive consent flow), the Changes listing
+    # and the library-folder listing — runs in a child killed at
+    # PROBE_TIMEOUT_S. On 2026-10-19 this task's wscript sat "running" from
+    # 12:29 for days, the same minute Firestore DNS began failing, and Task
+    # Scheduler refused every later tick. See app/core/bounded_call.py.
+    got = bounded_call.call(probe_drive, state.get("page_token"), timeout=PROBE_TIMEOUT_S)
+    if not got.ok:
+        state["last_poll"] = _now()
+        _save_state(state)
+        _log(f"Drive probe FAILED — {got.error}. Page token NOT advanced; "
+             "the next tick sees the same changes.")
+        return 0
+    probe = got.value or {}
+
+    if probe.get("auth") is False:
         _notice("idle — Drive auth unavailable (run scripts/sync_to_drive.py "
                 "interactively once to complete OAuth)")
         return 0
 
     # First ever tick: take a token and fire nothing. The pre-existing state of
     # Drive is not news, and the 8h STEP 0b pull is what covers it.
-    if not state.get("page_token"):
-        state["page_token"] = start_page_token(service)
+    if probe.get("baseline"):
+        state["page_token"] = probe["baseline"]
         state["last_poll"] = _now()
         _save_state(state)
         _log("baselined on the current Drive change token — not firing on pre-existing files")
         return 0
 
-    changes, next_token = list_changes(service, str(state["page_token"]))
+    n_changes = int(probe.get("changes") or 0)
+    next_token = str(probe.get("next_token") or state["page_token"])
+    candidates = list(probe.get("candidates") or [])
     state["last_poll"] = _now()
 
-    if not changes:
+    if not n_changes:
         state["page_token"] = next_token
         _save_state(state)
         return 0
 
-    candidates = new_book_files(changes, library_folder_ids(service))
     if not candidates:
         state["page_token"] = next_token
         _save_state(state)
-        _log(f"{len(changes)} Drive change(s), none a new book file in the library — nothing to do")
+        _log(f"{n_changes} Drive change(s), none a new book file in the library — nothing to do")
         return 0
 
     sample = ", ".join(sorted(set(candidates))[:3])
