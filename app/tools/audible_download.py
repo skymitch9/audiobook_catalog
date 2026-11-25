@@ -210,7 +210,7 @@ _UNABRIDGED = re.compile(r"\s*\(\s*unabridged\s*\)\s*$", re.IGNORECASE)
 _SUBTITLE_SERIES = re.compile(r"^([^:,()]+?),\s*Book\s+(\d+(?:\.\d+)?)$", re.IGNORECASE)
 
 
-def audible_tags(asin, meta, existing_title="", known_genre_paths=()):
+def audible_tags(asin, meta, existing_title="", known_genre_paths=(), summary=""):
     """The tags this converter writes into the NEW m4b, from the audible-cli
     library export row (``meta``). Pure, so it is unit-tested.
 
@@ -228,7 +228,10 @@ def audible_tags(asin, meta, existing_title="", known_genre_paths=()):
     * ``©gen`` = one Audible category ladder (``Top:Sub:Leaf``, OpenAudible's
       shape), only when it is a ladder the library already knows;
     * ``©day`` = the release date, unless Audible's is a placeholder;
-    * ``©nam``/``©alb`` = the container title minus "(Unabridged)".
+    * ``©nam``/``©alb`` = the container title minus "(Unabridged)";
+    * ``ldes`` = Audible's publisher summary as plain text (2026-11-24), when
+      one was fetched — the container carries none, which is how 136 library
+      files ended up with no description.
 
     Returns {atom: str}. Atoms with nothing real to say are left out, so the
     container's own value stays rather than being replaced by a guess."""
@@ -262,10 +265,34 @@ def audible_tags(asin, meta, existing_title="", known_genre_paths=()):
     if t and t != (existing_title or "").strip():
         out["\xa9nam"] = t
         out["\xa9alb"] = t
+    if (summary or "").strip():
+        out["ldes"] = summary.strip()
     return out
 
 
-def write_audible_tags(dest, asin, meta):
+def fetch_publisher_summary(asin, profile, timeout=90):
+    """Audible's public publisher summary for one ASIN, as plain text, or ''.
+
+    A read-only catalogue call (``audible api 1.0/catalog/products/<asin>``).
+    Any failure — no profile, network, a changed response — returns '' so a
+    download never fails for want of a blurb; the catalogue backfill
+    (scripts/audible_backfill.json) is the second chance."""
+    if not (asin and profile):
+        return ""
+    try:
+        r = _audible(profile, "api", f"1.0/catalog/products/{asin}",
+                     "-p", "response_groups=product_desc,product_extended_attrs", timeout=timeout)
+        if r.returncode != 0:
+            return ""
+        from app.metadata import _html_to_plain_text
+
+        product = json.loads(r.stdout or "{}").get("product") or {}
+        return _html_to_plain_text(product.get("publisher_summary") or "")
+    except Exception:  # noqa: BLE001 — a missing blurb is never fatal
+        return ""
+
+
+def write_audible_tags(dest, asin, meta, summary=""):
     """Write ``audible_tags`` into the m4b this converter just CREATED.
 
     Only ever called on our own fresh output file, never on a library file —
@@ -279,7 +306,10 @@ def write_audible_tags(dest, asin, meta):
         mp4.add_tags()
     current = mp4.tags.get("\xa9nam")
     current_title = str(current[0]) if current else ""
-    tags = audible_tags(asin, meta, current_title, ab.genre_paths())
+    # A description the container already carries is kept, never replaced.
+    if any(str((mp4.tags.get(k) or [""])[0]).strip() for k in ("ldes", "desc", "\xa9cmt")):
+        summary = ""
+    tags = audible_tags(asin, meta, current_title, ab.genre_paths(), summary)
     for atom, value in tags.items():
         mp4.tags[atom] = [value]
     mp4.save()
@@ -334,31 +364,34 @@ def download_and_convert(asin, title, profile=None, out_dir=DEFAULT_OUT, narrato
     if len(audio) > 1:
         _join_parts(ffmpeg, sorted(audio, key=natural_key), profile, title, narrator, tmp, dest)
         _rmtree(tmp, ignore_errors=True)
-        _tag_new_file(dest, asin, meta)
+        _tag_new_file(dest, asin, meta, profile)
         return dest
 
     src = audio[0]
-    meta = ["-metadata", f"composer={narrator}"] if narrator else []
+    # ⚠️ NOT `meta`: that name is the export row, and reusing it here (as this
+    # line did until 2026-11-24 evening) handed ffmpeg's argument list to
+    # _tag_new_file, so a single-file download got no Audible tags at all.
+    ff_meta = ["-metadata", f"composer={narrator}"] if narrator else []
     if src.suffix == ".aax":
         ab = activation_bytes(profile)
         cmd = [ffmpeg, "-y", "-activation_bytes", ab, "-i", str(src),
-               "-c", "copy", *meta, str(dest)]
+               "-c", "copy", *ff_meta, str(dest)]
     else:  # .aaxc — voucher json sits next to it
         voucher = json.loads(src.with_suffix(".voucher").read_text(encoding="utf-8"))
         lic = voucher["content_license"]["license_response"]
         cmd = [ffmpeg, "-y", "-audible_key", lic["key"], "-audible_iv", lic["iv"],
-               "-i", str(src), "-c", "copy", *meta, str(dest)]
+               "-i", str(src), "-c", "copy", *ff_meta, str(dest)]
     r = _run(cmd, timeout=3600)
     if r.returncode != 0 or not dest.exists():
         raise RuntimeError(f"ffmpeg convert failed: {(r.stderr or '')[-400:]}")
     _rmtree(tmp, ignore_errors=True)
-    _tag_new_file(dest, asin, meta)
+    _tag_new_file(dest, asin, meta, profile)
     return dest
 
 
-def _tag_new_file(dest, asin, meta):
+def _tag_new_file(dest, asin, meta, profile=None):
     try:
-        written = write_audible_tags(dest, asin, meta)
+        written = write_audible_tags(dest, asin, meta, fetch_publisher_summary(asin, profile))
         print(f"  [TAGS] {dest.name}: wrote {', '.join(sorted(written)) or 'nothing'}")
     except Exception as e:  # noqa: BLE001 — the audio is good; the catalogue backfill still covers it
         print(f"  [WARN] could not write Audible tags into {dest.name}: {e}")
