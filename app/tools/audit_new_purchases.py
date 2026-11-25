@@ -120,6 +120,69 @@ def title_matches(n, c):
     return re.search(r"(?<![a-z0-9])" + re.escape(a) + r"(?![a-z0-9])", b) is not None
 
 
+def _series_index(value):
+    """A series position as a float, or None when there is none or it is not one
+    number (Audible writes box sets as "1-5")."""
+    try:
+        return float(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def _authors_agree(purchase_authors, catalog_author):
+    """Do the purchase's authors and the catalog row's author name a common
+    person? Whole-word containment of a full name, or a shared surname. Either
+    side blank means it cannot be checked, so it does not veto."""
+    cat_names = [norm(x) for x in (catalog_author or "").split(",") if norm(x)]
+    buy_names = [norm(x) for x in (purchase_authors or "").split(",") if norm(x)]
+    if not cat_names or not buy_names:
+        return True
+    for p in buy_names:
+        for c in cat_names:
+            if title_matches(p, c) or p.split()[-1] == c.split()[-1]:
+                return True
+    return False
+
+
+def _shorter_catalog_title_is_this_book(b, metas):
+    """The catalog title is SHORTER than the purchase's and sits inside it: is
+    that catalog row really this purchase?
+
+    ⚠️ Whole-word containment alone said yes until 2026-11-25, and that hid
+    real purchases. "Portal to Nova Roma: Empire" (book 5) matched the
+    catalog's "Portal to Nova Roma" (book 1), and "Fall into You", "Mage
+    Tank", "Prey for Me" and five more matched one-word catalog titles by
+    other authors. Measured over all 1,139 purchases on the three profiles:
+    9 purchases matched only a shorter catalog title; this guard flips the 8
+    that were false and keeps "Where the Crawdads Sing: Reese's Book Club".
+
+    Owned only when SOME catalog row with that title has an agreeing author
+    and, where both sides carry a series position, the SAME position."""
+    want = _series_index(b.get("series_sequence"))
+    for m in metas:
+        if not _authors_agree(b.get("author"), m.get("author")):
+            continue
+        have = m.get("index")
+        if want is not None and have is not None and want != have:
+            continue
+        return True
+    return False
+
+
+def _owned_by(b, n, c, catalog_titles):
+    """Does catalog title ``c`` account for purchase ``b`` (normalized ``n``)?
+
+    ``catalog_titles`` is what ``load_catalog_titles()`` returns: a dict of
+    title -> [{author, index}]. A plain set of titles (older callers and the
+    match tests) has no metadata, so the shorter-title guard cannot run and the
+    old whole-word rule decides alone."""
+    if not title_matches(n, c):
+        return False
+    if len(c) >= len(n) or not isinstance(catalog_titles, dict):
+        return True
+    return _shorter_catalog_title_is_this_book(b, catalog_titles.get(c) or [])
+
+
 def missing_purchase_rows(books, catalog_titles, top=50, skip_asins=()):
     """The library ROWS (asin, profile and all) of recent purchases with no
     local match — the one "is it missing" decision. ``missing_purchases`` is
@@ -132,7 +195,7 @@ def missing_purchase_rows(books, catalog_titles, top=50, skip_asins=()):
         if b.get("asin") and b.get("asin") in skip_asins:
             continue
         n = norm(b.get("title_short") or b.get("title") or "")
-        have = any(title_matches(n, c) for c in catalog_titles) if n else False
+        have = any(_owned_by(b, n, c, catalog_titles) for c in catalog_titles) if n else False
         if not have:
             out.append(b)
     return out
@@ -149,12 +212,20 @@ def missing_purchases(books, catalog_titles, top=50, skip_asins=()):
 
 
 def load_catalog_titles():
-    titles = set()
+    """Normalized catalog title -> [{"author", "index"}], one entry per row.
+
+    A dict, not a set (2026-11-25): ``in`` and iteration behave exactly as the
+    old set did, and the author + series position are what let
+    ``_shorter_catalog_title_is_this_book`` tell book 5 from book 1."""
+    titles = {}
     with open(CATALOG_PATH, encoding="utf-8", newline="") as f:
         for row in csv.DictReader(f):
             n = norm(row.get("title"))
             if n:
-                titles.add(n)
+                titles.setdefault(n, []).append({
+                    "author": row.get("author") or "",
+                    "index": _series_index(row.get("series_index_sort")),
+                })
     return titles
 
 
