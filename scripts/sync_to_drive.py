@@ -1001,14 +1001,22 @@ def resolve_author_to_drive_folder(
         if folder_name.lower() == author_name.lower():
             return (folder_name, folder_id)
 
-    # 2. Normalized match (strip all non-alphanumeric, compare base before " - ")
+    # 2. Normalized match (strip punctuation/spacing, compare base before " - ")
+    #
+    # ⚠️ Unicode-aware, and an EMPTY key never matches (fix 2026-11-24). This
+    # used to strip everything outside a-z/0-9, so every non-Latin name
+    # normalised to "" and matched the first non-Latin folder: on 2026-11-23
+    # '五示正司' (Loner Life) was filed into 'りゅうせんひろつぐ' (a different
+    # author). Same normaliser as _contributor_key, so the two steps agree.
+    # Dry run over the 642 known author names x 485 Drive folders: that pair
+    # was the ONLY step-2 outcome this changes.
     import re
 
     def _normalize(s: str) -> str:
-        return re.sub(r'[^a-z0-9]', '', s.lower())
+        return re.sub(r"[\W_]+", "", s.casefold())
 
     author_norm = _normalize(author_name)
-    for folder_name, folder_id in drive_folders.items():
+    for folder_name, folder_id in (drive_folders.items() if author_norm else ()):
         # Compare against the base (before first " - ") and against the full name
         folder_base = folder_name.split(" - ")[0].strip()
         if _normalize(folder_base) == author_norm:
