@@ -29,7 +29,7 @@ rem the transcription chain and the 00:00-08:00 Phoenix ingest window; it takes
 rem uplink from them and nothing else. It also does NOT touch the pipeline lock
 rem (output_files\pipeline.lock) -- it has its own, so an archive run and a
 rem catalog run never block each other.
-cd /d "C:\Users\nbasl\OneDrive\Documents\vs-code-repos\bookbuddy\audiobook_catalog"
+cd /d "%~dp0.."
 set PYTHONIOENCODING=utf-8
 echo ================= %date% %time% ================= >> output_files\audio_archive.log
 python -m scripts.archive_audio_r2 --commit >> output_files\audio_archive.log 2>&1

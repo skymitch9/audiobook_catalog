@@ -7,5 +7,8 @@
 ' AudiobookPipelineWatcher and logs to output_files\pipeline_8h.log.
 Dim shell, batPath
 Set shell = CreateObject("Wscript.Shell")
-batPath = "C:\Users\nbasl\OneDrive\Documents\vs-code-repos\bookbuddy\audiobook_catalog\scripts\run_drive_poll.bat"
+' The .bat sits beside this file: resolved from WScript.ScriptFullName
+' (2026-11-25) so a repo move needs no edit here. The old hardcoded
+' OneDrive path kept working after the move only through a junction.
+batPath = CreateObject("Scripting.FileSystemObject").GetParentFolderName(WScript.ScriptFullName) & "\run_drive_poll.bat"
 WScript.Quit shell.Run("""" & batPath & """", 0, True)

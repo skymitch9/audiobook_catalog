@@ -15,7 +15,7 @@ rem human running this script by hand, --rebuild-only, the remote "run now"
 rem watcher trigger) defaults to trigger=manual and fails immediately
 rem instead of waiting. Do not remove this line without also revisiting
 rem pipeline_schedule.py's docstring.
-cd /d "C:\Users\nbasl\OneDrive\Documents\vs-code-repos\bookbuddy\audiobook_catalog"
+cd /d "%~dp0.."
 set PYTHONIOENCODING=utf-8
 set PIPELINE_TRIGGER=scheduled
 rem SYNC_NON_INTERACTIVE=1 (F2, 2026-08-26): this task has no console,

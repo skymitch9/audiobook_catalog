@@ -7,5 +7,8 @@
 ' All output still lands in output_files\processing_push.log via the .bat.
 Dim shell, batPath
 Set shell = CreateObject("Wscript.Shell")
-batPath = "C:\Users\nbasl\OneDrive\Documents\vs-code-repos\bookbuddy\audiobook_catalog\scripts\push_processing_board.bat"
+' The .bat sits beside this file: resolved from WScript.ScriptFullName
+' (2026-11-25) so a repo move needs no edit here. The old hardcoded
+' OneDrive path kept working after the move only through a junction.
+batPath = CreateObject("Scripting.FileSystemObject").GetParentFolderName(WScript.ScriptFullName) & "\push_processing_board.bat"
 WScript.Quit shell.Run("""" & batPath & """", 0, True)

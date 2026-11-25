@@ -28,7 +28,7 @@ rem
 rem Registration is the owner's call: docs/access/PIPELINE.md, "Purchase audit".
 rem Log: output_files\purchase_audit.log (one line per tick, including the ticks
 rem that do nothing).
-cd /d "C:\Users\nbasl\OneDrive\Documents\vs-code-repos\bookbuddy\audiobook_catalog"
+cd /d "%~dp0.."
 set PYTHONIOENCODING=utf-8
 rem SYNC_NON_INTERACTIVE=1: a run this task causes must never prompt (F2).
 set SYNC_NON_INTERACTIVE=1

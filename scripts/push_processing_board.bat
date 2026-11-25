@@ -20,13 +20,13 @@ rem history full of red for a page that renders its own staleness honestly
 rem would train the owner to ignore the one row that matters. The failure is
 rem visible where a failure belongs: in the log below, and on the page itself,
 rem which says how old its data is.
-cd /d "C:\Users\nbasl\OneDrive\Documents\vs-code-repos\bookbuddy\audiobook_catalog"
+cd /d "%~dp0.."
 rem KI-3: every scheduled wrapper this repo owns sets this, without exception,
 rem so the rule is "all of them" and not "the python ones". These three pushers
 rem are node today; a python step added below tomorrow would otherwise inherit
 rem a cp1252 pipe and die mid-run on the first non-ASCII book or author name.
 set PYTHONIOENCODING=utf-8
-node "C:\Users\nbasl\OneDrive\Documents\vs-code-repos\catalog-platform\scripts\push-processing-board.mjs" --by "board-push-task@home-pc" >> output_files\processing_push.log 2>&1
+node "..\..\catalog-platform\scripts\push-processing-board.mjs" --by "board-push-task@home-pc" >> output_files\processing_push.log 2>&1
 
 rem ---------------------------------------------------------------------------
 rem The other two home-side board sections, added 2026-08-18 with the /status
@@ -47,6 +47,6 @@ rem file race, and the loser's section is silently dropped. Keep them sequential
 rem
 rem !! STILL ALWAYS EXITS 0, for the reason above: a failed status push is not a
 rem failed machine.
-node "C:\Users\nbasl\OneDrive\Documents\vs-code-repos\catalog-platform\scripts\push-storage-board.mjs" --by "board-push-task@home-pc" >> output_files\processing_push.log 2>&1
-node "C:\Users\nbasl\OneDrive\Documents\vs-code-repos\catalog-platform\scripts\push-logs-board.mjs" --by "board-push-task@home-pc" >> output_files\processing_push.log 2>&1
+node "..\..\catalog-platform\scripts\push-storage-board.mjs" --by "board-push-task@home-pc" >> output_files\processing_push.log 2>&1
+node "..\..\catalog-platform\scripts\push-logs-board.mjs" --by "board-push-task@home-pc" >> output_files\processing_push.log 2>&1
 exit /b 0

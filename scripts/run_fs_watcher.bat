@@ -13,7 +13,7 @@ rem
 rem Registration is the owner's call: docs/access/PIPELINE.md, "Reactive
 rem watcher". Log: output_files\fs_watcher.log (watcher decisions only;
 rem the pipeline still logs to pipeline_8h.log).
-cd /d "C:\Users\nbasl\OneDrive\Documents\vs-code-repos\bookbuddy\audiobook_catalog"
+cd /d "%~dp0.."
 set PYTHONIOENCODING=utf-8
 rem ABSOLUTE interpreter, never bare "python": under Task Scheduler the
 rem bare name resolved to the WindowsApps Store stub and the first tick

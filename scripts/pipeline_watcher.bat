@@ -7,7 +7,7 @@ rem one small Firestore read, no output unless something happens.
 rem
 rem The pipeline's own log still goes to output_files\pipeline_8h.log; this file
 rem only records the watcher's own decisions.
-cd /d "C:\Users\nbasl\OneDrive\Documents\vs-code-repos\bookbuddy\audiobook_catalog"
+cd /d "%~dp0.."
 set PYTHONIOENCODING=utf-8
 rem
 rem LOG FILE IS pipeline_watcher_v2.log SINCE 2026-11-24 (owner order "B").

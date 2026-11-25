@@ -18,7 +18,7 @@ rem
 rem Registration is the owner's call: docs/access/README.md, "Drive poll".
 rem Log: output_files\drive_poll.log (this watcher's decisions only; the pull
 rem and the pipeline still log to their own files).
-cd /d "C:\Users\nbasl\OneDrive\Documents\vs-code-repos\bookbuddy\audiobook_catalog"
+cd /d "%~dp0.."
 set PYTHONIOENCODING=utf-8
 rem SYNC_NON_INTERACTIVE=1: a run this task causes must never prompt (F2).
 set SYNC_NON_INTERACTIVE=1
@@ -27,4 +27,4 @@ rem name resolved to the WindowsApps Store stub and the first tick HUNG
 rem invisibly forever - every later tick was then refused with 0x800710E0
 rem ("instance already running"), which reads as a conditions problem and is
 rem not one. Found 2026-08-16 on run_fs_watcher.bat, the day it was registered.
-"C:\Users\nbasl\OneDrive\Documents\vs-code-repos\bookbuddy\audiobook_catalog\.venv\Scripts\python.exe" -m app.tools.drive_poll >> output_files\drive_poll.log 2>&1
+".venv\Scripts\python.exe" -m app.tools.drive_poll >> output_files\drive_poll.log 2>&1

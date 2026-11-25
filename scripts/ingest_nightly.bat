@@ -31,7 +31,7 @@ rem
 rem Why not one long 8-hour run at midnight: a crash at 00:20 would cost the
 rem whole night, and nothing would resume it until the next day. A short task on
 rem a frequent cadence is self-healing -- the next fire picks the queue back up.
-cd /d "C:\Users\nbasl\OneDrive\Documents\vs-code-repos\bookbuddy\audiobook_catalog"
+cd /d "%~dp0.."
 set PYTHONIOENCODING=utf-8
 echo ================= %date% %time% ================= >> output_files\ingest_nightly.log
 python -m app.tools.ingest_books --run --opportunistic >> output_files\ingest_nightly.log 2>&1
@@ -74,6 +74,6 @@ rem Placed BEFORE the status push so the board reads the fresh index.
 python -m app.tools.ingest_books --publish-index >> output_files\ingest_nightly.log 2>&1
 if errorlevel 1 echo [WARN] index publish failed - see the lines above - the ingest run is unaffected >> output_files\ingest_nightly.log
 
-node "C:\Users\nbasl\OneDrive\Documents\vs-code-repos\catalog-platform\scripts\push-processing-board.mjs" --by "ingest-nightly@home-pc" >> output_files\processing_push.log 2>&1
+node "..\..\catalog-platform\scripts\push-processing-board.mjs" --by "ingest-nightly@home-pc" >> output_files\processing_push.log 2>&1
 if errorlevel 1 echo [WARN] status push failed - see output_files\processing_push.log - the ingest run above is unaffected >> output_files\ingest_nightly.log
 exit /b %INGEST_RC%
