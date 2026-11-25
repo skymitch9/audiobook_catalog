@@ -8975,5 +8975,72 @@
   "warnings": [],
   "source": "none",
   "checked_at": 1795639759
+ },
+ "Prey for Me": {
+  "warnings": [
+   {
+    "label": "On-page stalking",
+    "source_url": "https://www.shereadsromancebooks.com/prey-for-me/"
+   },
+   {
+    "label": "Violence and escalating threats",
+    "source_url": "https://www.shereadsromancebooks.com/prey-for-me/"
+   },
+   {
+    "label": "History of emotional abuse by a narcissistic ex-husband",
+    "source_url": "https://www.shereadsromancebooks.com/prey-for-me/"
+   },
+   {
+    "label": "Religious indoctrination / purity culture commentary / religious trauma",
+    "source_url": "https://www.shereadsromancebooks.com/prey-for-me/"
+   },
+   {
+    "label": "Mask play",
+    "source_url": "https://www.shereadsromancebooks.com/prey-for-me/"
+   },
+   {
+    "label": "Knife play",
+    "source_url": "https://www.shereadsromancebooks.com/prey-for-me/"
+   },
+   {
+    "label": "Heavy religious content",
+    "source_url": "https://onebookmore.com/2026/09/24/review-prey-for-me/"
+   }
+  ],
+  "source": "web",
+  "checked_at": 1795643443
+ },
+ "Mage Tank: A LitRPG Adventure": {
+  "warnings": [
+   {
+    "label": "Graphic Violence",
+    "source_url": "https://www.royalroad.com/fiction/76463/mage-tank"
+   },
+   {
+    "label": "Profanity",
+    "source_url": "https://www.royalroad.com/fiction/76463/mage-tank"
+   },
+   {
+    "label": "Sensitive Content",
+    "source_url": "https://www.royalroad.com/fiction/76463/mage-tank"
+   }
+  ],
+  "source": "web",
+  "checked_at": 1795643505
+ },
+ "Titan Mage Box Set": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1795643547
+ },
+ "Failure Frame: I Became the Strongest and Annihilated Everything with Low-Level Spells, Vol. 1: Light Novel": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1795643621
+ },
+ "Reset Your Day Meditations": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1795643659
  }
 }
