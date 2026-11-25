@@ -8932,5 +8932,48 @@
   "warnings": [],
   "source": "none",
   "checked_at": 1795637454
+ },
+ "Fall into You: Seasons of Love, Book 1": {
+  "warnings": [
+   {
+    "label": "Domestic abuse (Minor)",
+    "source_url": "https://app.thestorygraph.com/book_reviews/ee7d7c0b-b99a-4684-8da3-3cb045052402"
+   },
+   {
+    "label": "Miscarriage (Minor)",
+    "source_url": "https://app.thestorygraph.com/book_reviews/ee7d7c0b-b99a-4684-8da3-3cb045052402"
+   },
+   {
+    "label": "Grief (Minor)",
+    "source_url": "https://app.thestorygraph.com/book_reviews/ee7d7c0b-b99a-4684-8da3-3cb045052402"
+   },
+   {
+    "label": "Pregnancy (Minor)",
+    "source_url": "https://app.thestorygraph.com/book_reviews/ee7d7c0b-b99a-4684-8da3-3cb045052402"
+   },
+   {
+    "label": "Loss of a parent",
+    "source_url": "https://www.goodreads.com/en/book/show/59088440-fall-into-you"
+   },
+   {
+    "label": "Open Door Spice (explicit sexual content)",
+    "source_url": "https://scribblesbookshop.com/products/fall-into-you-by-caroline-frank-signed-pre-order"
+   },
+   {
+    "label": "Explicit Language",
+    "source_url": "https://scribblesbookshop.com/products/fall-into-you-by-caroline-frank-signed-pre-order"
+   },
+   {
+    "label": "Death/loss of a parent (both main characters)",
+    "source_url": "https://www.romance.io/books/617cef9503fcb30e33514d8d/fall-into-you-caroline-frank"
+   }
+  ],
+  "source": "web",
+  "checked_at": 1795639451
+ },
+ "Overpowered Level 1 Mage: OP MC Cozy Slice of Life Litrpg": {
+  "warnings": [],
+  "source": "none",
+  "checked_at": 1795639759
  }
 }
