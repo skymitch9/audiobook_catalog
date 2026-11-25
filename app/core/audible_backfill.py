@@ -30,7 +30,12 @@ Fill-only, and only over a placeholder:
 
 * ``genre`` when the tag says ``Audiobook`` (or nothing);
 * ``year`` when the tag year is a known placeholder (``2000``, or a year in
-  the future such as Audible's ``2200``) AND Audible gives a real one.
+  the future such as Audible's ``2200``) AND Audible gives a real one;
+* ``desc`` (added 2026-11-24) when the file carries NO description tag at all
+  (``ldes``/``desc``/``©cmt``): Audible's ``publisher_summary``, already
+  cleaned to plain text by the builder. 136 files had none — every one an
+  ffmpeg remux whose source part carried no description. See
+  ``description()``; ``app/metadata.extract_metadata`` is the only caller.
 
 It never overrides a real tag value, and the corrections layer
 (``scripts/catalog_overrides.json``) still runs after it and wins.
@@ -126,6 +131,15 @@ def lookup(title_tag: Optional[str], artist_tag: Optional[str], asin_tag: Option
     if title_tag:
         return _DATA["by_tags"].get((_norm(title_tag), _norm(artist_tag)))
     return None
+
+
+def description(entry: Optional[dict]) -> str:
+    """Audible's publisher summary for a file whose own tags carry NO
+    description — '' when there is none. The caller only asks when the file's
+    own description is empty, so a real tag always wins."""
+    if not entry:
+        return ""
+    return str(entry.get("desc") or "").strip()
 
 
 def fill(row: Dict[str, Optional[str]], entry: Optional[dict]) -> Dict[str, Optional[str]]:

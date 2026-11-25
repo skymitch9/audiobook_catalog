@@ -421,8 +421,10 @@ def extract_metadata(path: Path) -> Dict[str, str]:
     duration = getattr(getattr(audio, "info", None), "length", None)
     length_sec = int(duration) if duration else None
 
-    # Description (cleaned)
-    desc = _extract_description(tags) or ""
+    # Description (cleaned). A file with NO description tag gets Audible's
+    # publisher summary from scripts/audible_backfill.json, if it has one
+    # (2026-11-24; fill-only — a real tag always wins).
+    desc = _extract_description(tags) or audible_backfill.description(_backfill_entry(tags))
 
     # 1-3) Tags, free-form hints, then conservative title parsing.
     derived = derive_correctable_fields(tags)
