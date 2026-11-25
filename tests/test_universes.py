@@ -275,7 +275,12 @@ def test_the_counts_the_owner_signed_off():
         # because an exclusion is a GLOBAL stop and would have blocked the new
         # Reckoners/Cytoverse overrides on those exact titles. The Cosmere
         # still refuses all three, via notSeries and the new entries' own why.
-        "The Cosmere": (4, 36, 5),
+        # series 4 -> 5 on 2026-10-28 (catalog-platform f2d615e, owner):
+        # +Hoid's Storybook Collection, the four Dragonsteel storybooks
+        # including the non-canonical ChasmFriends. This pin was not updated
+        # that day, so the test failed locally for four weeks (CI skips it:
+        # no catalog-platform checkout) — fixed 2026-11-24.
+        "The Cosmere": (5, 36, 5),
         # 12 since 2026-08-12: Turncoat's Truth restored from _refused once the owner
         # verified the co-authored book does sit inside the continuity.
         "Runnerverse": (12, 3, 0),
