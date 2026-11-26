@@ -265422,5 +265422,81 @@
    }
   ],
   "parts": []
+ },
+ "Reincarnated as a Sword (Light Novel) Vol. 19": {
+  "source": "m4b",
+  "chapters": [
+   {
+    "title": "Chapter 1",
+    "start_min": 0.0,
+    "start_sec": 0.0
+   },
+   {
+    "title": "Chapter 2",
+    "start_min": 0.7,
+    "start_sec": 41.192
+   },
+   {
+    "title": "Chapter 3",
+    "start_min": 4.5,
+    "start_sec": 267.238
+   },
+   {
+    "title": "Chapter 4",
+    "start_min": 65.1,
+    "start_sec": 3906.247
+   },
+   {
+    "title": "Chapter 5",
+    "start_min": 126.0,
+    "start_sec": 7562.995
+   },
+   {
+    "title": "Chapter 6",
+    "start_min": 200.9,
+    "start_sec": 12052.735
+   },
+   {
+    "title": "Chapter 7",
+    "start_min": 243.6,
+    "start_sec": 14616.451
+   },
+   {
+    "title": "Chapter 8",
+    "start_min": 296.0,
+    "start_sec": 17762.662
+   },
+   {
+    "title": "Chapter 9",
+    "start_min": 346.1,
+    "start_sec": 20768.461
+   },
+   {
+    "title": "Chapter 10",
+    "start_min": 420.8,
+    "start_sec": 25246.894
+   },
+   {
+    "title": "Chapter 11",
+    "start_min": 497.5,
+    "start_sec": 29848.346
+   },
+   {
+    "title": "Chapter 12",
+    "start_min": 568.2,
+    "start_sec": 34093.79
+   },
+   {
+    "title": "Chapter 13",
+    "start_min": 638.9,
+    "start_sec": 38336.192
+   },
+   {
+    "title": "Chapter 14",
+    "start_min": 641.6,
+    "start_sec": 38498.592
+   }
+  ],
+  "parts": []
  }
 }
